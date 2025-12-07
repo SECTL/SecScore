@@ -1,0 +1,5 @@
+{
+  "database_url": "sqlite://./edu_points.db",
+  "migrations_dir": "./migrations",
+  "rustfmt": true
+}

@@ -1,0 +1,5 @@
+{
+  "database_url": "sqlite:./db.sqlite",
+  "migrations_dir": "src-tauri/migrations",
+  "rustfmt": true
+}
