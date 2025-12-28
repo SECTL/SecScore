@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="qt/qml/SecScore">
+        <file>qml/App.qml</file>
+    </qresource>
+</RCC>

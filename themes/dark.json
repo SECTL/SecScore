@@ -1,0 +1,43 @@
+{
+  "name": "Dark",
+  "colors": {
+    "background": "#2d2d2d",
+    "surface": "#353535",
+    "primary": "#4A90E2",
+    "primaryDark": "#357ABD",
+    "text": "#ffffff",
+    "textSecondary": "#b0b0b0",
+    "textDisabled": "#666666",
+    "border": "#444444",
+    "divider": "#404040",
+    "success": "#4CAF50",
+    "warning": "#FF9800",
+    "danger": "#F44336",
+    "info": "#2196F3",
+    "card": "#353535"
+  },
+  "radius": {
+    "small": 4,
+    "medium": 8,
+    "large": 12,
+    "round": 50
+  },
+  "spacing": {
+    "xxs": 4,
+    "xs": 8,
+    "sm": 12,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "xxl": 48
+  },
+  "fonts": {
+    "tiny": 10,
+    "small": 12,
+    "medium": 14,
+    "large": 16,
+    "xlarge": 18,
+    "xxlarge": 20,
+    "title": 24
+  }
+}
