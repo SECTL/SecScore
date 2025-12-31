@@ -6,6 +6,8 @@
 
 class Database;
 class ThemeService;
+class WsClient;
+class SyncEngine;
 
 class App : public QObject
 {
@@ -42,6 +44,12 @@ public:
     Q_INVOKABLE QVariantMap loadSettings();
     Q_INVOKABLE void saveSettings(const QVariantMap &settings);
     Q_INVOKABLE bool isFirstRun();
+    Q_INVOKABLE void completeFirstRun();
+
+    Database* database() const { return m_database; }
+    ThemeService* themeService() const { return m_themeService; }
+    WsClient* wsClient() const { return m_wsClient; }
+    SyncEngine* syncEngine() const { return m_syncEngine; }
 
 public slots:
     void onThemeChanged(const QString &themePath);
@@ -64,9 +72,11 @@ private:
 private:
     QString m_dataPath;
     bool m_initialized = false;
-    QString m_runMode = "local"; // "local" or "remote"
+    QString m_runMode = "Local"; // "Local" or "Remote"
     QString m_wsUrl = "";
 
     Database *m_database = nullptr;
     ThemeService *m_themeService = nullptr;
+    WsClient *m_wsClient = nullptr;
+    SyncEngine *m_syncEngine = nullptr;
 };

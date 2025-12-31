@@ -1,5 +1,17 @@
-<RCC>
-    <qresource prefix="qt/qml/SecScore">
-        <file>qml/App.qml</file>
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <!-- QML files -->
+        <file>../qml/App.qml</file>
+        <file>../qml/qmldir</file>
+        <file>../qml/pages/StudentsPage.qml</file>
+        <file>../qml/pages/EventsPage.qml</file>
+        <file>../qml/pages/LeaderboardPage.qml</file>
+        <file>../qml/pages/SyncPage.qml</file>
+        
+        <!-- Theme files -->
+        <file>../themes/default.json</file>
+        <file>../themes/dark.json</file>
+        <file>../themes/README.md</file>
     </qresource>
 </RCC>

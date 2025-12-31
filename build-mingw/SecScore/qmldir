@@ -1,0 +1,6 @@
+module SecScore
+typeinfo SecScore.qmltypes
+prefer :/qt/qml/SecScore/
+App 1.0 qml/App.qml
+depends QtQuick
+

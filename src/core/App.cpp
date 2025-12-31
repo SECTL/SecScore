@@ -1,17 +1,22 @@
 #include "App.h"
+#include "data/Database.h"
 #include "ThemeService.h"
-#include "Database.h"
-#include <QStandardPaths>
+#include "network/WsClient.h"
+#include "sync/SyncEngine.h"
 #include <QDir>
+#include <QStandardPaths>
 #include <QSettings>
-#include <QFile>
-#include <QJsonObject>
 #include <QJsonDocument>
-#include <QCoreApplication>
+#include <QJsonObject>
+#include <QFile>
 #include <QDebug>
 
 App::App(QObject *parent)
-    : QObject(parent)
+    : QObject{parent}
+    , m_database(nullptr)
+    , m_themeService(nullptr)
+    , m_wsClient(nullptr)
+    , m_syncEngine(nullptr)
 {
 }
 
@@ -25,84 +30,70 @@ bool App::initialize()
     setupDataPath();
     loadSettingsInternal();
 
-    // Initialize ThemeService
-    m_themeService = new ThemeService(this);
-    connect(m_themeService, &ThemeService::themeChanged,
-            this, &App::onThemeChanged);
-
-    // Load theme from application directory
-    QString appDirPath = QCoreApplication::applicationDirPath();
-    QString initialTheme = appDirPath + "/themes/default.json";
-
-    if (QFile::exists(initialTheme)) {
-        m_themeService->loadTheme(initialTheme);
-    } else {
-        qWarning() << "Theme file not found:" << initialTheme;
-    }
-
-    // Initialize Database
+    // Initialize database
     m_database = new Database(this);
-    if (!m_database->initialize(m_dataPath + "/app.db")) {
+    if (!m_database->initialize(QDir(m_dataPath).filePath("app.db"))) {
         qCritical() << "Failed to initialize database";
         return false;
     }
 
+    // Initialize theme service
+    m_themeService = new ThemeService(this);
+    connect(m_themeService, &ThemeService::themeChanged,
+            this, &App::onThemeChanged);
+
+    QString themesPath = QDir(m_dataPath).filePath("themes");
+    copyDefaultThemes(themesPath);
+    m_themeService->setThemesPath(themesPath);
+
+    // Load default theme
+    QString defaultTheme = QDir(themesPath).filePath("default.json");
+    if (QFile::exists(defaultTheme)) {
+        m_themeService->loadTheme(defaultTheme);
+    }
+
+    // Initialize Network and Sync
+    m_wsClient = new WsClient(this);
+    m_syncEngine = new SyncEngine(m_wsClient, m_database, this);
+
+    if (m_runMode == "Remote" && !m_wsUrl.isEmpty()) {
+        m_wsClient->connectToServer(m_wsUrl);
+        m_syncEngine->start();
+    }
+
     m_initialized = true;
     emit initializedChanged();
-
-    qDebug() << "App initialized successfully";
-    qDebug() << "Run mode:" << m_runMode;
-    qDebug() << "Data path:" << m_dataPath;
-
     return true;
 }
 
 void App::cleanup()
 {
     if (m_database) {
-        delete m_database;
+        m_database->cleanup();
         m_database = nullptr;
     }
-}
-
-void App::setupDataPath()
-{
-    // Use AppDataLocation for data storage
-    QString basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    m_dataPath = basePath;
-
-    // Ensure directory exists
-    QDir dir;
-    if (!dir.exists(m_dataPath)) {
-        if (dir.mkpath(m_dataPath)) {
-            qDebug() << "Created data directory:" << m_dataPath;
-        } else {
-            qWarning() << "Failed to create data directory:" << m_dataPath;
-        }
-    }
-
-    // Create themes directory
-    QString themesPath = m_dataPath + "/themes";
-    if (!dir.exists(themesPath)) {
-        dir.mkpath(themesPath);
-    }
-}
-
-void App::loadSettingsInternal()
-{
-    QSettings settings;
-    m_runMode = settings.value("runMode", "local").toString();
-    m_wsUrl = settings.value("wsUrl", "").toString();
 }
 
 void App::setRunMode(const QString &mode)
 {
     if (m_runMode != mode) {
         m_runMode = mode;
+        emit runModeChanged();
+        
         QSettings settings;
         settings.setValue("runMode", mode);
-        emit runModeChanged();
-        qDebug() << "Run mode changed to:" << mode;
+
+        if (m_syncEngine) {
+            if (mode == "Remote") {
+                if (!m_wsUrl.isEmpty()) {
+                    m_wsClient->connectToServer(m_wsUrl);
+                    m_syncEngine->start();
+                }
+            } else {
+                m_syncEngine->stop();
+                m_wsClient->disconnect();
+            }
+        }
     }
 }
 
@@ -110,70 +101,10 @@ void App::setWsUrl(const QString &url)
 {
     if (m_wsUrl != url) {
         m_wsUrl = url;
+        emit wsUrlChanged();
+        
         QSettings settings;
         settings.setValue("wsUrl", url);
-        emit wsUrlChanged();
-        qDebug() << "WebSocket URL changed to:" << url;
-    }
-}
-
-QVariantMap App::loadSettings()
-{
-    QSettings settings;
-    QVariantMap result;
-    result["runMode"] = settings.value("runMode", "local");
-    result["wsUrl"] = settings.value("wsUrl", "");
-    result["theme"] = settings.value("theme", "default");
-    return result;
-}
-
-void App::saveSettings(const QVariantMap &settings)
-{
-    QSettings s;
-    if (settings.contains("runMode")) {
-        s.setValue("runMode", settings["runMode"]);
-    }
-    if (settings.contains("wsUrl")) {
-        s.setValue("wsUrl", settings["wsUrl"]);
-    }
-    if (settings.contains("theme")) {
-        s.setValue("theme", settings["theme"]);
-    }
-}
-
-bool App::isFirstRun()
-{
-    QSettings settings;
-    return !settings.contains("firstRunCompleted");
-}
-
-void App::onThemeChanged(const QString &themePath)
-{
-    qDebug() << "Theme changed to:" << themePath;
-    emit themeChanged(themePath);
-    emit colorsChanged();
-    emit radiusChanged();
-    emit spacingChanged();
-    emit fontsChanged();
-}
-
-void App::copyDefaultThemes(const QString &themesPath)
-{
-    // For development, copy themes from project directory to data directory
-    QDir themesDir(themesPath);
-
-    QStringList themeFiles = {"default.json", "dark.json"};
-    QString sourcePath = QCoreApplication::applicationDirPath() + "/../themes";
-
-    for (const QString &file : themeFiles) {
-        QString sourceFile = sourcePath + "/" + file;
-        QString destFile = themesPath + "/" + file;
-
-        if (!QFile::exists(destFile) && QFile::exists(sourceFile)) {
-            if (QFile::copy(sourceFile, destFile)) {
-                qDebug() << "Copied theme file:" << file;
-            }
-        }
     }
 }
 
@@ -195,4 +126,163 @@ QVariantMap App::spacing() const
 QVariantMap App::fonts() const
 {
     return m_themeService ? m_themeService->fonts() : QVariantMap();
+}
+
+QVariantMap App::loadSettings()
+{
+    QSettings settings;
+    QVariantMap result;
+    result["runMode"] = settings.value("runMode", "Local").toString();
+    result["wsUrl"] = settings.value("wsUrl", "").toString();
+    result["theme"] = settings.value("theme", "default.json").toString();
+    return result;
+}
+
+void App::saveSettings(const QVariantMap &settings)
+{
+    QSettings s;
+    if (settings.contains("runMode"))
+        s.setValue("runMode", settings["runMode"].toString());
+    if (settings.contains("wsUrl"))
+        s.setValue("wsUrl", settings["wsUrl"].toString());
+    if (settings.contains("theme"))
+        s.setValue("theme", settings["theme"].toString());
+}
+
+bool App::isFirstRun()
+{
+    QSettings settings;
+    return !settings.contains("firstRunCompleted");
+}
+
+void App::completeFirstRun()
+{
+    QSettings settings;
+    settings.setValue("firstRunCompleted", true);
+}
+
+void App::onThemeChanged(const QString &themePath)
+{
+    emit colorsChanged();
+    emit radiusChanged();
+    emit spacingChanged();
+    emit fontsChanged();
+    
+    QSettings settings;
+    settings.setValue("theme", QFileInfo(themePath).fileName());
+}
+
+void App::setupDataPath()
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir dir(path);
+    if (!dir.exists()) {
+        dir.mkpath(path);
+    }
+    m_dataPath = path;
+}
+
+void App::loadSettingsInternal()
+{
+    QSettings settings;
+    m_runMode = settings.value("runMode", "Local").toString();
+    if (m_runMode.compare("remote", Qt::CaseInsensitive) == 0) m_runMode = "Remote";
+    if (m_runMode.compare("local", Qt::CaseInsensitive) == 0) m_runMode = "Local";
+    m_wsUrl = settings.value("wsUrl", "").toString();
+}
+
+void App::copyDefaultThemes(const QString &themesPath)
+{
+    QDir dir(themesPath);
+    if (!dir.exists()) {
+        dir.mkpath(themesPath);
+    }
+
+    // Copy default themes from resources if they don't exist
+    // Since we don't have resource files yet, we'll write them directly
+    QString defaultThemePath = QDir(themesPath).filePath("default.json");
+    if (!QFile::exists(defaultThemePath)) {
+        QJsonObject colors;
+        colors["primary"] = "#3498db";
+        colors["secondary"] = "#2ecc71";
+        colors["background"] = "#f5f6fa";
+        colors["surface"] = "#ffffff";
+        colors["text"] = "#2c3e50";
+        colors["textSecondary"] = "#7f8c8d";
+        colors["border"] = "#dcdde1";
+        colors["success"] = "#27ae60";
+        colors["warning"] = "#f39c12";
+        colors["error"] = "#c0392b";
+
+        QJsonObject radius;
+        radius["small"] = 4;
+        radius["medium"] = 8;
+        radius["large"] = 12;
+
+        QJsonObject spacing;
+        spacing["small"] = 8;
+        spacing["medium"] = 16;
+        spacing["large"] = 24;
+
+        QJsonObject fonts;
+        fonts["small"] = 12;
+        fonts["medium"] = 14;
+        fonts["large"] = 18;
+        fonts["xlarge"] = 24;
+
+        QJsonObject theme;
+        theme["colors"] = colors;
+        theme["radius"] = radius;
+        theme["spacing"] = spacing;
+        theme["fonts"] = fonts;
+
+        QFile file(defaultThemePath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QJsonDocument(theme).toJson());
+            file.close();
+        }
+    }
+
+    QString darkThemePath = QDir(themesPath).filePath("dark.json");
+    if (!QFile::exists(darkThemePath)) {
+        QJsonObject colors;
+        colors["primary"] = "#3498db";
+        colors["secondary"] = "#2ecc71";
+        colors["background"] = "#2c3e50";
+        colors["surface"] = "#34495e";
+        colors["text"] = "#ecf0f1";
+        colors["textSecondary"] = "#bdc3c7";
+        colors["border"] = "#7f8c8d";
+        colors["success"] = "#2ecc71";
+        colors["warning"] = "#f1c40f";
+        colors["error"] = "#e74c3c";
+
+        QJsonObject radius;
+        radius["small"] = 4;
+        radius["medium"] = 8;
+        radius["large"] = 12;
+
+        QJsonObject spacing;
+        spacing["small"] = 8;
+        spacing["medium"] = 16;
+        spacing["large"] = 24;
+
+        QJsonObject fonts;
+        fonts["small"] = 12;
+        fonts["medium"] = 14;
+        fonts["large"] = 18;
+        fonts["xlarge"] = 24;
+
+        QJsonObject theme;
+        theme["colors"] = colors;
+        theme["radius"] = radius;
+        theme["spacing"] = spacing;
+        theme["fonts"] = fonts;
+
+        QFile file(darkThemePath);
+        if (file.open(QIODevice::WriteOnly)) {
+            file.write(QJsonDocument(theme).toJson());
+            file.close();
+        }
+    }
 }

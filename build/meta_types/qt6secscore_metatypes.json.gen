@@ -1,0 +1,1171 @@
+[
+    {
+        "classes": [
+            {
+                "className": "EventRepo",
+                "lineNumber": 7,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 0,
+                        "lineNumber": 14,
+                        "name": "create",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 1,
+                        "lineNumber": 15,
+                        "name": "update",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 2,
+                        "lineNumber": 16,
+                        "name": "remove",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 17,
+                        "name": "getById",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "index": 4,
+                        "lineNumber": 18,
+                        "name": "getAll",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "type",
+                                "type": "int"
+                            },
+                            {
+                                "name": "refId",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 5,
+                        "lineNumber": 19,
+                        "name": "getByRefId",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "limit",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 6,
+                        "lineNumber": 20,
+                        "name": "getRecent",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "index": 7,
+                        "isCloned": true,
+                        "lineNumber": 20,
+                        "name": "getRecent",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 8,
+                        "lineNumber": 22,
+                        "name": "createWithId",
+                        "returnType": "int"
+                    }
+                ],
+                "object": true,
+                "qualifiedClassName": "EventRepo",
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "EventRepo.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "ReasonRepo",
+                "lineNumber": 7,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 0,
+                        "lineNumber": 14,
+                        "name": "create",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 1,
+                        "lineNumber": 15,
+                        "name": "update",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 2,
+                        "lineNumber": 16,
+                        "name": "remove",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 17,
+                        "name": "getById",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "index": 4,
+                        "lineNumber": 18,
+                        "name": "getAll",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 5,
+                        "lineNumber": 19,
+                        "name": "createWithId",
+                        "returnType": "int"
+                    }
+                ],
+                "object": true,
+                "qualifiedClassName": "ReasonRepo",
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "ReasonRepo.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "StudentRepo",
+                "lineNumber": 7,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 0,
+                        "lineNumber": 14,
+                        "name": "create",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 1,
+                        "lineNumber": 15,
+                        "name": "update",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 2,
+                        "lineNumber": 16,
+                        "name": "remove",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 17,
+                        "name": "getById",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "index": 4,
+                        "lineNumber": 18,
+                        "name": "getAll",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "whereClause",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 5,
+                        "lineNumber": 19,
+                        "name": "query",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "index": 6,
+                        "isCloned": true,
+                        "lineNumber": 19,
+                        "name": "query",
+                        "returnType": "QVariantList"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "id",
+                                "type": "int"
+                            },
+                            {
+                                "name": "data",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 7,
+                        "lineNumber": 21,
+                        "name": "createWithId",
+                        "returnType": "int"
+                    }
+                ],
+                "object": true,
+                "qualifiedClassName": "StudentRepo",
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "StudentRepo.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "App",
+                "lineNumber": 12,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "mode",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 9,
+                        "lineNumber": 42,
+                        "name": "setRunMode",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "url",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 10,
+                        "lineNumber": 43,
+                        "name": "setWsUrl",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 11,
+                        "lineNumber": 44,
+                        "name": "loadSettings",
+                        "returnType": "QVariantMap"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "settings",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 12,
+                        "lineNumber": 45,
+                        "name": "saveSettings",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 13,
+                        "lineNumber": 46,
+                        "name": "isFirstRun",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "index": 14,
+                        "lineNumber": 47,
+                        "name": "completeFirstRun",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "lineNumber": 15,
+                        "name": "appVersion",
+                        "read": "appVersion",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": true,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "lineNumber": 16,
+                        "name": "dataPath",
+                        "read": "dataPath",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "lineNumber": 17,
+                        "name": "isInitialized",
+                        "notify": "initializedChanged",
+                        "read": "isInitialized",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 3,
+                        "lineNumber": 18,
+                        "name": "runMode",
+                        "notify": "runModeChanged",
+                        "read": "runMode",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setRunMode"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 4,
+                        "lineNumber": 19,
+                        "name": "wsUrl",
+                        "notify": "wsUrlChanged",
+                        "read": "wsUrl",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false,
+                        "write": "setWsUrl"
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 5,
+                        "lineNumber": 20,
+                        "name": "colors",
+                        "notify": "colorsChanged",
+                        "read": "colors",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 6,
+                        "lineNumber": 21,
+                        "name": "radius",
+                        "notify": "radiusChanged",
+                        "read": "radius",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 7,
+                        "lineNumber": 22,
+                        "name": "spacing",
+                        "notify": "spacingChanged",
+                        "read": "spacing",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 8,
+                        "lineNumber": 23,
+                        "name": "fonts",
+                        "notify": "fontsChanged",
+                        "read": "fonts",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QVariantMap",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "App",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "lineNumber": 58,
+                        "name": "initializedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "lineNumber": 59,
+                        "name": "runModeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 2,
+                        "lineNumber": 60,
+                        "name": "wsUrlChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "themePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 61,
+                        "name": "themeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 4,
+                        "lineNumber": 62,
+                        "name": "colorsChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 5,
+                        "lineNumber": 63,
+                        "name": "radiusChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 6,
+                        "lineNumber": 64,
+                        "name": "spacingChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 7,
+                        "lineNumber": 65,
+                        "name": "fontsChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "themePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 8,
+                        "lineNumber": 55,
+                        "name": "onThemeChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "App.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "ThemeService",
+                "lineNumber": 7,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "path",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 18,
+                        "name": "setThemesPath",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "themePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "lineNumber": 19,
+                        "name": "loadTheme",
+                        "returnType": "bool"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "name",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 5,
+                        "lineNumber": 20,
+                        "name": "loadThemeByName",
+                        "returnType": "bool"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "lineNumber": 11,
+                        "name": "availableThemes",
+                        "notify": "availableThemesChanged",
+                        "read": "availableThemes",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QStringList",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "lineNumber": 12,
+                        "name": "currentThemeName",
+                        "notify": "themeChanged",
+                        "read": "currentThemeName",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "ThemeService",
+                "signals": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "themePath",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 0,
+                        "lineNumber": 31,
+                        "name": "themeChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "lineNumber": 32,
+                        "name": "availableThemesChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "path",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 2,
+                        "lineNumber": 35,
+                        "name": "onThemeFileChanged",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "ThemeService.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "Database",
+                "lineNumber": 6,
+                "object": true,
+                "qualifiedClassName": "Database",
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "Database.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "WsClient",
+                "lineNumber": 11,
+                "methods": [
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "url",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 8,
+                        "lineNumber": 24,
+                        "name": "connectToServer",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 9,
+                        "lineNumber": 25,
+                        "name": "disconnect",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "category",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "action",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "payload",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 10,
+                        "lineNumber": 26,
+                        "name": "sendRequest",
+                        "returnType": "QString"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "lineNumber": 14,
+                        "name": "connected",
+                        "notify": "connectedChanged",
+                        "read": "connected",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "lineNumber": 15,
+                        "name": "connectionState",
+                        "notify": "connectionStateChanged",
+                        "read": "connectionState",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "WsClient",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "lineNumber": 29,
+                        "name": "connectedChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "lineNumber": 30,
+                        "name": "connectionStateChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "seq",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "response",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 2,
+                        "lineNumber": 31,
+                        "name": "responseReceived",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 32,
+                        "name": "errorOccurred",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "index": 4,
+                        "lineNumber": 35,
+                        "name": "onConnected",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "index": 5,
+                        "lineNumber": 36,
+                        "name": "onDisconnected",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 6,
+                        "lineNumber": 37,
+                        "name": "onTextMessageReceived",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "index": 7,
+                        "lineNumber": 39,
+                        "name": "onTimeout",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "WsClient.h",
+        "outputRevision": 69
+    },
+    {
+        "classes": [
+            {
+                "className": "SyncEngine",
+                "lineNumber": 10,
+                "methods": [
+                    {
+                        "access": "public",
+                        "index": 8,
+                        "lineNumber": 25,
+                        "name": "start",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 9,
+                        "lineNumber": 26,
+                        "name": "stop",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "seq",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "payload",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 10,
+                        "lineNumber": 27,
+                        "name": "queueOutgoing",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 11,
+                        "lineNumber": 28,
+                        "name": "pullChanges",
+                        "returnType": "void"
+                    }
+                ],
+                "object": true,
+                "properties": [
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 0,
+                        "lineNumber": 13,
+                        "name": "isSyncing",
+                        "notify": "syncingChanged",
+                        "read": "isSyncing",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "bool",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 1,
+                        "lineNumber": 14,
+                        "name": "syncStatus",
+                        "notify": "syncStatusChanged",
+                        "read": "syncStatus",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "QString",
+                        "user": false
+                    },
+                    {
+                        "constant": false,
+                        "designable": true,
+                        "final": false,
+                        "index": 2,
+                        "lineNumber": 15,
+                        "name": "pendingOutbox",
+                        "notify": "outboxChanged",
+                        "read": "pendingOutbox",
+                        "required": false,
+                        "scriptable": true,
+                        "stored": true,
+                        "type": "int",
+                        "user": false
+                    }
+                ],
+                "qualifiedClassName": "SyncEngine",
+                "signals": [
+                    {
+                        "access": "public",
+                        "index": 0,
+                        "lineNumber": 31,
+                        "name": "syncingChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 1,
+                        "lineNumber": 32,
+                        "name": "syncStatusChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "index": 2,
+                        "lineNumber": 33,
+                        "name": "outboxChanged",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "success",
+                                "type": "bool"
+                            }
+                        ],
+                        "index": 3,
+                        "lineNumber": 34,
+                        "name": "syncCompleted",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "public",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 4,
+                        "lineNumber": 35,
+                        "name": "syncError",
+                        "returnType": "void"
+                    }
+                ],
+                "slots": [
+                    {
+                        "access": "private",
+                        "index": 5,
+                        "lineNumber": 38,
+                        "name": "processOutbox",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "seq",
+                                "type": "QString"
+                            },
+                            {
+                                "name": "response",
+                                "type": "QVariantMap"
+                            }
+                        ],
+                        "index": 6,
+                        "lineNumber": 39,
+                        "name": "onWsResponse",
+                        "returnType": "void"
+                    },
+                    {
+                        "access": "private",
+                        "arguments": [
+                            {
+                                "name": "message",
+                                "type": "QString"
+                            }
+                        ],
+                        "index": 7,
+                        "lineNumber": 40,
+                        "name": "onWsError",
+                        "returnType": "void"
+                    }
+                ],
+                "superClasses": [
+                    {
+                        "access": "public",
+                        "name": "QObject"
+                    }
+                ]
+            }
+        ],
+        "inputFile": "SyncEngine.h",
+        "outputRevision": 69
+    }
+]

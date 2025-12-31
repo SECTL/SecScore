@@ -1,8 +1,8 @@
 #pragma once
 
-#include<QObject>
-#include<QVariantList>
-#include<QVariantMap>
+#include <QObject>
+#include <QVariantList>
+#include <QVariantMap>
 
 class ReasonRepo : public QObject
 {
@@ -16,5 +16,5 @@ public:
     Q_INVOKABLE bool remove(int id);
     Q_INVOKABLE QVariantMap getById(int id);
     Q_INVOKABLE QVariantList getAll();
-    Q_INVOKABLE QVariantList getEnabled();
+    Q_INVOKABLE int createWithId(int id, const QVariantMap &data);
 };

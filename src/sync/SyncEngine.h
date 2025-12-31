@@ -15,20 +15,17 @@ class SyncEngine : public QObject
     Q_PROPERTY(int pendingOutbox READ pendingOutbox NOTIFY outboxChanged)
 
 public:
-    explicit SyncEngine(QObject *parent = nullptr);
+    explicit SyncEngine(WsClient *wsClient, Database *database, QObject *parent = nullptr);
     ~SyncEngine();
 
     bool isSyncing() const { return m_isSyncing; }
     QString syncStatus() const { return m_syncStatus; }
     int pendingOutbox() const { return m_pendingOutbox; }
 
-    void setWsClient(WsClient *client);
-    void setDatabase(Database *db);
-
-    Q_INVOKABLE void startSync();
-    Q_INVOKABLE void stopSync();
-    Q_INVOKABLE void pushOutbox();
-    Q_INVOKABLE void pullRemote();
+    Q_INVOKABLE void start();
+    Q_INVOKABLE void stop();
+    Q_INVOKABLE void queueOutgoing(const QString &seq, const QVariantMap &payload);
+    Q_INVOKABLE void pullChanges();
 
 signals:
     void syncingChanged();
@@ -43,11 +40,12 @@ private slots:
     void onWsError(const QString &message);
 
 private:
+    void processRemoteEvent(const QVariantMap &event);
+
     bool m_isSyncing = false;
     QString m_syncStatus = "idle";
     int m_pendingOutbox = 0;
 
     WsClient *m_wsClient = nullptr;
     Database *m_database = nullptr;
-    QTimer *m_syncTimer;
 };

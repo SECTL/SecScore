@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="/qt/qml/SecScore">E:/我的文档/Coding/SecScore/build-mingw/SecScore</file>
+
+  </qresource>
+</RCC>

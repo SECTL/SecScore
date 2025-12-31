@@ -12,13 +12,12 @@ public:
     ~Database();
 
     bool initialize(const QString &dbPath);
-    QSqlDatabase database() const { return m_db; }
+    void cleanup();
+    QSqlDatabase database() const;
 
 private:
     bool createTables();
-    bool runMigrations();
 
 private:
     QSqlDatabase m_db;
-    QString m_connectionName;
 };

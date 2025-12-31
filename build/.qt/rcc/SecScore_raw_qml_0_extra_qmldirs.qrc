@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/qt/qml/SecScore/">
+    <file alias="qml/qmldir">S:/build/SecScore/qml/qmldir</file>
+  </qresource>
+</RCC>
+

@@ -1,0 +1,3 @@
+D:\cmake\bin\cmake.exe -E rm -f CMakeFiles\SecScore.dir/objects.a
+D:\Qt\Tools\mingw1310_64\bin\ar.exe qc CMakeFiles\SecScore.dir/objects.a @CMakeFiles\SecScore.dir\objects1.rsp
+D:\Qt\Tools\mingw1310_64\bin\c++.exe -g -Wl,--whole-archive CMakeFiles\SecScore.dir/objects.a -Wl,--no-whole-archive -o SecScore.exe -Wl,--out-implib,libSecScore.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\SecScore.dir\linkLibs.rsp

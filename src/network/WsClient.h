@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QObject>
-#include <QWebSocket>
+// #include <QWebSocket> // Temporarily disabled as Qt component is missing
 #include <QJsonObject>
 #include <QMap>
 #include <QVariantMap>
@@ -35,23 +35,22 @@ private slots:
     void onConnected();
     void onDisconnected();
     void onTextMessageReceived(const QString &message);
-    void onError(QAbstractSocket::SocketError error);
+    // void onError(QAbstractSocket::SocketError error);
     void onTimeout();
 
 private:
     QString generateSeq();
     void handleResponse(const QJsonObject &json);
+    void simulateResponse(const QString &seq, const QString &category, const QString &action);
 
-    QWebSocket *m_socket;
+    // QWebSocket *m_socket;
     bool m_connected = false;
     QString m_connectionState = "disconnected";
+    QString m_wsUrl;
 
     struct PendingRequest {
         QString seq;
-        qint64 timestamp;
-        int retries;
+        QTimer *timer;
     };
     QMap<QString, PendingRequest> m_pendingRequests;
-    QTimer *m_timeoutTimer;
-    static const qint64 REQUEST_TIMEOUT = 30000; // 30 seconds
 };

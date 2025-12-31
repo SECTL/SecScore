@@ -1,43 +1,38 @@
 {
-  "name": "Dark",
-  "colors": {
-    "background": "#2d2d2d",
-    "surface": "#353535",
-    "primary": "#4A90E2",
-    "primaryDark": "#357ABD",
-    "text": "#ffffff",
-    "textSecondary": "#b0b0b0",
-    "textDisabled": "#666666",
-    "border": "#444444",
-    "divider": "#404040",
-    "success": "#4CAF50",
-    "warning": "#FF9800",
-    "danger": "#F44336",
-    "info": "#2196F3",
-    "card": "#353535"
-  },
-  "radius": {
-    "small": 4,
-    "medium": 8,
-    "large": 12,
-    "round": 50
-  },
-  "spacing": {
-    "xxs": 4,
-    "xs": 8,
-    "sm": 12,
-    "md": 16,
-    "lg": 24,
-    "xl": 32,
-    "xxl": 48
-  },
-  "fonts": {
-    "tiny": 10,
-    "small": 12,
-    "medium": 14,
-    "large": 16,
-    "xlarge": 18,
-    "xxlarge": 20,
-    "title": 24
-  }
+    "name": "Dark",
+    "description": "深色主题 - 护眼舒适",
+    "colors": {
+        "primary": "#90CAF9",
+        "secondary": "#B0BEC5",
+        "background": "#121212",
+        "surface": "#1E1E1E",
+        "text": "#FFFFFF",
+        "textSecondary": "#B0BEC5",
+        "success": "#81C784",
+        "warning": "#FFB74D",
+        "error": "#E57373",
+        "border": "#333333",
+        "divider": "#424242"
+    },
+    "radius": {
+        "small": 4,
+        "medium": 8,
+        "large": 12,
+        "extraLarge": 16
+    },
+    "spacing": {
+        "extraSmall": 4,
+        "small": 8,
+        "medium": 16,
+        "large": 24,
+        "extraLarge": 32
+    },
+    "fonts": {
+        "caption": 12,
+        "body": 14,
+        "subtitle": 16,
+        "title": 20,
+        "headline": 24,
+        "display": 32
+    }
 }
