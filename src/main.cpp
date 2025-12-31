@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QDir>
+#include <QFile>
 #include <QSettings>
 #include "core/App.h"
 #include "core/ThemeService.h"
@@ -47,7 +48,13 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("wsClient", mainApp.wsClient());
     engine.rootContext()->setContextProperty("syncEngine", mainApp.syncEngine());
 
-    const QUrl url(u"qrc:/qml/App.qml"_qs);
+    QUrl url;
+    if (QFile(":/qml/App.qml").exists()) {
+        url = QUrl(QStringLiteral("qrc:/qml/App.qml"));
+    } else {
+        const QString localPath = QDir(QCoreApplication::applicationDirPath()).filePath("qml/App.qml");
+        url = QUrl::fromLocalFile(localPath);
+    }
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
                      &app, [url](QObject *obj, const QUrl &objUrl) {
         if (!obj && url == objUrl)

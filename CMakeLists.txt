@@ -68,3 +68,8 @@ install(TARGETS SecScore
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# Install QML sources for runtime fallback
+install(DIRECTORY qml/
+    DESTINATION ${CMAKE_INSTALL_BINDIR}/qml
+)
