@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
 import "pages"
+import "components"
 
 ApplicationWindow {
     id: window
@@ -88,7 +89,6 @@ ApplicationWindow {
                     { text: "学生管理", page: "pages/StudentsPage.qml", icon: "👤" },
                     { text: "事件记录", page: "pages/EventsPage.qml", icon: "📝" },
                     { text: "排行榜", page: "pages/LeaderboardPage.qml", icon: "🏆" },
-                    { text: "同步状态", page: "pages/SyncPage.qml", icon: "🔄" },
                     { text: "设置", page: "pages/SettingsPage.qml", icon: "⚙️" }
                 ]
                 delegate: ItemDelegate {
@@ -102,6 +102,19 @@ ApplicationWindow {
             }
             
             Item { Layout.fillHeight: true }
+            
+            SyncStatusCard {
+                Layout.fillWidth: true
+                Layout.margins: 10
+                Layout.preferredHeight: 180
+                
+                // Pass theme properties
+                surfaceColor: window.surfaceColor
+                textColor: window.textColor
+                textSecondaryColor: window.textSecondaryColor
+                currentRadius: window.currentRadius
+                currentFontSize: window.currentFontSize
+            }
         }
     }
 

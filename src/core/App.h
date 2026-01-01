@@ -45,6 +45,7 @@ public:
     Q_INVOKABLE void saveSettings(const QVariantMap &settings);
     Q_INVOKABLE bool isFirstRun();
     Q_INVOKABLE void completeFirstRun();
+    Q_INVOKABLE QString readFile(const QString &path);
 
     Database* database() const { return m_database; }
     ThemeService* themeService() const { return m_themeService; }

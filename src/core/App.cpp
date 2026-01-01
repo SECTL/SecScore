@@ -105,7 +105,45 @@ void App::setWsUrl(const QString &url)
         
         QSettings settings;
         settings.setValue("wsUrl", url);
+
+        if (m_runMode == "Remote" && m_wsClient) {
+            m_wsClient->connectToServer(url);
+        }
     }
+}
+
+QString App::readFile(const QString &path)
+{
+    qDebug() << "Attempting to read file:" << path;
+    
+    // Try the original path first
+    QFile file(path);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        in.setEncoding(QStringConverter::Utf8);
+        QString content = in.readAll();
+        qDebug() << "Successfully read file content length:" << content.length() << "from path:" << path;
+        return content;
+    }
+    
+    // Try with resource prefix if not already present
+    QString resourcePath = path;
+    if (!path.startsWith(":")) {
+        resourcePath = ":/" + path;
+        qDebug() << "Trying resource path:" << resourcePath;
+        
+        QFile resourceFile(resourcePath);
+        if (resourceFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&resourceFile);
+            in.setEncoding(QStringConverter::Utf8);
+            QString content = in.readAll();
+            qDebug() << "Successfully read resource content length:" << content.length() << "from path:" << resourcePath;
+            return content;
+        }
+    }
+    
+    qWarning() << "Failed to open file as regular file or resource:" << path << "also tried:" << resourcePath;
+    return "";
 }
 
 QVariantMap App::colors() const

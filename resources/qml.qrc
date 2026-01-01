@@ -7,10 +7,15 @@
         <file alias="pages/EventsPage.qml">../qml/pages/EventsPage.qml</file>
         <file alias="pages/LeaderboardPage.qml">../qml/pages/LeaderboardPage.qml</file>
         <file alias="pages/SyncPage.qml">../qml/pages/SyncPage.qml</file>
+        <file alias="pages/SettingsPage.qml">../qml/pages/SettingsPage.qml</file>
+        <file alias="components/SyncStatusCard.qml">../qml/components/SyncStatusCard.qml</file>
     </qresource>
     <qresource prefix="/themes">
         <file alias="default.json">../themes/default.json</file>
         <file alias="dark.json">../themes/dark.json</file>
         <file alias="README.md">../themes/README.md</file>
+    </qresource>
+    <qresource prefix="/">
+        <file alias="ABOUT.md">ABOUT.md</file>
     </qresource>
 </RCC>

@@ -139,6 +139,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -608,6 +609,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -667,6 +669,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "message-v1"
     backtrace:
@@ -775,6 +778,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -861,6 +865,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -947,6 +952,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1033,6 +1039,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1119,6 +1126,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1205,6 +1213,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1291,6 +1300,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1377,6 +1387,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1463,6 +1474,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1549,6 +1561,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -1721,6 +1734,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -2071,6 +2085,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -2421,6 +2436,7 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
+      CMAKE_INSTALL_PREFIX: "e:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -2482,9 +2498,9 @@ events:
       - "D:/cmake/bin/"
       - "D:/cmake/sbin/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/bin/"
-      - "C:/Program Files (x86)/SecScore/sbin/"
-      - "C:/Program Files (x86)/SecScore/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
+      - "E:/Document/Coding/SecScore/dist/sbin/"
+      - "E:/Document/Coding/SecScore/dist/"
     searched_directories:
       - "C:/Users/Fox_block/.trae/sdks/workspaces/6e70a078/versions/node/current/windres.com"
       - "C:/Users/Fox_block/.trae/sdks/workspaces/6e70a078/versions/node/current/windres.exe"
@@ -2585,12 +2601,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "try_compile-v1"
     backtrace:
@@ -2600,8 +2616,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8"
-      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8"
+      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4"
+      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4"
     cmakeVariables:
       CMAKE_CXX_FLAGS: ""
       CMAKE_CXX_FLAGS_DEBUG: "-g"
@@ -2611,13 +2627,13 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8'
+        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4'
         
-        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_85dd0/fast
-        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_85dd0.dir\\build.make CMakeFiles/cmTC_85dd0.dir/build
-        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8'
-        Building CXX object CMakeFiles/cmTC_85dd0.dir/CMakeCXXCompilerABI.cpp.obj
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe   -v -o CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj -c D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp
+        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_11cfd/fast
+        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_11cfd.dir\\build.make CMakeFiles/cmTC_11cfd.dir/build
+        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4'
+        Building CXX object CMakeFiles/cmTC_11cfd.dir/CMakeCXXCompilerABI.cpp.obj
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe   -v -o CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj -c D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp
         Using built-in specs.
         COLLECT_GCC=D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe
         Target: x86_64-w64-mingw32
@@ -2625,8 +2641,8 @@ events:
         Thread model: posix
         Supported LTO compression algorithms: zlib
         gcc version 13.1.0 (x86_64-posix-seh-rev1, Built by MinGW-Builds project) 
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\'
-         D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/cc1plus.exe -quiet -v -iprefix D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/ -D_REENTRANT D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles\\cmTC_85dd0.dir\\ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=core2 -march=nocona -version -o C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccD78kRW.s
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\'
+         D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/cc1plus.exe -quiet -v -iprefix D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/ -D_REENTRANT D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles\\cmTC_11cfd.dir\\ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=core2 -march=nocona -version -o C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccEmwvXS.s
         GNU C++17 (x86_64-posix-seh-rev1, Built by MinGW-Builds project) version 13.1.0 (x86_64-w64-mingw32)
         	compiled by GNU C version 13.1.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.25-GMP
         
@@ -2649,14 +2665,14 @@ events:
          D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/include
         End of search list.
         Compiler executable checksum: b3d236387f35294e2a73c51628039e05
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\'
-         D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/as.exe -v -o CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccD78kRW.s
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\'
+         D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/as.exe -v -o CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccEmwvXS.s
         GNU assembler version 2.39 (x86_64-w64-mingw32) using BFD version (GNU Binutils) 2.39
         COMPILER_PATH=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/;D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/
         LIBRARY_PATH=D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../
-        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.'
-        Linking CXX executable cmTC_85dd0.exe
-        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_85dd0.dir\\link.txt --verbose=1
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.'
+        Linking CXX executable cmTC_11cfd.exe
+        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_11cfd.dir\\link.txt --verbose=1
         Using built-in specs.
         COLLECT_GCC=D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe
         COLLECT_LTO_WRAPPER=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe
@@ -2667,16 +2683,16 @@ events:
         gcc version 13.1.0 (x86_64-posix-seh-rev1, Built by MinGW-Builds project) 
         COMPILER_PATH=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/;D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/
         LIBRARY_PATH=D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/;D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../
-        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_85dd0.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_85dd0.'
-         D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/collect2.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\cceY6YCT.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_85dd0.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_85dd0.dir/objects.a --no-whole-archive --out-implib libcmTC_85dd0.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_11cfd.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_11cfd.'
+         D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/collect2.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccL7LC2X.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_11cfd.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_11cfd.dir/objects.a --no-whole-archive --out-implib libcmTC_11cfd.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o
         collect2 version 13.1.0
-        D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/ld.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\cceY6YCT.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_85dd0.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_85dd0.dir/objects.a --no-whole-archive --out-implib libcmTC_85dd0.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o
+        D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/ld.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccL7LC2X.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_11cfd.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_11cfd.dir/objects.a --no-whole-archive --out-implib libcmTC_11cfd.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o
         GNU ld (GNU Binutils) 2.39
-        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_85dd0.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_85dd0.'
-        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_85dd0.dir/objects.a
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_85dd0.dir/objects.a @CMakeFiles\\cmTC_85dd0.dir\\objects1.rsp
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe  -v -Wl,-v -Wl,--whole-archive CMakeFiles\\cmTC_85dd0.dir/objects.a -Wl,--no-whole-archive -o cmTC_85dd0.exe -Wl,--out-implib,libcmTC_85dd0.dll.a -Wl,--major-image-version,0,--minor-image-version,0
-        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8'
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_11cfd.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_11cfd.'
+        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_11cfd.dir/objects.a
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_11cfd.dir/objects.a @CMakeFiles\\cmTC_11cfd.dir\\objects1.rsp
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe  -v -Wl,-v -Wl,--whole-archive CMakeFiles\\cmTC_11cfd.dir/objects.a -Wl,--no-whole-archive -o cmTC_11cfd.exe -Wl,--out-implib,libcmTC_11cfd.dll.a -Wl,--major-image-version,0,--minor-image-version,0
+        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4'
         
       exitCode: 0
   -
@@ -2715,13 +2731,13 @@ events:
       Parsed CXX implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8']
+        ignore line: [Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4']
         ignore line: []
-        ignore line: [Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_85dd0/fast]
-        ignore line: [D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_85dd0.dir\\build.make CMakeFiles/cmTC_85dd0.dir/build]
-        ignore line: [mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-lto7z8']
-        ignore line: [Building CXX object CMakeFiles/cmTC_85dd0.dir/CMakeCXXCompilerABI.cpp.obj]
-        ignore line: [D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe   -v -o CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj -c D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp]
+        ignore line: [Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_11cfd/fast]
+        ignore line: [D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_11cfd.dir\\build.make CMakeFiles/cmTC_11cfd.dir/build]
+        ignore line: [mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-8ojgb4']
+        ignore line: [Building CXX object CMakeFiles/cmTC_11cfd.dir/CMakeCXXCompilerABI.cpp.obj]
+        ignore line: [D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe   -v -o CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj -c D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp]
         ignore line: [Using built-in specs.]
         ignore line: [COLLECT_GCC=D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe]
         ignore line: [Target: x86_64-w64-mingw32]
@@ -2729,8 +2745,8 @@ events:
         ignore line: [Thread model: posix]
         ignore line: [Supported LTO compression algorithms: zlib]
         ignore line: [gcc version 13.1.0 (x86_64-posix-seh-rev1  Built by MinGW-Builds project) ]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\']
-        ignore line: [ D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/cc1plus.exe -quiet -v -iprefix D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/ -D_REENTRANT D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles\\cmTC_85dd0.dir\\ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=core2 -march=nocona -version -o C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccD78kRW.s]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\']
+        ignore line: [ D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/cc1plus.exe -quiet -v -iprefix D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/ -D_REENTRANT D:\\cmake\\share\\cmake-4.2\\Modules\\CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles\\cmTC_11cfd.dir\\ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=core2 -march=nocona -version -o C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccEmwvXS.s]
         ignore line: [GNU C++17 (x86_64-posix-seh-rev1  Built by MinGW-Builds project) version 13.1.0 (x86_64-w64-mingw32)]
         ignore line: [	compiled by GNU C version 13.1.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.25-GMP]
         ignore line: []
@@ -2753,8 +2769,8 @@ events:
         ignore line: [ D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/include]
         ignore line: [End of search list.]
         ignore line: [Compiler executable checksum: b3d236387f35294e2a73c51628039e05]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\']
-        ignore line: [ D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/as.exe -v -o CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccD78kRW.s]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\']
+        ignore line: [ D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/bin/as.exe -v -o CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccEmwvXS.s]
         ignore line: [GNU assembler version 2.39 (x86_64-w64-mingw32) using BFD version (GNU Binutils) 2.39]
         ignore line: [COMPILER_PATH=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/]
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/]
@@ -2765,9 +2781,9 @@ events:
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib/]
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/]
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_85dd0.dir\\CMakeCXXCompilerABI.cpp.']
-        ignore line: [Linking CXX executable cmTC_85dd0.exe]
-        ignore line: [D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_85dd0.dir\\link.txt --verbose=1]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.obj' '-c' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'CMakeFiles\\cmTC_11cfd.dir\\CMakeCXXCompilerABI.cpp.']
+        ignore line: [Linking CXX executable cmTC_11cfd.exe]
+        ignore line: [D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_11cfd.dir\\link.txt --verbose=1]
         ignore line: [Using built-in specs.]
         ignore line: [COLLECT_GCC=D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe]
         ignore line: [COLLECT_LTO_WRAPPER=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe]
@@ -2785,13 +2801,13 @@ events:
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib/]
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/]
         ignore line: [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../]
-        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_85dd0.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_85dd0.']
-        link line: [ D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/collect2.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\cceY6YCT.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_85dd0.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_85dd0.dir/objects.a --no-whole-archive --out-implib libcmTC_85dd0.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_11cfd.exe' '-shared-libgcc' '-mtune=core2' '-march=nocona' '-dumpdir' 'cmTC_11cfd.']
+        link line: [ D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/collect2.exe -plugin D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll -plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe -plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccL7LC2X.res -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-lpthread -plugin-opt=-pass-through=-ladvapi32 -plugin-opt=-pass-through=-lshell32 -plugin-opt=-pass-through=-luser32 -plugin-opt=-pass-through=-lkernel32 -plugin-opt=-pass-through=-liconv -plugin-opt=-pass-through=-lmingw32 -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lmoldname -plugin-opt=-pass-through=-lmingwex -plugin-opt=-pass-through=-lmsvcrt -plugin-opt=-pass-through=-lkernel32 --sysroot=C:/buildroot/x86_64-1310-posix-seh-msvcrt-rt_v11-rev1/mingw64 -m i386pep -Bdynamic -o cmTC_11cfd.exe D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0 -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib -LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../.. -v --whole-archive CMakeFiles\\cmTC_11cfd.dir/objects.a --no-whole-archive --out-implib libcmTC_11cfd.dll.a --major-image-version 0 --minor-image-version 0 -lstdc++ -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 -lpthread -ladvapi32 -lshell32 -luser32 -lkernel32 -liconv -lmingw32 -lgcc_s -lgcc -lmoldname -lmingwex -lmsvcrt -lkernel32 D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtend.o]
           arg [D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/collect2.exe] ==> ignore
           arg [-plugin] ==> ignore
           arg [D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/liblto_plugin.dll] ==> ignore
           arg [-plugin-opt=D:/Qt/Tools/mingw1310_64/bin/../libexec/gcc/x86_64-w64-mingw32/13.1.0/lto-wrapper.exe] ==> ignore
-          arg [-plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\cceY6YCT.res] ==> ignore
+          arg [-plugin-opt=-fresolution=C:\\Users\\FOX_BL~1\\AppData\\Local\\Temp\\ccL7LC2X.res] ==> ignore
           arg [-plugin-opt=-pass-through=-lmingw32] ==> ignore
           arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
           arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
@@ -2817,7 +2833,7 @@ events:
           arg [i386pep] ==> ignore
           arg [-Bdynamic] ==> search dynamic
           arg [-o] ==> ignore
-          arg [cmTC_85dd0.exe] ==> ignore
+          arg [cmTC_11cfd.exe] ==> ignore
           arg [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o] ==> obj [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../../../x86_64-w64-mingw32/lib/../lib/crt2.o]
           arg [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o] ==> obj [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/crtbegin.o]
           arg [-LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0] ==> dir [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0]
@@ -2828,10 +2844,10 @@ events:
           arg [-LD:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../..] ==> dir [D:/Qt/Tools/mingw1310_64/bin/../lib/gcc/x86_64-w64-mingw32/13.1.0/../../..]
           arg [-v] ==> ignore
           arg [--whole-archive] ==> ignore
-          arg [CMakeFiles\\cmTC_85dd0.dir/objects.a] ==> ignore
+          arg [CMakeFiles\\cmTC_11cfd.dir/objects.a] ==> ignore
           arg [--no-whole-archive] ==> ignore
           arg [--out-implib] ==> ignore
-          arg [libcmTC_85dd0.dll.a] ==> ignore
+          arg [libcmTC_11cfd.dll.a] ==> ignore
           arg [--major-image-version] ==> ignore
           arg [0] ==> ignore
           arg [--minor-image-version] ==> ignore
@@ -2922,8 +2938,8 @@ events:
     checks:
       - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
     directories:
-      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-l7nuv4"
-      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-l7nuv4"
+      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-zep3gx"
+      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-zep3gx"
     cmakeVariables:
       CMAKE_CXX_FLAGS: ""
       CMAKE_CXX_FLAGS_DEBUG: "-g"
@@ -2933,19 +2949,19 @@ events:
       variable: "CMAKE_HAVE_LIBC_PTHREAD"
       cached: true
       stdout: |
-        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-l7nuv4'
+        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-zep3gx'
         
-        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_7edbc/fast
-        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_7edbc.dir\\build.make CMakeFiles/cmTC_7edbc.dir/build
-        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-l7nuv4'
-        Building CXX object CMakeFiles/cmTC_7edbc.dir/src.cxx.obj
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -DCMAKE_HAVE_LIBC_PTHREAD  -std=gnu++17 -o CMakeFiles\\cmTC_7edbc.dir\\src.cxx.obj -c E:\\Document\\Coding\\SecScore\\build-release\\CMakeFiles\\CMakeScratch\\TryCompile-l7nuv4\\src.cxx
-        Linking CXX executable cmTC_7edbc.exe
-        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_7edbc.dir\\link.txt --verbose=1
-        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_7edbc.dir/objects.a
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_7edbc.dir/objects.a @CMakeFiles\\cmTC_7edbc.dir\\objects1.rsp
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -Wl,--whole-archive CMakeFiles\\cmTC_7edbc.dir/objects.a -Wl,--no-whole-archive -o cmTC_7edbc.exe -Wl,--out-implib,libcmTC_7edbc.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\\cmTC_7edbc.dir\\linkLibs.rsp
-        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-l7nuv4'
+        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_59921/fast
+        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_59921.dir\\build.make CMakeFiles/cmTC_59921.dir/build
+        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-zep3gx'
+        Building CXX object CMakeFiles/cmTC_59921.dir/src.cxx.obj
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -DCMAKE_HAVE_LIBC_PTHREAD  -std=gnu++17 -o CMakeFiles\\cmTC_59921.dir\\src.cxx.obj -c E:\\Document\\Coding\\SecScore\\build-release\\CMakeFiles\\CMakeScratch\\TryCompile-zep3gx\\src.cxx
+        Linking CXX executable cmTC_59921.exe
+        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_59921.dir\\link.txt --verbose=1
+        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_59921.dir/objects.a
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_59921.dir/objects.a @CMakeFiles\\cmTC_59921.dir\\objects1.rsp
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -Wl,--whole-archive CMakeFiles\\cmTC_59921.dir/objects.a -Wl,--no-whole-archive -o cmTC_59921.exe -Wl,--out-implib,libcmTC_59921.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\\cmTC_59921.dir\\linkLibs.rsp
+        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-zep3gx'
         
       exitCode: 0
   -
@@ -2964,8 +2980,8 @@ events:
     checks:
       - "Performing Test HAVE_STDATOMIC"
     directories:
-      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-bnmalo"
-      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-bnmalo"
+      source: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-7qh9q7"
+      binary: "E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-7qh9q7"
     cmakeVariables:
       CMAKE_CXX_FLAGS: ""
       CMAKE_CXX_FLAGS_DEBUG: "-g"
@@ -2975,19 +2991,19 @@ events:
       variable: "HAVE_STDATOMIC"
       cached: true
       stdout: |
-        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-bnmalo'
+        Change Dir: 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-7qh9q7'
         
-        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_ae9af/fast
-        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_ae9af.dir\\build.make CMakeFiles/cmTC_ae9af.dir/build
-        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-bnmalo'
-        Building CXX object CMakeFiles/cmTC_ae9af.dir/src.cxx.obj
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -DHAVE_STDATOMIC  -std=gnu++17 -o CMakeFiles\\cmTC_ae9af.dir\\src.cxx.obj -c E:\\Document\\Coding\\SecScore\\build-release\\CMakeFiles\\CMakeScratch\\TryCompile-bnmalo\\src.cxx
-        Linking CXX executable cmTC_ae9af.exe
-        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_ae9af.dir\\link.txt --verbose=1
-        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_ae9af.dir/objects.a
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_ae9af.dir/objects.a @CMakeFiles\\cmTC_ae9af.dir\\objects1.rsp
-        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -Wl,--whole-archive CMakeFiles\\cmTC_ae9af.dir/objects.a -Wl,--no-whole-archive -o cmTC_ae9af.exe -Wl,--out-implib,libcmTC_ae9af.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\\cmTC_ae9af.dir\\linkLibs.rsp
-        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-bnmalo'
+        Run Build Command(s): D:/cmake/bin/cmake.exe -E env VERBOSE=1 D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe -f Makefile cmTC_fbc42/fast
+        D:/Qt/Tools/mingw1310_64/bin/mingw32-make.exe  -f CMakeFiles\\cmTC_fbc42.dir\\build.make CMakeFiles/cmTC_fbc42.dir/build
+        mingw32-make.exe[1]: Entering directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-7qh9q7'
+        Building CXX object CMakeFiles/cmTC_fbc42.dir/src.cxx.obj
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -DHAVE_STDATOMIC  -std=gnu++17 -o CMakeFiles\\cmTC_fbc42.dir\\src.cxx.obj -c E:\\Document\\Coding\\SecScore\\build-release\\CMakeFiles\\CMakeScratch\\TryCompile-7qh9q7\\src.cxx
+        Linking CXX executable cmTC_fbc42.exe
+        D:\\cmake\\bin\\cmake.exe -E cmake_link_script CMakeFiles\\cmTC_fbc42.dir\\link.txt --verbose=1
+        D:\\cmake\\bin\\cmake.exe -E rm -f CMakeFiles\\cmTC_fbc42.dir/objects.a
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\ar.exe qc CMakeFiles\\cmTC_fbc42.dir/objects.a @CMakeFiles\\cmTC_fbc42.dir\\objects1.rsp
+        D:\\Qt\\Tools\\mingw1310_64\\bin\\c++.exe -Wl,--whole-archive CMakeFiles\\cmTC_fbc42.dir/objects.a -Wl,--no-whole-archive -o cmTC_fbc42.exe -Wl,--out-implib,libcmTC_fbc42.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\\cmTC_fbc42.dir\\linkLibs.rsp
+        mingw32-make.exe[1]: Leaving directory 'E:/Document/Coding/SecScore/build-release/CMakeFiles/CMakeScratch/TryCompile-7qh9q7'
         
       exitCode: 0
   -
@@ -3200,12 +3216,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -3306,12 +3322,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -3372,9 +3388,9 @@ events:
       - "D:/cmake/bin/"
       - "D:/cmake/sbin/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/bin/"
-      - "C:/Program Files (x86)/SecScore/sbin/"
-      - "C:/Program Files (x86)/SecScore/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
+      - "E:/Document/Coding/SecScore/dist/sbin/"
+      - "E:/Document/Coding/SecScore/dist/"
     searched_directories:
       - "D:/Qt/6.10.1/mingw_64/bin/windeployqt.com"
     found: "D:/Qt/6.10.1/mingw_64/bin/windeployqt.exe"
@@ -3412,12 +3428,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -3528,12 +3544,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -3747,12 +3763,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -3963,12 +3979,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -4034,8 +4050,8 @@ events:
       - "C:/Program Files (x86)/"
       - "D:/cmake/include/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/include/"
-      - "C:/Program Files (x86)/SecScore/"
+      - "E:/Document/Coding/SecScore/dist/include/"
+      - "E:/Document/Coding/SecScore/dist/"
     searched_directories:
       - "/include/vulkan/vulkan.h"
       - "C:/Users/Fox_block/.trae/sdks/workspaces/6e70a078/versions/node/current/vulkan/vulkan.h"
@@ -4073,8 +4089,8 @@ events:
       - "C:/Program Files (x86)/vulkan/vulkan.h"
       - "D:/cmake/include/vulkan/vulkan.h"
       - "D:/cmake/vulkan/vulkan.h"
-      - "C:/Program Files (x86)/SecScore/include/vulkan/vulkan.h"
-      - "C:/Program Files (x86)/SecScore/vulkan/vulkan.h"
+      - "E:/Document/Coding/SecScore/dist/include/vulkan/vulkan.h"
+      - "E:/Document/Coding/SecScore/dist/vulkan/vulkan.h"
     found: false
     search_context:
       ENV{PATH}:
@@ -4110,12 +4126,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -4182,9 +4198,9 @@ events:
       - "C:/Program Files (x86)/"
       - "D:/cmake/lib/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/lib/"
-      - "C:/Program Files (x86)/SecScore/"
-      - "C:/Program Files (x86)/SecScore/bin/"
+      - "E:/Document/Coding/SecScore/dist/lib/"
+      - "E:/Document/Coding/SecScore/dist/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
     searched_directories:
       - "/lib/"
       - "/bin/"
@@ -4223,9 +4239,9 @@ events:
       - "C:/Program Files (x86)/"
       - "D:/cmake/lib/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/lib/"
-      - "C:/Program Files (x86)/SecScore/"
-      - "C:/Program Files (x86)/SecScore/bin/"
+      - "E:/Document/Coding/SecScore/dist/lib/"
+      - "E:/Document/Coding/SecScore/dist/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
     found: false
     search_context:
       ENV{PATH}:
@@ -4261,14 +4277,14 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_LIBRARY_PATH:
-        - "C:/Program Files (x86)/SecScore/bin"
+        - "E:/Document/Coding/SecScore/dist/bin"
         - "D:/cmake/bin"
         - "/bin"
   -
@@ -4339,9 +4355,9 @@ events:
       - "D:/cmake/bin/"
       - "D:/cmake/sbin/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/bin/"
-      - "C:/Program Files (x86)/SecScore/sbin/"
-      - "C:/Program Files (x86)/SecScore/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
+      - "E:/Document/Coding/SecScore/dist/sbin/"
+      - "E:/Document/Coding/SecScore/dist/"
     searched_directories:
       - "/bin/glslc.com"
       - "/bin/glslc.exe"
@@ -4460,15 +4476,15 @@ events:
       - "D:/cmake/glslc.com"
       - "D:/cmake/glslc.exe"
       - "D:/cmake/glslc"
-      - "C:/Program Files (x86)/SecScore/bin/glslc.com"
-      - "C:/Program Files (x86)/SecScore/bin/glslc.exe"
-      - "C:/Program Files (x86)/SecScore/bin/glslc"
-      - "C:/Program Files (x86)/SecScore/sbin/glslc.com"
-      - "C:/Program Files (x86)/SecScore/sbin/glslc.exe"
-      - "C:/Program Files (x86)/SecScore/sbin/glslc"
-      - "C:/Program Files (x86)/SecScore/glslc.com"
-      - "C:/Program Files (x86)/SecScore/glslc.exe"
-      - "C:/Program Files (x86)/SecScore/glslc"
+      - "E:/Document/Coding/SecScore/dist/bin/glslc.com"
+      - "E:/Document/Coding/SecScore/dist/bin/glslc.exe"
+      - "E:/Document/Coding/SecScore/dist/bin/glslc"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslc.com"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslc.exe"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslc"
+      - "E:/Document/Coding/SecScore/dist/glslc.com"
+      - "E:/Document/Coding/SecScore/dist/glslc.exe"
+      - "E:/Document/Coding/SecScore/dist/glslc"
     found: false
     search_context:
       ENV{PATH}:
@@ -4504,12 +4520,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find-v1"
     backtrace:
@@ -4578,9 +4594,9 @@ events:
       - "D:/cmake/bin/"
       - "D:/cmake/sbin/"
       - "D:/cmake/"
-      - "C:/Program Files (x86)/SecScore/bin/"
-      - "C:/Program Files (x86)/SecScore/sbin/"
-      - "C:/Program Files (x86)/SecScore/"
+      - "E:/Document/Coding/SecScore/dist/bin/"
+      - "E:/Document/Coding/SecScore/dist/sbin/"
+      - "E:/Document/Coding/SecScore/dist/"
     searched_directories:
       - "/bin/glslangValidator.com"
       - "/bin/glslangValidator.exe"
@@ -4699,15 +4715,15 @@ events:
       - "D:/cmake/glslangValidator.com"
       - "D:/cmake/glslangValidator.exe"
       - "D:/cmake/glslangValidator"
-      - "C:/Program Files (x86)/SecScore/bin/glslangValidator.com"
-      - "C:/Program Files (x86)/SecScore/bin/glslangValidator.exe"
-      - "C:/Program Files (x86)/SecScore/bin/glslangValidator"
-      - "C:/Program Files (x86)/SecScore/sbin/glslangValidator.com"
-      - "C:/Program Files (x86)/SecScore/sbin/glslangValidator.exe"
-      - "C:/Program Files (x86)/SecScore/sbin/glslangValidator"
-      - "C:/Program Files (x86)/SecScore/glslangValidator.com"
-      - "C:/Program Files (x86)/SecScore/glslangValidator.exe"
-      - "C:/Program Files (x86)/SecScore/glslangValidator"
+      - "E:/Document/Coding/SecScore/dist/bin/glslangValidator.com"
+      - "E:/Document/Coding/SecScore/dist/bin/glslangValidator.exe"
+      - "E:/Document/Coding/SecScore/dist/bin/glslangValidator"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslangValidator.com"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslangValidator.exe"
+      - "E:/Document/Coding/SecScore/dist/sbin/glslangValidator"
+      - "E:/Document/Coding/SecScore/dist/glslangValidator.com"
+      - "E:/Document/Coding/SecScore/dist/glslangValidator.exe"
+      - "E:/Document/Coding/SecScore/dist/glslangValidator"
     found: false
     search_context:
       ENV{PATH}:
@@ -4743,12 +4759,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -4964,12 +4980,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5086,12 +5102,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5197,12 +5213,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5316,12 +5332,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5575,6 +5591,14 @@ events:
         path: "C:/Program Files (x86)/qt6qmlcompilerplusprivatetools-config.cmake"
         mode: "config"
         reason: "no_exist"
+      -
+        path: "E:/Document/Coding/SecScore/dist/Qt6QmlCompilerPlusPrivateToolsConfig.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "E:/Document/Coding/SecScore/dist/qt6qmlcompilerplusprivatetools-config.cmake"
+        mode: "config"
+        reason: "no_exist"
     found: null
     search_context:
       ENV{PATH}:
@@ -5610,12 +5634,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5734,12 +5758,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5853,12 +5877,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -5975,12 +5999,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -6305,12 +6329,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -6419,12 +6443,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -6538,12 +6562,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -6652,12 +6676,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -6774,12 +6798,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -7538,12 +7562,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -7646,12 +7670,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
   -
     kind: "find_package-v1"
     backtrace:
@@ -9544,12 +9568,12 @@ events:
         - "C:\\Users\\Fox_block\\AppData\\Roaming\\npm"
         - "D:\\cmake\\bin"
         - "D:\\Microsoft VS Code\\bin"
-      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/SecScore"
+      CMAKE_INSTALL_PREFIX: "E:/Document/Coding/SecScore/dist"
       CMAKE_SYSTEM_PREFIX_PATH:
         - "C:/Program Files"
         - "C:/Program Files (x86)"
         - "D:/cmake"
-        - "C:/Program Files (x86)/SecScore"
+        - "E:/Document/Coding/SecScore/dist"
       CMAKE_MODULE_PATH:
         - "D:/Qt/6.10.1/mingw_64/lib/cmake/Qt6"
         - "D:/Qt/6.10.1/mingw_64/lib/cmake/Qt6/3rdparty/extra-cmake-modules/find-modules"

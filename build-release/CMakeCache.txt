@@ -117,7 +117,7 @@ CMAKE_INSTALL_MANDIR:PATH=
 CMAKE_INSTALL_OLDINCLUDEDIR:PATH=/usr/include
 
 //Install path prefix, prepended onto install directories.
-CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/SecScore
+CMAKE_INSTALL_PREFIX:PATH=E:/Document/Coding/SecScore/dist
 
 //Run-time variable data (LOCALSTATEDIR/run)
 CMAKE_INSTALL_RUNSTATEDIR:PATH=
@@ -1376,6 +1376,6 @@ Vulkan_INCLUDE_DIR-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: Vulkan_LIBRARY
 Vulkan_LIBRARY-ADVANCED:INTERNAL=1
 //CMAKE_INSTALL_PREFIX during last run
-_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=C:/Program Files (x86)/SecScore
+_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=E:/Document/Coding/SecScore/dist
 __qt_qml_macros_module_base_dir:INTERNAL=D:/Qt/6.10.1/mingw_64/lib/cmake/Qt6Qml
 

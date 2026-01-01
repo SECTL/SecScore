@@ -1,5 +1,6 @@
 E:/Document/Coding/SecScore/dist/bin/SecScore.exe
 E:/Document/Coding/SecScore/dist/bin/qml/App.qml
+E:/Document/Coding/SecScore/dist/bin/qml/components/SyncStatusCard.qml
 E:/Document/Coding/SecScore/dist/bin/qml/pages/EventsPage.qml
 E:/Document/Coding/SecScore/dist/bin/qml/pages/LeaderboardPage.qml
 E:/Document/Coding/SecScore/dist/bin/qml/pages/SettingsPage.qml

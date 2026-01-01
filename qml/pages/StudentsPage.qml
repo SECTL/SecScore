@@ -21,11 +21,6 @@ Item {
                 font.bold: true
                 color: textColor
             }
-            Item { Layout.fillWidth: true }
-            Button {
-                text: "添加学生"
-                onClicked: addStudentDialog.open()
-            }
         }
         
         ListView {
@@ -36,45 +31,51 @@ Item {
             model: studentRepo.getAll()
             spacing: 8
             
-            delegate: Rectangle {
+            footer: Item {
                 width: listView.width
                 height: 60
+                Button {
+                    anchors.centerIn: parent
+                    text: "添加学生"
+                    onClicked: addStudentDialog.open()
+                }
+            }
+
+            delegate: Rectangle {
+                width: listView.width
+                height: 100
                 color: surfaceColor
                 radius: currentRadius
                 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
+                ColumnLayout {
+                    anchors.centerIn: parent
                     spacing: 12
                     
                     Label {
                         text: modelData.name
                         font.bold: true
-                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignHCenter
                         color: textColor
                     }
                     
-                    Label {
-                        text: "积分: " + modelData.score
-                        color: primaryColor
-                        font.bold: true
-                    }
-                    
-                    Button {
-                        text: "编辑"
-                        onClicked: {
-                            editStudentDialog.studentId = modelData.id
-                            editStudentDialog.studentName = modelData.name
-                            editStudentDialog.open()
+                    RowLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 12
+
+                        Button {
+                            text: "编辑"
+                            onClicked: {
+                                editStudentDialog.studentId = modelData.id
+                                editStudentDialog.studentName = modelData.name
+                                editStudentDialog.open()
+                            }
                         }
-                    }
-                    
-                    Button {
-                        text: "删除"
-                        onClicked: {
-                            if (confirmDeleteDialog.open()) {
-                                studentRepo.remove(modelData.id)
-                                refresh()
+                        
+                        Button {
+                            text: "删除"
+                            onClicked: {
+                                confirmDeleteDialog.studentId = modelData.id
+                                confirmDeleteDialog.open()
                             }
                         }
                     }
@@ -144,10 +145,14 @@ Item {
         anchors.centerIn: parent
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
+        property int studentId: -1
         Label { text: "确定要删除该学生吗？" }
         
-        function open() {
-            return exec() === Dialog.Yes
+        onAccepted: {
+            if (studentId !== -1) {
+                studentRepo.remove(studentId)
+                refresh()
+            }
         }
     }
     

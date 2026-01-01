@@ -6,10 +6,16 @@ import SecScore 1.0
 Item {
     id: root
     
+    // Color definitions
+    property color successColor: "#27ae60"
+    property color errorColor: "#e74c3c"
+    
     StudentRepo { id: studentRepo }
     EventRepo { id: eventRepo }
     ReasonRepo { id: reasonRepo }
     
+    onVisibleChanged: if (visible) refresh()
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: currentSpacing
@@ -23,10 +29,73 @@ Item {
                 font.bold: true
                 color: textColor
             }
-            Item { Layout.fillWidth: true }
-            Button {
-                text: "添加评分"
-                onClicked: scoreDialog.open()
+        }
+        
+        // Operation Panel
+        Rectangle {
+            Layout.fillWidth: true
+            height: 220
+            color: surfaceColor
+            radius: currentRadius
+            
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+                
+                Label { 
+                    text: "快速评分" 
+                    font.bold: true 
+                    font.pixelSize: currentFontSize + 2
+                }
+                
+                GridLayout {
+                    columns: 2
+                    columnSpacing: 16
+                    rowSpacing: 12
+                    Layout.fillWidth: true
+                    
+                    Label { text: "学生:" }
+                    ComboBox {
+                        id: studentCombo
+                        Layout.fillWidth: true
+                        model: studentRepo.getAll()
+                        textRole: "name"
+                    }
+                    
+                    Label { text: "理由:" }
+                    ComboBox {
+                        id: reasonCombo
+                        Layout.fillWidth: true
+                        model: reasonRepo.getAll()
+                        textRole: "name"
+                        editable: true
+                    }
+                    
+                    Label { text: "分值:" }
+                    SpinBox {
+                        id: scoreSpin
+                        Layout.fillWidth: true
+                        from: -100
+                        to: 100
+                        value: 1
+                        editable: true
+                    }
+                    
+                    Label { text: "备注:" }
+                    TextField {
+                        id: remarkField
+                        Layout.fillWidth: true
+                        placeholderText: "可选"
+                    }
+                }
+                
+                Button {
+                    text: "提交评分"
+                    Layout.alignment: Qt.AlignRight
+                    highlighted: true
+                    onClicked: submitScore()
+                }
             }
         }
         
@@ -75,74 +144,48 @@ Item {
                         color: (modelData.val_curr - modelData.val_prev >= 0) ? successColor : errorColor
                         font.bold: true
                         font.pixelSize: currentFontSize + 4
+                        Layout.preferredWidth: 60
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
             }
         }
     }
     
-    Dialog {
-        id: scoreDialog
-        title: "评分"
-        anchors.centerIn: parent
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
+    function submitScore() {
+        if (studentCombo.currentIndex < 0) return
         
-        ColumnLayout {
-            width: 300
-            spacing: 10
-            
-            Label { text: "选择学生" }
-            ComboBox {
-                id: studentCombo
-                Layout.fillWidth: true
-                model: studentRepo.getAll()
-                textRole: "name"
-            }
-            
-            Label { text: "选择理由" }
-            ComboBox {
-                id: reasonCombo
-                Layout.fillWidth: true
-                model: reasonRepo.getAll()
-                textRole: "name"
-                editable: true
-            }
-            
-            Label { text: "分值" }
-            SpinBox {
-                id: scoreSpin
-                Layout.fillWidth: true
-                from: -100
-                to: 100
-                value: 1
-                editable: true
-            }
+        var student = studentCombo.model[studentCombo.currentIndex]
+        var valChange = scoreSpin.value
+        var newVal = student.score + valChange
+        var reasonText = reasonCombo.currentText
+        if (remarkField.text) {
+            reasonText += " (" + remarkField.text + ")"
         }
         
-        onAccepted: {
-            var student = studentCombo.model[studentCombo.currentIndex]
-            var valChange = scoreSpin.value
-            var newVal = student.score + valChange
-            
-            // 1. Update student score
-            studentRepo.update(student.id, {"score": newVal})
-            
-            // 2. Create event record
-            eventRepo.create({
-                "type": 1, // Student
-                "ref_id": student.id,
-                "desc": "对 " + student.name + " 评分: " + reasonCombo.currentText,
-                "val_prev": student.score,
-                "val_curr": newVal,
-                "sync_state": "local"
-            })
-            
-            refresh()
-        }
+        // 1. Update student score
+        studentRepo.update(student.id, {"score": newVal})
+        
+        // 2. Create event record
+        eventRepo.create({
+            "type": 1, // Student
+            "ref_id": student.id,
+            "desc": "对 " + student.name + " 评分: " + reasonText,
+            "val_prev": student.score,
+            "val_curr": newVal,
+            "sync_state": "local"
+        })
+        
+        // Reset fields
+        scoreSpin.value = 1
+        remarkField.text = ""
+        
+        refresh()
     }
     
     function refresh() {
+        studentCombo.model = studentRepo.getAll()
+        reasonCombo.model = reasonRepo.getAll()
         eventListView.model = eventRepo.getAll()
     }
     

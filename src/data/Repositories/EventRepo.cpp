@@ -14,8 +14,8 @@ QVariantMap EventRepo::create(const QVariantMap &data)
 {
     QSqlQuery query;
     query.prepare(R"(
-        INSERT INTO events (type, ref_id, desc, val_prev, val_curr, reason, timestamp, erased, remote_id, sync_state)
-        VALUES (:type, :ref_id, :desc, :val_prev, :val_curr, :reason, :timestamp, 0, :remote_id, :sync_state)
+        INSERT INTO events (type, ref_id, desc, val_prev, val_curr, timestamp, erased, remote_id, sync_state)
+        VALUES (:type, :ref_id, :desc, :val_prev, :val_curr, :timestamp, 0, :remote_id, :sync_state)
     )");
     
     query.bindValue(":type", data.value("type"));
@@ -23,7 +23,6 @@ QVariantMap EventRepo::create(const QVariantMap &data)
     query.bindValue(":desc", data.value("desc"));
     query.bindValue(":val_prev", data.value("val_prev"));
     query.bindValue(":val_curr", data.value("val_curr"));
-    query.bindValue(":reason", data.value("reason")); // Ensure reason field is handled
     query.bindValue(":timestamp", data.value("timestamp", QDateTime::currentSecsSinceEpoch()));
     query.bindValue(":remote_id", data.value("remote_id", ""));
     query.bindValue(":sync_state", data.value("sync_state", "pending"));
@@ -156,8 +155,8 @@ int EventRepo::createWithId(int id, const QVariantMap &data)
 {
     QSqlQuery query;
     query.prepare(R"(
-        INSERT INTO events (id, type, ref_id, desc, val_prev, val_curr, reason, timestamp, erased, remote_id, sync_state)
-        VALUES (:id, :type, :ref_id, :desc, :val_prev, :val_curr, :reason, :timestamp, :erased, :remote_id, :sync_state)
+        INSERT INTO events (id, type, ref_id, desc, val_prev, val_curr, timestamp, erased, remote_id, sync_state)
+        VALUES (:id, :type, :ref_id, :desc, :val_prev, :val_curr, :timestamp, :erased, :remote_id, :sync_state)
     )");
     
     query.bindValue(":id", id);
@@ -166,7 +165,6 @@ int EventRepo::createWithId(int id, const QVariantMap &data)
     query.bindValue(":desc", data.value("desc"));
     query.bindValue(":val_prev", data.value("val_prev"));
     query.bindValue(":val_curr", data.value("val_curr"));
-    query.bindValue(":reason", data.value("reason"));
     query.bindValue(":timestamp", data.value("timestamp"));
     query.bindValue(":erased", data.value("erased", 0));
     query.bindValue(":remote_id", data.value("remote_id", ""));

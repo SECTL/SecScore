@@ -1,4 +1,4 @@
-set(qml_import_scanner_imports_count 35)
+set(qml_import_scanner_imports_count 37)
 set(qml_import_scanner_import_0 "CLASSNAME;QtQuick2Plugin;LINKTARGET;Qt6::qtquick2plugin;NAME;QtQuick;PATH;D:/Qt/6.10.1/mingw_64/qml/QtQuick;PLUGIN;qtquick2plugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQuick/;RELATIVEPATH;QtQuick;TYPE;module;")
 set(qml_import_scanner_import_1 "CLASSNAME;QtQmlPlugin;LINKTARGET;Qt6::qmlplugin;NAME;QtQml;PATH;D:/Qt/6.10.1/mingw_64/qml/QtQml;PLUGIN;qmlplugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/QtQml/;RELATIVEPATH;QtQml;TYPE;module;")
 set(qml_import_scanner_import_2 "NAME;QML;PATH;D:/Qt/6.10.1/mingw_64/qml/QML;PREFER;:/qt-project.org/imports/QML/;RELATIVEPATH;QML;TYPE;module;")
@@ -31,7 +31,9 @@ set(qml_import_scanner_import_28 "CLASSNAME;QtQuickControls2BasicStyleImplPlugin
 set(qml_import_scanner_import_29 "CLASSNAME;QtQmlLabsModelsPlugin;LINKTARGET;Qt6::labsmodelsplugin;NAME;Qt.labs.qmlmodels;PATH;D:/Qt/6.10.1/mingw_64/qml/Qt/labs/qmlmodels;PLUGIN;labsmodelsplugin;PLUGINISOPTIONAL;;PREFER;:/qt-project.org/imports/Qt/labs/qmlmodels/;RELATIVEPATH;Qt/labs/qmlmodels;TYPE;module;")
 set(qml_import_scanner_import_30 "NAME;pages;PATH;E:/Document/Coding/SecScore/build/SecScore/qml/pages;TYPE;directory;")
 set(qml_import_scanner_import_31 "NAME;pages;PATH;E:/Document/Coding/SecScore/build-mingw/SecScore/qml/pages;TYPE;directory;")
-set(qml_import_scanner_import_32 "NAME;pages;PATH;E:/Document/Coding/SecScore/dist/bin/qml/QML/pages;TYPE;directory;")
+set(qml_import_scanner_import_32 "NAME;pages;PATH;E:/Document/Coding/SecScore/dist/bin/qml/pages;TYPE;directory;")
 set(qml_import_scanner_import_33 "NAME;SecScore;TYPE;module;")
 set(qml_import_scanner_import_34 "NAME;pages;PATH;E:/Document/Coding/SecScore/qml/pages;TYPE;directory;")
+set(qml_import_scanner_import_35 "NAME;components;PATH;E:/Document/Coding/SecScore/qml/components;TYPE;directory;")
+set(qml_import_scanner_import_36 "NAME;../components;PATH;E:/Document/Coding/SecScore/qml/components;TYPE;directory;")
 
