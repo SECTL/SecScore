@@ -1,8 +1,0 @@
-S:/build/SecScore_autogen/include/../A2M4445PJP/moc_EventRepo.cpp.json
-S:/build/SecScore_autogen/include/../A2M4445PJP/moc_ReasonRepo.cpp.json
-S:/build/SecScore_autogen/include/../A2M4445PJP/moc_StudentRepo.cpp.json
-S:/build/SecScore_autogen/include/../PRMOGMWJPH/moc_App.cpp.json
-S:/build/SecScore_autogen/include/../PRMOGMWJPH/moc_ThemeService.cpp.json
-S:/build/SecScore_autogen/include/../SG3YC7EIDC/moc_Database.cpp.json
-S:/build/SecScore_autogen/include/../UFQQIFJZKK/moc_WsClient.cpp.json
-S:/build/SecScore_autogen/include/../Y7MAPSIO2O/moc_SyncEngine.cpp.json

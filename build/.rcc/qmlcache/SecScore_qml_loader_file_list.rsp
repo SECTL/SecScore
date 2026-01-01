@@ -1,7 +1,0 @@
---resource
-S:/build/.qt/rcc/qmake_SecScore.qrc
---resource
-S:/build/.qt/rcc/SecScore_raw_qml_0.qrc
---resource
-S:/build/.qt/rcc/SecScore_raw_qml_0_extra_qmldirs.qrc
-/qt/qml/SecScore/qml/App.qml

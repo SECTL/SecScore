@@ -1,9 +1,0 @@
--rootPath
-E:/我的文档/Coding/SecScore
--cmake-output
--output-file
-E:/我的文档/Coding/SecScore/build-local/.qt/qml_imports/SecScore_conf.cmake
--importPath
-E:/我的文档/Coding/SecScore/build-local
--importPath
-D:/Qt/6.10.1/mingw_64/qml
