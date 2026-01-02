@@ -21,6 +21,7 @@ class App : public QObject
     Q_PROPERTY(QVariantMap radius READ radius NOTIFY radiusChanged)
     Q_PROPERTY(QVariantMap spacing READ spacing NOTIFY spacingChanged)
     Q_PROPERTY(QVariantMap fonts READ fonts NOTIFY fontsChanged)
+    Q_PROPERTY(double uiScale READ uiScale WRITE setUiScale NOTIFY uiScaleChanged)
 
 public:
     explicit App(QObject *parent = nullptr);
@@ -38,6 +39,7 @@ public:
     QVariantMap radius() const;
     QVariantMap spacing() const;
     QVariantMap fonts() const;
+    double uiScale() const { return m_uiScale; }
 
     Q_INVOKABLE void setRunMode(const QString &mode);
     Q_INVOKABLE void setWsUrl(const QString &url);
@@ -46,6 +48,7 @@ public:
     Q_INVOKABLE bool isFirstRun();
     Q_INVOKABLE void completeFirstRun();
     Q_INVOKABLE QString readFile(const QString &path);
+    Q_INVOKABLE void setUiScale(double scale);
 
     Database* database() const { return m_database; }
     ThemeService* themeService() const { return m_themeService; }
@@ -64,6 +67,7 @@ signals:
     void radiusChanged();
     void spacingChanged();
     void fontsChanged();
+    void uiScaleChanged();
 
 private:
     void setupDataPath();
@@ -75,6 +79,7 @@ private:
     bool m_initialized = false;
     QString m_runMode = "Local"; // "Local" or "Remote"
     QString m_wsUrl = "";
+    double m_uiScale = 1.0;
 
     Database *m_database = nullptr;
     ThemeService *m_themeService = nullptr;

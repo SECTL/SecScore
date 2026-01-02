@@ -21,11 +21,23 @@ ApplicationWindow {
     property color textSecondaryColor: mainApp.colors.textSecondary || "#7f8c8d"
     property color borderColor: mainApp.colors.border || "#dcdde1"
     
-    property int currentRadius: mainApp.radius.medium || 8
-    property int currentSpacing: mainApp.spacing.medium || 16
-    property int currentFontSize: mainApp.fonts.medium || 14
+    property real uiScale: mainApp.uiScale || 1.0
+    property int currentRadius: (mainApp.radius.medium || 8) * uiScale
+    property int currentSpacing: (mainApp.spacing.medium || 16) * uiScale
+    property int currentFontSize: (mainApp.fonts.body || 14) * uiScale
     
     color: backgroundColor
+
+    palette {
+        window: backgroundColor
+        windowText: textColor
+        button: surfaceColor
+        buttonText: textColor
+        base: surfaceColor
+        text: textColor
+        highlight: primaryColor
+        highlightedText: "white"
+    }
     
     header: ToolBar {
         background: Rectangle { color: surfaceColor }

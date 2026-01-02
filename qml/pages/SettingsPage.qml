@@ -37,6 +37,27 @@ Item {
                         model: themeService.availableThemes
                         onActivated: themeService.loadThemeByName(currentText)
                     }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Label {
+                            text: "界面缩放"
+                            color: textSecondaryColor
+                        }
+                        Slider {
+                            id: uiScaleSlider
+                            Layout.fillWidth: true
+                            from: 0.8
+                            to: 1.5
+                            stepSize: 0.05
+                            value: mainApp.uiScale
+                            onValueChanged: mainApp.setUiScale(value)
+                        }
+                        Label {
+                            text: Math.round(uiScaleSlider.value * 100) + "%"
+                            color: textSecondaryColor
+                        }
+                    }
                 }
             }
 
@@ -164,19 +185,14 @@ Item {
                     TextArea {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        text: {
-                            console.log("Trying to read ABOUT.md...")
-                            var content = mainApp.readFile("ABOUT.md")
-                            console.log("ABOUT.md content length:", content.length)
-                            console.log("ABOUT.md content preview:", content.substring(0, 100))
-                            return content
-                        }
+                        text: mainApp.readFile(":/ABOUT.md")
                         textFormat: Text.MarkdownText
                         readOnly: true
                         background: null
                         wrapMode: Text.WordWrap
                         color: textColor
                         font.pixelSize: currentFontSize
+                        ScrollBar.vertical: ScrollBar { }
                     }
                 }
             }

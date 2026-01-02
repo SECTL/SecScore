@@ -112,6 +112,18 @@ void App::setWsUrl(const QString &url)
     }
 }
 
+void App::setUiScale(double scale)
+{
+    if (qFuzzyCompare(m_uiScale, scale))
+        return;
+
+    m_uiScale = scale;
+    emit uiScaleChanged();
+
+    QSettings settings;
+    settings.setValue("uiScale", m_uiScale);
+}
+
 QString App::readFile(const QString &path)
 {
     qDebug() << "Attempting to read file:" << path;
@@ -173,6 +185,7 @@ QVariantMap App::loadSettings()
     result["runMode"] = settings.value("runMode", "Local").toString();
     result["wsUrl"] = settings.value("wsUrl", "").toString();
     result["theme"] = settings.value("theme", "default.json").toString();
+    result["uiScale"] = settings.value("uiScale", 1.0).toDouble();
     return result;
 }
 
@@ -185,6 +198,8 @@ void App::saveSettings(const QVariantMap &settings)
         s.setValue("wsUrl", settings["wsUrl"].toString());
     if (settings.contains("theme"))
         s.setValue("theme", settings["theme"].toString());
+    if (settings.contains("uiScale"))
+        s.setValue("uiScale", settings["uiScale"].toDouble());
 }
 
 bool App::isFirstRun()
@@ -227,6 +242,7 @@ void App::loadSettingsInternal()
     if (m_runMode.compare("remote", Qt::CaseInsensitive) == 0) m_runMode = "Remote";
     if (m_runMode.compare("local", Qt::CaseInsensitive) == 0) m_runMode = "Local";
     m_wsUrl = settings.value("wsUrl", "").toString();
+    m_uiScale = settings.value("uiScale", 1.0).toDouble();
 }
 
 void App::copyDefaultThemes(const QString &themesPath)
