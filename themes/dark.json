@@ -6,6 +6,7 @@
         "secondary": "#B0BEC5",
         "background": "#121212",
         "surface": "#1E1E1E",
+        "button": "#2D2D2D",
         "text": "#FFFFFF",
         "textSecondary": "#B0BEC5",
         "success": "#81C784",

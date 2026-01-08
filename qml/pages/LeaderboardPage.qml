@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import SecScore 1.0
+import "../components"
 
 Item {
     id: root
@@ -22,7 +23,7 @@ Item {
                 color: textColor
             }
             Item { Layout.fillWidth: true }
-            Button {
+            ThemedButton {
                 text: "刷新"
                 onClicked: refresh()
             }

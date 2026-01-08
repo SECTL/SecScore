@@ -1,3 +1,54 @@
+# Build Files
+build/*
+build-*
+*.exe
+*.dll
+*.a
+*.lib
+*.obj
+*.o
+*.pdb
+*.ilk
+
+# Qt Creator
+*.pro.user
+*.pro.user.*
+CMakeLists.txt.user
+*.autosave
+*.qmlproject
+*.qmlproject.user
+*.qtds
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# MinGW
+mingw*/
+*.mingw
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
 # Logs
 logs
 *.log
@@ -7,21 +58,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node.js
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
+# Visual Studio
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# Build Files
-build/*

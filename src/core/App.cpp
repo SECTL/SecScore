@@ -119,6 +119,7 @@ void App::setUiScale(double scale)
 
     m_uiScale = scale;
     emit uiScaleChanged();
+    emit uiMetricsChanged();
 
     QSettings settings;
     settings.setValue("uiScale", m_uiScale);
@@ -128,7 +129,19 @@ QString App::readFile(const QString &path)
 {
     qDebug() << "Attempting to read file:" << path;
     
-    // Try the original path first
+    // Try the original path first (for resource files starting with :)
+    if (path.startsWith(":")) {
+        QFile resourceFile(path);
+        if (resourceFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&resourceFile);
+            in.setEncoding(QStringConverter::Utf8);
+            QString content = in.readAll();
+            qDebug() << "Successfully read resource content length:" << content.length() << "from path:" << path;
+            return content;
+        }
+    }
+    
+    // Try as regular file
     QFile file(path);
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream in(&file);
@@ -139,9 +152,8 @@ QString App::readFile(const QString &path)
     }
     
     // Try with resource prefix if not already present
-    QString resourcePath = path;
     if (!path.startsWith(":")) {
-        resourcePath = ":/" + path;
+        QString resourcePath = ":/" + path;
         qDebug() << "Trying resource path:" << resourcePath;
         
         QFile resourceFile(resourcePath);
@@ -154,7 +166,7 @@ QString App::readFile(const QString &path)
         }
     }
     
-    qWarning() << "Failed to open file as regular file or resource:" << path << "also tried:" << resourcePath;
+    qWarning() << "Failed to open file as regular file or resource:" << path;
     return "";
 }
 
@@ -176,6 +188,27 @@ QVariantMap App::spacing() const
 QVariantMap App::fonts() const
 {
     return m_themeService ? m_themeService->fonts() : QVariantMap();
+}
+
+int App::currentFontSize() const
+{
+    QVariantMap fonts = this->fonts();
+    int baseFontSize = fonts.value("base", 14).toInt();
+    return static_cast<int>(baseFontSize * m_uiScale);
+}
+
+int App::currentSpacing() const
+{
+    QVariantMap spacing = this->spacing();
+    int baseSpacing = spacing.value("base", 8).toInt();
+    return static_cast<int>(baseSpacing * m_uiScale);
+}
+
+int App::currentRadius() const
+{
+    QVariantMap radius = this->radius();
+    int baseRadius = radius.value("base", 8).toInt();
+    return static_cast<int>(baseRadius * m_uiScale);
 }
 
 QVariantMap App::loadSettings()
@@ -216,11 +249,13 @@ void App::completeFirstRun()
 
 void App::onThemeChanged(const QString &themePath)
 {
+    emit themeChanged(themePath);
     emit colorsChanged();
     emit radiusChanged();
     emit spacingChanged();
     emit fontsChanged();
-    
+    emit uiMetricsChanged();
+
     QSettings settings;
     settings.setValue("theme", QFileInfo(themePath).fileName());
 }

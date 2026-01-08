@@ -62,6 +62,16 @@ target_link_libraries(SecScore
 # Include directories
 target_include_directories(SecScore PRIVATE src)
 
+# Copy QML sources next to the built executable for runtime fallback
+add_custom_command(TARGET SecScore POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/qml"
+        "$<TARGET_FILE_DIR:SecScore>/qml"
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/resources/ABOUT.md"
+        "$<TARGET_FILE_DIR:SecScore>/ABOUT.md"
+)
+
 # Install target
 install(TARGETS SecScore
     BUNDLE DESTINATION .

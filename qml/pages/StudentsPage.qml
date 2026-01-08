@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import SecScore 1.0
+import "../components"
 
 Item {
     id: root
@@ -34,7 +35,7 @@ Item {
             footer: Item {
                 width: listView.width
                 height: 60
-                Button {
+                ThemedButton {
                     anchors.centerIn: parent
                     text: "添加学生"
                     onClicked: addStudentDialog.open()
@@ -62,7 +63,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: 12
 
-                        Button {
+                        ThemedButton {
                             text: "编辑"
                             onClicked: {
                                 editStudentDialog.studentId = modelData.id
@@ -71,7 +72,7 @@ Item {
                             }
                         }
                         
-                        Button {
+                        ThemedButton {
                             text: "删除"
                             onClicked: {
                                 confirmDeleteDialog.studentId = modelData.id
@@ -146,7 +147,15 @@ Item {
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
         property int studentId: -1
-        Label { text: "确定要删除该学生吗？" }
+        width: 300
+        
+        ColumnLayout {
+            spacing: 10
+            Label { 
+                text: "确定要删除该学生吗？"
+                Layout.fillWidth: true
+            }
+        }
         
         onAccepted: {
             if (studentId !== -1) {

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import SecScore 1.0
+import "../components"
 
 Item {
     id: root
@@ -90,7 +91,7 @@ Item {
                     }
                 }
                 
-                Button {
+                ThemedButton {
                     text: "提交评分"
                     Layout.alignment: Qt.AlignRight
                     highlighted: true

@@ -23,6 +23,11 @@ class App : public QObject
     Q_PROPERTY(QVariantMap fonts READ fonts NOTIFY fontsChanged)
     Q_PROPERTY(double uiScale READ uiScale WRITE setUiScale NOTIFY uiScaleChanged)
 
+    // Computed properties for UI
+    Q_PROPERTY(int currentFontSize READ currentFontSize NOTIFY uiMetricsChanged)
+    Q_PROPERTY(int currentSpacing READ currentSpacing NOTIFY uiMetricsChanged)
+    Q_PROPERTY(int currentRadius READ currentRadius NOTIFY uiMetricsChanged)
+
 public:
     explicit App(QObject *parent = nullptr);
     ~App();
@@ -40,6 +45,10 @@ public:
     QVariantMap spacing() const;
     QVariantMap fonts() const;
     double uiScale() const { return m_uiScale; }
+
+    int currentFontSize() const;
+    int currentSpacing() const;
+    int currentRadius() const;
 
     Q_INVOKABLE void setRunMode(const QString &mode);
     Q_INVOKABLE void setWsUrl(const QString &url);
@@ -68,6 +77,7 @@ signals:
     void spacingChanged();
     void fontsChanged();
     void uiScaleChanged();
+    void uiMetricsChanged();
 
 private:
     void setupDataPath();

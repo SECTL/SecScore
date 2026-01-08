@@ -12,35 +12,69 @@ ApplicationWindow {
     visible: true
     title: "SecScore - 教育积分管理"
     
-    // Theme bindings
-    property color primaryColor: mainApp.colors.primary || "#3498db"
-    property color secondaryColor: mainApp.colors.secondary || "#2ecc71"
-    property color backgroundColor: mainApp.colors.background || "#f5f6fa"
-    property color surfaceColor: mainApp.colors.surface || "#ffffff"
-    property color textColor: mainApp.colors.text || "#2c3e50"
-    property color textSecondaryColor: mainApp.colors.textSecondary || "#7f8c8d"
-    property color borderColor: mainApp.colors.border || "#dcdde1"
-    
     property real uiScale: mainApp.uiScale || 1.0
-    property int currentRadius: (mainApp.radius.medium || 8) * uiScale
-    property int currentSpacing: (mainApp.spacing.medium || 16) * uiScale
-    property int currentFontSize: (mainApp.fonts.body || 14) * uiScale
+    property int baseRadius: mainApp.radius.medium || 8
+    property int baseSpacing: mainApp.spacing.medium || 16
+    property int baseFontSize: mainApp.fonts.body || 14
     
-    color: backgroundColor
+    property int currentRadius: Math.round(baseRadius * uiScale)
+    property int currentSpacing: Math.round(baseSpacing * uiScale)
+    property int currentFontSize: Math.round(baseFontSize * uiScale)
+    
+    color: mainApp.colors.background || "#f5f6fa"
+
+    font.pixelSize: currentFontSize
 
     palette {
-        window: backgroundColor
-        windowText: textColor
-        button: surfaceColor
-        buttonText: textColor
-        base: surfaceColor
-        text: textColor
-        highlight: primaryColor
+        window: mainApp.colors.background || "#f5f6fa"
+        windowText: mainApp.colors.text || "#2c3e50"
+        button: mainApp.colors.button || "#e0e0e0"
+        buttonText: mainApp.colors.text || "#2c3e50"
+        base: mainApp.colors.surface || "#ffffff"
+        text: mainApp.colors.text || "#2c3e50"
+        highlight: mainApp.colors.primary || "#3498db"
         highlightedText: "white"
+        alternateBase: mainApp.colors.background || "#f5f6fa"
+        mid: mainApp.colors.border || "#dcdde1"
+        midlight: mainApp.colors.surface || "#ffffff"
+        dark: mainApp.colors.border || "#dcdde1"
+        light: mainApp.colors.surface || "#ffffff"
+        shadow: mainApp.colors.text || "#2c3e50"
+        brightText: "white"
+        link: mainApp.colors.primary || "#3498db"
+        linkVisited: mainApp.colors.primary || "#3498db"
+        placeholderText: mainApp.colors.textSecondary || "#7f8c8d"
+        toolTipBase: mainApp.colors.surface || "#ffffff"
+        toolTipText: mainApp.colors.text || "#2c3e50"
+    }
+    
+    Connections {
+        target: mainApp
+        function onColorsChanged() {
+            palette.window = mainApp.colors.background || "#f5f6fa";
+            palette.windowText = mainApp.colors.text || "#2c3e50";
+            palette.button = mainApp.colors.button || "#e0e0e0";
+            palette.buttonText = mainApp.colors.text || "#2c3e50";
+            palette.base = mainApp.colors.surface || "#ffffff";
+            palette.text = mainApp.colors.text || "#2c3e50";
+            palette.highlight = mainApp.colors.primary || "#3498db";
+            palette.alternateBase = mainApp.colors.background || "#f5f6fa";
+            palette.mid = mainApp.colors.border || "#dcdde1";
+            palette.midlight = mainApp.colors.surface || "#ffffff";
+            palette.dark = mainApp.colors.border || "#dcdde1";
+            palette.light = mainApp.colors.surface || "#ffffff";
+            palette.shadow = mainApp.colors.text || "#2c3e50";
+            palette.link = mainApp.colors.primary || "#3498db";
+            palette.linkVisited = mainApp.colors.primary || "#3498db";
+            palette.placeholderText = mainApp.colors.textSecondary || "#7f8c8d";
+            palette.toolTipBase = mainApp.colors.surface || "#ffffff";
+            palette.toolTipText = mainApp.colors.text || "#2c3e50";
+            color = mainApp.colors.background || "#f5f6fa";
+        }
     }
     
     header: ToolBar {
-        background: Rectangle { color: surfaceColor }
+        background: Rectangle { color: mainApp.colors.surface || "#ffffff" }
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 10
@@ -55,7 +89,7 @@ ApplicationWindow {
                 horizontalAlignment: Qt.AlignHCenter
                 verticalAlignment: Qt.AlignVCenter
                 Layout.fillWidth: true
-                color: textColor
+                color: mainApp.colors.text || "#2c3e50"
                 font.bold: true
                 font.pixelSize: 18
             }
@@ -67,7 +101,7 @@ ApplicationWindow {
         width: 220
         height: window.height
         
-        background: Rectangle { color: surfaceColor }
+        background: Rectangle { color: mainApp.colors.surface || "#ffffff" }
         
         ColumnLayout {
             anchors.fill: parent
@@ -76,7 +110,7 @@ ApplicationWindow {
             Item {
                 Layout.preferredHeight: 120
                 Layout.fillWidth: true
-                Rectangle { color: primaryColor; anchors.fill: parent }
+                Rectangle { color: mainApp.colors.primary || "#3498db"; anchors.fill: parent }
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing: 5
@@ -120,10 +154,9 @@ ApplicationWindow {
                 Layout.margins: 10
                 Layout.preferredHeight: 180
                 
-                // Pass theme properties
-                surfaceColor: window.surfaceColor
-                textColor: window.textColor
-                textSecondaryColor: window.textSecondaryColor
+                surfaceColor: mainApp.colors.surface || "#ffffff"
+                textColor: mainApp.colors.text || "#2c3e50"
+                textSecondaryColor: mainApp.colors.textSecondary || "#7f8c8d"
                 currentRadius: window.currentRadius
                 currentFontSize: window.currentFontSize
             }
@@ -169,7 +202,6 @@ ApplicationWindow {
         }
     }
 
-    // First Run Wizard Dialog
     Component {
         id: firstRunWizardComponent
         Dialog {
@@ -177,7 +209,7 @@ ApplicationWindow {
             modal: true
             closePolicy: Popup.NoAutoClose
             width: 400
-            height: 400 // Increased height for better layout
+            height: 400
             anchors.centerIn: parent
             title: "首次运行设置"
             
@@ -185,9 +217,9 @@ ApplicationWindow {
             property string wsUrl: ""
             
             background: Rectangle {
-                color: surfaceColor
+                color: mainApp.colors.surface || "#ffffff"
                 radius: currentRadius
-                border.color: borderColor
+                border.color: mainApp.colors.border || "#dcdde1"
             }
             
             ColumnLayout {
@@ -199,14 +231,14 @@ ApplicationWindow {
                     text: "欢迎使用 SecScore"
                     font.pixelSize: 20
                     font.bold: true
-                    color: primaryColor
+                    color: mainApp.colors.primary || "#3498db"
                     Layout.alignment: Qt.AlignHCenter 
                 }
                 
                 Label { 
                     text: "请选择运行模式："
                     font.pixelSize: 14
-                    color: textColor
+                    color: mainApp.colors.text || "#2c3e50"
                 }
                 
                 ButtonGroup { id: modeGroup }
@@ -219,7 +251,7 @@ ApplicationWindow {
                 }
                 Label {
                     text: "仅使用本地数据库，数据保存在本机。"
-                    color: textSecondaryColor
+                    color: mainApp.colors.textSecondary || "#7f8c8d"
                     font.pixelSize: 12
                     Layout.leftMargin: 28
                 }
@@ -232,7 +264,7 @@ ApplicationWindow {
                 }
                 Label {
                     text: "连接到远程服务器，支持多端数据同步。"
-                    color: textSecondaryColor
+                    color: mainApp.colors.textSecondary || "#7f8c8d"
                     font.pixelSize: 12
                     Layout.leftMargin: 28
                 }

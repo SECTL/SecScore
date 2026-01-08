@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import SecScore 1.0
+import "../components"
 
 Item {
     id: root
@@ -15,8 +16,8 @@ Item {
 
         ColumnLayout {
             width: parent.width
-            anchors.margins: currentSpacing
-            spacing: currentSpacing
+            anchors.margins: mainApp.currentSpacing
+            spacing: mainApp.currentSpacing
 
             GroupBox {
                 title: "外观"
@@ -27,7 +28,7 @@ Item {
                         Layout.fillWidth: true
                         Label {
                             text: "当前主题： " + themeService.currentThemeName
-                            color: textSecondaryColor
+                            color: mainApp.colors.textSecondary
                         }
                         Item { Layout.fillWidth: true }
                     }
@@ -42,7 +43,7 @@ Item {
                         spacing: 8
                         Label {
                             text: "界面缩放"
-                            color: textSecondaryColor
+                            color: mainApp.colors.textSecondary
                         }
                         Slider {
                             id: uiScaleSlider
@@ -55,7 +56,7 @@ Item {
                         }
                         Label {
                             text: Math.round(uiScaleSlider.value * 100) + "%"
-                            color: textSecondaryColor
+                            color: mainApp.colors.textSecondary
                         }
                     }
                 }
@@ -82,7 +83,7 @@ Item {
                     }
                     Label {
                         text: mainApp.runMode === "Remote" ? "远程模式已启用" : "本地模式已启用"
-                        color: textSecondaryColor
+                        color: mainApp.colors.textSecondary
                     }
                 }
             }
@@ -105,10 +106,10 @@ Item {
                         Layout.fillWidth: true
                         Label {
                             text: "当前状态: " + (syncEngine ? syncEngine.syncStatus : "未初始化")
-                            color: textSecondaryColor
+                            color: mainApp.colors.textSecondary
                         }
                         Item { Layout.fillWidth: true }
-                        Button {
+                        ThemedButton {
                             text: "应用"
                             onClicked: mainApp.setWsUrl(wsUrlField.text)
                         }
@@ -138,10 +139,10 @@ Item {
                             Label {
                                 text: modelData.name
                                 Layout.fillWidth: true
-                                color: textColor
+                                color: mainApp.colors.text
                             }
                             
-                            Button {
+                            ThemedButton {
                                 text: "编辑"
                                 onClicked: {
                                     editReasonDialog.reasonId = modelData.id
@@ -150,7 +151,7 @@ Item {
                                 }
                             }
                             
-                            Button {
+                            ThemedButton {
                                 text: "删除"
                                 onClicked: {
                                     reasonRepo.remove(modelData.id)
@@ -160,7 +161,7 @@ Item {
                         }
                     }
                     
-                    Button {
+                    ThemedButton {
                         text: "添加理由"
                         onClicked: addReasonDialog.open()
                     }
@@ -179,20 +180,32 @@ Item {
                     Label {
                         text: "版本: " + mainApp.appVersion
                         font.bold: true
-                        color: textColor
+                        color: mainApp.colors.text
                     }
                     
-                    TextArea {
+                    ScrollView {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        text: mainApp.readFile(":/ABOUT.md")
-                        textFormat: Text.MarkdownText
-                        readOnly: true
-                        background: null
-                        wrapMode: Text.WordWrap
-                        color: textColor
-                        font.pixelSize: currentFontSize
-                        ScrollBar.vertical: ScrollBar { }
+                        clip: true
+                        
+                        TextArea {
+                            id: aboutTextArea
+                            width: parent.width
+                            textFormat: Text.MarkdownText
+                            readOnly: true
+                            background: null
+                            wrapMode: Text.WordWrap
+                            color: mainApp.colors.text
+                            font.pixelSize: mainApp.currentFontSize
+                            Component.onCompleted: {
+                                var content = mainApp.readFile(":/ABOUT.md")
+                                if (content.length === 0) {
+                                    // 如果资源路径失败，尝试其他路径
+                                    content = mainApp.readFile("ABOUT.md")
+                                }
+                                aboutTextArea.text = content
+                            }
+                        }
                     }
                 }
             }
