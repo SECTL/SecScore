@@ -50,6 +50,13 @@ qt_add_executable(SecScore
     ${RESOURCES}
 )
 
+# Clear database before build
+add_custom_command(TARGET SecScore PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove -f "$ENV{LOCALAPPDATA}/SecScore/SecScore/app.db"
+    COMMAND ${CMAKE_COMMAND} -E remove -f "$ENV{LOCALAPPDATA}/SecScore/app.db"
+    COMMENT "Clearing database file before build..."
+)
+
 # Link libraries
 target_link_libraries(SecScore
     PRIVATE
