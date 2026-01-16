@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { ThemeConfig } from '../../../preload/types'
+import { generateColorMap } from '../utils/color'
 
 interface ThemeContextType {
   currentTheme: ThemeConfig | null
@@ -21,7 +22,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     root.setAttribute('theme-mode', theme.mode)
 
     // 2. 设置 TDesign 品牌色
-    if (tdesign.brandColor) root.style.setProperty('--td-brand-color', tdesign.brandColor)
+    if (tdesign.brandColor) {
+      const colorMap = generateColorMap(tdesign.brandColor, theme.mode)
+      Object.entries(colorMap).forEach(([key, value]) => {
+        root.style.setProperty(key, value)
+      })
+    }
     if (tdesign.warningColor) root.style.setProperty('--td-warning-color', tdesign.warningColor)
     if (tdesign.errorColor) root.style.setProperty('--td-error-color', tdesign.errorColor)
     if (tdesign.successColor) root.style.setProperty('--td-success-color', tdesign.successColor)

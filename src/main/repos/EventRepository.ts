@@ -12,6 +12,7 @@ export interface ScoreEvent {
   val_curr: number
   event_time: string
   sync_state: number
+  settlement_id?: number | null
   remote_id?: string
 }
 
@@ -23,6 +24,7 @@ export class EventRepository {
       .prepare(
         `
       SELECT * FROM score_events 
+      WHERE settlement_id IS NULL
       ORDER BY event_time DESC 
       LIMIT ?
     `
@@ -91,9 +93,12 @@ export class EventRepository {
     this.db.transaction(() => {
       // 1. Get event info
       const event = this.db
-        .prepare('SELECT student_name, delta FROM score_events WHERE uuid = ?')
-        .get(uuid) as { student_name: string; delta: number }
+        .prepare('SELECT student_name, delta, settlement_id FROM score_events WHERE uuid = ?')
+        .get(uuid) as { student_name: string; delta: number; settlement_id: number | null }
       if (!event) return
+      if (event.settlement_id !== null && event.settlement_id !== undefined) {
+        throw new Error('该记录已结算，无法撤销')
+      }
 
       // 2. Revert student score
       this.db

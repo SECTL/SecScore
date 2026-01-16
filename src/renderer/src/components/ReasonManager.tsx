@@ -57,8 +57,18 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       return
     }
     const values = form.getFieldsValue?.(true) as any
+    const content = values.content?.trim()
+    const category = values.category?.trim() || '其他'
+
+    if (data.some((r) => r.content === content && r.category === category)) {
+      MessagePlugin.warning('该分类下已存在相同理由')
+      return
+    }
+
     const res = await (window as any).api.createReason({
       ...values,
+      content,
+      category,
       delta: Number(values.delta)
     })
     if (res.success) {

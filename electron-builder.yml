@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: secscore
+appId: com.secscore.app
+productName: SecScore
 directories:
   buildResources: build
 files:
@@ -11,13 +11,24 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+afterPack: ./scripts/afterPack.cjs
+extraFiles:
+  - from: themes
+    to: themes
+extraResources:
+  - from: resources
+    to: assets
 win:
-  executableName: secscore
+  target:
+    - zip
+  executableName: SecScore
+  icon: resources/SecScore_logo.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  allowToChangeInstallationDirectory: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

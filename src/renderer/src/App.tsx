@@ -6,9 +6,9 @@ import { Settings } from './components/Settings'
 import { ReasonManager } from './components/ReasonManager'
 import { ScoreManager } from './components/ScoreManager'
 import { Leaderboard } from './components/Leaderboard'
+import { SettlementHistory } from './components/SettlementHistory'
 import { Wizard } from './components/Wizard'
 import { ThemeProvider } from './contexts/ThemeContext'
-import WavyLines from './assets/wavy-lines.svg'
 
 const { Header, Content, Aside } = Layout
 
@@ -20,8 +20,6 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
-  const [appearanceBackground, setAppearanceBackground] = useState<'none' | 'wavy-lines'>('none')
-  const [appearanceBlur, setAppearanceBlur] = useState(0)
 
   useEffect(() => {
     const checkWizard = async () => {
@@ -44,30 +42,9 @@ function MainContent(): React.JSX.Element {
         setHasAnyPassword(anyPwd)
         if (anyPwd && authRes.data.permission === 'view') setAuthVisible(true)
       }
-      const settingsRes = await (window as any).api.getSettings()
-      if (settingsRes?.success && settingsRes.data) {
-        const bg = settingsRes.data.appearance_background
-        const blur = Number(settingsRes.data.appearance_background_blur || 0)
-        setAppearanceBackground(bg === 'wavy-lines' ? 'wavy-lines' : 'none')
-        setAppearanceBlur(Number.isFinite(blur) ? blur : 0)
-      }
     }
 
     loadAuthAndSettings()
-
-    const onSettingsUpdated = (e: any) => {
-      const key = e?.detail?.key
-      const value = e?.detail?.value
-      if (key === 'appearance_background') {
-        setAppearanceBackground(value === 'wavy-lines' ? 'wavy-lines' : 'none')
-      }
-      if (key === 'appearance_background_blur') {
-        const blur = Number(value || 0)
-        setAppearanceBlur(Number.isFinite(blur) ? blur : 0)
-      }
-    }
-    window.addEventListener('ss:settings-updated', onSettingsUpdated as any)
-    return () => window.removeEventListener('ss:settings-updated', onSettingsUpdated as any)
   }, [])
 
   const login = async () => {
@@ -102,6 +79,8 @@ function MainContent(): React.JSX.Element {
         return <ScoreManager canEdit={permission === 'admin' || permission === 'points'} />
       case 'leaderboard':
         return <Leaderboard />
+      case 'settlements':
+        return <SettlementHistory />
       case 'reasons':
         return <ReasonManager canEdit={permission === 'admin'} />
       case 'settings':
@@ -122,30 +101,23 @@ function MainContent(): React.JSX.Element {
 
   return (
     <Layout style={{ height: '100vh', backgroundColor: 'var(--ss-bg-color)' }}>
-      {appearanceBackground !== 'none' && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: -1,
-            backgroundImage: `url(${WavyLines})`,
-            backgroundRepeat: 'repeat',
-            backgroundSize: '600px auto',
-            opacity: 0.35,
-            filter: appearanceBlur > 0 ? `blur(${appearanceBlur}px)` : undefined,
-            transform: appearanceBlur > 0 ? 'scale(1.05)' : undefined
-          }}
-        />
-      )}
       <Aside
+        className="ss-sidebar"
         style={{
           backgroundColor: 'var(--ss-sidebar-bg)',
           borderRight: '1px solid var(--ss-border-color)'
         }}
       >
         <div style={{ padding: '24px', textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--ss-text-main)', margin: 0 }}>SecScore</h2>
-          <div style={{ fontSize: '12px', color: 'var(--ss-text-secondary)' }}>教育积分管理</div>
+          <h2 style={{ color: 'var(--ss-sidebar-text, var(--ss-text-main))', margin: 0 }}>SecScore</h2>
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--ss-sidebar-text, var(--ss-text-main))'
+            }}
+          >
+            教育积分管理
+          </div>
         </div>
         <Menu
           value={activeMenu}
@@ -160,6 +132,9 @@ function MainContent(): React.JSX.Element {
           </Menu.MenuItem>
           <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>
             排行榜
+          </Menu.MenuItem>
+          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>
+            结算历史
           </Menu.MenuItem>
           <Menu.MenuItem value="reasons" icon={<RootListIcon />} disabled={permission !== 'admin'}>
             理由管理

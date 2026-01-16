@@ -51,6 +51,24 @@ export class DbManager {
       )
     `)
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS settlements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        start_time DATETIME NOT NULL,
+        end_time DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+
+    const scoreEventColumns = this.db.prepare(`PRAGMA table_info(score_events)`).all() as {
+      name: string
+    }[]
+    const hasSettlementId = scoreEventColumns.some((c) => c.name === 'settlement_id')
+    if (!hasSettlementId) {
+      this.db.exec(`ALTER TABLE score_events ADD COLUMN settlement_id INTEGER`)
+      this.db.exec(`CREATE INDEX IF NOT EXISTS idx_score_events_settlement_id ON score_events(settlement_id)`)
+    }
+
     // 建立系统设置表
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS settings (

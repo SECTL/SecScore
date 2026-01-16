@@ -5,14 +5,14 @@ import {
   Form,
   Select,
   Input,
-  InputNumber,
   Switch,
   Button,
   Space,
   Divider,
   Tag,
   Dialog,
-  MessagePlugin
+  MessagePlugin,
+  DialogPlugin
 } from 'tdesign-react'
 import { useTheme } from '../contexts/ThemeContext'
 
@@ -52,6 +52,8 @@ export const Settings: React.FC<{ permission: PermissionLevel }> = ({ permission
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
 
+  const [settleLoading, setSettleLoading] = useState(false)
+
   const canAdmin = permission === 'admin'
 
   const permissionTag = useMemo(() => {
@@ -67,6 +69,10 @@ export const Settings: React.FC<{ permission: PermissionLevel }> = ({ permission
 
   const emitSettingUpdated = (key: string, value: string) => {
     window.dispatchEvent(new CustomEvent('ss:settings-updated', { detail: { key, value } }))
+  }
+
+  const emitDataUpdated = (category: 'events' | 'students' | 'reasons' | 'all') => {
+    window.dispatchEvent(new CustomEvent('ss:data-updated', { detail: { category } }))
   }
 
   const loadAll = async () => {
@@ -236,6 +242,34 @@ export const Settings: React.FC<{ permission: PermissionLevel }> = ({ permission
     }
   }
 
+  const confirmSettlement = () => {
+    if (!(window as any).api) return
+    const dialog = DialogPlugin.confirm({
+      header: '确认结算并重新开始？',
+      body: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div>将把当前未结算的积分记录归档为一个阶段，并将所有学生当前积分清零。</div>
+          <div style={{ color: 'var(--ss-text-secondary)', fontSize: '12px' }}>
+            学生名单不变；结算后的历史在“结算历史”页面查看。
+          </div>
+        </div>
+      ),
+      confirmBtn: '结算',
+      onConfirm: async () => {
+        setSettleLoading(true)
+        const res = await (window as any).api.createSettlement()
+        setSettleLoading(false)
+        if (res.success && res.data) {
+          MessagePlugin.success('结算成功，已重新开始积分')
+          emitDataUpdated('all')
+          dialog.hide()
+        } else {
+          MessagePlugin.error(res.message || '结算失败')
+        }
+      }
+    })
+  }
+
   return (
     <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
       <div
@@ -264,29 +298,6 @@ export const Settings: React.FC<{ permission: PermissionLevel }> = ({ permission
                     <Select.Option key={t.id} value={t.id} label={t.name} />
                   ))}
                 </Select>
-              </Form.FormItem>
-
-              <Form.FormItem label="背景样式">
-                <Select
-                  value={settings.appearance_background || 'none'}
-                  onChange={(v) => handleUpdateSetting('appearance_background', String(v))}
-                  style={{ width: '320px' }}
-                >
-                  <Select.Option value="none" label="无背景" />
-                  <Select.Option value="wavy-lines" label="波浪线" />
-                </Select>
-              </Form.FormItem>
-
-              <Form.FormItem label="背景虚化(px)">
-                <InputNumber
-                  min={0}
-                  max={20}
-                  value={Number(settings.appearance_background_blur || 0)}
-                  onChange={(v) =>
-                    handleUpdateSetting('appearance_background_blur', String(v || 0))
-                  }
-                  style={{ width: '160px' }}
-                />
               </Form.FormItem>
             </Form>
           </Card>
@@ -396,6 +407,30 @@ export const Settings: React.FC<{ permission: PermissionLevel }> = ({ permission
         </Tabs.TabPanel>
 
         <Tabs.TabPanel value="data" label="数据管理">
+          <Card
+            title="结算"
+            style={{
+              backgroundColor: 'var(--ss-card-bg)',
+              color: 'var(--ss-text-main)',
+              marginBottom: '16px'
+            }}
+          >
+            <Space align="center">
+              <Button
+                theme="danger"
+                variant="outline"
+                disabled={!canAdmin}
+                loading={settleLoading}
+                onClick={confirmSettlement}
+              >
+                结算并重新开始
+              </Button>
+              <div style={{ fontSize: '12px', color: 'var(--ss-text-secondary)' }}>
+                将当前未结算记录划分为一个阶段，并将所有学生积分清零。
+              </div>
+            </Space>
+          </Card>
+
           <Card
             title="同步设置 (远程模式)"
             style={{

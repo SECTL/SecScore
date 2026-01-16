@@ -9,3 +9,43 @@ body,
   padding: 0;
   overflow: hidden;
 }
+
+.ss-sidebar {
+  color: var(--ss-sidebar-text, var(--ss-text-main));
+}
+
+.ss-sidebar .t-menu__item,
+.ss-sidebar .t-menu__item--active,
+.ss-sidebar .t-menu__item-icon {
+  color: var(--ss-sidebar-text, var(--ss-text-main));
+}
+
+.ss-sidebar .t-menu__item:hover {
+  color: var(--ss-sidebar-text, var(--ss-text-main));
+}
+
+@media (pointer: coarse) {
+  .ss-sidebar .t-menu__item {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .t-button {
+    min-height: 44px;
+  }
+
+  .t-input,
+  .t-input__inner,
+  .t-select-input,
+  .t-input-number,
+  .t-input-number__input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .t-table th,
+  .t-table td {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}

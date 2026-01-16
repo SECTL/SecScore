@@ -55,7 +55,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         MessagePlugin.warning('请输入姓名')
         return
       }
-      const res = await (window as any).api.createStudent(values)
+
+      const name = values.name.trim()
+      if (data.some((s) => s.name === name)) {
+        MessagePlugin.warning('学生姓名已存在')
+        return
+      }
+
+      const res = await (window as any).api.createStudent({ ...values, name })
       if (res.success) {
         MessagePlugin.success('添加成功')
         setVisible(false)

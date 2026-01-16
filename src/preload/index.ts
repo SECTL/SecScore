@@ -32,6 +32,12 @@ const api = {
   queryEventsByStudent: (params: any) => ipcRenderer.invoke('db:event:queryByStudent', params),
   queryLeaderboard: (params: any) => ipcRenderer.invoke('db:leaderboard:query', params),
 
+  // Settlement
+  querySettlements: () => ipcRenderer.invoke('db:settlement:query'),
+  createSettlement: () => ipcRenderer.invoke('db:settlement:create'),
+  querySettlementLeaderboard: (params: any) =>
+    ipcRenderer.invoke('db:settlement:leaderboard', params),
+
   // Settings & Sync
   getSettings: () => ipcRenderer.invoke('db:getSettings'),
   updateSetting: (key: string, value: string) => ipcRenderer.invoke('db:updateSetting', key, value),

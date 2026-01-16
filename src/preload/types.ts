@@ -50,6 +50,18 @@ export interface ElectronApi {
     range: 'today' | 'week' | 'month'
   }) => Promise<IpcResponse<{ startTime: string; rows: any[] }>>
 
+  // Settlement
+  querySettlements: () =>
+    Promise<IpcResponse<{ id: number; start_time: string; end_time: string; event_count: number }[]>>
+  createSettlement: () =>
+    Promise<IpcResponse<{ settlementId: number; startTime: string; endTime: string; eventCount: number }>>
+  querySettlementLeaderboard: (params: { settlement_id: number }) => Promise<
+    IpcResponse<{
+      settlement: { id: number; start_time: string; end_time: string }
+      rows: { name: string; score: number }[]
+    }>
+  >
+
   // Settings & Sync
   getSettings: () => Promise<IpcResponse<Record<string, string>>>
   updateSetting: (key: string, value: string) => Promise<IpcResponse<void>>

@@ -4,6 +4,7 @@ out
 .DS_Store
 .eslintcache
 *.log*
+logs
 
 build
 db.sqlite

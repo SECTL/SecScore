@@ -1,15 +1,16 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
 import fs from 'fs'
 import crypto from 'crypto'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import icon from '../../resources/SecScore_logo.ico?asset'
 import { ThemeService } from './services/ThemeService'
 import { LoggerService, LogLevel } from './services/LoggerService'
 import { DbManager } from './db/DbManager'
 import { StudentRepository } from './repos/StudentRepository'
 import { ReasonRepository } from './repos/ReasonRepository'
 import { EventRepository } from './repos/EventRepository'
+import { SettlementRepository } from './repos/SettlementRepository'
 import { WsClient } from './services/WsClient'
 import { SyncEngine } from './services/SyncEngine'
 
@@ -18,9 +19,10 @@ function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
+    title: 'SecScore',
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -59,22 +61,31 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Base data directory (production 使用单独目录)
-  const dataRoot = is.dev ? process.cwd() : join(app.getPath('userData'), 'secscore-data')
-  if (!fs.existsSync(dataRoot)) {
-    fs.mkdirSync(dataRoot, { recursive: true })
+  const appRoot = is.dev ? process.cwd() : dirname(process.execPath)
+
+  const ensureWritableDir = (preferred: string, fallback: string) => {
+    try {
+      if (!fs.existsSync(preferred)) fs.mkdirSync(preferred, { recursive: true })
+      return preferred
+    } catch {
+      if (!fs.existsSync(fallback)) fs.mkdirSync(fallback, { recursive: true })
+      return fallback
+    }
   }
+
+  const dataRoot = is.dev
+    ? process.cwd()
+    : ensureWritableDir(join(appRoot, 'data'), join(app.getPath('userData'), 'secscore-data'))
 
   // Initialize Logger
   const logDir = is.dev ? join(process.cwd(), 'logs') : join(dataRoot, 'logs')
   const logger = new LoggerService(logDir)
   logger.info('Application starting...')
 
-  // Initialize Themes (prod: 使用单独目录并从内置模板拷贝)
-  const themeDir = is.dev ? join(process.cwd(), 'themes') : join(dataRoot, 'themes')
-  if (!fs.existsSync(themeDir)) {
-    fs.mkdirSync(themeDir, { recursive: true })
-  }
+  const themeDir = is.dev
+    ? join(process.cwd(), 'themes')
+    : ensureWritableDir(join(appRoot, 'themes'), join(dataRoot, 'themes'))
+
   if (!is.dev) {
     try {
       const existing = fs.readdirSync(themeDir).filter((f) => f.toLowerCase().endsWith('.json'))
@@ -143,6 +154,7 @@ app.whenReady().then(() => {
   const studentRepo = new StudentRepository(dbManager.getDb())
   const reasonRepo = new ReasonRepository(dbManager.getDb())
   const eventRepo = new EventRepository(dbManager.getDb())
+  const settlementRepo = new SettlementRepository(dbManager.getDb())
 
   const SETTINGS_SECURITY_ADMIN = 'security_admin_password'
   const SETTINGS_SECURITY_POINTS = 'security_points_password'
@@ -356,6 +368,7 @@ app.whenReady().then(() => {
           .prepare(
             `SELECT * FROM score_events
            WHERE student_name = ?
+             AND settlement_id IS NULL
              AND julianday(event_time) >= julianday(?)
            ORDER BY event_time DESC
            LIMIT ?`
@@ -366,6 +379,7 @@ app.whenReady().then(() => {
           .prepare(
             `SELECT * FROM score_events
            WHERE student_name = ?
+             AND settlement_id IS NULL
            ORDER BY event_time DESC
            LIMIT ?`
           )
@@ -409,6 +423,7 @@ app.whenReady().then(() => {
          FROM students s
          LEFT JOIN score_events e
            ON e.student_name = s.name
+          AND e.settlement_id IS NULL
           AND julianday(e.event_time) >= julianday(?)
          GROUP BY s.id, s.name, s.score
          ORDER BY s.score DESC, range_change DESC, s.name ASC`
@@ -416,6 +431,34 @@ app.whenReady().then(() => {
         .all(startTime)
 
       return { success: true, data: { startTime, rows } }
+    } catch (err: any) {
+      return { success: false, message: err.message }
+    }
+  })
+
+  ipcMain.handle('db:settlement:query', async () => {
+    try {
+      return { success: true, data: settlementRepo.findAll() }
+    } catch (err: any) {
+      return { success: false, message: err.message }
+    }
+  })
+
+  ipcMain.handle('db:settlement:create', async (event) => {
+    try {
+      if (!requirePermission(event, 'admin')) return { success: false, message: 'Permission denied' }
+      const data = settlementRepo.settleNow()
+      return { success: true, data }
+    } catch (err: any) {
+      return { success: false, message: err.message }
+    }
+  })
+
+  ipcMain.handle('db:settlement:leaderboard', async (_, params) => {
+    try {
+      const settlementId = Number(params?.settlement_id)
+      if (!Number.isFinite(settlementId)) return { success: false, message: 'Invalid settlement_id' }
+      return { success: true, data: settlementRepo.getLeaderboard(settlementId) }
     } catch (err: any) {
       return { success: false, message: err.message }
     }
@@ -624,15 +667,21 @@ app.whenReady().then(() => {
       .all()
     const events = db
       .prepare(
-        'SELECT id, uuid, student_name, reason_content, delta, val_prev, val_curr, event_time, sync_state, remote_id FROM score_events'
+        'SELECT id, uuid, student_name, reason_content, delta, val_prev, val_curr, event_time, settlement_id, sync_state, remote_id FROM score_events'
       )
+      .all()
+    const settlements = db
+      .prepare('SELECT id, start_time, end_time, created_at FROM settlements ORDER BY id ASC')
       .all()
     const settingsRows = db.prepare('SELECT key, value FROM settings').all() as {
       key: string
       value: string
     }[]
     const settings = settingsRows.filter((r) => !String(r.key).startsWith('security_'))
-    return { success: true, data: JSON.stringify({ students, reasons, events, settings }, null, 2) }
+    return {
+      success: true,
+      data: JSON.stringify({ students, reasons, events, settlements, settings }, null, 2)
+    }
   })
 
   ipcMain.handle('data:importJson', (event, jsonText: string) => {
@@ -647,12 +696,14 @@ app.whenReady().then(() => {
     const students = Array.isArray(parsed?.students) ? parsed.students : []
     const reasons = Array.isArray(parsed?.reasons) ? parsed.reasons : []
     const events = Array.isArray(parsed?.events) ? parsed.events : []
+    const settlements = Array.isArray(parsed?.settlements) ? parsed.settlements : []
     const settings = Array.isArray(parsed?.settings) ? parsed.settings : []
 
     const db = dbManager.getDb()
     try {
       db.transaction(() => {
         db.prepare('DELETE FROM score_events').run()
+        db.prepare('DELETE FROM settlements').run()
         db.prepare('DELETE FROM students').run()
         db.prepare('DELETE FROM reasons').run()
         db.prepare("DELETE FROM settings WHERE key NOT LIKE 'security_%'").run()
@@ -688,8 +739,19 @@ app.whenReady().then(() => {
         }
 
         const insertEvent = db.prepare(
-          'INSERT INTO score_events (uuid, student_name, reason_content, delta, val_prev, val_curr, event_time, sync_state, remote_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+          'INSERT INTO score_events (uuid, student_name, reason_content, delta, val_prev, val_curr, event_time, settlement_id, sync_state, remote_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
+        const insertSettlement = db.prepare(
+          'INSERT INTO settlements (id, start_time, end_time, created_at) VALUES (?, ?, ?, ?)'
+        )
+        for (const s of settlements) {
+          const id = Number(s?.id)
+          const startTime = String(s?.start_time ?? '').trim()
+          const endTime = String(s?.end_time ?? '').trim()
+          const createdAt = String(s?.created_at ?? new Date().toISOString())
+          if (!Number.isFinite(id) || !startTime || !endTime) continue
+          insertSettlement.run(id, startTime, endTime, createdAt)
+        }
         for (const e of events) {
           const uuid = String(e?.uuid ?? '').trim()
           const studentName = String(e?.student_name ?? '').trim()
@@ -699,6 +761,11 @@ app.whenReady().then(() => {
           const valPrev = Number(e?.val_prev ?? 0)
           const valCurr = Number(e?.val_curr ?? 0)
           const eventTime = String(e?.event_time ?? new Date().toISOString())
+          const settlementIdRaw = e?.settlement_id
+          const settlementId =
+            settlementIdRaw === null || settlementIdRaw === undefined
+              ? null
+              : Number(settlementIdRaw)
           const syncState = Number(e?.sync_state ?? 0) ? 1 : 0
           const remoteId = e?.remote_id != null ? String(e.remote_id) : null
           insertEvent.run(
@@ -709,6 +776,7 @@ app.whenReady().then(() => {
             Number.isFinite(valPrev) ? valPrev : 0,
             Number.isFinite(valCurr) ? valCurr : 0,
             eventTime,
+            Number.isFinite(settlementId as any) ? settlementId : null,
             syncState,
             remoteId
           )

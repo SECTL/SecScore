@@ -15,6 +15,44 @@ import {
   Popconfirm
 } from 'tdesign-react'
 import { RollbackIcon } from 'tdesign-icons-react'
+import { match } from 'pinyin-pro'
+
+const normalizeSearch = (input: unknown) =>
+  String(input ?? '')
+    .trim()
+    .toLowerCase()
+
+const getOptionLabel = (option: unknown) => {
+  if (option && typeof option === 'object') {
+    const anyOption = option as any
+    return String(anyOption.label ?? anyOption.text ?? anyOption.value ?? '')
+  }
+  return String(option ?? '')
+}
+
+const matchStudentName = (name: string, keyword: string) => {
+  const q0 = normalizeSearch(keyword)
+  if (!q0) return true
+
+  const nameLower = String(name).toLowerCase()
+  if (nameLower.includes(q0)) return true
+
+  const q1 = q0.replace(/\s+/g, '')
+  if (q1 && nameLower.replace(/\s+/g, '').includes(q1)) return true
+
+  try {
+    const m0 = match(name, q0)
+    if (Array.isArray(m0)) return true
+    if (q1 && q1 !== q0) {
+      const m1 = match(name, q1)
+      if (Array.isArray(m1)) return true
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
 
 interface Student {
   id: number
@@ -91,13 +129,28 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       return
     }
     const values = form.getFieldsValue(true) as any
-    if (!values.student_name || !values.delta || !values.reason_content) {
+    if (!values.student_name || !values.reason_content) {
       MessagePlugin.warning('请填写完整信息')
       return
     }
 
+    const deltaInput = Number(values.delta)
+    const hasDeltaInput = Number.isFinite(deltaInput) && deltaInput > 0
+
+    const reasonId = Number(values.reason_id)
+    const selectedReason = Number.isFinite(reasonId) ? reasons.find((r) => r.id === reasonId) : null
+
+    if (!hasDeltaInput && !selectedReason) {
+      MessagePlugin.warning('请填写分值或选择预设理由')
+      return
+    }
+
     setSubmitLoading(true)
-    const delta = values.type === 'subtract' ? -Math.abs(values.delta) : Math.abs(values.delta)
+    const delta = hasDeltaInput
+      ? values.type === 'subtract'
+        ? -Math.abs(deltaInput)
+        : Math.abs(deltaInput)
+      : Number(selectedReason?.delta ?? 0)
 
     const res = await (window as any).api.createEvent({
       student_name: values.student_name,
@@ -107,7 +160,12 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     if (res.success) {
       MessagePlugin.success('积分提交成功')
-      form.setFieldsValue({ delta: undefined, reason_content: '', reason_id: undefined })
+      form.setFieldsValue({
+        delta: undefined,
+        reason_content: '',
+        reason_id: undefined,
+        type: 'add'
+      })
       fetchData()
       emitDataUpdated('events')
     } else {
@@ -184,11 +242,14 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <Select
                 filterable
                 placeholder="请选择或搜索学生"
+                filter={(filterWords, option) =>
+                  matchStudentName(getOptionLabel(option), filterWords)
+                }
                 options={students.map((s) => ({ label: s.name, value: s.name }))}
               />
             </Form.FormItem>
 
-            <Form.FormItem label="分数" name="delta">
+            <Form.FormItem label="分数">
               <Space>
                 <Form.FormItem name="type" style={{ marginBottom: 0 }}>
                   <Radio.Group variant="default-filled">
@@ -196,7 +257,9 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     <Radio.Button value="subtract">扣分</Radio.Button>
                   </Radio.Group>
                 </Form.FormItem>
-                <InputNumber min={1} placeholder="分值" style={{ width: '120px' }} />
+                <Form.FormItem name="delta" style={{ marginBottom: 0 }}>
+                  <InputNumber min={1} placeholder="分值" style={{ width: '120px' }} />
+                </Form.FormItem>
               </Space>
             </Form.FormItem>
 
@@ -208,6 +271,17 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   if (!Number.isFinite(id)) return
                   const reason = reasons.find((r) => r.id === id)
                   if (!reason) return
+
+                  const currentDelta = Number(form.getFieldValue('delta'))
+                  const hasCurrentDelta = Number.isFinite(currentDelta) && currentDelta > 0
+
+                  if (hasCurrentDelta) {
+                    form.setFieldsValue({
+                      reason_content: reason.content
+                    })
+                    return
+                  }
+
                   form.setFieldsValue({
                     reason_content: reason.content,
                     delta: Math.abs(reason.delta),

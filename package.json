@@ -26,6 +26,7 @@
     "better-sqlite3": "^12.6.0",
     "chokidar": "^5.0.0",
     "electron-updater": "^6.3.9",
+    "pinyin-pro": "^3.27.0",
     "tdesign-react": "^1.16.3",
     "uuid": "^13.0.0",
     "ws": "^8.19.0"
