@@ -68,12 +68,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     fetchData()
     const onDataUpdated = (e: any) => {
       const category = e?.detail?.category
-      if (
-        category === 'students' ||
-        category === 'reasons' ||
-        category === 'all' ||
-        category === 'events'
-      ) {
+      // 仅在学生名单、理由列表或全量更新时才重新拉取数据
+      // 积分变动(events)现在由本地状态维护，不再触发全量刷新以防止页面跳动
+      if (category === 'students' || category === 'reasons' || category === 'all') {
         fetchData(true)
       }
     }
@@ -249,7 +246,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     if (res.success) {
       MessagePlugin.success(`已为 ${student.name} ${delta > 0 ? '加' : '扣'}${Math.abs(delta)}分`)
       setOperationVisible(false)
-      fetchData(true)
+
+      // 【核心改进】本地增量更新分数，避免全量刷新导致的闪烁和滚动重置
+      setStudents((prev) =>
+        prev.map((s) => (s.id === student.id ? { ...s, score: s.score + delta } : s))
+      )
+
+      // 通知其他组件数据已更新（但不在此处重复 fetchData）
       emitDataUpdated('events')
     } else {
       MessagePlugin.error(res.message || '提交失败')
