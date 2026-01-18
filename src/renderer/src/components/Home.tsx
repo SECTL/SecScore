@@ -51,9 +51,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     window.dispatchEvent(new CustomEvent('ss:data-updated', { detail: { category } }))
   }
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!(window as any).api) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     const [stuRes, reaRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons()
@@ -61,15 +61,20 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     if (stuRes.success) setStudents(stuRes.data)
     if (reaRes.success) setReasons(reaRes.data)
-    setLoading(false)
+    if (!silent) setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchData()
     const onDataUpdated = (e: any) => {
       const category = e?.detail?.category
-      if (category === 'students' || category === 'reasons' || category === 'all') {
-        fetchData()
+      if (
+        category === 'students' ||
+        category === 'reasons' ||
+        category === 'all' ||
+        category === 'events'
+      ) {
+        fetchData(true)
       }
     }
     window.addEventListener('ss:data-updated', onDataUpdated as any)
@@ -226,13 +231,35 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setOperationVisible(true)
   }
 
-  // 提交积分
-  const handleSubmit = async () => {
-    if (!(window as any).api || !selectedStudent) return
+  // 核心提交逻辑
+  const performSubmit = async (student: student, delta: number, content: string) => {
+    if (!(window as any).api) return
     if (!canEdit) {
       MessagePlugin.error('当前为只读权限')
       return
     }
+
+    setSubmitLoading(true)
+    const res = await (window as any).api.createEvent({
+      student_name: student.name,
+      reason_content: content,
+      delta: delta
+    })
+
+    if (res.success) {
+      MessagePlugin.success(`已为 ${student.name} ${delta > 0 ? '加' : '扣'}${Math.abs(delta)}分`)
+      setOperationVisible(false)
+      fetchData(true)
+      emitDataUpdated('events')
+    } else {
+      MessagePlugin.error(res.message || '提交失败')
+    }
+    setSubmitLoading(false)
+  }
+
+  // 手动点击确定按钮提交（用于自定义分值）
+  const handleSubmit = async () => {
+    if (!selectedStudent) return
 
     const delta = customScore
     if (delta === undefined || !Number.isFinite(delta)) {
@@ -241,29 +268,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
 
     const content = reasonContent || (delta > 0 ? '加分' : delta < 0 ? '扣分' : '积分变更')
-
-    setSubmitLoading(true)
-    const res = await (window as any).api.createEvent({
-      student_name: selectedStudent.name,
-      reason_content: content,
-      delta: delta
-    })
-
-    if (res.success) {
-      MessagePlugin.success('积分提交成功')
-      setOperationVisible(false)
-      fetchData()
-      emitDataUpdated('events')
-    } else {
-      MessagePlugin.error(res.message || '提交失败')
-    }
-    setSubmitLoading(false)
+    await performSubmit(selectedStudent, delta, content)
   }
 
-  // 快捷理由选择
+  // 快捷理由选择：点击即提交
   const handleReasonSelect = (reason: reason) => {
-    setCustomScore(reason.delta)
-    setReasonContent(reason.content)
+    if (!selectedStudent) return
+    performSubmit(selectedStudent, reason.delta, reason.content)
   }
 
   // 渲染学生卡片
