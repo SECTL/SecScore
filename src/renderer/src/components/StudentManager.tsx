@@ -14,7 +14,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
   const [importVisible, setImportVisible] = useState(false)
-  const [importLoading, setImportLoading] = useState(false)
   const [xlsxVisible, setXlsxVisible] = useState(false)
   const [xlsxLoading, setXlsxLoading] = useState(false)
   const [xlsxFileName, setXlsxFileName] = useState('')
@@ -109,40 +108,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       emitDataUpdated('students')
     } else {
       MessagePlugin.error(res.message || '删除失败')
-    }
-  }
-
-  const handleImportFromSecRandom = async () => {
-    if (!(window as any).api) return
-    if (!canEdit) {
-      MessagePlugin.error('当前为只读权限')
-      return
-    }
-    setImportLoading(true)
-    try {
-      let res: any
-      try {
-        res = await (window as any).api.importStudentsFromSecRandom({})
-      } catch (e: any) {
-        MessagePlugin.error(e instanceof Error ? e.message : '导入失败')
-        return
-      }
-      if (!res?.success) {
-        MessagePlugin.error(res?.message || '导入失败')
-        return
-      }
-      const inserted = Number(res?.data?.inserted ?? 0)
-      const skipped = Number(res?.data?.skipped ?? 0)
-      const className = String(res?.data?.className ?? '').trim()
-      const sourceMessage = String(res?.data?.sourceMessage ?? '').trim()
-      const prefix = className ? `导入完成（${className}）：` : '导入完成：'
-      const suffix = sourceMessage ? `（${sourceMessage}）` : ''
-      MessagePlugin.success(`${prefix}新增 ${inserted}，跳过 ${skipped}${suffix}`)
-      setImportVisible(false)
-      fetchStudents()
-      emitDataUpdated('students')
-    } finally {
-      setImportLoading(false)
     }
   }
 
@@ -375,9 +340,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         destroyOnClose
       >
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Button loading={importLoading} disabled={!canEdit} onClick={handleImportFromSecRandom}>
-            通过软件“SecRandom”导入（IPC）
-          </Button>
           <Button
             loading={xlsxLoading}
             disabled={!canEdit}
