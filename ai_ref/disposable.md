@@ -7,7 +7,7 @@
 
 - 为什么我们需要可逆的插件系统？
 - Cordis 是如何实现资源安全的？
-:::
+  :::
 
 Koishi 的一切都从 Cordis 开始。但我想大部分 Koishi 的开发者都不知道 Cordis 是什么。如果让我来定义的话，Cordis 是一个**元框架 (Meta Framework)**，即一个用于构建框架的框架。
 
@@ -112,8 +112,8 @@ function serve(port: number) {
   return () => server.close()
 }
 
-const dispose = serve(80)       // 监听端口 80
-dispose()                       // 回收副作用
+const dispose = serve(80) // 监听端口 80
+dispose() // 回收副作用
 ```
 
 在这个例子中，`serve()` 函数将会创建一个服务器并且监听 `port` 端口。同时，调用该函数也会返回一个新的函数，用于取消该端口的监听。
@@ -123,7 +123,7 @@ dispose()                       // 回收副作用
 
 - $\mathcal{C}\times\mathfrak{F}$ 对应着全局环境 (我们稍后会提到全局环境的坏处，但不影响这里的理解)
 - `port` 对应于上面的 $\text{X}$，由于我们可以使用柯里化，所以在数学模型中并不需要考虑它
-:::
+  :::
 
 为什么需要引入这个 $\text{effect}$ 和 $\mathcal{C}\times\mathfrak{F}$ 呢？它的作用是将副作用从函数的返回值中分离出来，从而实现副作用的回收。只需定义 $\text{restore}$ 变换 (不难发现它确实是 $\text{effect}$ 的逆操作)：
 
@@ -142,9 +142,9 @@ function serve(port: number) {
   collectEffect(() => server.close())
 }
 
-serve(80)               // 监听端口 80 并记录副作用
-serve(443)              // 监听端口 443 并记录副作用
-restore()               // 回收所有副作用
+serve(80) // 监听端口 80 并记录副作用
+serve(443) // 监听端口 443 并记录副作用
+restore() // 回收所有副作用
 ```
 
 当副作用被记录到全局环境时，$\mathcal{C}\times\mathfrak{F}$ 也就变成了一个更大的 $\mathcal{C}$。我们便可以这样定义：

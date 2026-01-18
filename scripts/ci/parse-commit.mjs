@@ -88,4 +88,3 @@ if (process.env.GITHUB_OUTPUT) {
 } else {
   process.stdout.write(`${JSON.stringify(outputs, null, 2)}\n`)
 }
-
