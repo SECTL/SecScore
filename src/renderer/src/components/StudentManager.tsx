@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, Button, Space, MessagePlugin, Dialog, Form, Input } from 'tdesign-react'
 import type { PrimaryTableCol } from 'tdesign-react'
+import * as XLSX from 'xlsx'
 
 interface student {
   id: number
@@ -12,6 +13,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [data, setData] = useState<student[]>([])
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [importVisible, setImportVisible] = useState(false)
+  const [importLoading, setImportLoading] = useState(false)
+  const [xlsxVisible, setXlsxVisible] = useState(false)
+  const [xlsxLoading, setXlsxLoading] = useState(false)
+  const [xlsxFileName, setXlsxFileName] = useState('')
+  const [xlsxAoa, setXlsxAoa] = useState<any[][]>([])
+  const [xlsxSelectedCol, setXlsxSelectedCol] = useState<number | null>(null)
+  const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const [form] = Form.useForm()
 
   const emitDataUpdated = (category: 'students' | 'all') => {
@@ -103,6 +112,180 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
+  const handleImportFromSecRandom = async () => {
+    if (!(window as any).api) return
+    if (!canEdit) {
+      MessagePlugin.error('当前为只读权限')
+      return
+    }
+    setImportLoading(true)
+    try {
+      let res: any
+      try {
+        res = await (window as any).api.importStudentsFromSecRandom({})
+      } catch (e: any) {
+        MessagePlugin.error(e instanceof Error ? e.message : '导入失败')
+        return
+      }
+      if (!res?.success) {
+        MessagePlugin.error(res?.message || '导入失败')
+        return
+      }
+      const inserted = Number(res?.data?.inserted ?? 0)
+      const skipped = Number(res?.data?.skipped ?? 0)
+      const className = String(res?.data?.className ?? '').trim()
+      const sourceMessage = String(res?.data?.sourceMessage ?? '').trim()
+      const prefix = className ? `导入完成（${className}）：` : '导入完成：'
+      const suffix = sourceMessage ? `（${sourceMessage}）` : ''
+      MessagePlugin.success(`${prefix}新增 ${inserted}，跳过 ${skipped}${suffix}`)
+      setImportVisible(false)
+      fetchStudents()
+      emitDataUpdated('students')
+    } finally {
+      setImportLoading(false)
+    }
+  }
+
+  const excelColName = (idx: number) => {
+    let n = idx + 1
+    let s = ''
+    while (n > 0) {
+      const mod = (n - 1) % 26
+      s = String.fromCharCode(65 + mod) + s
+      n = Math.floor((n - 1) / 26)
+    }
+    return s
+  }
+
+  const parseXlsxFile = async (file: File) => {
+    setXlsxLoading(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const firstSheetName = wb.SheetNames?.[0]
+      if (!firstSheetName) {
+        MessagePlugin.error('xlsx 中未找到工作表')
+        return
+      }
+      const ws = wb.Sheets[firstSheetName]
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][]
+      if (!Array.isArray(aoa) || aoa.length === 0) {
+        MessagePlugin.error('xlsx 内容为空')
+        return
+      }
+
+      setXlsxFileName(file.name)
+      setXlsxAoa(aoa)
+      setXlsxSelectedCol(null)
+      setXlsxVisible(true)
+      setImportVisible(false)
+    } catch (e: any) {
+      MessagePlugin.error(e?.message || '解析 xlsx 失败')
+    } finally {
+      setXlsxLoading(false)
+    }
+  }
+
+  const xlsxMaxCols = useMemo(() => {
+    let max = 0
+    for (const row of xlsxAoa) {
+      if (Array.isArray(row)) max = Math.max(max, row.length)
+    }
+    return max
+  }, [xlsxAoa])
+
+  const xlsxPreviewRows = useMemo(() => {
+    const limit = 50
+    const rows = xlsxAoa.slice(0, limit)
+    return rows.map((row, idx) => {
+      const record: any = { __row: idx + 1 }
+      for (let c = 0; c < xlsxMaxCols; c++) {
+        record[`c${c}`] = row?.[c] ?? ''
+      }
+      return record
+    })
+  }, [xlsxAoa, xlsxMaxCols])
+
+  const xlsxPreviewColumns = useMemo(() => {
+    const cols: PrimaryTableCol<any>[] = [
+      { colKey: '__row', title: '#', width: 60, align: 'center', fixed: 'left' as any }
+    ]
+    for (let c = 0; c < xlsxMaxCols; c++) {
+      const selected = xlsxSelectedCol === c
+      cols.push({
+        colKey: `c${c}`,
+        title: (
+          <span
+            style={{
+              cursor: 'pointer',
+              fontWeight: selected ? 700 : 500,
+              color: selected ? 'var(--td-brand-color)' : undefined
+            }}
+            onClick={() => setXlsxSelectedCol(c)}
+          >
+            {excelColName(c)}
+          </span>
+        ),
+        minWidth: 120
+      })
+    }
+    return cols
+  }, [xlsxMaxCols, xlsxSelectedCol])
+
+  const extractNamesFromAoa = (aoa: any[][], colIdx: number) => {
+    const out: string[] = []
+    const seen = new Set<string>()
+    const banned = new Set(['姓名', 'name', '名字'])
+    for (const row of aoa) {
+      const raw = row?.[colIdx]
+      const name = String(raw ?? '').trim()
+      if (!name) continue
+      if (banned.has(name.toLowerCase()) || banned.has(name)) continue
+      if (seen.has(name)) continue
+      seen.add(name)
+      out.push(name)
+    }
+    return out
+  }
+
+  const handleConfirmXlsxImport = async () => {
+    if (!(window as any).api) return
+    if (!canEdit) {
+      MessagePlugin.error('当前为只读权限')
+      return
+    }
+    if (xlsxSelectedCol == null) {
+      MessagePlugin.warning('请先点击选择“姓名列”')
+      return
+    }
+
+    const names = extractNamesFromAoa(xlsxAoa, xlsxSelectedCol)
+    if (!names.length) {
+      MessagePlugin.error('所选列未解析到可导入的姓名')
+      return
+    }
+
+    setXlsxLoading(true)
+    try {
+      const res = await (window as any).api.importStudentsFromXlsx({ names })
+      if (!res?.success) {
+        MessagePlugin.error(res?.message || '导入失败')
+        return
+      }
+      const inserted = Number(res?.data?.inserted ?? 0)
+      const skipped = Number(res?.data?.skipped ?? 0)
+      MessagePlugin.success(`导入完成：新增 ${inserted}，跳过 ${skipped}`)
+      setXlsxVisible(false)
+      setXlsxAoa([])
+      setXlsxFileName('')
+      setXlsxSelectedCol(null)
+      fetchStudents()
+      emitDataUpdated('students')
+    } finally {
+      setXlsxLoading(false)
+    }
+  }
+
   const columns: PrimaryTableCol<student>[] = [
     { colKey: 'name', title: '姓名', width: 200 },
     {
@@ -149,9 +332,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
         <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>学生管理</h2>
-        <Button theme="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
-          添加学生
-        </Button>
+        <Space>
+          <Button variant="outline" disabled={!canEdit} onClick={() => setImportVisible(true)}>
+            导入名单
+          </Button>
+          <Button theme="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
+            添加学生
+          </Button>
+        </Space>
       </div>
 
       <Table
@@ -177,6 +365,67 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <Input placeholder="请输入学生姓名" />
           </Form.FormItem>
         </Form>
+      </Dialog>
+
+      <Dialog
+        header="导入名单"
+        visible={importVisible}
+        onClose={() => setImportVisible(false)}
+        footer={false}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button loading={importLoading} disabled={!canEdit} onClick={handleImportFromSecRandom}>
+            通过软件“SecRandom”导入（IPC）
+          </Button>
+          <Button
+            loading={xlsxLoading}
+            disabled={!canEdit}
+            onClick={() => {
+              xlsxInputRef.current?.click()
+            }}
+          >
+            通过 xlsx 导入
+          </Button>
+          <input
+            ref={xlsxInputRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) parseXlsxFile(file)
+              if (xlsxInputRef.current) xlsxInputRef.current.value = ''
+            }}
+          />
+        </Space>
+      </Dialog>
+
+      <Dialog
+        header="xlsx 预览与导入"
+        visible={xlsxVisible}
+        onClose={() => setXlsxVisible(false)}
+        confirmBtn={{ content: '导入', loading: xlsxLoading, disabled: xlsxSelectedCol == null }}
+        onConfirm={handleConfirmXlsxImport}
+        width="80%"
+        destroyOnClose
+      >
+        <div style={{ marginBottom: '12px', color: 'var(--ss-text-secondary)', fontSize: '12px' }}>
+          <div>文件：{xlsxFileName || '-'}</div>
+          <div>
+            点击表头选择姓名列：{xlsxSelectedCol == null ? '-' : excelColName(xlsxSelectedCol)}
+          </div>
+          <div>预览前 50 行</div>
+        </div>
+        <Table
+          data={xlsxPreviewRows}
+          columns={xlsxPreviewColumns}
+          rowKey="__row"
+          bordered
+          hover
+          maxHeight={420}
+          style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
+        />
       </Dialog>
     </div>
   )

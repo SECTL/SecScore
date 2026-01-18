@@ -277,7 +277,8 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
                   if (hasCurrentDelta) {
                     form.setFieldsValue({
-                      reason_content: reason.content
+                      reason_content: reason.content,
+                      type: reason.delta > 0 ? 'add' : 'subtract'
                     })
                     return
                   }
