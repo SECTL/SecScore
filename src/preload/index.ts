@@ -18,8 +18,6 @@ const api = {
   createStudent: (data: any) => ipcRenderer.invoke('db:student:create', data),
   updateStudent: (id: number, data: any) => ipcRenderer.invoke('db:student:update', id, data),
   deleteStudent: (id: number) => ipcRenderer.invoke('db:student:delete', id),
-  importStudentsFromSecRandom: (params?: { ipcName?: string; timeoutMs?: number }) =>
-    ipcRenderer.invoke('db:student:importFromSecRandom', params),
   importStudentsFromXlsx: (params: { names: string[] }) =>
     ipcRenderer.invoke('db:student:importFromXlsx', params),
 

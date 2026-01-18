@@ -8,6 +8,7 @@ import {
   Button,
   MessagePlugin,
   Card,
+  Collapse,
   Table,
   PrimaryTableCol,
   Tag,
@@ -318,16 +319,20 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         </Form>
       </Card>
 
-      <Card title="最近记录" style={{ backgroundColor: 'var(--ss-card-bg)' }}>
-        <Table
-          data={events}
-          columns={columns}
-          rowKey="uuid"
-          loading={loading}
-          size="small"
-          pagination={{ pageSize: 5, total: events.length }}
-          style={{ color: 'var(--ss-text-main)' }}
-        />
+      <Card style={{ backgroundColor: 'var(--ss-card-bg)' }}>
+        <Collapse defaultValue={[]} expandMutex>
+          <Collapse.Panel header="最近记录" value="recent">
+            <Table
+              data={events}
+              columns={columns}
+              rowKey="uuid"
+              loading={loading}
+              size="small"
+              pagination={{ pageSize: 5, total: events.length }}
+              style={{ color: 'var(--ss-text-main)' }}
+            />
+          </Collapse.Panel>
+        </Collapse>
       </Card>
     </div>
   )
