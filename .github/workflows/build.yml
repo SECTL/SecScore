@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "版本号（例如 1.2.3 或 v1.2.3）"
+        description: '版本号（例如 1.2.3 或 v1.2.3）'
         required: false
       build:
-        description: "构建命令标记（build:win|build:mac|build:linux|build:unpack|build:all）"
+        description: '构建命令标记（build:win|build:mac|build:linux|build:unpack|build:all）'
         required: false
 
 permissions:

@@ -116,6 +116,12 @@ export interface electronApi {
     options?: any
   }) => Promise<ipcResponse<void>>
   navigateWindow: (input: { key?: string; route: string }) => Promise<ipcResponse<void>>
+  windowMinimize: () => Promise<void>
+  windowMaximize: () => Promise<boolean>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
+  onWindowMaximizedChanged: (callback: (maximized: boolean) => void) => () => void
+  toggleDevTools: () => Promise<void>
 
   // Logger
   queryLogs: (lines?: number) => Promise<ipcResponse<string[]>>

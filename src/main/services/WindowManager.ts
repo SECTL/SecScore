@@ -62,6 +62,7 @@ export class WindowManager extends Service {
       height: 670,
       show: false,
       autoHideMenuBar: true,
+      frame: false, // Custom title bar
       icon: this.opts.icon,
       title: input.title,
       webPreferences: {
@@ -78,6 +79,14 @@ export class WindowManager extends Service {
 
     win.on('ready-to-show', () => {
       win.show()
+    })
+
+    // Notify renderer about maximize state changes
+    win.on('maximize', () => {
+      win.webContents.send('window:maximized-changed', true)
+    })
+    win.on('unmaximize', () => {
+      win.webContents.send('window:maximized-changed', false)
     })
 
     win.webContents.setWindowOpenHandler((details) => {
@@ -141,6 +150,47 @@ export class WindowManager extends Service {
       if (!win) return { success: false, message: 'Window not found' }
       const ok = this.navigateWindow(win, route)
       return ok ? { success: true } : { success: false, message: 'Window not found' }
+    })
+
+    // Window controls
+    this.mainCtx.handle('window:minimize', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) win.minimize()
+    })
+
+    this.mainCtx.handle('window:maximize', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) {
+        if (win.isMaximized()) {
+          win.unmaximize()
+          return false
+        } else {
+          win.maximize()
+          return true
+        }
+      }
+      return false
+    })
+
+    this.mainCtx.handle('window:close', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) win.close()
+    })
+
+    this.mainCtx.handle('window:isMaximized', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      return win ? win.isMaximized() : false
+    })
+
+    this.mainCtx.handle('window:toggle-devtools', (event) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) {
+        if (win.webContents.isDevToolsOpened()) {
+          win.webContents.closeDevTools()
+        } else {
+          win.webContents.openDevTools()
+        }
+      }
     })
   }
 }

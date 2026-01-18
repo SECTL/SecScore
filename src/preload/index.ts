@@ -71,6 +71,16 @@ const api = {
     ipcRenderer.invoke('window:open', input),
   navigateWindow: (input: { key?: string; route: string }) =>
     ipcRenderer.invoke('window:navigate', input),
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window:maximize'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onWindowMaximizedChanged: (callback: (maximized: boolean) => void) => {
+    const subscription = (_event: any, maximized: boolean) => callback(maximized)
+    ipcRenderer.on('window:maximized-changed', subscription)
+    return () => ipcRenderer.removeListener('window:maximized-changed', subscription)
+  },
+  toggleDevTools: () => ipcRenderer.invoke('window:toggle-devtools'),
 
   // Logger
   queryLogs: (lines?: number) => ipcRenderer.invoke('log:query', lines),

@@ -501,6 +501,33 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
               <div>{(window as any).electron?.process?.versions?.chrome || '-'}</div>
               <div style={{ color: 'var(--ss-text-secondary)' }}>Node</div>
               <div>{(window as any).electron?.process?.versions?.node || '-'}</div>
+              <div style={{ color: 'var(--ss-text-secondary)' }}>IPC 状态</div>
+              <div>
+                <Tag
+                  theme={(window as any).api ? 'success' : 'danger'}
+                  variant="light"
+                  size="small"
+                >
+                  {(window as any).api ? '已连接' : '未连接 (Preload 失败)'}
+                </Tag>
+              </div>
+              <div style={{ color: 'var(--ss-text-secondary)' }}>环境</div>
+              <div>
+                <Tag variant="outline" size="small">
+                  {import.meta.env.DEV ? 'Development' : 'Production'}
+                </Tag>
+              </div>
+            </div>
+            <Divider />
+            <div style={{ marginTop: '16px' }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  ;(window as any).api?.toggleDevTools()
+                }}
+              >
+                切换开发者工具
+              </Button>
             </div>
           </Card>
         </Tabs.TabPanel>

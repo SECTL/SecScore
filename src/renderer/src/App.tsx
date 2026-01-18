@@ -1,17 +1,10 @@
-import { Layout, Menu, Space, Dialog, Input, Button, Tag, MessagePlugin } from 'tdesign-react'
+import { Layout, Dialog, Input, MessagePlugin } from 'tdesign-react'
 import { useEffect, useMemo, useState } from 'react'
-import { UserIcon, SettingIcon, HistoryIcon, RootListIcon, ViewListIcon } from 'tdesign-icons-react'
-import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { StudentManager } from './components/StudentManager'
-import { Settings } from './components/Settings'
-import { ReasonManager } from './components/ReasonManager'
-import { ScoreManager } from './components/ScoreManager'
-import { Leaderboard } from './components/Leaderboard'
-import { SettlementHistory } from './components/SettlementHistory'
+import { HashRouter, useLocation, useNavigate } from 'react-router-dom'
+import { Sidebar } from './components/Sidebar'
+import { ContentArea } from './components/ContentArea'
 import { Wizard } from './components/Wizard'
 import { ThemeProvider } from './contexts/ThemeContext'
-
-const { Header, Content, Aside } = Layout
 
 function MainContent(): React.JSX.Element {
   const navigate = useNavigate()
@@ -26,13 +19,14 @@ function MainContent(): React.JSX.Element {
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
+    if (p === '/' || p.startsWith('/home')) return 'home'
     if (p.startsWith('/students')) return 'students'
     if (p.startsWith('/score')) return 'score'
     if (p.startsWith('/leaderboard')) return 'leaderboard'
     if (p.startsWith('/settlements')) return 'settlements'
     if (p.startsWith('/reasons')) return 'reasons'
     if (p.startsWith('/settings')) return 'settings'
-    return 'score'
+    return 'home'
   }, [location.pathname])
 
   useEffect(() => {
@@ -87,6 +81,7 @@ function MainContent(): React.JSX.Element {
 
   const onMenuChange = (v: string | number) => {
     const key = String(v)
+    if (key === 'home') navigate('/')
     if (key === 'students') navigate('/students')
     if (key === 'score') navigate('/score')
     if (key === 'leaderboard') navigate('/leaderboard')
@@ -95,99 +90,16 @@ function MainContent(): React.JSX.Element {
     if (key === 'settings') navigate('/settings')
   }
 
-  const permissionTag = (
-    <Tag
-      theme={permission === 'admin' ? 'success' : permission === 'points' ? 'warning' : 'default'}
-      variant="light"
-    >
-      {permission === 'admin' ? '管理权限' : permission === 'points' ? '积分权限' : '只读'}
-    </Tag>
-  )
-
   return (
-    <Layout style={{ height: '100vh', backgroundColor: 'var(--ss-bg-color)' }}>
-      <Aside
-        className="ss-sidebar"
-        style={{
-          backgroundColor: 'var(--ss-sidebar-bg)',
-          borderRight: '1px solid var(--ss-border-color)'
-        }}
-      >
-        <div style={{ padding: '24px', textAlign: 'center' }}>
-          <h2 style={{ color: 'var(--ss-sidebar-text, var(--ss-text-main))', margin: 0 }}>
-            SecScore
-          </h2>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--ss-sidebar-text, var(--ss-text-main))'
-            }}
-          >
-            教育积分管理
-          </div>
-        </div>
-        <Menu value={activeMenu} onChange={onMenuChange} style={{ width: '100%', border: 'none' }}>
-          <Menu.MenuItem value="students" icon={<UserIcon />} disabled={permission !== 'admin'}>
-            学生管理
-          </Menu.MenuItem>
-          <Menu.MenuItem value="score" icon={<HistoryIcon />}>
-            积分管理
-          </Menu.MenuItem>
-          <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>
-            排行榜
-          </Menu.MenuItem>
-          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>
-            结算历史
-          </Menu.MenuItem>
-          <Menu.MenuItem value="reasons" icon={<RootListIcon />} disabled={permission !== 'admin'}>
-            理由管理
-          </Menu.MenuItem>
-          <Menu.MenuItem value="settings" icon={<SettingIcon />} disabled={permission !== 'admin'}>
-            系统设置
-          </Menu.MenuItem>
-        </Menu>
-      </Aside>
-      <Layout>
-        <Header
-          style={{
-            backgroundColor: 'var(--ss-header-bg)',
-            borderBottom: '1px solid var(--ss-border-color)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            padding: '0 24px'
-          }}
-        >
-          <Space>
-            {permissionTag}
-            {hasAnyPassword && (
-              <>
-                <Button size="small" variant="outline" onClick={() => setAuthVisible(true)}>
-                  输入密码
-                </Button>
-                <Button size="small" variant="outline" theme="danger" onClick={logout}>
-                  锁定
-                </Button>
-              </>
-            )}
-          </Space>
-        </Header>
-        <Content style={{ overflowY: 'auto' }}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/score" replace />} />
-            <Route path="/students" element={<StudentManager canEdit={permission === 'admin'} />} />
-            <Route
-              path="/score"
-              element={<ScoreManager canEdit={permission === 'admin' || permission === 'points'} />}
-            />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/settlements" element={<SettlementHistory />} />
-            <Route path="/reasons" element={<ReasonManager canEdit={permission === 'admin'} />} />
-            <Route path="/settings" element={<Settings permission={permission} />} />
-            <Route path="*" element={<Navigate to="/score" replace />} />
-          </Routes>
-        </Content>
-      </Layout>
+    <Layout style={{ height: '100vh', flexDirection: 'row', overflow: 'hidden' }}>
+      <Sidebar activeMenu={activeMenu} permission={permission} onMenuChange={onMenuChange} />
+      <ContentArea
+        permission={permission}
+        hasAnyPassword={hasAnyPassword}
+        onAuthClick={() => setAuthVisible(true)}
+        onLogout={logout}
+      />
+
       <Wizard visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 
       <Dialog

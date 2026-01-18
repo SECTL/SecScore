@@ -8,6 +8,12 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
+  user-select: none; /* 禁用文本选择 */
+}
+
+/* 如果某些输入框需要允许选择，可以单独开启 */
+input, textarea {
+  user-select: text;
 }
 
 .ss-sidebar {
