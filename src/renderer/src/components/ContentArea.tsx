@@ -1,13 +1,15 @@
-import { Layout, Space, Button, Tag } from 'tdesign-react'
+import React, { Suspense, lazy } from 'react'
+import { Layout, Space, Button, Tag, Loading } from 'tdesign-react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Home } from './Home'
-import { StudentManager } from './StudentManager'
-import { Settings } from './Settings'
-import { ReasonManager } from './ReasonManager'
-import { ScoreManager } from './ScoreManager'
-import { Leaderboard } from './Leaderboard'
-import { SettlementHistory } from './SettlementHistory'
 import { WindowControls } from './WindowControls'
+
+const Home = lazy(() => import('./Home').then(m => ({ default: m.Home })))
+const StudentManager = lazy(() => import('./StudentManager').then(m => ({ default: m.StudentManager })))
+const Settings = lazy(() => import('./Settings').then(m => ({ default: m.Settings })))
+const ReasonManager = lazy(() => import('./ReasonManager').then(m => ({ default: m.ReasonManager })))
+const ScoreManager = lazy(() => import('./ScoreManager').then(m => ({ default: m.ScoreManager })))
+const Leaderboard = lazy(() => import('./Leaderboard').then(m => ({ default: m.Leaderboard })))
+const SettlementHistory = lazy(() => import('./SettlementHistory').then(m => ({ default: m.SettlementHistory })))
 
 const { Content } = Layout
 
@@ -85,22 +87,37 @@ export function ContentArea({
       </div>
 
       <Content style={{ flex: 1, overflowY: 'auto' }}>
-        <Routes>
-          <Route
-            path="/"
-            element={<Home canEdit={permission === 'admin' || permission === 'points'} />}
-          />
-          <Route path="/students" element={<StudentManager canEdit={permission === 'admin'} />} />
-          <Route
-            path="/score"
-            element={<ScoreManager canEdit={permission === 'admin' || permission === 'points'} />}
-          />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-          <Route path="/settlements" element={<SettlementHistory />} />
-          <Route path="/reasons" element={<ReasonManager canEdit={permission === 'admin'} />} />
-          <Route path="/settings" element={<Settings permission={permission} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%'
+              }}
+            >
+              <Loading text="正在载入页面..." />
+            </div>
+          }
+        >
+          <Routes>
+            <Route
+              path="/"
+              element={<Home canEdit={permission === 'admin' || permission === 'points'} />}
+            />
+            <Route path="/students" element={<StudentManager canEdit={permission === 'admin'} />} />
+            <Route
+              path="/score"
+              element={<ScoreManager canEdit={permission === 'admin' || permission === 'points'} />}
+            />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="/settlements" element={<SettlementHistory />} />
+            <Route path="/reasons" element={<ReasonManager canEdit={permission === 'admin'} />} />
+            <Route path="/settings" element={<Settings permission={permission} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </Content>
     </Layout>
   )

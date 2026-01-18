@@ -18,6 +18,8 @@ interface student {
   id: number
   name: string
   score: number
+  pinyinName?: string
+  pinyinFirst?: string
 }
 
 interface reason {
@@ -51,33 +53,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     window.dispatchEvent(new CustomEvent('ss:data-updated', { detail: { category } }))
   }
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!(window as any).api) return
-    if (!silent) setLoading(true)
-    const [stuRes, reaRes] = await Promise.all([
-      (window as any).api.queryStudents({}),
-      (window as any).api.queryReasons()
-    ])
-
-    if (stuRes.success) setStudents(stuRes.data)
-    if (reaRes.success) setReasons(reaRes.data)
-    if (!silent) setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const onDataUpdated = (e: any) => {
-      const category = e?.detail?.category
-      // 仅在学生名单、理由列表或全量更新时才重新拉取数据
-      // 积分变动(events)现在由本地状态维护，不再触发全量刷新以防止页面跳动
-      if (category === 'students' || category === 'reasons' || category === 'all') {
-        fetchData(true)
-      }
-    }
-    window.addEventListener('ss:data-updated', onDataUpdated as any)
-    return () => window.removeEventListener('ss:data-updated', onDataUpdated as any)
-  }, [fetchData])
-
   // 获取姓氏
   const getSurname = (name: string) => {
     if (!name) return ''
@@ -95,6 +70,38 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return py ? py.toUpperCase() : '#'
   }
 
+  const fetchData = useCallback(async (silent = false) => {
+    if (!(window as any).api) return
+    if (!silent) setLoading(true)
+    const [stuRes, reaRes] = await Promise.all([
+      (window as any).api.queryStudents({}),
+      (window as any).api.queryReasons()
+    ])
+
+    if (stuRes.success) {
+      const enrichedStudents = (stuRes.data as student[]).map(s => ({
+        ...s,
+        pinyinName: pinyin(s.name, { toneType: 'none' }).toLowerCase(),
+        pinyinFirst: getFirstLetter(s.name)
+      }))
+      setStudents(enrichedStudents)
+    }
+    if (reaRes.success) setReasons(reaRes.data)
+    if (!silent) setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+    const onDataUpdated = (e: any) => {
+      const category = e?.detail?.category
+      if (category === 'students' || category === 'reasons' || category === 'all') {
+        fetchData(true)
+      }
+    }
+    window.addEventListener('ss:data-updated', onDataUpdated as any)
+    return () => window.removeEventListener('ss:data-updated', onDataUpdated as any)
+  }, [fetchData])
+
   // 获取展示用的文字
   const getDisplayText = (name: string) => {
     if (!name) return ''
@@ -102,23 +109,22 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   // 拼音匹配
-  const matchStudentName = useCallback((name: string, keyword: string) => {
+  const matchStudentName = useCallback((s: student, keyword: string) => {
     const q0 = keyword.trim().toLowerCase()
     if (!q0) return true
 
-    const nameLower = String(name).toLowerCase()
+    const nameLower = String(s.name).toLowerCase()
     if (nameLower.includes(q0)) return true
 
+    const pyLower = s.pinyinName || ''
+    if (pyLower.includes(q0)) return true
+
     const q1 = q0.replace(/\s+/g, '')
-    if (q1 && nameLower.replace(/\s+/g, '').includes(q1)) return true
+    if (q1 && (nameLower.replace(/\s+/g, '').includes(q1) || pyLower.replace(/\s+/g, '').includes(q1))) return true
 
     try {
-      const m0 = match(name, q0)
+      const m0 = match(s.name, q0)
       if (Array.isArray(m0)) return true
-      if (q1 && q1 !== q0) {
-        const m1 = match(name, q1)
-        if (Array.isArray(m1)) return true
-      }
     } catch {
       return false
     }
@@ -128,13 +134,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   // 过滤和排序学生
   const sortedStudents = useMemo(() => {
-    const filtered = students.filter((s) => matchStudentName(s.name, searchKeyword))
+    const filtered = students.filter((s) => matchStudentName(s, searchKeyword))
 
     switch (sortType) {
       case 'alphabet':
         return filtered.sort((a, b) => {
-          const pyA = pinyin(a.name, { toneType: 'none' })
-          const pyB = pinyin(b.name, { toneType: 'none' })
+          const pyA = a.pinyinName || ''
+          const pyB = b.pinyinName || ''
           return pyA.localeCompare(pyB)
         })
       case 'surname':
@@ -161,7 +167,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     const groups: Record<string, student[]> = {}
     sortedStudents.forEach((s) => {
-      const key = sortType === 'alphabet' ? getFirstLetter(s.name) : getSurname(s.name)
+      const key = sortType === 'alphabet' ? (s.pinyinFirst || '#') : getSurname(s.name)
       if (!groups[key]) groups[key] = []
       groups[key].push(s)
     })
@@ -822,7 +828,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 suffixIcon={
                   reasonContent ? (
                     <DeleteIcon
-                      onClick={() => setReasonContent('')}
+                      onClick={() => setSearchKeyword('')}
                       style={{ cursor: 'pointer' }}
                     />
                   ) : undefined

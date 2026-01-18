@@ -114,7 +114,7 @@ html[theme-mode='dark'] .ss-sidebar .t-menu__item.t-is-active svg:not([fill='non
   z-index: 10;
   flex-shrink: 0;
   animation: twinkle-animation 3s infinite ease-in-out;
-  transition: opacity 0.1s ease, transform 0.1s ease;
+  transition: opacity 0.07s ease, transform 0.15s ease;
 }
 
 .global-sidebar-toggle.hidden {
@@ -134,9 +134,10 @@ html[theme-mode='dark'] .ss-sidebar .t-menu__item.t-is-active svg:not([fill='non
   padding: 12px 8px;
   gap: 12px;
   width: 60px;
-  transition: opacity 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.1s ease, transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
   backface-visibility: hidden;
   transform: translateZ(0);
+  contain: paint; /* 性能优化：限制重绘范围 */
 }
 
 .sidebar-content-area.hidden {

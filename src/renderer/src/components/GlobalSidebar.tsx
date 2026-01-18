@@ -38,10 +38,10 @@ export const GlobalSidebar: React.FC = () => {
       if ((window as any).api) {
         (window as any).api.windowResize(24, 300)
       }
-      // 3. 最后重新显示三角
+      // 3. 最后重新显示三角（等待透明度动画完成）
       setTimeout(() => {
         setShowToggle(true)
-      }, 20)
+      }, 150)
     }, 150)
   }
 
