@@ -56,7 +56,11 @@ export function WindowControls(): React.JSX.Element {
         onClick={maximize}
         style={{ width: '46px', height: '32px', borderRadius: 0 }}
       >
-        {isMaximized ? <FullscreenExitIcon /> : <RectangleIcon />}
+        {isMaximized ? (
+          <FullscreenExitIcon />
+        ) : (
+          <RectangleIcon style={{ transform: 'scale(0.7)' }} />
+        )}
       </Button>
       <Button
         variant="text"

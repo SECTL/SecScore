@@ -17,7 +17,7 @@ function MainContent(): React.JSX.Element {
       // 统一路径格式进行比对，防止 / 和 /home 导致重复跳转
       const currentPath = location.pathname === '/' ? '/home' : location.pathname
       const targetPath = route === '/' ? '/home' : route
-      
+
       if (currentPath !== targetPath) {
         navigate(route)
       }
