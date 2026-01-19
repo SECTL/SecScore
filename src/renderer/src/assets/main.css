@@ -99,10 +99,10 @@ html[theme-mode='dark'] .ss-sidebar .t-menu__item.t-is-active svg:not([fill='non
 
 /* Global Sidebar Toggle Button */
 .global-sidebar-toggle {
-  width: 24px;
-  height: 60px;
-  background-color: var(--ss-card-bg);
-  border-radius: 8px 0 0 8px;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--ss-bg-color);
+  border-radius: 0px 0 0 0px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -126,7 +126,7 @@ html[theme-mode='dark'] .ss-sidebar .t-menu__item.t-is-active svg:not([fill='non
 .sidebar-content-area {
   display: flex;
   flex-direction: column;
-  backgroundColor: var(--ss-card-bg);
+  background-color: var(--ss-card-bg);
   border-radius: 12px 0 0 12px;
   box-shadow: -4px 0 16px rgba(0,0,0,0.15);
   border: 1px solid var(--ss-border-color);

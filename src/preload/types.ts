@@ -11,6 +11,11 @@ export interface themeConfig {
   name: string
   id: string
   mode: 'light' | 'dark'
+  mica?: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }
   config: {
     tdesign: Record<string, string>
     custom: Record<string, string>
@@ -38,6 +43,11 @@ export interface electronApi {
   getThemes: () => Promise<ipcResponse<themeConfig[]>>
   getCurrentTheme: () => Promise<ipcResponse<themeConfig>>
   setTheme: (themeId: string) => Promise<ipcResponse<void>>
+  setCustomTheme: (config: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }) => Promise<ipcResponse<void>>
   onThemeChanged: (callback: (theme: themeConfig) => void) => () => void
 
   // DB - Student

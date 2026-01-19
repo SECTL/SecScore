@@ -9,6 +9,11 @@ export interface themeConfig {
   name: string
   id: string
   mode: 'light' | 'dark'
+  mica?: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }
   config: {
     tdesign: Record<string, string>
     custom: Record<string, string>
@@ -78,9 +83,56 @@ export class ThemeService extends Service {
           return { success: false, message: 'Permission denied' }
       }
       this.currentThemeId = themeId
+      this.applyMicaEffect(themeId)
       this.notifyThemeUpdate()
       return { success: true }
     })
+
+    this.mainCtx.handle('theme:set-custom', async (event, config: {
+      effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+      theme: 'auto' | 'dark' | 'light'
+      radius: 'small' | 'medium' | 'large'
+    }) => {
+      if (!this.mainCtx.permissions.requirePermission(event, 'admin'))
+        return { success: false, message: 'Permission denied' }
+
+      this.currentThemeId = 'custom'
+      this.applyMicaConfig(config)
+      this.notifyThemeUpdate()
+      return { success: true }
+    })
+  }
+
+  private applyMicaEffect(themeId: string) {
+    const theme = this.getThemeById(themeId)
+    if (!theme?.mica) return
+
+    this.applyMicaConfig(theme.mica)
+  }
+
+  private applyMicaConfig(config: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }) {
+    const radiusMap: Record<string, 'rounded' | 'small' | 'square'> = {
+      'small': 'small',
+      'medium': 'rounded',
+      'large': 'rounded'
+    }
+
+    const windows = BrowserWindow.getAllWindows()
+    for (const win of windows) {
+      if (win.isDestroyed()) continue
+
+      this.mainCtx.windows.setMicaEffect(win, config.effect)
+      this.mainCtx.windows.setMicaTheme(win, config.theme)
+      this.mainCtx.windows.setMicaCorner(win, radiusMap[config.radius] || 'rounded')
+    }
+
+    this.mainCtx.settings.setValue('window_effect', config.effect)
+    this.mainCtx.settings.setValue('window_theme', config.theme)
+    this.mainCtx.settings.setValue('window_radius', radiusMap[config.radius] || 'rounded')
   }
 
   private getThemeList(): themeConfig[] {

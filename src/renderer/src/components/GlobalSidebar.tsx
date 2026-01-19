@@ -55,10 +55,11 @@ export const GlobalSidebar: React.FC = () => {
     // 1. 先隐藏三角
     setShowToggle(false)
 
+
     // 2. 稍后扩大窗口
     setTimeout(() => {
       if ((window as any).api) {
-        const width = Math.round(84 * zoom)
+        const width = Math.round(60 * zoom)
         const height = Math.round(300 * zoom)
         ;(window as any).api.windowResize(width, height)
       }
@@ -77,7 +78,7 @@ export const GlobalSidebar: React.FC = () => {
     setTimeout(() => {
       if ((window as any).api) {
         const width = Math.round(24 * zoom)
-        const height = Math.round(300 * zoom)
+        const height = Math.round(58 * zoom)
         ;(window as any).api.windowResize(width, height)
       }
       // 3. 最后重新显示三角（等待透明度动画完成）
@@ -99,7 +100,7 @@ export const GlobalSidebar: React.FC = () => {
         width: `84px`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
         overflow: 'hidden',
         background: 'transparent'
       }}
@@ -110,9 +111,10 @@ export const GlobalSidebar: React.FC = () => {
         className={`global-sidebar-toggle ${!showToggle ? 'hidden' : ''}`}
         style={{
           willChange: 'opacity, transform',
-          width: `24px`,
-          height: `60px`
+          width: `${!expanded ? '100vw' : '0px'}`,
+          height: `100vh`
         }}
+        hidden={!expanded}
       >
         <ChevronLeftIcon />
       </div>
@@ -121,11 +123,10 @@ export const GlobalSidebar: React.FC = () => {
       <div
         className={`sidebar-content-area ${expanded ? 'visible' : 'hidden'}`}
         style={{
-          backgroundColor: 'var(--ss-card-bg)',
+          backgroundColor: 'var(--ss-bg-color)',
           height: 'fit-content',
           willChange: 'opacity, transform',
           width: `60px`,
-          padding: `12px 8px`,
           gap: `12px`
         }}
       >

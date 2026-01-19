@@ -7,6 +7,11 @@ const api = {
   getThemes: () => ipcRenderer.invoke('theme:list'),
   getCurrentTheme: () => ipcRenderer.invoke('theme:current'),
   setTheme: (themeId: string) => ipcRenderer.invoke('theme:set', themeId),
+  setCustomTheme: (config: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }) => ipcRenderer.invoke('theme:set-custom', config),
   onThemeChanged: (callback: (theme: themeConfig) => void) => {
     const subscription = (_event: any, theme: themeConfig) => callback(theme)
     ipcRenderer.on('theme:updated', subscription)
