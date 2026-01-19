@@ -18,6 +18,7 @@ type permissionLevel = 'admin' | 'points' | 'view'
 type appSettings = {
   is_wizard_completed: boolean
   log_level: 'debug' | 'info' | 'warn' | 'error'
+  window_zoom?: string
 }
 
 export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
@@ -25,7 +26,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   const [activeTab, setActiveTab] = useState('appearance')
   const [settings, setSettings] = useState<appSettings>({
     is_wizard_completed: false,
-    log_level: 'info'
+    log_level: 'info',
+    window_zoom: '1.0'
   })
 
   const [securityStatus, setSecurityStatus] = useState<{
@@ -91,6 +93,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         if (change?.key === 'log_level') return { ...prev, log_level: change.value }
         if (change?.key === 'is_wizard_completed')
           return { ...prev, is_wizard_completed: change.value }
+        if (change?.key === 'window_zoom') return { ...prev, window_zoom: change.value }
         return prev
       })
     })
@@ -267,6 +270,39 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                     <Select.Option key={t.id} value={t.id} label={t.name} />
                   ))}
                 </Select>
+              </Form.FormItem>
+
+              <Form.FormItem label="界面缩放">
+                <Select
+                  value={settings.window_zoom || '1.0'}
+                  onChange={async (v) => {
+                    if (!(window as any).api) return
+                    const next = String(v)
+                    const res = await (window as any).api.setSetting('window_zoom', next)
+                    if (res.success) {
+                      setSettings((prev) => ({ ...prev, window_zoom: next }))
+                      MessagePlugin.success('界面缩放已更新')
+                    } else {
+                      MessagePlugin.error(res.message || '更新失败')
+                    }
+                  }}
+                  style={{ width: '320px' }}
+                  disabled={!canAdmin}
+                >
+                  <Select.Option value="0.7" label="70% (较小)" />
+                  <Select.Option value="0.8" label="80%" />
+                  <Select.Option value="0.9" label="90%" />
+                  <Select.Option value="1.0" label="100% (默认)" />
+                  <Select.Option value="1.1" label="110%" />
+                  <Select.Option value="1.2" label="120%" />
+                  <Select.Option value="1.3" label="130%" />
+                  <Select.Option value="1.5" label="150% (较大)" />
+                </Select>
+                <div
+                  style={{ marginTop: '4px', fontSize: '12px', color: 'var(--ss-text-secondary)' }}
+                >
+                  调节应用界面的整体大小。
+                </div>
               </Form.FormItem>
             </Form>
           </Card>

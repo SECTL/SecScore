@@ -1,6 +1,6 @@
 import { Service } from '../../shared/kernel'
 import { MainContext } from '../context'
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, webContents } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { settingsKey, settingsSpec, settingChange } from '../../preload/types'
 import type { permissionLevel } from './PermissionService'
@@ -47,6 +47,17 @@ export class SettingsService extends Service {
       validate: (v) => v === 'debug' || v === 'info' || v === 'warn' || v === 'error',
       onChanged: (ctx, next) => {
         ctx.logger.setLevel(next as any)
+      }
+    },
+    window_zoom: {
+      kind: 'number',
+      defaultValue: 1.0,
+      writePermission: 'admin',
+      onChanged: (_ctx, next) => {
+        const zoom = Number(next) || 1.0
+        webContents.getAllWebContents().forEach((wc: any) => {
+          wc.setZoomFactor(zoom)
+        })
       }
     }
   }

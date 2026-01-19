@@ -20,6 +20,7 @@ export interface themeConfig {
 export type settingsSpec = {
   is_wizard_completed: boolean
   log_level: logLevel
+  window_zoom: number
 }
 
 export type settingsKey = keyof settingsSpec
@@ -121,7 +122,9 @@ export interface electronApi {
   windowClose: () => Promise<void>
   windowIsMaximized: () => Promise<boolean>
   onWindowMaximizedChanged: (callback: (maximized: boolean) => void) => () => void
+  onNavigate: (callback: (route: string) => void) => () => void
   toggleDevTools: () => Promise<void>
+  windowResize: (width: number, height: number) => Promise<void>
 
   // Logger
   queryLogs: (lines?: number) => Promise<ipcResponse<string[]>>

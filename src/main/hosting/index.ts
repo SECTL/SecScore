@@ -13,7 +13,8 @@ export {
   EventRepositoryToken,
   SettlementRepositoryToken,
   ThemeServiceToken,
-  WindowManagerToken
+  WindowManagerToken,
+  TrayServiceToken
 } from './tokens'
 export type {
   appRuntimeContext,

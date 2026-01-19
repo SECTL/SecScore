@@ -1,6 +1,6 @@
 import { Service } from '../../shared/kernel'
 import { MainContext } from '../context'
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, shell, screen } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 
 export type windowOpenInput = {
@@ -51,7 +51,10 @@ export class WindowManager extends Service {
   public open(input: windowOpenInput) {
     const existing = this.get(input.key)
     if (existing) {
-      if (input.route) void this.loadRoute(existing, input.route)
+      if (input.route) {
+        // Use soft navigation if window exists to prevent reload
+        existing.webContents.send('app:navigate', input.route)
+      }
       existing.show()
       existing.focus()
       return existing
@@ -72,7 +75,36 @@ export class WindowManager extends Service {
       ...input.options
     })
 
+    // Special positioning for global sidebar
+    if (input.key === 'global-sidebar') {
+      const primaryDisplay = screen.getPrimaryDisplay()
+      const { width, height } = primaryDisplay.workAreaSize
+      const winWidth = 84
+      const winHeight = 300
+      win.setBounds({
+        x: width - winWidth,
+        y: Math.floor(height / 2 - winHeight / 2),
+        width: winWidth,
+        height: winHeight
+      })
+      win.setAlwaysOnTop(true, 'screen-saver')
+      win.setVisibleOnAllWorkspaces(true)
+      win.setSkipTaskbar(true)
+      win.setResizable(false)
+    }
+
+    const zoom = Number(this.mainCtx.settings.getValue('window_zoom')) || 1.0
+    win.webContents.setZoomFactor(zoom)
+
     this.windows.set(input.key, win)
+
+    win.on('close', (event) => {
+      if (!this.mainCtx.isQuitting && input.key === 'main') {
+        event.preventDefault()
+        win.hide()
+      }
+    })
+
     win.on('closed', () => {
       this.windows.delete(input.key)
     })
@@ -101,13 +133,13 @@ export class WindowManager extends Service {
   public navigate(key: string, route: string) {
     const win = this.get(key)
     if (!win) return false
-    void this.loadRoute(win, route)
+    win.webContents.send('app:navigate', route)
     return true
   }
 
   public navigateWindow(win: BrowserWindow, route: string) {
     if (win.isDestroyed()) return false
-    void this.loadRoute(win, route)
+    win.webContents.send('app:navigate', route)
     return true
   }
 
@@ -182,6 +214,13 @@ export class WindowManager extends Service {
       return win ? win.isMaximized() : false
     })
 
+    this.mainCtx.handle('window:set-zoom', (event, zoom: number) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win && zoom >= 0.5 && zoom <= 2.0) {
+        win.webContents.setZoomFactor(zoom)
+      }
+    })
+
     this.mainCtx.handle('window:toggle-devtools', (event) => {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (win) {
@@ -190,6 +229,21 @@ export class WindowManager extends Service {
         } else {
           win.webContents.openDevTools()
         }
+      }
+    })
+
+    this.mainCtx.handle('window:resize', (event, width: number, height: number) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win) {
+        const bounds = win.getBounds()
+        // Keep right side pinned
+        const newX = bounds.x + (bounds.width - width)
+        win.setBounds({
+          x: newX,
+          y: bounds.y,
+          width,
+          height
+        })
       }
     })
   }

@@ -1,14 +1,29 @@
 import { Layout, Dialog, Input, MessagePlugin } from 'tdesign-react'
 import { useEffect, useMemo, useState } from 'react'
-import { HashRouter, useLocation, useNavigate } from 'react-router-dom'
+import { HashRouter, useLocation, useNavigate, Routes, Route } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { ContentArea } from './components/ContentArea'
 import { Wizard } from './components/Wizard'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { GlobalSidebar } from './components/GlobalSidebar'
 
 function MainContent(): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
+
+  useEffect(() => {
+    if (!(window as any).api) return
+    const unlisten = (window as any).api.onNavigate((route: string) => {
+      // 统一路径格式进行比对，防止 / 和 /home 导致重复跳转
+      const currentPath = location.pathname === '/' ? '/home' : location.pathname
+      const targetPath = route === '/' ? '/home' : route
+      
+      if (currentPath !== targetPath) {
+        navigate(route)
+      }
+    })
+    return () => unlisten()
+  }, [navigate, location.pathname])
 
   const [wizardVisible, setWizardVisible] = useState(false)
   const [permission, setPermission] = useState<'admin' | 'points' | 'view'>('view')
@@ -129,7 +144,10 @@ function App(): React.JSX.Element {
   return (
     <ThemeProvider>
       <HashRouter>
-        <MainContent />
+        <Routes>
+          <Route path="/global-sidebar" element={<GlobalSidebar />} />
+          <Route path="/*" element={<MainContent />} />
+        </Routes>
       </HashRouter>
     </ThemeProvider>
   )

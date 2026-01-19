@@ -2,6 +2,8 @@ import { Context as BaseContext } from '../shared/kernel'
 import { ipcMain } from 'electron'
 
 export class MainContext extends BaseContext {
+  public isQuitting = false
+
   constructor() {
     super()
   }

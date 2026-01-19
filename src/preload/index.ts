@@ -80,7 +80,13 @@ const api = {
     ipcRenderer.on('window:maximized-changed', subscription)
     return () => ipcRenderer.removeListener('window:maximized-changed', subscription)
   },
+  onNavigate: (callback: (route: string) => void) => {
+    const subscription = (_event: any, route: string) => callback(route)
+    ipcRenderer.on('app:navigate', subscription)
+    return () => ipcRenderer.removeListener('app:navigate', subscription)
+  },
   toggleDevTools: () => ipcRenderer.invoke('window:toggle-devtools'),
+  windowResize: (width: number, height: number) => ipcRenderer.invoke('window:resize', width, height),
 
   // Logger
   queryLogs: (lines?: number) => ipcRenderer.invoke('log:query', lines),

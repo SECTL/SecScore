@@ -1,5 +1,12 @@
 import { Layout, Menu } from 'tdesign-react'
-import { UserIcon, SettingIcon, HistoryIcon, RootListIcon, ViewListIcon, HomeIcon } from 'tdesign-icons-react'
+import {
+  UserIcon,
+  SettingIcon,
+  HistoryIcon,
+  RootListIcon,
+  ViewListIcon,
+  HomeIcon
+} from 'tdesign-icons-react'
 import appLogo from '../assets/logo.svg'
 
 const { Aside } = Layout

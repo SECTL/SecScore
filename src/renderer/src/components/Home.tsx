@@ -11,13 +11,15 @@ import {
   InputNumber,
   Divider
 } from 'tdesign-react'
-import { SearchIcon, AddIcon, MinusIcon, DeleteIcon } from 'tdesign-icons-react'
+import { SearchIcon, DeleteIcon } from 'tdesign-icons-react'
 import { match, pinyin } from 'pinyin-pro'
 
 interface student {
   id: number
   name: string
   score: number
+  pinyinName?: string
+  pinyinFirst?: string
 }
 
 interface reason {
@@ -51,33 +53,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     window.dispatchEvent(new CustomEvent('ss:data-updated', { detail: { category } }))
   }
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!(window as any).api) return
-    if (!silent) setLoading(true)
-    const [stuRes, reaRes] = await Promise.all([
-      (window as any).api.queryStudents({}),
-      (window as any).api.queryReasons()
-    ])
-
-    if (stuRes.success) setStudents(stuRes.data)
-    if (reaRes.success) setReasons(reaRes.data)
-    if (!silent) setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    fetchData()
-    const onDataUpdated = (e: any) => {
-      const category = e?.detail?.category
-      // 仅在学生名单、理由列表或全量更新时才重新拉取数据
-      // 积分变动(events)现在由本地状态维护，不再触发全量刷新以防止页面跳动
-      if (category === 'students' || category === 'reasons' || category === 'all') {
-        fetchData(true)
-      }
-    }
-    window.addEventListener('ss:data-updated', onDataUpdated as any)
-    return () => window.removeEventListener('ss:data-updated', onDataUpdated as any)
-  }, [fetchData])
-
   // 获取姓氏
   const getSurname = (name: string) => {
     if (!name) return ''
@@ -95,6 +70,38 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return py ? py.toUpperCase() : '#'
   }
 
+  const fetchData = useCallback(async (silent = false) => {
+    if (!(window as any).api) return
+    if (!silent) setLoading(true)
+    const [stuRes, reaRes] = await Promise.all([
+      (window as any).api.queryStudents({}),
+      (window as any).api.queryReasons()
+    ])
+
+    if (stuRes.success) {
+      const enrichedStudents = (stuRes.data as student[]).map(s => ({
+        ...s,
+        pinyinName: pinyin(s.name, { toneType: 'none' }).toLowerCase(),
+        pinyinFirst: getFirstLetter(s.name)
+      }))
+      setStudents(enrichedStudents)
+    }
+    if (reaRes.success) setReasons(reaRes.data)
+    if (!silent) setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+    const onDataUpdated = (e: any) => {
+      const category = e?.detail?.category
+      if (category === 'students' || category === 'reasons' || category === 'all') {
+        fetchData(true)
+      }
+    }
+    window.addEventListener('ss:data-updated', onDataUpdated as any)
+    return () => window.removeEventListener('ss:data-updated', onDataUpdated as any)
+  }, [fetchData])
+
   // 获取展示用的文字
   const getDisplayText = (name: string) => {
     if (!name) return ''
@@ -102,23 +109,22 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   // 拼音匹配
-  const matchStudentName = useCallback((name: string, keyword: string) => {
+  const matchStudentName = useCallback((s: student, keyword: string) => {
     const q0 = keyword.trim().toLowerCase()
     if (!q0) return true
 
-    const nameLower = String(name).toLowerCase()
+    const nameLower = String(s.name).toLowerCase()
     if (nameLower.includes(q0)) return true
 
+    const pyLower = s.pinyinName || ''
+    if (pyLower.includes(q0)) return true
+
     const q1 = q0.replace(/\s+/g, '')
-    if (q1 && nameLower.replace(/\s+/g, '').includes(q1)) return true
+    if (q1 && (nameLower.replace(/\s+/g, '').includes(q1) || pyLower.replace(/\s+/g, '').includes(q1))) return true
 
     try {
-      const m0 = match(name, q0)
+      const m0 = match(s.name, q0)
       if (Array.isArray(m0)) return true
-      if (q1 && q1 !== q0) {
-        const m1 = match(name, q1)
-        if (Array.isArray(m1)) return true
-      }
     } catch {
       return false
     }
@@ -128,13 +134,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   // 过滤和排序学生
   const sortedStudents = useMemo(() => {
-    let filtered = students.filter((s) => matchStudentName(s.name, searchKeyword))
+    const filtered = students.filter((s) => matchStudentName(s, searchKeyword))
 
     switch (sortType) {
       case 'alphabet':
         return filtered.sort((a, b) => {
-          const pyA = pinyin(a.name, { toneType: 'none' })
-          const pyB = pinyin(b.name, { toneType: 'none' })
+          const pyA = a.pinyinName || ''
+          const pyB = b.pinyinName || ''
           return pyA.localeCompare(pyB)
         })
       case 'surname':
@@ -161,7 +167,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     const groups: Record<string, student[]> = {}
     sortedStudents.forEach((s) => {
-      const key = sortType === 'alphabet' ? getFirstLetter(s.name) : getSurname(s.name)
+      const key = sortType === 'alphabet' ? (s.pinyinFirst || '#') : getSurname(s.name)
       if (!groups[key]) groups[key] = []
       groups[key].push(s)
     })
@@ -394,7 +400,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             }}
           >
             <span style={{ color: 'var(--td-brand-color)' }}>{group.key}</span>
-            <span style={{ fontSize: '12px', color: 'var(--ss-text-secondary)', fontWeight: 'normal' }}>
+            <span
+              style={{ fontSize: '12px', color: 'var(--ss-text-secondary)', fontWeight: 'normal' }}
+            >
               ({group.students.length} 人)
             </span>
           </div>
@@ -416,24 +424,27 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const navContainerRef = useRef<HTMLDivElement>(null)
   const isNavDragging = useRef(false)
 
-  const handleNavAction = useCallback((clientY: number) => {
-    if (!navContainerRef.current) return
-    const rect = navContainerRef.current.getBoundingClientRect()
-    const y = clientY - rect.top
-    const items = navContainerRef.current.children
-    const itemCount = items.length
-    if (itemCount === 0) return
+  const handleNavAction = useCallback(
+    (clientY: number) => {
+      if (!navContainerRef.current) return
+      const rect = navContainerRef.current.getBoundingClientRect()
+      const y = clientY - rect.top
+      const items = navContainerRef.current.children
+      const itemCount = items.length
+      if (itemCount === 0) return
 
-    // 计算当前指向第几个项
-    const itemHeight = rect.height / itemCount
-    const index = Math.floor(y / itemHeight)
-    const safeIndex = Math.max(0, Math.min(itemCount - 1, index))
+      // 计算当前指向第几个项
+      const itemHeight = rect.height / itemCount
+      const index = Math.floor(y / itemHeight)
+      const safeIndex = Math.max(0, Math.min(itemCount - 1, index))
 
-    const targetGroup = groupedStudents[safeIndex]
-    if (targetGroup) {
-      scrollToGroup(targetGroup.key)
-    }
-  }, [groupedStudents])
+      const targetGroup = groupedStudents[safeIndex]
+      if (targetGroup) {
+        scrollToGroup(targetGroup.key)
+      }
+    },
+    [groupedStudents]
+  )
 
   const onNavMouseDown = (e: React.MouseEvent) => {
     isNavDragging.current = true
@@ -454,14 +465,42 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     document.removeEventListener('mouseup', onGlobalMouseUp)
   }
 
+  // 触摸事件处理
+  const onNavTouchStart = (e: React.TouchEvent) => {
+    isNavDragging.current = true
+    if (e.touches[0]) {
+      handleNavAction(e.touches[0].clientY)
+    }
+  }
+
+  const onNavTouchMove = (e: React.TouchEvent) => {
+    if (isNavDragging.current && e.touches[0]) {
+      handleNavAction(e.touches[0].clientY)
+      // 防止触摸滑动时触发页面滚动
+      if (e.cancelable) e.preventDefault()
+    }
+  }
+
+  const onNavTouchEnd = () => {
+    isNavDragging.current = false
+  }
+
   // 渲染快速导航
   const renderQuickNav = () => {
-    if (groupedStudents.length <= 1 || sortType === 'score' || (sortType === 'alphabet' && searchKeyword)) return null
+    if (
+      groupedStudents.length <= 1 ||
+      sortType === 'score' ||
+      (sortType === 'alphabet' && searchKeyword)
+    )
+      return null
 
     return (
       <div
         ref={navContainerRef}
         onMouseDown={onNavMouseDown}
+        onTouchStart={onNavTouchStart}
+        onTouchMove={onNavTouchMove}
+        onTouchEnd={onNavTouchEnd}
         style={{
           position: 'fixed',
           right: '12px',
@@ -477,7 +516,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           maxHeight: '80vh',
           border: '1px solid var(--ss-border-color)',
           cursor: 'pointer',
-          userSelect: 'none'
+          userSelect: 'none',
+          touchAction: 'none' // 关键：禁用浏览器的默认触摸处理
         }}
       >
         {groupedStudents.map((group) => (
@@ -517,7 +557,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         }}
       >
         <div>
-          <h2 style={{ margin: 0, color: 'var(--ss-text-main)', fontSize: '24px' }}>学生积分主页</h2>
+          <h2 style={{ margin: 0, color: 'var(--ss-text-main)', fontSize: '24px' }}>
+            学生积分主页
+          </h2>
           <p style={{ margin: '4px 0 0', color: 'var(--ss-text-secondary)', fontSize: '13px' }}>
             共 {students.length} 名学生，点击卡片进行积分操作
           </p>
@@ -571,7 +613,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               {searchKeyword ? '未找到匹配的学生' : '暂无学生数据，请前往学生管理添加'}
             </div>
             {searchKeyword && (
-              <Button variant="text" theme="primary" onClick={() => setSearchKeyword('')} style={{ marginTop: '8px' }}>
+              <Button
+                variant="text"
+                theme="primary"
+                onClick={() => setSearchKeyword('')}
+                style={{ marginTop: '8px' }}
+              >
                 清除搜索
               </Button>
             )}
@@ -625,9 +672,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 <span style={{ fontWeight: 600 }}>{selectedStudent.name}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: 'var(--ss-text-secondary)', fontSize: '13px' }}>当前积分：</span>
+                <span style={{ color: 'var(--ss-text-secondary)', fontSize: '13px' }}>
+                  当前积分：
+                </span>
                 <Tag
-                  theme={selectedStudent.score > 0 ? 'success' : selectedStudent.score < 0 ? 'danger' : 'default'}
+                  theme={
+                    selectedStudent.score > 0
+                      ? 'success'
+                      : selectedStudent.score < 0
+                        ? 'danger'
+                        : 'default'
+                  }
                   variant="light"
                   style={{ fontWeight: 'bold' }}
                 >
@@ -639,7 +694,14 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             {/* 快捷理由 */}
             {groupedReasons.length > 0 && (
               <div>
-                <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div
+                  style={{
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
                   <span style={{ fontWeight: 600, fontSize: '14px' }}>快捷选项</span>
                   <Divider style={{ flex: 1, margin: 0 }} />
                 </div>
@@ -673,14 +735,24 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                             size="small"
                             onClick={() => handleReasonSelect(r)}
                             style={{
-                              borderColor: r.delta > 0 ? 'var(--td-success-color-3)' : r.delta < 0 ? 'var(--td-error-color-3)' : undefined
+                              borderColor:
+                                r.delta > 0
+                                  ? 'var(--td-success-color-3)'
+                                  : r.delta < 0
+                                    ? 'var(--td-error-color-3)'
+                                    : undefined
                             }}
                           >
                             {r.content}{' '}
                             <span
                               style={{
                                 marginLeft: '4px',
-                                color: r.delta > 0 ? 'var(--td-success-color)' : r.delta < 0 ? 'var(--td-error-color)' : 'inherit',
+                                color:
+                                  r.delta > 0
+                                    ? 'var(--td-success-color)'
+                                    : r.delta < 0
+                                      ? 'var(--td-error-color)'
+                                      : 'inherit',
                                 fontWeight: 'bold'
                               }}
                             >
@@ -697,7 +769,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
             {/* 自定义分值 */}
             <div>
-              <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
                 <span style={{ fontWeight: 600, fontSize: '14px' }}>调整分值</span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
@@ -741,7 +815,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
             {/* 理由内容 */}
             <div>
-              <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
                 <span style={{ fontWeight: 600, fontSize: '14px' }}>操作理由</span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
@@ -749,7 +825,14 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 value={reasonContent}
                 onChange={setReasonContent}
                 placeholder="输入加分/扣分的原因（可选）"
-                suffixIcon={reasonContent ? <DeleteIcon onClick={() => setReasonContent('')} style={{ cursor: 'pointer' }} /> : undefined}
+                suffixIcon={
+                  reasonContent ? (
+                    <DeleteIcon
+                      onClick={() => setSearchKeyword('')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  ) : undefined
+                }
               />
             </div>
 
@@ -758,18 +841,40 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <div
                 style={{
                   padding: '16px',
-                  backgroundColor: customScore > 0 ? 'var(--td-success-color-1)' : customScore < 0 ? 'var(--td-error-color-1)' : 'var(--ss-bg-color)',
+                  backgroundColor:
+                    customScore > 0
+                      ? 'var(--td-success-color-1)'
+                      : customScore < 0
+                        ? 'var(--td-error-color-1)'
+                        : 'var(--ss-bg-color)',
                   borderRadius: '8px',
                   border: `1px solid ${customScore > 0 ? 'var(--td-success-color-2)' : customScore < 0 ? 'var(--td-error-color-2)' : 'var(--ss-border-color)'}`,
                   marginTop: '4px'
                 }}
               >
-                <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '4px', color: 'var(--ss-text-main)' }}>
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    marginBottom: '4px',
+                    color: 'var(--ss-text-main)'
+                  }}
+                >
                   变更预览：
                 </div>
                 <div style={{ fontSize: '15px' }}>
                   {selectedStudent.name}{' '}
-                  <span style={{ fontWeight: 'bold', color: customScore > 0 ? 'var(--td-success-color)' : customScore < 0 ? 'var(--td-error-color)' : 'inherit' }}>
+                  <span
+                    style={{
+                      fontWeight: 'bold',
+                      color:
+                        customScore > 0
+                          ? 'var(--td-success-color)'
+                          : customScore < 0
+                            ? 'var(--td-error-color)'
+                            : 'inherit'
+                    }}
+                  >
                     {customScore > 0 ? `+${customScore}` : customScore}
                   </span>{' '}
                   分

@@ -6,7 +6,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/SecScore_logo.ico?asset'
 import { MainContext } from './context'
 import { DbManager } from './db/DbManager'
-import { LoggerService, logLevel } from './services/LoggerService'
+import { LoggerService } from './services/LoggerService'
 import { SettingsService } from './services/SettingsService'
 import { SecurityService } from './services/SecurityService'
 import { PermissionService } from './services/PermissionService'
@@ -14,6 +14,7 @@ import { AuthService } from './services/AuthService'
 import { DataService } from './services/DataService'
 import { ThemeService } from './services/ThemeService'
 import { WindowManager, type windowManagerOptions } from './services/WindowManager'
+import { TrayService } from './services/TrayService'
 import { StudentRepository } from './repos/StudentRepository'
 import { ReasonRepository } from './repos/ReasonRepository'
 import { EventRepository } from './repos/EventRepository'
@@ -31,7 +32,8 @@ import {
   SettingsStoreToken,
   StudentRepositoryToken,
   ThemeServiceToken,
-  WindowManagerToken
+  WindowManagerToken,
+  TrayServiceToken
 } from './hosting'
 
 type mainAppConfig = {
@@ -137,6 +139,10 @@ app.whenReady().then(async () => {
         WindowManagerToken,
         (p) => new WindowManager(p.get(MainContext), config.window)
       )
+      services.addSingleton(
+        TrayServiceToken,
+        (p) => new TrayService(p.get(MainContext), config.window)
+      )
     })
     .configure(async (_builderContext, appCtx) => {
       const services = appCtx.services
@@ -156,109 +162,32 @@ app.whenReady().then(async () => {
       services.get(SettlementRepositoryToken)
       services.get(ThemeServiceToken)
       services.get(WindowManagerToken)
+      const tray = services.get(TrayServiceToken) as TrayService
+      tray.initialize()
 
-      const logLevelSetting = ctx.settings.getValue('log_level') as logLevel
-      if (logLevelSetting) {
-        ctx.logger.setLevel(logLevelSetting)
-      }
-      ctx.logger.info('Application starting...')
-
-      const mainConsole = console as any
-      mainConsole.log = (...args: any[]) => ctx.logger.info(String(args[0] ?? ''), ...args.slice(1))
-      mainConsole.info = (...args: any[]) =>
-        ctx.logger.info(String(args[0] ?? ''), ...args.slice(1))
-      mainConsole.warn = (...args: any[]) =>
-        ctx.logger.warn(String(args[0] ?? ''), ...args.slice(1))
-      mainConsole.error = (...args: any[]) =>
-        ctx.logger.error(String(args[0] ?? ''), ...args.slice(1))
-      mainConsole.debug = (...args: any[]) =>
-        ctx.logger.debug(String(args[0] ?? ''), ...args.slice(1))
-      mainConsole.trace = (...args: any[]) =>
-        ctx.logger.debug('console.trace', { args, stack: new Error('console.trace').stack })
-
-      if (!config.isDev) {
-        try {
-          if (!fs.existsSync(config.themeDir)) {
-            fs.mkdirSync(config.themeDir, { recursive: true })
-          }
-          const existing = fs
-            .readdirSync(config.themeDir)
-            .filter((f) => f.toLowerCase().endsWith('.json'))
-          if (existing.length === 0) {
-            const builtinThemeDir = join(app.getAppPath(), 'themes')
-            if (fs.existsSync(builtinThemeDir)) {
-              const files = fs
-                .readdirSync(builtinThemeDir)
-                .filter((f) => f.toLowerCase().endsWith('.json'))
-              for (const f of files) {
-                const src = join(builtinThemeDir, f)
-                const dest = join(config.themeDir, f)
-                try {
-                  fs.copyFileSync(src, dest)
-                } catch (e: any) {
-                  ctx.logger.warn('Failed to copy builtin theme', {
-                    src,
-                    dest,
-                    message: e?.message
-                  })
-                }
-              }
-            }
-          }
-        } catch (e: any) {
-          ctx.logger.warn('Failed to initialize theme directory', { message: e?.message })
+      // Open Global Sidebar on startup
+      ctx.windows.open({
+        key: 'global-sidebar',
+        title: 'SecScore Sidebar',
+        route: '/global-sidebar',
+        options: {
+          transparent: true,
+          alwaysOnTop: true,
+          hasShadow: false,
+          type: 'toolbar'
         }
-      }
-
-      const uncaughtExceptionHandler = (err: any) => {
-        ctx.logger.error('uncaughtException', {
-          message: err?.message,
-          stack: err?.stack
-        })
-      }
-      process.on('uncaughtException', uncaughtExceptionHandler)
-      ctx.effect(() => process.removeListener('uncaughtException', uncaughtExceptionHandler))
-
-      const unhandledRejectionHandler = (reason: any) => {
-        if (reason instanceof Error) {
-          ctx.logger.error('unhandledRejection', { message: reason.message, stack: reason.stack })
-        } else {
-          ctx.logger.error('unhandledRejection', reason)
-        }
-      }
-      process.on('unhandledRejection', unhandledRejectionHandler)
-      ctx.effect(() => process.removeListener('unhandledRejection', unhandledRejectionHandler))
-
-      const renderProcessGoneHandler = (_: any, __: any, details: any) => {
-        ctx.logger.error('render-process-gone', details)
-      }
-      app.on('render-process-gone', renderProcessGoneHandler)
-      ctx.effect(() => app.removeListener('render-process-gone', renderProcessGoneHandler))
-
-      const childProcessGoneHandler = (_: any, details: any) => {
-        ctx.logger.error('child-process-gone', details)
-      }
-      app.on('child-process-gone', childProcessGoneHandler)
-      ctx.effect(() => app.removeListener('child-process-gone', childProcessGoneHandler))
-
-      ctx.windows.open({ key: 'main', title: 'SecScore', route: '/' })
-
-      const activateHandler = () => {
-        if (!ctx.windows.get('main')) {
-          ctx.windows.open({ key: 'main', title: 'SecScore', route: '/' })
-        }
-      }
-      app.on('activate', activateHandler)
-      ctx.effect(() => app.removeListener('activate', activateHandler))
+      })
     })
 
   const host = await builder.build()
+  const ctx = host.services.get(MainContext) as MainContext
   await host.start()
 
   let disposing = false
   const beforeQuitHandler = () => {
     if (disposing) return
     disposing = true
+    ctx.isQuitting = true
     app.removeListener('before-quit', beforeQuitHandler)
     void host.dispose()
   }
