@@ -1,6 +1,6 @@
 import { Service } from '../../shared/kernel'
 import { MainContext } from '../context'
-import { BrowserWindow, webContents } from 'electron'
+import { BrowserWindow, webContents, screen } from 'electron'
 import type { IpcMainInvokeEvent } from 'electron'
 import type { settingsKey, settingsSpec, settingChange } from '../../preload/types'
 import type { permissionLevel } from './PermissionService'
@@ -53,14 +53,13 @@ export class SettingsService extends Service {
       kind: 'number',
       defaultValue: 1.0,
       writePermission: 'admin',
-      onChanged: (ctx, next) => {
+      onChanged: (_ctx, next) => {
         const zoom = Number(next) || 1.0
         webContents.getAllWebContents().forEach((wc: any) => {
           wc.setZoomFactor(zoom)
         })
 
-        // 更新全局侧边栏窗口的位置，确保在缩放后位置正确
-        const { BrowserWindow, screen } = require('electron')
+        // 更新全局侧边栏窗口的位置和大小
         const sidebarWindow = BrowserWindow.getAllWindows().find((win) => {
           try {
             return win.webContents.getURL().includes('#global-sidebar')
@@ -72,8 +71,10 @@ export class SettingsService extends Service {
         if (sidebarWindow && !sidebarWindow.isDestroyed()) {
           const primaryDisplay = screen.getPrimaryDisplay()
           const { width, height } = primaryDisplay.workAreaSize
-          const winWidth = 84
-          const winHeight = 300
+          const baseWidth = 84
+          const baseHeight = 300
+          const winWidth = Math.round(baseWidth * zoom)
+          const winHeight = Math.round(baseHeight * zoom)
 
           sidebarWindow.setBounds({
             x: width - winWidth,
