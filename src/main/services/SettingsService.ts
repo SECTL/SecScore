@@ -53,11 +53,35 @@ export class SettingsService extends Service {
       kind: 'number',
       defaultValue: 1.0,
       writePermission: 'admin',
-      onChanged: (_ctx, next) => {
+      onChanged: (ctx, next) => {
         const zoom = Number(next) || 1.0
         webContents.getAllWebContents().forEach((wc: any) => {
           wc.setZoomFactor(zoom)
         })
+
+        // 更新全局侧边栏窗口的位置，确保在缩放后位置正确
+        const { BrowserWindow, screen } = require('electron')
+        const sidebarWindow = BrowserWindow.getAllWindows().find((win) => {
+          try {
+            return win.webContents.getURL().includes('#global-sidebar')
+          } catch {
+            return false
+          }
+        })
+
+        if (sidebarWindow && !sidebarWindow.isDestroyed()) {
+          const primaryDisplay = screen.getPrimaryDisplay()
+          const { width, height } = primaryDisplay.workAreaSize
+          const winWidth = 84
+          const winHeight = 300
+
+          sidebarWindow.setBounds({
+            x: width - winWidth,
+            y: Math.floor(height / 2 - winHeight / 2),
+            width: winWidth,
+            height: winHeight
+          })
+        }
       }
     }
   }
