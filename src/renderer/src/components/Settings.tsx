@@ -13,6 +13,7 @@ import {
   MessagePlugin
 } from 'tdesign-react'
 import { useTheme } from '../contexts/ThemeContext'
+import { useThemeEditor } from '../contexts/ThemeEditorContext'
 
 type permissionLevel = 'admin' | 'points' | 'view'
 type appSettings = {
@@ -23,6 +24,7 @@ type appSettings = {
 
 export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
   const { themes, currentTheme, setTheme } = useTheme()
+  const { startEditing } = useThemeEditor()
   const [activeTab, setActiveTab] = useState('appearance')
   const [settings, setSettings] = useState<appSettings>({
     is_wizard_completed: false,
@@ -261,15 +263,27 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           <Card style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}>
             <Form labelWidth={120}>
               <Form.FormItem label="当前主题">
-                <Select
-                  value={currentTheme?.id}
-                  onChange={(v) => setTheme(v as string)}
-                  style={{ width: '320px' }}
-                >
-                  {themes.map((t) => (
-                    <Select.Option key={t.id} value={t.id} label={t.name} />
-                  ))}
-                </Select>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Select
+                    value={currentTheme?.id}
+                    onChange={(v) => setTheme(v as string)}
+                    style={{ width: '200px' }}
+                  >
+                    {themes.map((t) => (
+                      <Select.Option key={t.id} value={t.id} label={t.name} />
+                    ))}
+                  </Select>
+                  <Button
+                    variant="outline"
+                    theme="default"
+                    onClick={() => startEditing(currentTheme || undefined)}
+                  >
+                    编辑
+                  </Button>
+                  <Button variant="text" theme="primary" onClick={() => startEditing()}>
+                    新建主题
+                  </Button>
+                </div>
               </Form.FormItem>
 
               <Form.FormItem label="界面缩放">

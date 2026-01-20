@@ -79,7 +79,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     ])
 
     if (stuRes.success) {
-      const enrichedStudents = (stuRes.data as student[]).map(s => ({
+      const enrichedStudents = (stuRes.data as student[]).map((s) => ({
         ...s,
         pinyinName: pinyin(s.name, { toneType: 'none' }).toLowerCase(),
         pinyinFirst: getFirstLetter(s.name)
@@ -120,7 +120,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     if (pyLower.includes(q0)) return true
 
     const q1 = q0.replace(/\s+/g, '')
-    if (q1 && (nameLower.replace(/\s+/g, '').includes(q1) || pyLower.replace(/\s+/g, '').includes(q1))) return true
+    if (
+      q1 &&
+      (nameLower.replace(/\s+/g, '').includes(q1) || pyLower.replace(/\s+/g, '').includes(q1))
+    )
+      return true
 
     try {
       const m0 = match(s.name, q0)
@@ -167,7 +171,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     const groups: Record<string, student[]> = {}
     sortedStudents.forEach((s) => {
-      const key = sortType === 'alphabet' ? (s.pinyinFirst || '#') : getSurname(s.name)
+      const key = sortType === 'alphabet' ? s.pinyinFirst || '#' : getSurname(s.name)
       if (!groups[key]) groups[key] = []
       groups[key].push(s)
     })
@@ -312,7 +316,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             border: '1px solid var(--ss-border-color)',
             overflow: 'visible'
           }}
-          hover
         >
           {rankBadge && (
             <div
@@ -382,7 +385,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <div
         key={group.key}
         style={{ marginBottom: '32px' }}
-        ref={(el) => (groupRefs.current[group.key] = el)}
+        ref={(el) => {
+          groupRefs.current[group.key] = el
+        }}
       >
         {group.key !== 'all' && (
           <div
@@ -391,7 +396,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               fontWeight: 'bold',
               color: 'var(--ss-text-main)',
               marginBottom: '16px',
-              paddingLeft: '4px',
               display: 'flex',
               alignItems: 'center',
               gap: '8px',

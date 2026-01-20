@@ -1,0 +1,31 @@
+{
+  "name": "Acrylic-深色",
+  "id": "acrylic-dark",
+  "mode": "dark",
+  "mica": {
+    "effect": "acrylic",
+    "theme": "dark",
+    "radius": "medium"
+  },
+  "config": {
+    "tdesign": {
+      "brandColor": "#4C8BF5",
+      "warningColor": "#E37318",
+      "errorColor": "#D54941",
+      "successColor": "#2BA471"
+    },
+    "custom": {
+      "--ss-bg-color": "transparent",
+      "--ss-card-bg": "rgba(30, 30, 30, 0.3)",
+      "--ss-text-main": "#e0e0e0",
+      "--ss-text-secondary": "#a0a0a0",
+      "--ss-border-color": "rgba(255, 255, 255, 0.08)",
+      "--ss-header-bg": "transparent",
+      "--ss-sidebar-bg": "rgba(30, 30, 30, 0.5)",
+      "--ss-item-hover": "rgba(255, 255, 255, 0.04)",
+      "--ss-sidebar-text": "#e0e0e0",
+      "--ss-sidebar-active-bg": "rgba(255, 255, 255, 0.06)",
+      "--ss-sidebar-active-text": "#e0e0e0"
+    }
+  }
+}

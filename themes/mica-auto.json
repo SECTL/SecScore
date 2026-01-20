@@ -1,0 +1,31 @@
+{
+  "name": "Mica-自动",
+  "id": "mica-auto",
+  "mode": "light",
+  "mica": {
+    "effect": "mica",
+    "theme": "auto",
+    "radius": "medium"
+  },
+  "config": {
+    "tdesign": {
+      "brandColor": "#0052D9",
+      "warningColor": "#E37318",
+      "errorColor": "#D32029",
+      "successColor": "#248232"
+    },
+    "custom": {
+      "--ss-bg-color": "transparent",
+      "--ss-card-bg": "rgba(255, 255, 255, 0.3)",
+      "--ss-text-main": "#1a1a1a",
+      "--ss-text-secondary": "#5e5e5e",
+      "--ss-border-color": "rgba(0, 0, 0, 0.1)",
+      "--ss-header-bg": "transparent",
+      "--ss-sidebar-bg": "rgba(255, 255, 255, 0.5)",
+      "--ss-item-hover": "rgba(0, 0, 0, 0.05)",
+      "--ss-sidebar-text": "#1a1a1a",
+      "--ss-sidebar-active-bg": "rgba(0, 0, 0, 0.08)",
+      "--ss-sidebar-active-text": "#1a1a1a"
+    }
+  }
+}

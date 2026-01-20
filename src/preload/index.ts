@@ -7,6 +7,13 @@ const api = {
   getThemes: () => ipcRenderer.invoke('theme:list'),
   getCurrentTheme: () => ipcRenderer.invoke('theme:current'),
   setTheme: (themeId: string) => ipcRenderer.invoke('theme:set', themeId),
+  saveTheme: (theme: themeConfig) => ipcRenderer.invoke('theme:save', theme),
+  deleteTheme: (themeId: string) => ipcRenderer.invoke('theme:delete', themeId),
+  setCustomTheme: (config: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }) => ipcRenderer.invoke('theme:set-custom', config),
   onThemeChanged: (callback: (theme: themeConfig) => void) => {
     const subscription = (_event: any, theme: themeConfig) => callback(theme)
     ipcRenderer.on('theme:updated', subscription)
@@ -86,7 +93,8 @@ const api = {
     return () => ipcRenderer.removeListener('app:navigate', subscription)
   },
   toggleDevTools: () => ipcRenderer.invoke('window:toggle-devtools'),
-  windowResize: (width: number, height: number) => ipcRenderer.invoke('window:resize', width, height),
+  windowResize: (width: number, height: number) =>
+    ipcRenderer.invoke('window:resize', width, height),
 
   // Logger
   queryLogs: (lines?: number) => ipcRenderer.invoke('log:query', lines),

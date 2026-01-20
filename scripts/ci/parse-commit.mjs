@@ -13,18 +13,26 @@ const rawMessage =
   ''
 const message = String(rawMessage || '').trim()
 
+// 是否以 release: 开头
+const isReleasePrefix = /^release:/i.test(message)
+
 const semverRe = /\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/
 const versionMatch = message.match(semverRe)
 const version = versionMatch ? versionMatch[1] : ''
 
 const buildToken =
   message.match(/\b(build:(?:win|mac|linux|unpack|all))\b/i)?.[1]?.toLowerCase() ?? ''
-const buildScript =
+let buildScript =
   buildToken === 'build:all'
     ? 'build:all'
     : buildToken && buildToken.startsWith('build:')
       ? buildToken
       : ''
+
+// 如果是 release: 开头且没有显式指定构建脚本，默认为 build:all
+if (isReleasePrefix && !buildScript) {
+  buildScript = 'build:all'
+}
 
 const supportedBuildScripts = new Set(['build:win', 'build:mac', 'build:linux', 'build:unpack'])
 const hasBuildScript = buildScript
@@ -38,7 +46,7 @@ const fail = (text) => {
   process.exit(1)
 }
 
-const hasAnySignal = Boolean(version || buildScript)
+const hasAnySignal = Boolean(isReleasePrefix || version || buildScript)
 const shouldSkip = !hasAnySignal
 
 if (!shouldSkip) {
@@ -46,7 +54,7 @@ if (!shouldSkip) {
     fail(
       [
         '未在提交信息中检测到版本号。',
-        '示例：release: v1.2.3 build:win',
+        '示例：release: v1.2.3 build:win 或 release: 1.2.3',
         '支持格式：v1.2.3 或 1.2.3（可带 -beta.1 等后缀）'
       ].join('\n')
     )

@@ -11,6 +11,11 @@ export interface themeConfig {
   name: string
   id: string
   mode: 'light' | 'dark'
+  mica?: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }
   config: {
     tdesign: Record<string, string>
     custom: Record<string, string>
@@ -21,6 +26,9 @@ export type settingsSpec = {
   is_wizard_completed: boolean
   log_level: logLevel
   window_zoom: number
+  window_theme: 'auto' | 'dark' | 'light'
+  window_effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+  window_radius: 'rounded' | 'small' | 'square'
 }
 
 export type settingsKey = keyof settingsSpec
@@ -35,6 +43,13 @@ export interface electronApi {
   getThemes: () => Promise<ipcResponse<themeConfig[]>>
   getCurrentTheme: () => Promise<ipcResponse<themeConfig>>
   setTheme: (themeId: string) => Promise<ipcResponse<void>>
+  saveTheme: (theme: themeConfig) => Promise<ipcResponse<void>>
+  deleteTheme: (themeId: string) => Promise<ipcResponse<void>>
+  setCustomTheme: (config: {
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
+    theme: 'auto' | 'dark' | 'light'
+    radius: 'small' | 'medium' | 'large'
+  }) => Promise<ipcResponse<void>>
   onThemeChanged: (callback: (theme: themeConfig) => void) => () => void
 
   // DB - Student

@@ -35,11 +35,16 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const fetchReasons = useCallback(async () => {
     if (!(window as any).api) return
     setLoading(true)
-    const res = await (window as any).api.queryReasons()
-    if (res.success && res.data) {
-      setData(res.data)
+    try {
+      const res = await (window as any).api.queryReasons()
+      if (res.success && res.data) {
+        setData(res.data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch reasons:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -149,6 +154,8 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         loading={loading}
         bordered
         hover
+        pagination={{ pageSize: 50, total: data.length, defaultCurrent: 1 }}
+        scroll={{ type: 'virtual', rowHeight: 48, threshold: 100 }}
         style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
       />
 

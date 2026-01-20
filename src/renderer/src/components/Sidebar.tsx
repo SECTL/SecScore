@@ -7,7 +7,7 @@ import {
   ViewListIcon,
   HomeIcon
 } from 'tdesign-icons-react'
-import appLogo from '../assets/logo.svg'
+import appLogo from '../assets/logoHD.svg'
 
 const { Aside } = Layout
 

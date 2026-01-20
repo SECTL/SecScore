@@ -32,12 +32,17 @@ export const Leaderboard: React.FC = () => {
   const fetchRankings = useCallback(async () => {
     if (!(window as any).api) return
     setLoading(true)
-    const res = await (window as any).api.queryLeaderboard({ range: timeRange })
-    if (res.success && res.data) {
-      setStartTime(res.data.startTime)
-      setData(res.data.rows)
+    try {
+      const res = await (window as any).api.queryLeaderboard({ range: timeRange })
+      if (res.success && res.data) {
+        setStartTime(res.data.startTime)
+        setData(res.data.rows)
+      }
+    } catch (e) {
+      console.error('Failed to fetch rankings:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [timeRange])
 
   useEffect(() => {
@@ -77,48 +82,51 @@ export const Leaderboard: React.FC = () => {
   }
 
   const handleExport = () => {
-    const title = timeRange === 'today' ? '今天' : timeRange === 'week' ? '本周' : '本月'
+    // 使用 requestIdleCallback 或 setTimeout 避免阻塞 UI
+    setTimeout(() => {
+      const title = timeRange === 'today' ? '今天' : timeRange === 'week' ? '本周' : '本月'
 
-    const sanitizeCell = (v: unknown) => {
-      if (typeof v !== 'string') return v
-      if (/^[=+\-@]/.test(v)) return `'${v}`
-      return v
-    }
+      const sanitizeCell = (v: unknown) => {
+        if (typeof v !== 'string') return v
+        if (/^[=+\-@]/.test(v)) return `'${v}`
+        return v
+      }
 
-    const sheetData = [
-      ['排名', '姓名', '总积分', `${title}变化`],
-      ...data.map((item, index) => [
-        index + 1,
-        sanitizeCell(item.name),
-        item.score,
-        item.range_change
-      ])
-    ]
+      const sheetData = [
+        ['排名', '姓名', '总积分', `${title}变化`],
+        ...data.map((item, index) => [
+          index + 1,
+          sanitizeCell(item.name),
+          item.score,
+          item.range_change
+        ])
+      ]
 
-    const ws = XLSX.utils.aoa_to_sheet(sheetData)
-    ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
+      const ws = XLSX.utils.aoa_to_sheet(sheetData)
+      ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
 
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, '排行榜')
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '排行榜')
 
-    const xlsxBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([xlsxBytes], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    })
+      const xlsxBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([xlsxBytes], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
 
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute(
-      'download',
-      `排行榜_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-    MessagePlugin.success('导出成功')
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute(
+        'download',
+        `排行榜_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      )
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      MessagePlugin.success('导出成功')
+    }, 0)
   }
 
   const columns: PrimaryTableCol<studentRank>[] = [
@@ -215,6 +223,8 @@ export const Leaderboard: React.FC = () => {
           loading={loading}
           bordered
           hover
+          pagination={{ pageSize: 30, total: data.length, defaultCurrent: 1 }}
+          scroll={{ type: 'virtual', rowHeight: 48, threshold: 100 }}
           className="ss-table-center"
           style={{ color: 'var(--ss-text-main)' }}
         />

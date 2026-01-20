@@ -5,7 +5,9 @@ import { Sidebar } from './components/Sidebar'
 import { ContentArea } from './components/ContentArea'
 import { Wizard } from './components/Wizard'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { ThemeEditorProvider } from './contexts/ThemeEditorContext'
 import { GlobalSidebar } from './components/GlobalSidebar'
+import { ThemeEditor } from './components/ThemeEditor'
 
 function MainContent(): React.JSX.Element {
   const navigate = useNavigate()
@@ -17,7 +19,7 @@ function MainContent(): React.JSX.Element {
       // 统一路径格式进行比对，防止 / 和 /home 导致重复跳转
       const currentPath = location.pathname === '/' ? '/home' : location.pathname
       const targetPath = route === '/' ? '/home' : route
-      
+
       if (currentPath !== targetPath) {
         navigate(route)
       }
@@ -143,12 +145,15 @@ function MainContent(): React.JSX.Element {
 function App(): React.JSX.Element {
   return (
     <ThemeProvider>
-      <HashRouter>
-        <Routes>
-          <Route path="/global-sidebar" element={<GlobalSidebar />} />
-          <Route path="/*" element={<MainContent />} />
-        </Routes>
-      </HashRouter>
+      <ThemeEditorProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/global-sidebar" element={<GlobalSidebar />} />
+            <Route path="/*" element={<MainContent />} />
+          </Routes>
+        </HashRouter>
+        <ThemeEditor />
+      </ThemeEditorProvider>
     </ThemeProvider>
   )
 }

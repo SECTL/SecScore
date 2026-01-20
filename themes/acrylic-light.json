@@ -1,0 +1,31 @@
+{
+  "name": "Acrylic-浅色",
+  "id": "acrylic-light",
+  "mode": "light",
+  "mica": {
+    "effect": "acrylic",
+    "theme": "light",
+    "radius": "medium"
+  },
+  "config": {
+    "tdesign": {
+      "brandColor": "#0052D9",
+      "warningColor": "#E37318",
+      "errorColor": "#D32029",
+      "successColor": "#248232"
+    },
+    "custom": {
+      "--ss-bg-color": "transparent",
+      "--ss-card-bg": "rgba(255, 255, 255, 0.3)",
+      "--ss-text-main": "#1a1a1a",
+      "--ss-text-secondary": "#5e5e5e",
+      "--ss-border-color": "rgba(0, 0, 0, 0.08)",
+      "--ss-header-bg": "transparent",
+      "--ss-sidebar-bg": "rgba(255, 255, 255, 0.5)",
+      "--ss-item-hover": "rgba(0, 0, 0, 0.04)",
+      "--ss-sidebar-text": "#1a1a1a",
+      "--ss-sidebar-active-bg": "rgba(0, 0, 0, 0.06)",
+      "--ss-sidebar-active-text": "#1a1a1a"
+    }
+  }
+}

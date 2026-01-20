@@ -3,6 +3,39 @@ import { MainContext } from '../context'
 import { BrowserWindow, shell, screen } from 'electron'
 import type { BrowserWindowConstructorOptions } from 'electron'
 
+let micaElectron: typeof import('mica-electron') | null = null
+let MicaBrowserWindow: any = null
+let IS_WINDOWS_11 = false
+
+try {
+  if (process.platform === 'win32') {
+    const micaModule = require('mica-electron')
+    micaElectron = micaModule
+    MicaBrowserWindow = micaModule.MicaBrowserWindow
+    IS_WINDOWS_11 = micaModule.IS_WINDOWS_11
+  }
+} catch (error) {
+  console.warn('mica-electron not available:', error)
+}
+
+interface MicaWindow extends BrowserWindow {
+  setMicaEffect(): void
+  setMicaTabbedEffect(): void
+  setMicaAcrylicEffect(): void
+  setAcrylic(): void
+  setBlur(): void
+  setTransparent(): void
+  setDarkTheme(): void
+  setLightTheme(): void
+  setAutoTheme(): void
+  setRoundedCorner(): void
+  setSmallRoundedCorner(): void
+  setSquareCorner(): void
+  setBorderColor(color: string | null): void
+  setCaptionColor(color: string | null): void
+  setTitleTextColor(color: string | null): void
+}
+
 export type windowOpenInput = {
   key: string
   title?: string
@@ -52,7 +85,6 @@ export class WindowManager extends Service {
     const existing = this.get(input.key)
     if (existing) {
       if (input.route) {
-        // Use soft navigation if window exists to prevent reload
         existing.webContents.send('app:navigate', input.route)
       }
       existing.show()
@@ -60,12 +92,14 @@ export class WindowManager extends Service {
       return existing
     }
 
-    const win = new BrowserWindow({
+    const baseOptions: BrowserWindowConstructorOptions = {
       width: 900,
       height: 670,
       show: false,
       autoHideMenuBar: true,
-      frame: false, // Custom title bar
+      frame: false,
+      transparent: true,
+      backgroundColor: '#00000000',
       icon: this.opts.icon,
       title: input.title,
       webPreferences: {
@@ -73,7 +107,15 @@ export class WindowManager extends Service {
         sandbox: false
       },
       ...input.options
-    })
+    }
+
+    let win: BrowserWindow
+    if (MicaBrowserWindow) {
+      win = new MicaBrowserWindow(baseOptions)
+      this.applyMicaEffect(win)
+    } else {
+      win = new BrowserWindow(baseOptions)
+    }
 
     // Special positioning for global sidebar
     if (input.key === 'global-sidebar') {
@@ -121,6 +163,18 @@ export class WindowManager extends Service {
       win.webContents.send('window:maximized-changed', false)
     })
 
+    win.on('blur', () => {
+      if (input.key === 'global-sidebar' || input.key === 'main') {
+        this.applyMicaEffect(win)
+      }
+    })
+
+    win.on('focus', () => {
+      if (input.key === 'global-sidebar' || input.key === 'main') {
+        this.applyMicaEffect(win)
+      }
+    })
+
     win.webContents.setWindowOpenHandler((details) => {
       shell.openExternal(details.url)
       return { action: 'deny' }
@@ -128,6 +182,159 @@ export class WindowManager extends Service {
 
     void this.loadRoute(win, input.route ?? '/')
     return win
+  }
+
+  private applyMicaEffect(win: BrowserWindow) {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+
+    const theme = this.mainCtx.settings.getValue('window_theme')
+    switch (theme) {
+      case 'dark':
+        micaWin.setDarkTheme()
+        break
+      case 'light':
+        micaWin.setLightTheme()
+        break
+      default:
+        micaWin.setAutoTheme()
+    }
+
+    const effect = this.mainCtx.settings.getValue('window_effect')
+    switch (effect) {
+      case 'mica':
+        micaWin.setMicaEffect()
+        break
+      case 'tabbed':
+        micaWin.setMicaTabbedEffect()
+        break
+      case 'acrylic':
+        if (IS_WINDOWS_11) {
+          micaWin.setMicaAcrylicEffect()
+        } else {
+          micaWin.setAcrylic()
+        }
+        break
+      case 'blur':
+        if (!IS_WINDOWS_11) {
+          micaWin.setBlur()
+        }
+        break
+      case 'transparent':
+        if (!IS_WINDOWS_11) {
+          micaWin.setTransparent()
+        }
+        break
+    }
+
+    const radius = this.mainCtx.settings.getValue('window_radius')
+    switch (radius) {
+      case 'small':
+        micaWin.setSmallRoundedCorner()
+        break
+      case 'square':
+        micaWin.setSquareCorner()
+        break
+      default:
+        micaWin.setRoundedCorner()
+    }
+  }
+
+  public setMicaEffect(
+    win: BrowserWindow,
+    effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none' = 'mica'
+  ) {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+
+    switch (effect) {
+      case 'mica':
+        micaWin.setMicaEffect()
+        break
+      case 'tabbed':
+        micaWin.setMicaTabbedEffect()
+        break
+      case 'acrylic':
+        if (IS_WINDOWS_11) {
+          micaWin.setMicaAcrylicEffect()
+        } else {
+          micaWin.setAcrylic()
+        }
+        break
+      case 'blur':
+        if (!IS_WINDOWS_11) {
+          micaWin.setBlur()
+        }
+        break
+      case 'transparent':
+        if (!IS_WINDOWS_11) {
+          micaWin.setTransparent()
+        }
+        break
+      case 'none':
+        if (IS_WINDOWS_11) {
+          micaWin.setMicaEffect()
+        }
+        break
+    }
+  }
+
+  public setMicaTheme(win: BrowserWindow, theme: 'auto' | 'dark' | 'light' = 'auto') {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+
+    switch (theme) {
+      case 'dark':
+        micaWin.setDarkTheme()
+        break
+      case 'light':
+        micaWin.setLightTheme()
+        break
+      default:
+        micaWin.setAutoTheme()
+    }
+  }
+
+  public setMicaCorner(win: BrowserWindow, corner: 'rounded' | 'small' | 'square' = 'rounded') {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+
+    switch (corner) {
+      case 'small':
+        micaWin.setSmallRoundedCorner()
+        break
+      case 'square':
+        micaWin.setSquareCorner()
+        break
+      default:
+        micaWin.setRoundedCorner()
+    }
+  }
+
+  public setMicaBorderColor(win: BrowserWindow, color: string | null) {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+    micaWin.setBorderColor(color)
+  }
+
+  public setMicaCaptionColor(win: BrowserWindow, color: string | null) {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+    micaWin.setCaptionColor(color)
+  }
+
+  public setMicaTitleTextColor(win: BrowserWindow, color: string | null) {
+    if (!micaElectron) return
+    const micaWin = win as MicaWindow
+    micaWin.setTitleTextColor(color)
+  }
+
+  public isMicaAvailable(): boolean {
+    return micaElectron !== null
+  }
+
+  public isWindows11(): boolean {
+    return IS_WINDOWS_11
   }
 
   public navigate(key: string, route: string) {
@@ -236,7 +443,6 @@ export class WindowManager extends Service {
       const win = BrowserWindow.fromWebContents(event.sender)
       if (win) {
         const bounds = win.getBounds()
-        // Keep right side pinned
         const newX = bounds.x + (bounds.width - width)
         win.setBounds({
           x: newX,
@@ -244,6 +450,34 @@ export class WindowManager extends Service {
           width,
           height
         })
+      }
+    })
+
+    this.mainCtx.handle('window:mica-effect', (_event, effect: string) => {
+      const win = BrowserWindow.fromWebContents(_event.sender)
+      if (win) {
+        this.setMicaEffect(win, effect as any)
+      }
+    })
+
+    this.mainCtx.handle('window:mica-theme', (_event, theme: string) => {
+      const win = BrowserWindow.fromWebContents(_event.sender)
+      if (win) {
+        this.setMicaTheme(win, theme as any)
+      }
+    })
+
+    this.mainCtx.handle('window:mica-corner', (_event, corner: string) => {
+      const win = BrowserWindow.fromWebContents(_event.sender)
+      if (win) {
+        this.setMicaCorner(win, corner as any)
+      }
+    })
+
+    this.mainCtx.handle('window:mica-info', () => {
+      return {
+        available: this.isMicaAvailable(),
+        isWindows11: this.isWindows11()
       }
     })
   }

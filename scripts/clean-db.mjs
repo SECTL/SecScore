@@ -12,6 +12,10 @@ for (const name of targets) {
       console.log(`[clean-db] removed ${filePath}`)
     }
   } catch (e) {
-    console.error(`[clean-db] failed to remove ${filePath}:`, e?.message || e)
+    if (e.code === 'EPERM' || e.code === 'EACCES') {
+      console.warn(`[clean-db] skipped ${filePath}: file in use or permission denied`)
+    } else {
+      console.error(`[clean-db] failed to remove ${filePath}:`, e?.message || e)
+    }
   }
 }

@@ -109,7 +109,11 @@ export function TitleBar({ children }: TitleBarProps): React.JSX.Element {
           onClick={maximize}
           style={{ width: '46px', height: '32px', borderRadius: 0 }}
         >
-          {isMaximized ? <FullscreenExitIcon /> : <RectangleIcon />}
+          {isMaximized ? (
+            <FullscreenExitIcon style={{ transform: 'scale(0.5)' }} />
+          ) : (
+            <RectangleIcon />
+          )}
         </Button>
         <Button
           variant="text"

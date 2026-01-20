@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, Button, Space, MessagePlugin, Dialog, Form, Input } from 'tdesign-react'
 import type { PrimaryTableCol } from 'tdesign-react'
-import * as XLSX from 'xlsx'
+
+// 创建 XLSX Worker
+const createXlsxWorker = () => {
+  return new Worker(new URL('../workers/xlsxWorker.ts', import.meta.url), {
+    type: 'module'
+  })
+}
 
 interface student {
   id: number
@@ -20,7 +26,16 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [xlsxAoa, setXlsxAoa] = useState<any[][]>([])
   const [xlsxSelectedCol, setXlsxSelectedCol] = useState<number | null>(null)
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
+  const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
+
+  // 初始化 Worker
+  useEffect(() => {
+    xlsxWorkerRef.current = createXlsxWorker()
+    return () => {
+      xlsxWorkerRef.current?.terminate()
+    }
+  }, [])
 
   const emitDataUpdated = (category: 'students' | 'all') => {
     window.dispatchEvent(new CustomEvent('ss:data-updated', { detail: { category } }))
@@ -29,11 +44,16 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const fetchStudents = useCallback(async () => {
     if (!(window as any).api) return
     setLoading(true)
-    const res = await (window as any).api.queryStudents({})
-    if (res.success && res.data) {
-      setData(res.data)
+    try {
+      const res = await (window as any).api.queryStudents({})
+      if (res.success && res.data) {
+        setData(res.data)
+      }
+    } catch (e) {
+      console.error('Failed to fetch students:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => {
@@ -123,30 +143,40 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const parseXlsxFile = async (file: File) => {
+    if (!xlsxWorkerRef.current) {
+      MessagePlugin.error('Worker 未初始化')
+      return
+    }
+
     setXlsxLoading(true)
     try {
       const buf = await file.arrayBuffer()
-      const wb = XLSX.read(buf, { type: 'array' })
-      const firstSheetName = wb.SheetNames?.[0]
-      if (!firstSheetName) {
-        MessagePlugin.error('xlsx 中未找到工作表')
-        return
-      }
-      const ws = wb.Sheets[firstSheetName]
-      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][]
-      if (!Array.isArray(aoa) || aoa.length === 0) {
-        MessagePlugin.error('xlsx 内容为空')
-        return
+
+      // 使用 Worker 处理文件解析，避免阻塞主线程
+      xlsxWorkerRef.current.postMessage({
+        type: 'parseXlsx',
+        data: { buffer: buf }
+      })
+
+      // 监听 Worker 消息
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'success') {
+          setXlsxFileName(file.name)
+          setXlsxAoa(event.data.data)
+          setXlsxSelectedCol(null)
+          setXlsxVisible(true)
+          setImportVisible(false)
+          setXlsxLoading(false)
+        } else if (event.data.type === 'error') {
+          MessagePlugin.error(event.data.error || '解析 xlsx 失败')
+          setXlsxLoading(false)
+        }
+        xlsxWorkerRef.current?.removeEventListener('message', handleMessage)
       }
 
-      setXlsxFileName(file.name)
-      setXlsxAoa(aoa)
-      setXlsxSelectedCol(null)
-      setXlsxVisible(true)
-      setImportVisible(false)
+      xlsxWorkerRef.current.addEventListener('message', handleMessage)
     } catch (e: any) {
       MessagePlugin.error(e?.message || '解析 xlsx 失败')
-    } finally {
       setXlsxLoading(false)
     }
   }
@@ -314,6 +344,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         loading={loading}
         bordered
         hover
+        pagination={{ pageSize: 50, total: data.length, defaultCurrent: 1 }}
+        scroll={{ type: 'virtual', rowHeight: 48, threshold: 100 }}
         style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
       />
 

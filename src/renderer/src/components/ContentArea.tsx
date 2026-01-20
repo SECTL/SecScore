@@ -2,14 +2,21 @@ import React, { Suspense, lazy } from 'react'
 import { Layout, Space, Button, Tag, Loading } from 'tdesign-react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { WindowControls } from './WindowControls'
+import { ThemeEditor } from './ThemeEditor'
 
-const Home = lazy(() => import('./Home').then(m => ({ default: m.Home })))
-const StudentManager = lazy(() => import('./StudentManager').then(m => ({ default: m.StudentManager })))
-const Settings = lazy(() => import('./Settings').then(m => ({ default: m.Settings })))
-const ReasonManager = lazy(() => import('./ReasonManager').then(m => ({ default: m.ReasonManager })))
-const ScoreManager = lazy(() => import('./ScoreManager').then(m => ({ default: m.ScoreManager })))
-const Leaderboard = lazy(() => import('./Leaderboard').then(m => ({ default: m.Leaderboard })))
-const SettlementHistory = lazy(() => import('./SettlementHistory').then(m => ({ default: m.SettlementHistory })))
+const Home = lazy(() => import('./Home').then((m) => ({ default: m.Home })))
+const StudentManager = lazy(() =>
+  import('./StudentManager').then((m) => ({ default: m.StudentManager }))
+)
+const Settings = lazy(() => import('./Settings').then((m) => ({ default: m.Settings })))
+const ReasonManager = lazy(() =>
+  import('./ReasonManager').then((m) => ({ default: m.ReasonManager }))
+)
+const ScoreManager = lazy(() => import('./ScoreManager').then((m) => ({ default: m.ScoreManager })))
+const Leaderboard = lazy(() => import('./Leaderboard').then((m) => ({ default: m.Leaderboard })))
+const SettlementHistory = lazy(() =>
+  import('./SettlementHistory').then((m) => ({ default: m.SettlementHistory }))
+)
 
 const { Content } = Layout
 
@@ -119,6 +126,7 @@ export function ContentArea({
           </Routes>
         </Suspense>
       </Content>
+      <ThemeEditor />
     </Layout>
   )
 }

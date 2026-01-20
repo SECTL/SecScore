@@ -93,17 +93,25 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const fetchData = useCallback(async () => {
     if (!(window as any).api) return
-    setLoading(true)
-    const [stuRes, reaRes, eveRes] = await Promise.all([
-      (window as any).api.queryStudents({}),
-      (window as any).api.queryReasons(),
-      (window as any).api.queryEvents({ limit: 10 })
-    ])
+    // 使用 setTimeout 避免 UI 阻塞
+    setTimeout(async () => {
+      setLoading(true)
+      try {
+        const [stuRes, reaRes, eveRes] = await Promise.all([
+          (window as any).api.queryStudents({}),
+          (window as any).api.queryReasons(),
+          (window as any).api.queryEvents({ limit: 10 })
+        ])
 
-    if (stuRes.success) setStudents(stuRes.data)
-    if (reaRes.success) setReasons(reaRes.data)
-    if (eveRes.success) setEvents(eveRes.data)
-    setLoading(false)
+        if (stuRes.success) setStudents(stuRes.data)
+        if (reaRes.success) setReasons(reaRes.data)
+        if (eveRes.success) setEvents(eveRes.data)
+      } catch (e) {
+        console.error('Failed to fetch data:', e)
+      } finally {
+        setLoading(false)
+      }
+    }, 0)
   }, [])
 
   useEffect(() => {
@@ -328,7 +336,8 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               rowKey="uuid"
               loading={loading}
               size="small"
-              pagination={{ pageSize: 5, total: events.length }}
+              pagination={{ pageSize: 5, total: events.length, defaultCurrent: 1 }}
+              scroll={{ type: 'virtual' }}
               style={{ color: 'var(--ss-text-main)' }}
             />
           </Collapse.Panel>

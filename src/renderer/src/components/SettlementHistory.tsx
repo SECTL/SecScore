@@ -36,13 +36,18 @@ export const SettlementHistory: React.FC = () => {
   const fetchSettlements = useCallback(async () => {
     if (!(window as any).api) return
     setLoading(true)
-    const res = await (window as any).api.querySettlements()
-    setLoading(false)
-    if (!res.success) {
-      MessagePlugin.error(res.message || '查询失败')
-      return
+    try {
+      const res = await (window as any).api.querySettlements()
+      if (!res.success) {
+        MessagePlugin.error(res.message || '查询失败')
+        return
+      }
+      setSettlements(res.data || [])
+    } catch (e) {
+      console.error('Failed to fetch settlements:', e)
+    } finally {
+      setLoading(false)
     }
-    setSettlements(res.data || [])
   }, [])
 
   useEffect(() => {
@@ -62,14 +67,19 @@ export const SettlementHistory: React.FC = () => {
     if (!(window as any).api) return
     setSelectedId(id)
     setDetailLoading(true)
-    const res = await (window as any).api.querySettlementLeaderboard({ settlement_id: id })
-    setDetailLoading(false)
-    if (!res.success || !res.data) {
-      MessagePlugin.error(res.message || '查询失败')
-      return
+    try {
+      const res = await (window as any).api.querySettlementLeaderboard({ settlement_id: id })
+      if (!res.success || !res.data) {
+        MessagePlugin.error(res.message || '查询失败')
+        return
+      }
+      setSelectedSettlement(res.data.settlement)
+      setRows(res.data.rows || [])
+    } catch (e) {
+      console.error('Failed to fetch settlement leaderboard:', e)
+    } finally {
+      setDetailLoading(false)
     }
-    setSelectedSettlement(res.data.settlement)
-    setRows(res.data.rows || [])
   }
 
   const columns: PrimaryTableCol<settlementLeaderboardRow>[] = useMemo(
@@ -120,6 +130,8 @@ export const SettlementHistory: React.FC = () => {
             loading={detailLoading}
             bordered
             hover
+            pagination={{ pageSize: 50, total: rows.length, defaultCurrent: 1 }}
+            scroll={{ type: 'virtual', rowHeight: 48, threshold: 100 }}
             style={{ color: 'var(--ss-text-main)' }}
           />
         </Card>

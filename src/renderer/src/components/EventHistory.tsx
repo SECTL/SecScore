@@ -63,6 +63,8 @@ export const EventHistory: React.FC = () => {
         loading={loading}
         bordered
         hover
+        pagination={{ pageSize: 50, total: data.length, defaultCurrent: 1 }}
+        scroll={{ type: 'virtual', rowHeight: 48, threshold: 100 }}
         style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
       />
     </div>
