@@ -11,7 +11,8 @@ import {
   Tag,
   Space,
   Switch,
-  Popconfirm
+  Popconfirm,
+  Radio,
 } from 'tdesign-react'
 
 interface AutoScoreRule {
@@ -126,7 +127,14 @@ export const AutoScoreManager: React.FC = () => {
 
       if (res.success) {
         MessagePlugin.success(editingRuleId !== null ? '规则更新成功' : '规则创建成功')
-        form.reset()
+        // 手动清空表单字段，避免 form.reset() 导致的栈溢出
+        form.setFieldsValue({
+          name: '',
+          intervalMinutes: undefined,
+          studentNames: '',
+          scoreValue: undefined,
+          reason: ''
+        })
         setEditingRuleId(null)
         fetchRules() // 刷新规则列表
       } else {
@@ -203,7 +211,14 @@ export const AutoScoreManager: React.FC = () => {
   }
 
   const handleResetForm = () => {
-    form.reset()
+    // 手动清空表单字段，避免 form.reset() 导致的栈溢出
+    form.setFieldsValue({
+      name: '',
+      intervalMinutes: undefined,
+      studentNames: '',
+      scoreValue: undefined,
+      reason: ''
+    })
     setEditingRuleId(null)
   }
 
@@ -308,15 +323,26 @@ export const AutoScoreManager: React.FC = () => {
               <Input placeholder="例如：每日签到加分" />
             </Form.FormItem>
 
-            <Form.FormItem
-              label="间隔时间(分钟)"
-              name="intervalMinutes"
-              rules={[
-                { required: true, message: '请输入间隔时间' },
-                { min: 1, message: '间隔时间至少为1分钟' }
-              ]}
-            >
-              <InputNumber min={1} placeholder="例如：1440（每天）" />
+            <Form.FormItem>
+              <Space>
+                <Form.FormItem
+                label="间隔时间"
+                name="intervalMinutes"
+                rules={[
+                  { required: true, message: '请输入间隔时间' },
+                  { min: 1, message: '间隔时间至少为1分钟' }
+                ]}
+                style={{ marginBottom: 0 }}
+                >
+                  <InputNumber min={1} placeholder="例如：1440（每天）" />
+                </Form.FormItem>
+                <Form.FormItem name="timeUnit" style={{ marginBottom: 0 }}>
+                  <Radio.Group variant="default-filled">
+                    <Radio.Button value="days">天</Radio.Button>
+                    <Radio.Button value="minutes">分钟</Radio.Button>
+                  </Radio.Group>
+                </Form.FormItem>
+              </Space>
             </Form.FormItem>
 
             <Form.FormItem
