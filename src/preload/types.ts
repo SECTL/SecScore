@@ -29,6 +29,8 @@ export type settingsSpec = {
   window_theme: 'auto' | 'dark' | 'light'
   window_effect: 'mica' | 'tabbed' | 'acrylic' | 'blur' | 'transparent' | 'none'
   window_radius: 'rounded' | 'small' | 'square'
+  auto_score_enabled: boolean
+  auto_score_rules: any[]
 }
 
 export type settingsKey = keyof settingsSpec
@@ -152,4 +154,6 @@ export interface electronApi {
   }) => Promise<ipcResponse<void>>
 
   registerUrlProtocol: () => Promise<ipcResponse<{ registered?: boolean }>>
+  // Generic invoke wrapper (minimal compatibility API)
+  invoke?: (channel: string, ...args: any[]) => Promise<any>
 }

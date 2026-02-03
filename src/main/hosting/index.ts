@@ -14,7 +14,8 @@ export {
   SettlementRepositoryToken,
   ThemeServiceToken,
   WindowManagerToken,
-  TrayServiceToken
+  TrayServiceToken,
+  AutoScoreServiceToken
 } from './tokens'
 export type {
   appRuntimeContext,

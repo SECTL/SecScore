@@ -78,6 +78,16 @@ export class SettingsService extends Service {
       defaultValue: 'rounded',
       writePermission: 'admin',
       validate: (v) => v === 'rounded' || v === 'small' || v === 'square'
+    },
+    auto_score_enabled: {
+      kind: 'boolean',
+      defaultValue: false,
+      writePermission: 'admin'
+    },
+    auto_score_rules: {
+      kind: 'json',
+      defaultValue: [],
+      writePermission: 'admin'
     }
   }
 

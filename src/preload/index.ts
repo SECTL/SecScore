@@ -104,6 +104,9 @@ const api = {
     ipcRenderer.invoke('log:write', payload),
 
   registerUrlProtocol: () => ipcRenderer.invoke('app:register-url-protocol')
+  ,
+  // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
+  invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args)
 }
 
 if (process.contextIsolated) {

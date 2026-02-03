@@ -20,6 +20,7 @@ type appSettings = {
   is_wizard_completed: boolean
   log_level: 'debug' | 'info' | 'warn' | 'error'
   window_zoom?: string
+  auto_score_enabled?: boolean
 }
 
 export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
@@ -98,6 +99,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         if (change?.key === 'is_wizard_completed')
           return { ...prev, is_wizard_completed: change.value }
         if (change?.key === 'window_zoom') return { ...prev, window_zoom: change.value }
+        if (change?.key === 'auto_score_enabled') return { ...prev, auto_score_enabled: change.value }
         return prev
       })
     })
@@ -261,6 +263,52 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       </div>
 
       <Tabs value={activeTab} onChange={(v) => setActiveTab(v as string)}>
+        <Tabs.TabPanel value="auto-score" label="自动加分">
+          <Card style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}>
+            <div style={{ fontWeight: 600, marginBottom: '12px' }}>自动加分功能</div>
+            <div style={{ marginBottom: '16px', color: 'var(--ss-text-secondary)' }}>
+              自动加分功能会按照设定的时间间隔自动为学生加分。
+            </div>
+            <Form labelWidth={120}>
+              <Form.FormItem label="启用自动加分">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Button
+                    theme={settings.auto_score_enabled ? 'success' : 'danger'}
+                    variant="outline"
+                    onClick={async () => {
+                      if (!(window as any).api) return
+                      const newValue = !settings.auto_score_enabled
+                      const res = await (window as any).api.setSetting('auto_score_enabled', newValue)
+                      if (res.success) {
+                        setSettings((prev) => ({ ...prev, auto_score_enabled: newValue }))
+                        MessagePlugin.success(`自动加分功能已${newValue ? '启用' : '禁用'}`)
+                      } else {
+                        MessagePlugin.error(res.message || `设置失败`)
+                      }
+                    }}
+                    disabled={!canAdmin}
+                  >
+                    {settings.auto_score_enabled ? '已启用' : '已禁用'}
+                  </Button>
+                  <span style={{ fontSize: '12px', color: 'var(--ss-text-secondary)' }}>
+                    {settings.auto_score_enabled
+                      ? '当前处于启用状态'
+                      : '当前处于禁用状态'}
+                  </span>
+                </div>
+              </Form.FormItem>
+            </Form>
+            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--ss-bg-color)', borderRadius: '4px', border: '1px solid var(--ss-border-color)' }}>
+              <div style={{ fontWeight: 500, marginBottom: '8px' }}>使用说明：</div>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--ss-text-secondary)' }}>
+                <li>启用功能后，系统将按照设定的规则自动为学生加分</li>
+                <li>在"自动加分"菜单中可以创建和管理加分规则</li>
+                <li>每个规则可以设置不同的时间间隔、加分值和适用学生</li>
+                <li>请谨慎设置，避免积分增长过快</li>
+              </ul>
+            </div>
+          </Card>
+        </Tabs.TabPanel>
         <Tabs.TabPanel value="appearance" label="外观">
           <Card style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}>
             <Form labelWidth={120}>

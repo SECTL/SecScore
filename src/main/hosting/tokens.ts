@@ -13,3 +13,4 @@ export const SettlementRepositoryToken = Symbol.for('secscore.settlementReposito
 export const ThemeServiceToken = Symbol.for('secscore.themeService')
 export const WindowManagerToken = Symbol.for('secscore.windowManager')
 export const TrayServiceToken = Symbol.for('secscore.trayService')
+export const AutoScoreServiceToken = Symbol.for('secscore.autoScoreService')

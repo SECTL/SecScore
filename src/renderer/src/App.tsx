@@ -41,6 +41,7 @@ function MainContent(): React.JSX.Element {
     if (p.startsWith('/leaderboard')) return 'leaderboard'
     if (p.startsWith('/settlements')) return 'settlements'
     if (p.startsWith('/reasons')) return 'reasons'
+    if (p.startsWith('/auto-score')) return 'auto-score'
     if (p.startsWith('/settings')) return 'settings'
     return 'home'
   }, [location.pathname])
@@ -103,6 +104,7 @@ function MainContent(): React.JSX.Element {
     if (key === 'leaderboard') navigate('/leaderboard')
     if (key === 'settlements') navigate('/settlements')
     if (key === 'reasons') navigate('/reasons')
+    if (key === 'auto-score') navigate('/auto-score')
     if (key === 'settings') navigate('/settings')
   }
 

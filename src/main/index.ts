@@ -15,6 +15,7 @@ import { DataService } from './services/DataService'
 import { ThemeService } from './services/ThemeService'
 import { WindowManager, type windowManagerOptions } from './services/WindowManager'
 import { TrayService } from './services/TrayService'
+import { AutoScoreService } from './services/AutoScoreService'
 import { StudentRepository } from './repos/StudentRepository'
 import { ReasonRepository } from './repos/ReasonRepository'
 import { EventRepository } from './repos/EventRepository'
@@ -33,7 +34,8 @@ import {
   StudentRepositoryToken,
   ThemeServiceToken,
   WindowManagerToken,
-  TrayServiceToken
+  TrayServiceToken,
+  AutoScoreServiceToken
 } from './hosting'
 
 type mainAppConfig = {
@@ -251,6 +253,32 @@ app.whenReady().then(async () => {
         TrayServiceToken,
         (p) => new TrayService(p.get(MainContext), config.window)
       )
+      services.addSingleton(
+        AutoScoreServiceToken,
+        (p) => new AutoScoreService(p.get(MainContext))
+      )
+    })
+    .configure(async (_builderContext, appCtx) => {
+      const services = appCtx.services
+      services.get(LoggerToken)
+      const db = services.get(DbManagerToken) as DbManager
+      await db.initialize()
+      const settings = services.get(SettingsStoreToken) as SettingsService
+      await settings.initialize()
+      services.get(SecurityServiceToken)
+      services.get(PermissionServiceToken)
+      services.get(AuthService)
+      services.get(DataService)
+      services.get(StudentRepositoryToken)
+      services.get(ReasonRepositoryToken)
+      services.get(EventRepositoryToken)
+      services.get(SettlementRepositoryToken)
+      services.get(ThemeServiceToken)
+      services.get(WindowManagerToken)
+      const tray = services.get(TrayServiceToken) as TrayService
+      tray.initialize()
+      const autoScore = services.get(AutoScoreServiceToken) as AutoScoreService
+      autoScore.initialize?.()
     })
     .configure(async (_builderContext, appCtx) => {
       const services = appCtx.services

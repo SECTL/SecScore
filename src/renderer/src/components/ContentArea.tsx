@@ -17,6 +17,9 @@ const Leaderboard = lazy(() => import('./Leaderboard').then((m) => ({ default: m
 const SettlementHistory = lazy(() =>
   import('./SettlementHistory').then((m) => ({ default: m.SettlementHistory }))
 )
+const AutoScoreManager = lazy(() =>
+  import('./AutoScoreManager').then((m) => ({ default: m.AutoScoreManager }))
+)
 
 const { Content } = Layout
 
@@ -121,6 +124,7 @@ export function ContentArea({
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/settlements" element={<SettlementHistory />} />
             <Route path="/reasons" element={<ReasonManager canEdit={permission === 'admin'} />} />
+            <Route path="/auto-score" element={<AutoScoreManager />} />
             <Route path="/settings" element={<Settings permission={permission} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
