@@ -334,7 +334,7 @@ export const AutoScoreManager: React.FC = () => {
                 ]}
                 style={{ marginBottom: 0 }}
                 >
-                  <InputNumber min={1} placeholder="例如：1440（每天）" />
+                  <InputNumber min={1} placeholder="例如：1（每隔1分钟/天执行一次）" />
                 </Form.FormItem>
                 <Form.FormItem name="timeUnit" style={{ marginBottom: 0 }}>
                   <Radio.Group variant="default-filled">
