@@ -88,6 +88,11 @@ export class SettingsService extends Service {
       kind: 'json',
       defaultValue: [],
       writePermission: 'admin'
+    },
+    current_theme_id: {
+      kind: 'string',
+      defaultValue: 'light-default',
+      writePermission: 'admin'
     }
   }
 

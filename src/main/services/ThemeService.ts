@@ -46,8 +46,31 @@ export class ThemeService extends Service {
     return this.ctx as MainContext
   }
 
-  public init() {
-    // Already inited in constructor
+  public async init() {
+    await this.loadSavedTheme()
+  }
+
+  private async loadSavedTheme() {
+    try {
+      const savedThemeId = await this.mainCtx.settings.getValue('current_theme_id' as any)
+      if (savedThemeId && typeof savedThemeId === 'string') {
+        const themes = this.getThemeList()
+        const exists = themes.some(t => t.id === savedThemeId)
+        if (exists) {
+          this.currentThemeId = savedThemeId
+        }
+      }
+    } catch (e) {
+      this.mainCtx.logger.warn('Failed to load saved theme', { meta: e })
+    }
+  }
+
+  private async saveCurrentTheme() {
+    try {
+      await this.mainCtx.settings.setValue('current_theme_id' as any, this.currentThemeId)
+    } catch (e) {
+      this.mainCtx.logger.warn('Failed to save theme', { meta: e })
+    }
   }
 
   private setupWatcher() {
@@ -83,6 +106,7 @@ export class ThemeService extends Service {
           return { success: false, message: 'Permission denied' }
       }
       this.currentThemeId = themeId
+      await this.saveCurrentTheme()
       this.applyMicaEffect(themeId)
       this.notifyThemeUpdate()
       return { success: true }
@@ -139,6 +163,7 @@ export class ThemeService extends Service {
           return { success: false, message: 'Permission denied' }
 
         this.currentThemeId = 'custom'
+        await this.saveCurrentTheme()
         this.applyMicaConfig(config)
         this.notifyThemeUpdate()
         return { success: true }

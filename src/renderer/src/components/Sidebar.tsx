@@ -76,11 +76,14 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
           <Menu.MenuItem value="score" icon={<HistoryIcon />}>
             积分管理
           </Menu.MenuItem>
-          <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>            排行榜
+          <Menu.MenuItem value="auto-score" icon={<ReplayIcon />}>            
+            自动加分
           </Menu.MenuItem>
-          <Menu.MenuItem value="auto-score" icon={<ReplayIcon />}>            自动加分
+          <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>            
+            排行榜
           </Menu.MenuItem>
-          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>            结算历史
+          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>            
+            结算历史
           </Menu.MenuItem>
           <Menu.MenuItem value="reasons" icon={<RootListIcon />} disabled={permission !== 'admin'}>
             理由管理

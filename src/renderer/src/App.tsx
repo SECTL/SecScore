@@ -139,8 +139,41 @@ function MainContent(): React.JSX.Element {
           />
         </div>
       </Dialog>
+      {/* 开发中画面水印 */}
+      <p
+        style={{ 
+          position: 'fixed', 
+          bottom: '2px', 
+          left: '20px', 
+          opacity: 0.6, 
+          color: '#de2611', 
+          fontWeight: 'bold',
+          fontSize: '13px',
+          pointerEvents: 'none', // 防止水印干扰页面交互
+          zIndex: 9999 // 确保水印在最顶层显示
+        }}
+      >
+        开发中画面，不代表真正品质 ({getArchitecture()})
+      </p>
     </Layout>
   )
+}
+
+function getArchitecture(): string {
+  
+  // 尝试从 userAgent 中获取架构信息
+  const userAgent = navigator.userAgent.toLowerCase();
+  
+  if (userAgent.includes('arm64') || userAgent.includes('aarch64')) {
+    return 'ARM64';
+  } else if (userAgent.includes('x86_64') || userAgent.includes('amd64')) {
+    return 'x86_64';
+  } else if (userAgent.includes('i386') || userAgent.includes('i686')) {
+    return 'x86';
+  }
+  
+  // 默认返回未知架构
+  return 'Unknown';
 }
 
 function App(): React.JSX.Element {

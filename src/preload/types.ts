@@ -31,9 +31,23 @@ export type settingsSpec = {
   window_radius: 'rounded' | 'small' | 'square'
   auto_score_enabled: boolean
   auto_score_rules: any[]
+  current_theme_id: string
 }
 
 export type settingsKey = keyof settingsSpec
+
+export interface ConfigFileInfo {
+  name: string
+  path: string
+  size: number
+  modified: string
+}
+
+export interface ConfigFolderStructure {
+  configRoot: string
+  automatic: string
+  sscript: string
+}
 
 export type settingChange<K extends settingsKey = settingsKey> = {
   key: K
@@ -174,6 +188,16 @@ export interface electronApi {
       url: string | null
     }>
   >
+
+  // File System
+  fsGetConfigStructure: () => Promise<ipcResponse<ConfigFolderStructure>>
+  fsReadJson: (relativePath: string, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<any>>
+  fsWriteJson: (relativePath: string, data: any, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<void>>
+  fsReadText: (relativePath: string, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<string | null>>
+  fsWriteText: (content: string, relativePath: string, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<void>>
+  fsDeleteFile: (relativePath: string, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<void>>
+  fsListFiles: (folder?: 'automatic' | 'sscript') => Promise<ipcResponse<ConfigFileInfo[]>>
+  fsFileExists: (relativePath: string, folder?: 'automatic' | 'sscript') => Promise<ipcResponse<boolean>>
   
   // Generic invoke wrapper (minimal compatibility API)
   invoke?: (channel: string, ...args: any[]) => Promise<any>

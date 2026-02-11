@@ -17,6 +17,7 @@ import { HttpServerService } from './services/HttpServerService'
 import { WindowManager, type windowManagerOptions } from './services/WindowManager'
 import { TrayService } from './services/TrayService'
 import { AutoScoreService } from './services/AutoScoreService'
+import { FileSystemService } from './services/FileSystemService'
 import { StudentRepository } from './repos/StudentRepository'
 import { ReasonRepository } from './repos/ReasonRepository'
 import { EventRepository } from './repos/EventRepository'
@@ -39,13 +40,15 @@ import {
   WindowManagerToken,
   TrayServiceToken,
   AutoScoreServiceToken,
-  HttpServerServiceToken
+  HttpServerServiceToken,
+  FileSystemServiceToken
 } from './hosting'
 
 type mainAppConfig = {
   isDev: boolean
   appRoot: string
   dataRoot: string
+  configDir: string
   logDir: string
   themeDir: string
   dbPath: string
@@ -184,6 +187,7 @@ app.whenReady().then(async () => {
     : ensureWritableDir(join(appRoot, 'data'), join(app.getPath('userData'), 'secscore-data'))
 
   const logDir = is.dev ? join(process.cwd(), 'logs') : join(dataRoot, 'logs')
+  const configDir = is.dev ? join(process.cwd(), 'configs') : join(dataRoot, 'configs')
   const themeDir = is.dev
     ? join(process.cwd(), 'themes')
     : ensureWritableDir(join(appRoot, 'themes'), join(dataRoot, 'themes'))
@@ -194,6 +198,7 @@ app.whenReady().then(async () => {
     appRoot,
     dataRoot,
     logDir,
+    configDir,
     themeDir,
     dbPath,
     window: {
@@ -269,6 +274,10 @@ app.whenReady().then(async () => {
         HttpServerServiceToken,
         (p) => new HttpServerService(p.get(MainContext))
       )
+      services.addSingleton(
+        FileSystemServiceToken,
+        (p) => new FileSystemService(p.get(MainContext), config.configDir)
+      )
     })
     .configure(async (_builderContext, appCtx) => {
       const services = appCtx.services
@@ -285,13 +294,17 @@ app.whenReady().then(async () => {
       services.get(ReasonRepositoryToken)
       services.get(EventRepositoryToken)
       services.get(SettlementRepositoryToken)
-      services.get(ThemeServiceToken)
-      services.get(WindowManagerToken)
-      const tray = services.get(TrayServiceToken) as TrayService
-      tray.initialize()
+      const theme = services.get(ThemeServiceToken) as import('./services/ThemeService').ThemeService
+      await theme.init()
+      if (!process.env.HEADLESS) {
+        services.get(WindowManagerToken)
+        const tray = services.get(TrayServiceToken) as TrayService
+        tray.initialize()
+      }
       const autoScore = services.get(AutoScoreServiceToken) as AutoScoreService
       autoScore.initialize?.()
       services.get(HttpServerServiceToken)
+      services.get(FileSystemServiceToken)
     })
     .configure(async (_builderContext, appCtx) => {
       const services = appCtx.services
@@ -308,10 +321,14 @@ app.whenReady().then(async () => {
       services.get(ReasonRepositoryToken)
       services.get(EventRepositoryToken)
       services.get(SettlementRepositoryToken)
-      services.get(ThemeServiceToken)
-      services.get(WindowManagerToken)
-      const tray = services.get(TrayServiceToken) as TrayService
-      tray.initialize()
+      const theme = services.get(ThemeServiceToken) as import('./services/ThemeService').ThemeService
+      await theme.init()
+      if (!process.env.HEADLESS) {
+        services.get(WindowManagerToken)
+        const tray = services.get(TrayServiceToken) as TrayService
+        tray.initialize()
+      }
+      services.get(FileSystemServiceToken)
     })
 
   const host = await builder.build()
