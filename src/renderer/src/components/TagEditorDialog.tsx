@@ -25,7 +25,6 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set(initialTagIds))
-  const [loading, setLoading] = useState(false)
   const { currentTheme } = useTheme() // 获取当前主题
   
   const themeMode = currentTheme?.mode || 'light'; // 默认为 light
@@ -40,7 +39,6 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
 
   const fetchAllTags = async () => {
     if (!(window as any).api) return
-    setLoading(true)
     try {
       const res = await (window as any).api.tagsGetAll()
       if (res.success && res.data) {
@@ -49,8 +47,6 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     } catch (e) {
       console.error('Failed to fetch tags:', e)
       MessagePlugin.error('获取标签列表失败')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -119,12 +115,12 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     }
   }
 
-  const handleKeyDown = (value: string, context: { e: React.KeyboardEvent<HTMLInputElement> }) => {
+/*   const handleKeyDown = (value: string, context: { e: React.KeyboardEvent<HTMLInputElement> }) => {
     if (context.e.key === 'Enter') {
       context.e.preventDefault()
       handleAddTag()
     }
-  }
+  } */
 
   const handleConfirm = () => {
     onConfirm(Array.from(selectedTagIds))
