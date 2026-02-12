@@ -17,7 +17,8 @@ import {
   Popconfirm,
   Radio,
   Select,
-  TooltipLite
+  TooltipLite,
+  DatePicker
 } from 'tdesign-react'
 
 interface AutoScoreRule {
@@ -124,7 +125,7 @@ export const AutoScoreManager: React.FC = () => {
       // 验证触发器必填项（如果某个触发器需要 value，则确保已填写）
       for (const t of triggerList) {
         const def = allTriggers.find((a) => a.eventName === t.eventName)
-        if (def?.haveValue && (!t.value || String(t.value).trim() === '')) {
+        if (def?.valueType && (!t.value || String(t.value).trim() === '')) {
           MessagePlugin.warning(`触发器 ${def.label} 需要填写 value`)
           return
         }
@@ -190,7 +191,7 @@ export const AutoScoreManager: React.FC = () => {
         return {
           id: idx + 1,
           eventName: t.event,
-          haveValue: !!found?.haveValue,
+          haveValue: !!found?.valueType,
           value: t.value ?? ''
         }
       })
@@ -375,25 +376,24 @@ export const AutoScoreManager: React.FC = () => {
     label: string
     description: string
     eventName: string
-    haveValue: boolean
-    valueType?: string
+    valueType?: "DatePicker" | "Input"
   }
 
   const allTriggers: TriggerDef[] = [
-    { id: 1, label: '根据间隔时间触发', description: '当学生注册时触发自动化', eventName: 'interval_time_passed', haveValue: false, valueType: 'number' },
-    { id: 2, label: '按照学生标签触发', description: '当学生完成作业时触发自动化', eventName: 'student_tag_matched', haveValue: true, valueType: 'number' },
-    { id: 3, label: '随机时间触发', description: '当随机时间到达时触发自动化', eventName: 'random_time_reached', haveValue: false, valueType: 'number' }
+    { id: 1, label: '根据间隔时间触发', description: '当学生注册时触发自动化', eventName: 'interval_time_passed', valueType: 'DatePicker' },
+    { id: 2, label: '按照学生标签触发', description: '当学生完成作业时触发自动化', eventName: 'student_tag_matched', valueType: 'Input' },
+    { id: 3, label: '随机时间触发', description: '当随机时间到达时触发自动化', eventName: 'random_time_reached' }
   ]
 
   const triggerOptions = allTriggers.map((t) => ({ label: t.label, value: t.eventName }))
 
   // triggerList items only need id, eventName, haveValue and value
-  type TriggerItem = { id: number; eventName: string; haveValue: boolean; value?: string }
+  type TriggerItem = { id: number; eventName: string; value?: string; valueType?: "DatePicker" | "Input" }
   const [triggerList, setTriggerList] = useState<TriggerItem[]>([])
 
   const handleTriggerChange = (id: number, value: string) => {
     const found = allTriggers.find((a) => a.eventName === value)
-    setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, eventName: value, haveValue: !!found?.haveValue, value: t.value ?? '' } : t)))
+    setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, eventName: value, valueType: found?.valueType, value: '' } : t)))
   }
 
   const handleValueChange = (id: number, val: string) => {
@@ -407,7 +407,7 @@ export const AutoScoreManager: React.FC = () => {
   const handleAddTrigger = () => {
     const nextId = triggerList.length ? Math.max(...triggerList.map((t) => t.id)) + 1 : 1
     const defaultTrigger = allTriggers[0]
-    setTriggerList((prev) => [...prev, { id: nextId, eventName: defaultTrigger.eventName, haveValue: defaultTrigger.haveValue, value: '' }])
+    setTriggerList((prev) => [...prev, { id: nextId, eventName: defaultTrigger.eventName, valueType: defaultTrigger.valueType, value: '' }])
   }
 
   const triggerItems = triggerList
@@ -427,13 +427,22 @@ export const AutoScoreManager: React.FC = () => {
           placeholder="请选择触发规则"
           onChange={(value) => handleTriggerChange(triggerTest.id, value as string)}
         />
-        {triggerTest.haveValue ? (
-          <Input
-            placeholder="请输入Value"
-            style={{ width: '150px' }}
-            value={String(triggerTest.value ?? '')}
-            onChange={(v) => handleValueChange(triggerTest.id, String((v as any).target?.value ?? v))}
-          />
+        {triggerTest.valueType ? (
+          triggerTest.eventName === 'interval_time_passed' ? (
+            <DatePicker
+              placeholder="请选择日期"
+              style={{ width: '150px' }}
+              value={triggerTest.value ? new Date(triggerTest.value) : undefined}
+              onChange={(v) => handleValueChange(triggerTest.id, v ? String(v) : '')}
+            />
+          ) : (
+            <Input
+              placeholder="请输入Value"
+              style={{ width: '150px' }}
+              value={String(triggerTest.value ?? '')}
+              onChange={(v) => handleValueChange(triggerTest.id, String((v as any).target?.value ?? v))}
+            />
+          )
         ) : null}
       </div>
     ))
@@ -465,7 +474,7 @@ export const AutoScoreManager: React.FC = () => {
                 name="intervalMinutes"
                 rules={[
                   { required: true, message: '请输入间隔时间' },
-                  { min: 1, message: '间隔时间至少为1分钟' }
+                  { min: 1, message: '间隔时间至少为1分钟/天' }
                 ]}
                 style={{ marginBottom: 0 }}
                 >
