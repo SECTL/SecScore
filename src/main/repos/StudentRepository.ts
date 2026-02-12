@@ -80,7 +80,7 @@ export class StudentRepository extends Service {
       order: { score: 'DESC', name: 'ASC' }
     })
 
-    return entities.map(entity => {
+    return entities.map((entity) => {
       let tags: string[] = []
       try {
         tags = Array.isArray(entity.tags) ? entity.tags : JSON.parse(entity.tags || '[]')
@@ -117,8 +117,8 @@ export class StudentRepository extends Service {
       if (key === 'id') continue
       if (key === 'tags') {
         next[key] = JSON.stringify(val || [])
-    } else {
-      next[key] = val
+      } else {
+        next[key] = val
       }
     }
     next.updated_at = new Date().toISOString()

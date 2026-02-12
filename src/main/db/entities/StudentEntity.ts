@@ -11,7 +11,7 @@ export class StudentEntity {
 
   @Column({ type: 'text', default: '[]' })
   tags!: string
-  
+
   @Column({ type: 'integer', default: 0 })
   score!: number
 

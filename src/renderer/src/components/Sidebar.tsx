@@ -68,7 +68,9 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
 
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <Menu value={activeMenu} onChange={onMenuChange} style={{ width: '100%', border: 'none' }}>
-          <Menu.MenuItem value="home" icon={<HomeIcon />}>            主页
+          <Menu.MenuItem value="home" icon={<HomeIcon />}>
+            {' '}
+            主页
           </Menu.MenuItem>
           <Menu.MenuItem value="students" icon={<UserIcon />} disabled={permission !== 'admin'}>
             学生管理
@@ -76,11 +78,14 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
           <Menu.MenuItem value="score" icon={<HistoryIcon />}>
             积分管理
           </Menu.MenuItem>
-          <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>            排行榜
+          <Menu.MenuItem value="auto-score" icon={<ReplayIcon />}>
+            自动加分
           </Menu.MenuItem>
-          <Menu.MenuItem value="auto-score" icon={<ReplayIcon />}>            自动加分
+          <Menu.MenuItem value="leaderboard" icon={<ViewListIcon />}>
+            排行榜
           </Menu.MenuItem>
-          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>            结算历史
+          <Menu.MenuItem value="settlements" icon={<HistoryIcon />}>
+            结算历史
           </Menu.MenuItem>
           <Menu.MenuItem value="reasons" icon={<RootListIcon />} disabled={permission !== 'admin'}>
             理由管理

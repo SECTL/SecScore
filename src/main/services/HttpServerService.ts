@@ -47,12 +47,12 @@ export class HttpServerService extends Service {
 
       try {
         await this.start(config)
-        return { 
-          success: true, 
-          data: { 
+        return {
+          success: true,
+          data: {
             url: `http://${this.config.host}:${this.config.port}`,
             config: this.config
-          } 
+          }
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error'
@@ -109,14 +109,16 @@ export class HttpServerService extends Service {
       if (await this.isPortAvailable(this.config.port)) {
         break
       }
-      
+
       // 端口被占用，尝试下一个端口
       this.config.port++
       attempts++
     }
 
     if (attempts === maxAttempts) {
-      throw new Error(`Could not find available port after ${maxAttempts} attempts starting from ${originalPort}`)
+      throw new Error(
+        `Could not find available port after ${maxAttempts} attempts starting from ${originalPort}`
+      )
     }
 
     if (attempts > 0) {
@@ -131,7 +133,7 @@ export class HttpServerService extends Service {
     // 配置中间件
     this.app.use(express.json())
     this.app.use(express.urlencoded({ extended: true }))
-    
+
     // 简单的CORS处理
     this.app.use((_: Request, res: Response, next: NextFunction) => {
       res.header('Access-Control-Allow-Origin', this.config.corsOrigin || '*')

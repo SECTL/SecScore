@@ -138,9 +138,11 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       return
     }
     const values = form.getFieldsValue(true) as any
-    
+
     // 支持多选学生
-    const studentNames = Array.isArray(values.student_name) ? values.student_name : [values.student_name]
+    const studentNames = Array.isArray(values.student_name)
+      ? values.student_name
+      : [values.student_name]
     if (!studentNames || studentNames.length === 0 || !values.reason_content) {
       MessagePlugin.warning('请填写完整信息')
       return

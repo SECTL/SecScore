@@ -53,7 +53,7 @@ export class DataService extends Service {
       const tags = await this.tagRepo.findAll()
       return {
         success: true,
-        data: tags.map(t => ({ id: t.id, name: t.name }))
+        data: tags.map((t) => ({ id: t.id, name: t.name }))
       }
     })
 
@@ -64,7 +64,7 @@ export class DataService extends Service {
       const tags = await this.tagRepo.findByStudent(studentId)
       return {
         success: true,
-        data: tags.map(t => ({ id: t.id, name: t.name }))
+        data: tags.map((t) => ({ id: t.id, name: t.name }))
       }
     })
 
@@ -90,12 +90,15 @@ export class DataService extends Service {
       }
     })
 
-    this.mainCtx.handle('tags:updateStudentTags', async (event, studentId: number, tagIds: number[]) => {
-      if (!this.mainCtx.permissions.requirePermission(event, 'admin'))
-        return { success: false, message: 'Permission denied' }
+    this.mainCtx.handle(
+      'tags:updateStudentTags',
+      async (event, studentId: number, tagIds: number[]) => {
+        if (!this.mainCtx.permissions.requirePermission(event, 'admin'))
+          return { success: false, message: 'Permission denied' }
 
-      await this.tagRepo.updateStudentTags(studentId, tagIds)
-      return { success: true }
-    })
+        await this.tagRepo.updateStudentTags(studentId, tagIds)
+        return { success: true }
+      }
+    )
   }
 }

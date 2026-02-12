@@ -43,7 +43,7 @@ export class TagRepository {
       .orderBy('st.created_at', 'ASC')
       .getMany()
 
-    return relations.map(r => r.tag).filter(Boolean)
+    return relations.map((r) => r.tag).filter(Boolean)
   }
 
   async addTagToStudent(studentId: number, tagId: number): Promise<void> {

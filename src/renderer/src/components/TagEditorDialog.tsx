@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Dialog, Input, Button, Space, Tag, MessagePlugin } from 'tdesign-react'
+import { useTheme } from '../contexts/ThemeContext' // 导入主题上下文
 
 interface Tag {
   id: number
@@ -24,7 +25,9 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
   const [inputValue, setInputValue] = useState('')
   const [allTags, setAllTags] = useState<Tag[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set(initialTagIds))
-  const [loading, setLoading] = useState(false)
+  const { currentTheme } = useTheme() // 获取当前主题
+
+  const themeMode = currentTheme?.mode || 'light' // 默认为 light
 
   useEffect(() => {
     if (visible) {
@@ -36,7 +39,6 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
 
   const fetchAllTags = async () => {
     if (!(window as any).api) return
-    setLoading(true)
     try {
       const res = await (window as any).api.tagsGetAll()
       if (res.success && res.data) {
@@ -45,8 +47,6 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     } catch (e) {
       console.error('Failed to fetch tags:', e)
       MessagePlugin.error('获取标签列表失败')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -54,15 +54,15 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     const trimmed = inputValue.trim()
     if (!trimmed) return
 
-    if (trimmed.length > 50) {
-      MessagePlugin.error('标签名称不能超过 50 个字符')
+    if (trimmed.length > 30) {
+      MessagePlugin.error('标签名称不能超过 30 个字符')
       return
     }
 
-    if (allTags.some(t => t.name === trimmed)) {
-      const existingTag = allTags.find(t => t.name === trimmed)
+    if (allTags.some((t) => t.name === trimmed)) {
+      const existingTag = allTags.find((t) => t.name === trimmed)
       if (existingTag) {
-        setSelectedTagIds(prev => new Set([...prev, existingTag.id]))
+        setSelectedTagIds((prev) => new Set([...prev, existingTag.id]))
       }
       setInputValue('')
       return
@@ -71,8 +71,8 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     try {
       const res = await (window as any).api.tagsCreate(trimmed)
       if (res.success && res.data) {
-        setAllTags(prev => [...prev, res.data])
-        setSelectedTagIds(prev => new Set([...prev, res.data.id]))
+        setAllTags((prev) => [...prev, res.data])
+        setSelectedTagIds((prev) => new Set([...prev, res.data.id]))
         setInputValue('')
       } else {
         MessagePlugin.error(res.message || '添加标签失败')
@@ -84,7 +84,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
   }
 
   const handleToggleTag = (tagId: number) => {
-    setSelectedTagIds(prev => {
+    setSelectedTagIds((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(tagId)) {
         newSet.delete(tagId)
@@ -99,8 +99,8 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     try {
       const res = await (window as any).api.tagsDelete(tagId)
       if (res.success) {
-        setAllTags(prev => prev.filter(t => t.id !== tagId))
-        setSelectedTagIds(prev => {
+        setAllTags((prev) => prev.filter((t) => t.id !== tagId))
+        setSelectedTagIds((prev) => {
           const newSet = new Set(prev)
           newSet.delete(tagId)
           return newSet
@@ -115,20 +115,20 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     }
   }
 
-  const handleKeyDown = (value: string, context: { e: React.KeyboardEvent<HTMLInputElement> }) => {
+  /*   const handleKeyDown = (value: string, context: { e: React.KeyboardEvent<HTMLInputElement> }) => {
     if (context.e.key === 'Enter') {
       context.e.preventDefault()
       handleAddTag()
     }
-  }
+  } */
 
   const handleConfirm = () => {
     onConfirm(Array.from(selectedTagIds))
     onClose()
   }
 
-  const selectedTags = allTags.filter(t => selectedTagIds.has(t.id))
-  const availableTags = allTags.filter(t => !selectedTagIds.has(t.id))
+  const selectedTags = allTags.filter((t) => selectedTagIds.has(t.id))
+  const availableTags = allTags.filter((t) => !selectedTagIds.has(t.id))
 
   return (
     <Dialog
@@ -149,14 +149,10 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
             value={inputValue}
             onChange={setInputValue}
             onEnter={handleAddTag}
-/*             maxLength={50} */
+            /*             maxLength={50} */
             style={{ flex: 1 }}
           />
-          <Button
-            theme="primary"
-            onClick={handleAddTag}
-            disabled={!inputValue.trim()}
-          >
+          <Button theme="primary" onClick={handleAddTag} disabled={!inputValue.trim()}>
             添加
           </Button>
         </div>
@@ -166,7 +162,14 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
           <div style={{ fontSize: '14px', color: 'var(--ss-text-secondary)', marginBottom: '8px' }}>
             已选标签（点击取消）
           </div>
-          <div style={{ minHeight: '50px', padding: '12px', backgroundColor: 'var(--ss-card-bg)', borderRadius: '4px' }}>
+          <div
+            style={{
+              minHeight: '50px',
+              padding: '12px',
+              backgroundColor: 'var(--ss-card-bg)',
+              borderRadius: '4px'
+            }}
+          >
             {selectedTags.length === 0 ? (
               <span style={{ color: 'var(--ss-text-secondary)' }}>未选择标签</span>
             ) : (
@@ -175,7 +178,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
                   <Tag
                     key={tag.id}
                     theme="primary"
-                    variant="light"
+                    variant={themeMode === 'dark' ? 'outline' : 'light'} // 根据主题模式动态设置变体
                     closable
                     onClose={() => handleToggleTag(tag.id)}
                     style={{ cursor: 'pointer' }}
@@ -193,7 +196,14 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
           <div style={{ fontSize: '14px', color: 'var(--ss-text-secondary)', marginBottom: '8px' }}>
             可选标签（点击选择）
           </div>
-          <div style={{ minHeight: '50px', padding: '12px', backgroundColor: 'var(--ss-card-bg)', borderRadius: '4px' }}>
+          <div
+            style={{
+              minHeight: '50px',
+              padding: '12px',
+              backgroundColor: 'var(--ss-card-bg)',
+              borderRadius: '4px'
+            }}
+          >
             {availableTags.length === 0 ? (
               <span style={{ color: 'var(--ss-text-secondary)' }}>无可用标签</span>
             ) : (
@@ -202,7 +212,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
                   <Tag
                     key={tag.id}
                     theme="default"
-                    variant="outline"
+                    variant={themeMode === 'dark' ? 'light' : 'outline'} // 根据主题模式动态设置变体
                     closable
                     onClose={() => handleDeleteTag(tag.id)}
                     style={{ cursor: 'pointer' }}

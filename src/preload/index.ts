@@ -112,13 +112,30 @@ const api = {
     ipcRenderer.invoke('log:write', payload),
 
   registerUrlProtocol: () => ipcRenderer.invoke('app:register-url-protocol'),
-  
+
   // HTTP Server
   httpServerStart: (config?: { port?: number; host?: string; corsOrigin?: string }) =>
     ipcRenderer.invoke('http:server:start', config),
   httpServerStop: () => ipcRenderer.invoke('http:server:stop'),
   httpServerStatus: () => ipcRenderer.invoke('http:server:status'),
-  
+
+  // File System
+  fsGetConfigStructure: () => ipcRenderer.invoke('fs:getConfigStructure'),
+  fsReadJson: (relativePath: string, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:readJson', relativePath, folder ?? 'automatic'),
+  fsWriteJson: (relativePath: string, data: any, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:writeJson', relativePath, data, folder ?? 'automatic'),
+  fsReadText: (relativePath: string, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:readText', relativePath, folder ?? 'automatic'),
+  fsWriteText: (content: string, relativePath: string, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:writeText', content, relativePath, folder ?? 'automatic'),
+  fsDeleteFile: (relativePath: string, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:deleteFile', relativePath, folder ?? 'automatic'),
+  fsListFiles: (folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:listFiles', folder ?? 'automatic'),
+  fsFileExists: (relativePath: string, folder?: 'automatic' | 'script') =>
+    ipcRenderer.invoke('fs:fileExists', relativePath, folder ?? 'automatic'),
+
   // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
   invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args)
 }

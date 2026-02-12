@@ -29,7 +29,15 @@ export class DbManager extends Service {
     this.dataSource = new DataSource({
       type: 'better-sqlite3',
       database: dbPath,
-      entities: [StudentEntity, ReasonEntity, ScoreEventEntity, SettlementEntity, SettingEntity, TagEntity, StudentTagEntity],
+      entities: [
+        StudentEntity,
+        ReasonEntity,
+        ScoreEventEntity,
+        SettlementEntity,
+        SettingEntity,
+        TagEntity,
+        StudentTagEntity
+      ],
       migrations,
       synchronize: false,
       logging: false

@@ -382,7 +382,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             {tags.length === 0 ? (
               <span style={{ color: 'var(--ss-text-secondary)' }}>无标签</span>
             ) : (
-              tags.slice(0, 3).map(tag => (
+              tags.slice(0, 3).map((tag) => (
                 <Tag key={tag} theme="primary" size="small">
                   {tag}
                 </Tag>
@@ -449,7 +449,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           pageSize,
           total: data.length,
           onChange: (pageInfo) => setCurrentPage(pageInfo.current),
-          onPageSizeChange: (size) => setPageSize(size),
+          onPageSizeChange: (size) => setPageSize(size)
         }}
         style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
       />

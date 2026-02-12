@@ -108,7 +108,7 @@ export class AutoScoreService extends Service {
       const settings = await this.mainCtx.settings.getAllRaw()
       const autoScoreRulesStr = settings['auto_score_rules'] || '[]'
       const rulesFromSettings = JSON.parse(autoScoreRulesStr)
-      
+
       this.rules = rulesFromSettings.map((rule: any) => ({
         ...rule,
         lastExecuted: rule.lastExecuted ? new Date(rule.lastExecuted) : undefined
@@ -155,7 +155,7 @@ export class AutoScoreService extends Service {
     // 计算下次执行时间
     const now = new Date()
     const intervalMs = rule.intervalMinutes * 60 * 1000
-    
+
     // 如果规则之前执行过，计算从上次执行到现在需要等待的时间
     let delayMs = intervalMs
     if (rule.lastExecuted) {
@@ -188,7 +188,7 @@ export class AutoScoreService extends Service {
   private async executeRule(rule: AutoScoreRule) {
     try {
       console.log(`Executing auto score rule: ${rule.name}`)
-      
+
       const studentRepo = this.mainCtx.students
       const eventRepo = this.mainCtx.events
 
@@ -201,7 +201,7 @@ export class AutoScoreService extends Service {
         // 否则只对指定的学生加分
         const allStudents = await studentRepo.findAll()
         for (const name of rule.studentNames) {
-          const student = allStudents.find(s => s.name === name)
+          const student = allStudents.find((s) => s.name === name)
           if (student) {
             studentsToScore.push(student)
           }
@@ -220,7 +220,7 @@ export class AutoScoreService extends Service {
       // 更新规则的最后执行时间
       rule.lastExecuted = new Date()
       await this.saveRulesToSettings()
-      
+
       console.log(`Auto score rule executed successfully for ${studentsToScore.length} students`)
     } catch (error) {
       console.error(`Failed to execute auto score rule ${rule.name}:`, error)
@@ -236,25 +236,25 @@ export class AutoScoreService extends Service {
   }
 
   async addRule(rule: Omit<AutoScoreRule, 'id' | 'lastExecuted'>): Promise<number> {
-    const newId = this.rules.length > 0 ? Math.max(...this.rules.map(r => r.id)) + 1 : 1
+    const newId = this.rules.length > 0 ? Math.max(...this.rules.map((r) => r.id)) + 1 : 1
     const newRule: AutoScoreRule = {
       ...rule,
       id: newId,
       lastExecuted: undefined
     }
-    
+
     this.rules.push(newRule)
     await this.saveRulesToSettings()
-    
+
     if (rule.enabled) {
       this.startRuleTimer(newRule)
     }
-    
+
     return newId
   }
 
   async updateRule(rule: Partial<AutoScoreRule> & { id: number }): Promise<boolean> {
-    const index = this.rules.findIndex(r => r.id === rule.id)
+    const index = this.rules.findIndex((r) => r.id === rule.id)
     if (index === -1) return false
 
     // 停止旧的定时器
@@ -280,7 +280,7 @@ export class AutoScoreService extends Service {
   }
 
   async deleteRule(ruleId: number): Promise<boolean> {
-    const index = this.rules.findIndex(r => r.id === ruleId)
+    const index = this.rules.findIndex((r) => r.id === ruleId)
     if (index === -1) return false
 
     // 停止定时器
@@ -298,7 +298,7 @@ export class AutoScoreService extends Service {
   }
 
   async toggleRule(ruleId: number, enabled: boolean): Promise<boolean> {
-    const rule = this.rules.find(r => r.id === ruleId)
+    const rule = this.rules.find((r) => r.id === ruleId)
     if (!rule) return false
 
     rule.enabled = enabled
@@ -324,7 +324,7 @@ export class AutoScoreService extends Service {
   }
 
   isEnabled(): boolean {
-    return this.rules.some(rule => rule.enabled)
+    return this.rules.some((rule) => rule.enabled)
   }
 
   async restart() {

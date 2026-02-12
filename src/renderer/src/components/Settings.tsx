@@ -62,7 +62,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   const [settleDialogVisible, setSettleDialogVisible] = useState(false)
 
   const [urlRegisterLoading, setUrlRegisterLoading] = useState(false)
-  
+
   // HTTP Server状态
   const [httpServerStatus, setHttpServerStatus] = useState<{
     isRunning: boolean
@@ -111,7 +111,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         if (change?.key === 'is_wizard_completed')
           return { ...prev, is_wizard_completed: change.value }
         if (change?.key === 'window_zoom') return { ...prev, window_zoom: change.value }
-        if (change?.key === 'auto_score_enabled') return { ...prev, auto_score_enabled: change.value }
+        if (change?.key === 'auto_score_enabled')
+          return { ...prev, auto_score_enabled: change.value }
         return prev
       })
     })
@@ -259,7 +260,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     if (!(window as any).api) return
     setSettleDialogVisible(true)
   }
-  
+
   // HTTP Server函数
   const refreshHttpServerStatus = async () => {
     if (!(window as any).api) return
@@ -275,7 +276,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       console.error('Failed to refresh HTTP server status:', error)
     }
   }
-  
+
   const handleHttpServerStart = async () => {
     if (!(window as any).api) return
     setHttpLoading(true)
@@ -291,7 +292,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       if (httpCorsOrigin.trim()) {
         config.corsOrigin = httpCorsOrigin.trim()
       }
-      
+
       const res = await (window as any).api.httpServerStart(config)
       if (res.success) {
         MessagePlugin.success(`HTTP服务器已启动: ${res.data.url}`)
@@ -306,7 +307,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       setHttpLoading(false)
     }
   }
-  
+
   const handleHttpServerStop = async () => {
     if (!(window as any).api) return
     setHttpLoading(true)
@@ -632,14 +633,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
             >
               通过HTTP API提供学生分数查询服务，可在局域网内访问。
             </div>
-            
+
             <Form labelWidth={120}>
               <Form.FormItem label="服务器状态">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Tag
-                    theme={httpServerStatus?.isRunning ? 'success' : 'default'}
-                    variant="light"
-                  >
+                  <Tag theme={httpServerStatus?.isRunning ? 'success' : 'default'} variant="light">
                     {httpServerStatus?.isRunning ? '运行中' : '已停止'}
                   </Tag>
                   {httpServerStatus?.isRunning && (
@@ -649,7 +647,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                   )}
                 </div>
               </Form.FormItem>
-              
+
               <Form.FormItem label="端口设置">
                 <Input
                   value={httpPort}
@@ -659,7 +657,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                   disabled={!canAdmin || httpLoading}
                 />
               </Form.FormItem>
-              
+
               <Form.FormItem label="主机地址">
                 <Input
                   value={httpHost}
@@ -669,7 +667,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                   disabled={!canAdmin || httpLoading}
                 />
               </Form.FormItem>
-              
+
               <Form.FormItem label="CORS来源">
                 <Input
                   value={httpCorsOrigin}
@@ -678,11 +676,13 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                   style={{ width: '200px' }}
                   disabled={!canAdmin || httpLoading}
                 />
-                <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--ss-text-secondary)' }}>
+                <div
+                  style={{ marginTop: '4px', fontSize: '12px', color: 'var(--ss-text-secondary)' }}
+                >
                   * 表示允许所有来源，建议在生产环境中设置具体域名
                 </div>
               </Form.FormItem>
-              
+
               <Form.FormItem label="操作">
                 <Space>
                   <Button
@@ -711,9 +711,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                   </Button>
                 </Space>
               </Form.FormItem>
-              
+
               <Form.FormItem label="API端点">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}
+                >
                   <div>• GET /health - 健康检查</div>
                   <div>• GET /api/students/scores - 获取所有学生分数</div>
                   <div>• GET /api/students/:id/score - 获取单个学生分数</div>
@@ -724,7 +726,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
             </Form>
           </Card>
         </Tabs.TabPanel>
-        
+
         <Tabs.TabPanel value="url" label="URL 链接">
           <Card style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}>
             <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>

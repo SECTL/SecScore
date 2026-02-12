@@ -139,10 +139,72 @@ function MainContent(): React.JSX.Element {
           />
         </div>
       </Dialog>
+
+      <div
+        style={{
+          position: 'fixed',
+          display: 'flex',
+          bottom: '2px',
+          left: '20px',
+          opacity: 0.6,
+          zIndex: 9999
+        }}
+      >
+        <p
+          style={{
+            color: '#de2611',
+            fontWeight: 'bold',
+            fontSize: '13px',
+            pointerEvents: 'none'
+          }}
+        >
+          开发中画面,不代表最终品质
+        </p>
+        <p
+          style={{
+            color: '#44474b',
+            fontWeight: 'bold',
+            fontSize: '13px',
+            paddingLeft: '5px'
+          }}
+        >
+          SecScore Dev ({getPlatform()}-{getArchitecture()})
+        </p>
+      </div>
     </Layout>
   )
 }
 
+function getArchitecture(): string {
+  // 尝试从 userAgent 中获取架构信息
+  const userAgent = navigator.userAgent.toLowerCase()
+
+  if (userAgent.includes('arm64') || userAgent.includes('aarch64')) {
+    return 'ARM64'
+  } else if (userAgent.includes('x64') || userAgent.includes('amd64')) {
+    return 'x64'
+  } else if (userAgent.includes('i386') || userAgent.includes('i686')) {
+    return 'x86'
+  }
+
+  // 默认返回未知架构
+  return userAgent
+}
+
+function getPlatform(): string {
+  // 尝试从 userAgent 中获取平台信息
+  const userAgent = navigator.userAgent.toLowerCase()
+
+  if (userAgent.includes('windows')) {
+    return 'Windows'
+  } else if (userAgent.includes('mac')) {
+    return 'Mac'
+  } else if (userAgent.includes('linux')) {
+    return 'Linux'
+  }
+
+  return 'Unknown'
+}
 function App(): React.JSX.Element {
   return (
     <ThemeProvider>
