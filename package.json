@@ -26,6 +26,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "better-sqlite3": "^12.6.0",
     "chokidar": "^5.0.0",
+    "es-object-atoms": "^1.1.1",
     "express": "^5.2.1",
     "mica-electron": "^1.5.16",
     "os": "^0.1.2",
