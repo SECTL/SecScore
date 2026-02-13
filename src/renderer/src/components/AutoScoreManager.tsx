@@ -125,8 +125,8 @@ export const AutoScoreManager: React.FC = () => {
     const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
 
     const triggersPayload = triggerList.map((t) => ({ event: t.eventName, value: t.value }))
-    const actionsPayload = actionList.map((a) => ({ 
-      event: a.eventName, 
+    const actionsPayload = actionList.map((a) => ({
+      event: a.eventName,
       value: a.value,
       reason: a.reason
     }))
@@ -321,7 +321,12 @@ export const AutoScoreManager: React.FC = () => {
           return def?.label || t.event
         })
         return (
-          <TooltipLite content={triggerLabels.join(', ')} showArrow placement="mouse" theme="default">
+          <TooltipLite
+            content={triggerLabels.join(', ')}
+            showArrow
+            placement="mouse"
+            theme="default"
+          >
             {row.triggers.length} 个触发器
           </TooltipLite>
         )
@@ -340,7 +345,12 @@ export const AutoScoreManager: React.FC = () => {
           return def?.label || a.event
         })
         return (
-          <TooltipLite content={actionLabels.join(', ')} showArrow placement="mouse" theme="default">
+          <TooltipLite
+            content={actionLabels.join(', ')}
+            showArrow
+            placement="mouse"
+            theme="default"
+          >
             {row.actions.length} 个行动
           </TooltipLite>
         )
@@ -484,7 +494,9 @@ export const AutoScoreManager: React.FC = () => {
         {triggerTest.valueType
           ? React.createElement(triggerTest.valueType, {
               placeholder:
-                triggerTest.eventName === 'interval_time_passed' ? '请选择日期' : '请输入时间间隔（天）',
+                triggerTest.eventName === 'interval_time_passed'
+                  ? '请选择日期'
+                  : '请输入时间间隔（天）',
               style: { width: '150px' },
               value:
                 triggerTest.eventName === 'interval_time_passed'
@@ -518,9 +530,9 @@ export const AutoScoreManager: React.FC = () => {
           onChange={(value) => handleActionChange(action.id, value as string)}
         />
         {(() => {
-          const actionDef = allActions.find(a => a.eventName === action.eventName);
-          const renderConfig = actionDef?.renderConfig;
-          
+          const actionDef = allActions.find((a) => a.eventName === action.eventName)
+          const renderConfig = actionDef?.renderConfig
+
           // 特殊处理Radio组件
           if (action.valueType === Radio || renderConfig?.component === Radio) {
             return (
@@ -530,25 +542,27 @@ export const AutoScoreManager: React.FC = () => {
                 {...renderConfig?.props}
               >
                 {renderConfig?.props?.options?.map((option: any) => (
-                  <Radio.Button key={option.value} value={option.value}>{option.label}</Radio.Button>
+                  <Radio.Button key={option.value} value={option.value}>
+                    {option.label}
+                  </Radio.Button>
                 ))}
               </Radio.Group>
-            );
+            )
           } else if (renderConfig?.component) {
             return React.createElement(renderConfig.component, {
               value: String(action.value ?? ''),
               onChange: (v: any) => handleActionValueChange(action.id, v ? String(v) : ''),
               ...renderConfig.props
-            });
+            })
           } else if (action.valueType) {
             return React.createElement(action.valueType, {
               placeholder: '请输入Value',
               style: { width: '150px' },
               value: String(action.value ?? ''),
               onChange: (v: any) => handleActionValueChange(action.id, v ? String(v) : '')
-            });
+            })
           }
-          return null;
+          return null
         })()}
         {action.eventName === 'add_score' && (
           <Input

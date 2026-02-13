@@ -133,11 +133,17 @@ export class AutoScoreService extends Service {
           const migratedRule = this.migrateRule(rule)
           return {
             ...migratedRule,
-            lastExecuted: migratedRule.lastExecuted ? new Date(migratedRule.lastExecuted) : undefined
+            lastExecuted: migratedRule.lastExecuted
+              ? new Date(migratedRule.lastExecuted)
+              : undefined
           }
         })
         // 如果有数据迁移，保存新格式
-        if (data.rules.some((rule: any) => rule.intervalMinutes !== undefined || rule.scoreValue !== undefined)) {
+        if (
+          data.rules.some(
+            (rule: any) => rule.intervalMinutes !== undefined || rule.scoreValue !== undefined
+          )
+        ) {
           await this.saveRulesToFile()
         }
       } else {
@@ -170,7 +176,10 @@ export class AutoScoreService extends Service {
     }
 
     // 将intervalMinutes迁移到triggers
-    if (rule.intervalMinutes && !migratedRule.triggers?.find(t => t.event === 'interval_time_passed')) {
+    if (
+      rule.intervalMinutes &&
+      !migratedRule.triggers?.find((t) => t.event === 'interval_time_passed')
+    ) {
       migratedRule.triggers = migratedRule.triggers || []
       migratedRule.triggers.push({
         event: 'interval_time_passed',
@@ -179,7 +188,10 @@ export class AutoScoreService extends Service {
     }
 
     // 将scoreValue和reason迁移到actions
-    if (rule.scoreValue !== undefined && !migratedRule.actions?.find(a => a.event === 'add_score')) {
+    if (
+      rule.scoreValue !== undefined &&
+      !migratedRule.actions?.find((a) => a.event === 'add_score')
+    ) {
       migratedRule.actions = migratedRule.actions || []
       migratedRule.actions.push({
         event: 'add_score',
@@ -269,9 +281,9 @@ export class AutoScoreService extends Service {
     }
 
     // 从triggers中读取间隔时间
-    const intervalTrigger = rule.triggers?.find(t => t.event === 'interval_time_passed')
+    const intervalTrigger = rule.triggers?.find((t) => t.event === 'interval_time_passed')
     const intervalMinutes = intervalTrigger?.value ? parseInt(intervalTrigger.value, 10) : 0
-    
+
     if (!intervalMinutes || intervalMinutes <= 0) {
       this.logger.warn(`Rule ${rule.name} has no valid interval time, skipping timer`)
       return
@@ -299,9 +311,9 @@ export class AutoScoreService extends Service {
 
   private setRuleInterval(rule: AutoScoreRule) {
     // 从triggers中读取间隔时间
-    const intervalTrigger = rule.triggers?.find(t => t.event === 'interval_time_passed')
+    const intervalTrigger = rule.triggers?.find((t) => t.event === 'interval_time_passed')
     const intervalMinutes = intervalTrigger?.value ? parseInt(intervalTrigger.value, 10) : 0
-    
+
     if (!intervalMinutes || intervalMinutes <= 0) {
       return
     }
@@ -336,7 +348,7 @@ export class AutoScoreService extends Service {
       }
 
       // 从actions中读取分数和理由
-      const scoreAction = rule.actions?.find(a => a.event === 'add_score')
+      const scoreAction = rule.actions?.find((a) => a.event === 'add_score')
       const scoreValue = scoreAction?.value ? parseInt(scoreAction.value, 10) : 0
       const reason = scoreAction?.reason || `自动化加分 - ${rule.name}`
 

@@ -142,7 +142,7 @@ export const allActions: TriggerDef[] = [
         ]
       }
     }
-  },
+  }
 ]
 
 export class AutoScoreService extends Service {
