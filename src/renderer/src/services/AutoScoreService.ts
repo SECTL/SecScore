@@ -1,7 +1,7 @@
 import React from 'react'
 import { Service } from '../../../shared/kernel'
 import { ClientContext } from '../ClientContext'
-import { Input, Select, Radio } from 'tdesign-react'
+import { Input, Select } from 'tdesign-react'
 
 export interface AutoScoreRule {
   id: number
