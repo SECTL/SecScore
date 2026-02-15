@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { AddIcon, Delete1Icon, MoveIcon } from 'tdesign-icons-react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { prism } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { allTriggers, allActions, TriggerItem, ActionItem } from '../services/AutoScoreService'
 import {
   Card,
@@ -19,6 +17,7 @@ import {
   TooltipLite
 } from 'tdesign-react'
 
+import Code from './Code';
 interface AutoScoreRule {
   id: number
   enabled: boolean
@@ -578,7 +577,6 @@ export const AutoScoreManager: React.FC = () => {
         )}
       </div>
     ))
-
   return (
     <div style={{ padding: '24px' }}>
       <h2 style={{ marginBottom: '24px', color: 'var(--ss-text-main)' }}>自动化加分管理</h2>
@@ -671,11 +669,36 @@ export const AutoScoreManager: React.FC = () => {
           </Button>
         </Space>
       </Card>
-
       <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
-        <SyntaxHighlighter language="javascript" style={prism} showLineNumbers>
-          println("这是一个示例代码块，展示如何使用自动化加分功能的API接口")
-        </SyntaxHighlighter>
+          <Code code=
+          {(() => {
+            if (editingRuleId !== null) {
+              // 显示当前编辑的规则
+              const values = form.getFieldsValue(true) as unknown as AutoScoreRuleFormValues;
+              const studentNames = Array.isArray(values.studentNames) ? values.studentNames : [];
+              const triggersPayload = triggerList.map((t) => ({ event: t.eventName, value: t.value }));
+              const actionsPayload = actionList.map((a) => ({
+                event: a.eventName,
+                value: a.value,
+                reason: a.reason
+              }));
+              
+              const currentRule = {
+                id: editingRuleId,
+                enabled: true,
+                name: values.name || '',
+                studentNames,
+                triggers: triggersPayload,
+                actions: actionsPayload
+              };
+              
+              return JSON.stringify(currentRule, null, 2);
+            } else {
+              // 显示所有规则
+              return JSON.stringify(rules, null, 2);
+            }
+          })()}
+          language={'json'}/>
       </Card>
       {/*       <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--ss-card-bg)', borderRadius: '8px' }}>
         <h3 style={{ marginBottom: '12px', color: 'var(--ss-text-main)' }}>使用说明</h3>
