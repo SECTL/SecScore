@@ -45,6 +45,7 @@ export interface TriggerItem {
   id: number
   eventName: string
   value: string
+  relation?: 'AND' | 'OR'
 }
 
 export interface ActionItem {

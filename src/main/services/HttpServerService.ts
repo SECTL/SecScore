@@ -337,8 +337,11 @@ export class HttpServerService extends Service {
       }
     })
 
+    // ww
+    this.app.use
+    
     // 404处理
-    this.app.use((_, res: Response) => {
+    this.app.use((_req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         message: 'Endpoint not found'

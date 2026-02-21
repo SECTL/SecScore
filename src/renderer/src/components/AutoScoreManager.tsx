@@ -26,7 +26,7 @@ interface AutoScoreRule {
   name: string
   studentNames: string[]
   lastExecuted?: string
-  triggers?: { event: string; value?: string }[]
+  triggers?: { event: string; value?: string; relation?: 'AND' | 'OR' }[]
   actions?: { event: string; value?: string; reason?: string }[]
 }
 
@@ -108,7 +108,11 @@ export const AutoScoreManager: React.FC = () => {
 
     const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
 
-    const triggersPayload = triggerList.map((t) => ({ event: t.eventName, value: t.value }))
+    const triggersPayload = triggerList.map((t) => ({
+      event: t.eventName,
+      value: t.value,
+      relation: t.relation
+    }))
     const actionsPayload = actionList.map((a) => ({
       event: a.eventName,
       value: a.value,
@@ -175,7 +179,8 @@ export const AutoScoreManager: React.FC = () => {
       const mapped = rule.triggers.map((t, idx) => ({
         id: idx + 1,
         eventName: t.event,
-        value: t.value ?? ''
+        value: t.value ?? '',
+        relation: t.relation ?? 'AND'
       }))
       setTriggerList(mapped)
     } else {
@@ -268,7 +273,8 @@ export const AutoScoreManager: React.FC = () => {
       {
         id: nextId,
         eventName: defaultTrigger.eventName,
-        value: ''
+        value: '',
+        relation: 'AND'
       }
     ])
   }
@@ -283,6 +289,10 @@ export const AutoScoreManager: React.FC = () => {
 
   const handleTriggerValueChange = (id: number, value: string) => {
     setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, value } : t)))
+  }
+
+  const handleTriggerRelationChange = (id: number, relation: 'AND' | 'OR') => {
+    setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, relation } : t)))
   }
 
   const handleAddAction = () => {
@@ -447,6 +457,7 @@ export const AutoScoreManager: React.FC = () => {
         onDelete={handleDeleteTrigger}
         onChange={handleTriggerChange}
         onValueChange={handleTriggerValueChange}
+        onRelationChange={handleTriggerRelationChange}
         isFirst={idx === 0}
       />
     ))
@@ -566,7 +577,8 @@ export const AutoScoreManager: React.FC = () => {
               const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
               const triggersPayload = triggerList.map((t) => ({
                 event: t.eventName,
-                value: t.value
+                value: t.value,
+                relation: t.relation
               }))
               const actionsPayload = actionList.map((a) => ({
                 event: a.eventName,

@@ -18,5 +18,4 @@ export {
   AddScoreAction,
   AddTagAction,
   SendNotificationAction,
-  SetStudentStatusAction
 } from './actions'

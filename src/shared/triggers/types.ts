@@ -5,7 +5,7 @@ export interface TriggerContext {
     id: number
     name: string
     studentNames: string[]
-    triggers?: { event: string; value?: string }[]
+    triggers?: { event: string; value?: string; relation?: 'AND' | 'OR' }[]
     actions?: { event: string; value?: string; reason?: string }[]
   }
   now: Date

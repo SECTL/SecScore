@@ -22,13 +22,6 @@ import SendNotificationAction, {
   hasReason as sendNotificationHasReason
 } from './SendNotificationAction'
 
-import SetStudentStatusAction, {
-  eventName as setStudentStatusEventName,
-  label as setStudentStatusLabel,
-  description as setStudentStatusDescription,
-  hasReason as setStudentStatusHasReason
-} from './SetStudentStatusAction'
-
 const actionDefinitions: ActionDefinition[] = [
   {
     eventName: addScoreEventName,
@@ -51,15 +44,8 @@ const actionDefinitions: ActionDefinition[] = [
     component: SendNotificationAction,
     hasReason: sendNotificationHasReason
   },
-  {
-    eventName: setStudentStatusEventName,
-    label: setStudentStatusLabel,
-    description: setStudentStatusDescription,
-    component: SetStudentStatusAction,
-    hasReason: setStudentStatusHasReason
-  }
 ]
 
 actionDefinitions.forEach((def) => actionRegistry.register(def))
 
-export { AddScoreAction, AddTagAction, SendNotificationAction, SetStudentStatusAction }
+export { AddScoreAction, AddTagAction, SendNotificationAction }

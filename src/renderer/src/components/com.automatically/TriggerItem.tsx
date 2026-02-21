@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Button, Select } from 'tdesign-react'
 import { Delete1Icon } from 'tdesign-icons-react'
 import { triggerRegistry, allTriggers } from './registry'
@@ -9,6 +8,7 @@ interface TriggerItemProps {
   onDelete: (id: number) => void
   onChange: (id: number, eventName: string) => void
   onValueChange: (id: number, value: string) => void
+  onRelationChange?: (id: number, relation: 'AND' | 'OR') => void
   isFirst?: boolean
 }
 
@@ -17,21 +17,22 @@ const TriggerItem: React.FC<TriggerItemProps> = ({
   onDelete,
   onChange,
   onValueChange,
+  onRelationChange,
   isFirst = false
 }) => {
   const definition = triggerRegistry.get(item.eventName)
   const Component = definition?.component
-  const [andFilled, setAndFilled] = useState(false)
+  const relation = item.relation || 'AND'
 
   return (
     <div style={{ display: 'flex', gap: 5 }}>
       {!isFirst && (
         <Button
-          theme="primary"
-          variant={andFilled ? 'base' : 'outline'}
-          onClick={() => setAndFilled((v) => !v)}
+          theme={relation === 'AND' ? 'primary' : 'warning'}
+          variant={relation === 'AND' ? 'base' : 'outline'}
+          onClick={() => onRelationChange?.(item.id, relation === 'AND' ? 'OR' : 'AND')}
         >
-          并
+          {relation === 'AND' ? '并' : '或'}
         </Button>
       )}
       <Button

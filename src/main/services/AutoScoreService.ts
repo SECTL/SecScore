@@ -9,7 +9,7 @@ interface AutoScoreRule {
   name: string
   studentNames: string[]
   lastExecuted?: Date
-  triggers?: { event: string; value?: string }[]
+  triggers?: { event: string; value?: string; relation?: 'AND' | 'OR' }[]
   actions?: { event: string; value?: string; reason?: string }[]
 }
 
@@ -19,7 +19,7 @@ interface AutoScoreRuleFileData {
   name: string
   studentNames: string[]
   lastExecuted?: string
-  triggers?: { event: string; value?: string }[]
+  triggers?: { event: string; value?: string; relation?: 'AND' | 'OR' }[]
   actions?: { event: string; value?: string; reason?: string }[]
 }
 
@@ -355,41 +355,132 @@ export class AutoScoreService extends Service {
         }
       }
 
-      for (const trigger of rule.triggers || []) {
-        const logic = getTriggerLogic(trigger.event)
-        if (logic?.check) {
-          const context = {
-            students: studentsToScore,
-            events: [],
-            rule: {
-              id: rule.id,
-              name: rule.name,
-              studentNames: rule.studentNames,
-              triggers: rule.triggers,
-              actions: rule.actions
-            },
-            now: new Date()
-          }
-          const result = logic.check(context, trigger.value || '')
-          if (result.matchedStudents && result.matchedStudents.length > 0) {
-            studentsToScore = result.matchedStudents
-          }
+      // 使用AND/OR逻辑评估触发器
+      const matchedStudents = this.evaluateTriggersWithLogic(rule, studentsToScore)
+      
+      if (matchedStudents.length > 0) {
+        for (const action of rule.actions || []) {
+          await this.executeAction(action, matchedStudents, rule.name)
         }
-      }
-
-      for (const action of rule.actions || []) {
-        await this.executeAction(action, studentsToScore, rule.name)
       }
 
       rule.lastExecuted = new Date()
       await this.saveRulesToFile()
 
       this.logger.info(
-        `Auto score rule executed successfully for ${studentsToScore.length} students`
+        `Auto score rule executed successfully for ${matchedStudents.length} students`
       )
     } catch (error) {
       this.logger.error(`Failed to execute auto score rule ${rule.name}:`, { error })
     }
+  }
+
+  private evaluateTriggersWithLogic(rule: AutoScoreRule, initialStudents: student[]): student[] {
+    if (!rule.triggers || rule.triggers.length === 0) {
+      return []
+    }
+
+    let resultStudents: student[] = [...initialStudents]
+    let currentGroup: student[] = [...initialStudents]
+    let currentRelation: 'AND' | 'OR' = 'AND'
+
+    for (let i = 0; i < rule.triggers.length; i++) {
+      const trigger = rule.triggers[i]
+      const logic = getTriggerLogic(trigger.event)
+      
+      if (!logic?.check) {
+        continue
+      }
+
+      const context = {
+        students: currentGroup,
+        events: [],
+        rule: {
+          id: rule.id,
+          name: rule.name,
+          studentNames: rule.studentNames,
+          triggers: rule.triggers,
+          actions: rule.actions
+        },
+        now: new Date()
+      }
+      
+      const result = logic.check(context, trigger.value || '')
+      
+      if (!result.matchedStudents || result.matchedStudents.length === 0) {
+        // 当前触发器没有匹配的学生
+        if (currentRelation === 'AND') {
+          // AND关系下，任何一个触发器不匹配，整个组就不匹配
+          currentGroup = []
+        }
+        // OR关系下，继续评估下一个触发器
+      } else {
+        // 当前触发器有匹配的学生
+        if (currentRelation === 'AND') {
+          // AND关系下，取交集
+          currentGroup = currentGroup.filter(student => 
+            result.matchedStudents!.some(matched => matched.id === student.id)
+          )
+        } else {
+          // OR关系下，取并集
+          const newStudents = result.matchedStudents.filter(matched => 
+            !currentGroup.some(student => student.id === matched.id)
+          )
+          currentGroup = [...currentGroup, ...newStudents]
+        }
+      }
+
+      // 处理下一个关系（如果存在）
+      if (i < rule.triggers.length - 1) {
+        const nextRelation = rule.triggers[i + 1].relation || 'AND'
+        
+        if (nextRelation !== currentRelation) {
+          // 关系发生变化，处理当前组的结果
+          if (currentRelation === 'AND') {
+            // AND组结束，如果当前组不为空，则合并到结果
+            if (currentGroup.length > 0) {
+              resultStudents = resultStudents.filter(student => 
+                currentGroup.some(groupStudent => groupStudent.id === student.id)
+              )
+            } else {
+              // AND组为空，整个规则不匹配
+              return []
+            }
+          } else {
+            // OR组结束，合并当前组到结果
+            const newStudents = currentGroup.filter(groupStudent => 
+              !resultStudents.some(resultStudent => resultStudent.id === groupStudent.id)
+            )
+            resultStudents = [...resultStudents, ...newStudents]
+          }
+          
+          // 重置当前组为所有学生，开始新的关系组
+          currentGroup = [...initialStudents]
+          currentRelation = nextRelation
+        }
+      }
+    }
+
+    // 处理最后一组的结果
+    if (currentRelation === 'AND') {
+      // AND组结束，如果当前组不为空，则合并到结果
+      if (currentGroup.length > 0) {
+        resultStudents = resultStudents.filter(student => 
+          currentGroup.some(groupStudent => groupStudent.id === student.id)
+        )
+      } else {
+        // AND组为空，整个规则不匹配
+        return []
+      }
+    } else {
+      // OR组结束，合并当前组到结果
+      const newStudents = currentGroup.filter(groupStudent => 
+        !resultStudents.some(resultStudent => resultStudent.id === groupStudent.id)
+      )
+      resultStudents = [...resultStudents, ...newStudents]
+    }
+
+    return resultStudents
   }
 
   private async executeAction(
