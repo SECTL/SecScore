@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Select } from 'tdesign-react'
 import type { TriggerComponentProps } from '../types'
-
-export const eventName = 'student_tag_added'
-export const label = '当学生添加标签时触发'
-export const description = '当学生添加特定标签时触发自动化'
+export const eventName = 'student_tag_matched'
+export const label = '当学生匹配标签时触发'
+export const description = '当学生匹配特定标签时触发自动化'
 export const triggerLogic = {
   eventName,
   label,
@@ -23,7 +22,7 @@ const StudentTagTrigger: React.FC<TriggerComponentProps> = ({ value, onChange })
   useEffect(() => {
     const fetchTags = async () => {
       try {
-        const res = await (window as any).api.invoke('tag:getAll', {})
+        const res = await (window as any).api.tagsGetAll()
         if (res.success && res.data) {
           setTags(res.data.map((tag: any) => ({ label: tag.name, value: tag.name })))
         }

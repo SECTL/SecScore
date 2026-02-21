@@ -1,4 +1,4 @@
-import React from 'react'
+import { useState } from 'react'
 import { Button, Select } from 'tdesign-react'
 import { Delete1Icon } from 'tdesign-icons-react'
 import { triggerRegistry, allTriggers } from './registry'
@@ -9,14 +9,31 @@ interface TriggerItemProps {
   onDelete: (id: number) => void
   onChange: (id: number, eventName: string) => void
   onValueChange: (id: number, value: string) => void
+  isFirst?: boolean
 }
 
-const TriggerItem: React.FC<TriggerItemProps> = ({ item, onDelete, onChange, onValueChange }) => {
+const TriggerItem: React.FC<TriggerItemProps> = ({
+  item,
+  onDelete,
+  onChange,
+  onValueChange,
+  isFirst = false
+}) => {
   const definition = triggerRegistry.get(item.eventName)
   const Component = definition?.component
+  const [andFilled, setAndFilled] = useState(false)
 
   return (
     <div style={{ display: 'flex', gap: 5 }}>
+      {!isFirst && (
+        <Button
+          theme="primary"
+          variant={andFilled ? 'base' : 'outline'}
+          onClick={() => setAndFilled((v) => !v)}
+        >
+          并
+        </Button>
+      )}
       <Button
         theme="default"
         variant="text"
@@ -25,7 +42,7 @@ const TriggerItem: React.FC<TriggerItemProps> = ({ item, onDelete, onChange, onV
       />
       <Select
         value={item.eventName}
-        style={{ width: '200px' }}
+        style={{ width: '200px', marginRight: 12 }}
         options={allTriggers.options}
         placeholder="请选择触发规则"
         onChange={(value) => onChange(item.id, value as string)}

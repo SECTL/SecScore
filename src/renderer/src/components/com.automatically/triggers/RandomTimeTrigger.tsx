@@ -1,7 +1,7 @@
 import { InputNumber, Row, Col } from 'tdesign-react'
 import type { TriggerComponentProps } from '../types'
 
-export const eventName = 'random_time'
+export const eventName = 'random_time_reached'
 export const label = '随机时间触发'
 export const description = '在指定时间范围内随机触发自动化'
 export const triggerLogic = {

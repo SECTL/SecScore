@@ -440,13 +440,14 @@ export const AutoScoreManager: React.FC = () => {
 
   const triggerItems = triggerList
     .filter((t) => t.eventName !== null)
-    .map((item) => (
+    .map((item, idx) => (
       <TriggerItemComponent
         key={item.id}
         item={item}
         onDelete={handleDeleteTrigger}
         onChange={handleTriggerChange}
         onValueChange={handleTriggerValueChange}
+        isFirst={idx === 0}
       />
     ))
 
@@ -498,25 +499,6 @@ export const AutoScoreManager: React.FC = () => {
           </div>
         </Form>
       </Card>
-      <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
-        <Table
-          data={rules.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
-          columns={columns}
-          rowKey="id"
-          resizable
-          loading={loading}
-          dragSort="row-handler"
-          onDragSort={onDragSort}
-          pagination={{
-            current: currentPage,
-            pageSize,
-            total: rules.length,
-            onChange: (pageInfo) => setCurrentPage(pageInfo.current),
-            onPageSizeChange: (size) => setPageSize(size)
-          }}
-          style={{ color: 'var(--ss-text-main)' }}
-        />
-      </Card>
 
       <Card
         style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}
@@ -555,6 +537,27 @@ export const AutoScoreManager: React.FC = () => {
           </Button>
         </Space>
       </Card>
+
+      <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
+        <Table
+          data={rules.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
+          columns={columns}
+          rowKey="id"
+          resizable
+          loading={loading}
+          dragSort="row-handler"
+          onDragSort={onDragSort}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            total: rules.length,
+            onChange: (pageInfo) => setCurrentPage(pageInfo.current),
+            onPageSizeChange: (size) => setPageSize(size)
+          }}
+          style={{ color: 'var(--ss-text-main)' }}
+        />
+      </Card>
+
       <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
         <Code
           code={(() => {

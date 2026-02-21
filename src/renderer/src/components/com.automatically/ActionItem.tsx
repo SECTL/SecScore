@@ -31,7 +31,7 @@ const ActionItem: React.FC<ActionItemProps> = ({
       />
       <Select
         value={item.eventName}
-        style={{ width: '200px' }}
+        style={{ width: '200px', marginRight: 12 }}
         options={allActions.options}
         placeholder="请选择触发行动"
         onChange={(value) => onChange(item.id, value as string)}
