@@ -7,10 +7,12 @@ import { Wizard } from './components/Wizard'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { ThemeEditorProvider } from './contexts/ThemeEditorContext'
 import { ThemeEditor } from './components/ThemeEditor'
+import { useTheme } from './contexts/ThemeContext';
 
 function MainContent(): React.JSX.Element {
   const navigate = useNavigate()
   const location = useLocation()
+  const { currentTheme } = useTheme();
 
   useEffect(() => {
     if (!(window as any).api) return
@@ -153,9 +155,9 @@ function MainContent(): React.JSX.Element {
         >
           <p
             style={{
-              color: '#de2611',
+              color: '#df0000',
               fontWeight: 'bold',
-              fontSize: '13px',
+              fontSize: '14px',
               pointerEvents: 'none'
             }}
           >
@@ -163,7 +165,7 @@ function MainContent(): React.JSX.Element {
           </p>
           <p
             style={{
-              color: '#44474b',
+              color: currentTheme?.mode === 'dark' ? '#fff' : '#44474b',
               fontWeight: 'bold',
               fontSize: '13px',
               paddingLeft: '5px'

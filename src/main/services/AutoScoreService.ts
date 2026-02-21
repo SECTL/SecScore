@@ -1,6 +1,7 @@
 import { Service } from '../../shared/kernel'
 import { MainContext } from '../context'
 import { student } from '../repos/StudentRepository'
+import { getTriggerLogic } from '../../shared/triggers'
 
 interface AutoScoreRule {
   id: number
@@ -129,7 +130,6 @@ export class AutoScoreService extends Service {
       const data = await fs.readJsonFile<AutoScoreRulesFile>(RULES_FILE_NAME, 'automatic')
       if (data && data.rules) {
         this.rules = data.rules.map((rule: any) => {
-          // 数据迁移：将旧格式转换为新格式
           const migratedRule = this.migrateRule(rule)
           return {
             ...migratedRule,
@@ -138,7 +138,6 @@ export class AutoScoreService extends Service {
               : undefined
           }
         })
-        // 如果有数据迁移，保存新格式
         if (
           data.rules.some(
             (rule: any) => rule.intervalMinutes !== undefined || rule.scoreValue !== undefined
@@ -159,12 +158,10 @@ export class AutoScoreService extends Service {
   }
 
   private migrateRule(rule: any): AutoScoreRule {
-    // 如果已经是新格式，直接返回
     if (!rule.intervalMinutes && !rule.scoreValue) {
       return rule
     }
 
-    // 迁移旧格式到新格式
     const migratedRule: AutoScoreRule = {
       id: rule.id,
       enabled: rule.enabled,
@@ -175,7 +172,6 @@ export class AutoScoreService extends Service {
       actions: rule.actions || []
     }
 
-    // 将intervalMinutes迁移到triggers
     if (
       rule.intervalMinutes &&
       !migratedRule.triggers?.find((t) => t.event === 'interval_time_passed')
@@ -187,7 +183,6 @@ export class AutoScoreService extends Service {
       })
     }
 
-    // 将scoreValue和reason迁移到actions
     if (
       rule.scoreValue !== undefined &&
       !migratedRule.actions?.find((a) => a.event === 'add_score')
@@ -280,25 +275,28 @@ export class AutoScoreService extends Service {
       this.timers.delete(rule.id)
     }
 
-    // 从triggers中读取间隔时间
-    const intervalTrigger = rule.triggers?.find((t) => t.event === 'interval_time_passed')
-    const intervalMinutes = intervalTrigger?.value ? parseInt(intervalTrigger.value, 10) : 0
+    const now = new Date()
+    let delayMs = 0
+    let primaryTrigger: { event: string; value?: string } | undefined
 
-    if (!intervalMinutes || intervalMinutes <= 0) {
-      this.logger.warn(`Rule ${rule.name} has no valid interval time, skipping timer`)
+    for (const trigger of rule.triggers || []) {
+      const logic = getTriggerLogic(trigger.event)
+      if (logic?.calculateNextTime) {
+        const result = logic.calculateNextTime(trigger.value || '', rule.lastExecuted, now)
+        if (delayMs === 0 || result.delayMs < delayMs) {
+          delayMs = result.delayMs
+          primaryTrigger = trigger
+        }
+      }
+    }
+
+    if (!primaryTrigger) {
+      this.logger.warn(`Rule ${rule.name} has no valid triggers with timing logic, skipping`)
       return
     }
 
-    const now = new Date()
-    const intervalMs = intervalMinutes * 60 * 1000
-
-    let delayMs = intervalMs
-    if (rule.lastExecuted) {
-      const timeSinceLastExecution = now.getTime() - rule.lastExecuted.getTime()
-      delayMs = intervalMs - (timeSinceLastExecution % intervalMs)
-      if (timeSinceLastExecution >= intervalMs) {
-        delayMs = 0
-      }
+    if (delayMs < 0) {
+      delayMs = 0
     }
 
     const timer = setTimeout(() => {
@@ -307,21 +305,32 @@ export class AutoScoreService extends Service {
     }, delayMs)
 
     this.timers.set(rule.id, timer)
+    this.logger.info(`Rule ${rule.name} scheduled to execute in ${delayMs}ms`)
   }
 
   private setRuleInterval(rule: AutoScoreRule) {
-    // 从triggers中读取间隔时间
-    const intervalTrigger = rule.triggers?.find((t) => t.event === 'interval_time_passed')
-    const intervalMinutes = intervalTrigger?.value ? parseInt(intervalTrigger.value, 10) : 0
+    const now = new Date()
+    let minDelayMs = Infinity
+    let primaryTrigger: { event: string; value?: string } | undefined
 
-    if (!intervalMinutes || intervalMinutes <= 0) {
+    for (const trigger of rule.triggers || []) {
+      const logic = getTriggerLogic(trigger.event)
+      if (logic?.calculateNextTime) {
+        const result = logic.calculateNextTime(trigger.value || '', rule.lastExecuted, now)
+        if (result.delayMs < minDelayMs) {
+          minDelayMs = result.delayMs
+          primaryTrigger = trigger
+        }
+      }
+    }
+
+    if (!primaryTrigger || minDelayMs === Infinity) {
       return
     }
 
-    const intervalMs = intervalMinutes * 60 * 1000
     const timer = setInterval(() => {
       this.executeRule(rule)
-    }, intervalMs)
+    }, minDelayMs)
 
     this.timers.set(rule.id, timer)
   }
@@ -331,7 +340,6 @@ export class AutoScoreService extends Service {
       this.logger.info(`Executing auto score rule: ${rule.name}`)
 
       const studentRepo = this.mainCtx.students
-      const eventRepo = this.mainCtx.events
 
       let studentsToScore: student[] = []
       if (rule.studentNames.length === 0) {
@@ -347,17 +355,30 @@ export class AutoScoreService extends Service {
         }
       }
 
-      // 从actions中读取分数和理由
-      const scoreAction = rule.actions?.find((a) => a.event === 'add_score')
-      const scoreValue = scoreAction?.value ? parseInt(scoreAction.value, 10) : 0
-      const reason = scoreAction?.reason || `自动化加分 - ${rule.name}`
+      for (const trigger of rule.triggers || []) {
+        const logic = getTriggerLogic(trigger.event)
+        if (logic?.check) {
+          const context = {
+            students: studentsToScore,
+            events: [],
+            rule: {
+              id: rule.id,
+              name: rule.name,
+              studentNames: rule.studentNames,
+              triggers: rule.triggers,
+              actions: rule.actions
+            },
+            now: new Date()
+          }
+          const result = logic.check(context, trigger.value || '')
+          if (result.matchedStudents && result.matchedStudents.length > 0) {
+            studentsToScore = result.matchedStudents
+          }
+        }
+      }
 
-      for (const student of studentsToScore) {
-        await eventRepo.create({
-          student_name: student.name,
-          reason_content: reason,
-          delta: scoreValue
-        })
+      for (const action of rule.actions || []) {
+        await this.executeAction(action, studentsToScore, rule.name)
       }
 
       rule.lastExecuted = new Date()
@@ -368,6 +389,54 @@ export class AutoScoreService extends Service {
       )
     } catch (error) {
       this.logger.error(`Failed to execute auto score rule ${rule.name}:`, { error })
+    }
+  }
+
+  private async executeAction(
+    action: { event: string; value?: string; reason?: string },
+    students: student[],
+    ruleName: string
+  ) {
+    const eventRepo = this.mainCtx.events
+
+    switch (action.event) {
+      case 'add_score': {
+        const scoreValue = action.value ? parseInt(action.value, 10) : 0
+        const reason = action.reason || `自动化加分 - ${ruleName}`
+        for (const student of students) {
+          await eventRepo.create({
+            student_name: student.name,
+            reason_content: reason,
+            delta: scoreValue
+          })
+        }
+        break
+      }
+      case 'add_tag': {
+        const tagName = action.value
+        if (tagName) {
+          const studentRepo = this.mainCtx.students
+          for (const student of students) {
+            const currentTags = student.tags || []
+            if (!currentTags.includes(tagName)) {
+              await studentRepo.update(student.id, {
+                tags: [...currentTags, tagName]
+              })
+            }
+          }
+        }
+        break
+      }
+      case 'send_notification': {
+        this.logger.info(`Notification action: ${action.value}`)
+        break
+      }
+      case 'set_student_status': {
+        this.logger.info(`Set student status action: ${action.value} (not implemented - student type has no status field)`)
+        break
+      }
+      default:
+        this.logger.warn(`Unknown action event: ${action.event}`)
     }
   }
 

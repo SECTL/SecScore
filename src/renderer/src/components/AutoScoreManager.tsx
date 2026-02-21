@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { AddIcon, Delete1Icon, MoveIcon } from 'tdesign-icons-react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { prism } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { allTriggers, allActions, TriggerItem, ActionItem } from '../services/AutoScoreService'
+import { AddIcon, MoveIcon } from 'tdesign-icons-react'
+import { allTriggers, allActions, triggerRegistry, actionRegistry } from './com.automatically'
+import type { TriggerItem, ActionItem } from './com.automatically/types'
+import TriggerItemComponent from './com.automatically/TriggerItem'
+import ActionItemComponent from './com.automatically/ActionItem'
 import {
   Card,
   Form,
@@ -14,10 +15,10 @@ import {
   Space,
   Switch,
   Popconfirm,
-  Radio,
   Select,
   TooltipLite
 } from 'tdesign-react'
+import Code from './Code'
 
 interface AutoScoreRule {
   id: number
@@ -42,6 +43,8 @@ export const AutoScoreManager: React.FC = () => {
   const [pageSize, setPageSize] = useState<number>(50)
   const [form] = Form.useForm()
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null)
+  const [triggerList, setTriggerList] = useState<TriggerItem[]>([])
+  const [actionList, setActionList] = useState<ActionItem[]>([])
 
   const fetchRules = async () => {
     if (!(window as any).api) return
@@ -93,35 +96,16 @@ export const AutoScoreManager: React.FC = () => {
       return
     }
 
-    // 验证触发器必填项
     if (triggerList.length === 0) {
       MessagePlugin.warning('请至少添加一个触发器')
       return
     }
 
-    for (const t of triggerList) {
-      const def = allTriggers.find((a) => a.eventName === t.eventName)
-      if (def?.valueType && (!t.value || String(t.value).trim() === '')) {
-        MessagePlugin.warning(`触发器 ${def.label} 需要填写 value`)
-        return
-      }
-    }
-
-    // 验证行动必填项
     if (actionList.length === 0) {
       MessagePlugin.warning('请至少添加一个行动')
       return
     }
 
-    for (const a of actionList) {
-      const def = allActions.find((action) => action.eventName === a.eventName)
-      if (def?.valueType && (!a.value || String(a.value).trim() === '')) {
-        MessagePlugin.warning(`行动 ${def.label} 需要填写 value`)
-        return
-      }
-    }
-
-    // 确保 studentNames 是数组类型
     const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
 
     const triggersPayload = triggerList.map((t) => ({ event: t.eventName, value: t.value }))
@@ -139,7 +123,6 @@ export const AutoScoreManager: React.FC = () => {
       actions: actionsPayload
     }
 
-    // 权限检查：仅管理员可创建/更新自动化
     try {
       const authRes = await (window as any).api.authGetStatus()
       if (!authRes || !authRes.success || authRes.data?.permission !== 'admin') {
@@ -153,19 +136,16 @@ export const AutoScoreManager: React.FC = () => {
     try {
       let res
       if (editingRuleId !== null) {
-        // 更新现有自动化
         res = await (window as any).api.invoke('auto-score:updateRule', {
           id: editingRuleId,
           ...ruleData
         })
       } else {
-        // 创建新自动化
         res = await (window as any).api.invoke('auto-score:addRule', ruleData)
       }
 
       if (res.success) {
         MessagePlugin.success(editingRuleId !== null ? '自动化更新成功' : '自动化创建成功')
-        // 手动清空表单字段，避免 form.reset() 导致的栈溢出
         form.setFieldsValue({
           name: '',
           studentNames: ''
@@ -173,7 +153,7 @@ export const AutoScoreManager: React.FC = () => {
         setEditingRuleId(null)
         setTriggerList([])
         setActionList([])
-        fetchRules() // 刷新自动化列表
+        fetchRules()
       } else {
         MessagePlugin.error(
           res.message || (editingRuleId !== null ? '更新自动化失败' : '创建自动化失败')
@@ -184,39 +164,30 @@ export const AutoScoreManager: React.FC = () => {
       MessagePlugin.error(editingRuleId !== null ? '更新自动化失败' : '创建自动化失败')
     }
   }
+
   const handleEdit = (rule: AutoScoreRule) => {
     setEditingRuleId(rule.id)
     form.setFieldsValue({
       name: rule.name,
       studentNames: rule.studentNames.join(', ')
     })
-    // 如果后端返回了 triggers 字段，把它加载到 triggerList
     if (rule.triggers && Array.isArray(rule.triggers)) {
-      const mapped = rule.triggers.map((t, idx) => {
-        const found = allTriggers.find((a) => a.eventName === t.event)
-        return {
-          id: idx + 1,
-          eventName: t.event,
-          haveValue: !!found?.valueType,
-          value: t.value ?? ''
-        }
-      })
+      const mapped = rule.triggers.map((t, idx) => ({
+        id: idx + 1,
+        eventName: t.event,
+        value: t.value ?? ''
+      }))
       setTriggerList(mapped)
     } else {
       setTriggerList([])
     }
-    // 如果后端返回了 actions 字段，把它加载到 actionList
     if (rule.actions && Array.isArray(rule.actions)) {
-      const mapped = rule.actions.map((a, idx) => {
-        const found = allActions.find((action) => action.eventName === a.event)
-        return {
-          id: idx + 1,
-          eventName: a.event,
-          valueType: found?.valueType,
-          value: a.value ?? '',
-          reason: a.reason
-        }
-      })
+      const mapped = rule.actions.map((a, idx) => ({
+        id: idx + 1,
+        eventName: a.event,
+        value: a.value ?? '',
+        reason: a.reason ?? ''
+      }))
       setActionList(mapped)
     } else {
       setActionList([])
@@ -225,7 +196,6 @@ export const AutoScoreManager: React.FC = () => {
 
   const handleDelete = async (ruleId: number) => {
     if (!(window as any).api) return
-    // 权限检查
     try {
       const authRes = await (window as any).api.authGetStatus()
       if (!authRes || !authRes.success || authRes.data?.permission !== 'admin') {
@@ -240,7 +210,7 @@ export const AutoScoreManager: React.FC = () => {
       const res = await (window as any).api.invoke('auto-score:deleteRule', ruleId)
       if (res.success) {
         MessagePlugin.success('自动化删除成功')
-        fetchRules() // 刷新自动化列表
+        fetchRules()
       } else {
         MessagePlugin.error(res.message || '删除自动化失败')
       }
@@ -252,7 +222,6 @@ export const AutoScoreManager: React.FC = () => {
 
   const handleToggle = async (ruleId: number, enabled: boolean) => {
     if (!(window as any).api) return
-    // 权限检查
     try {
       const authRes = await (window as any).api.authGetStatus()
       if (!authRes || !authRes.success || authRes.data?.permission !== 'admin') {
@@ -267,7 +236,7 @@ export const AutoScoreManager: React.FC = () => {
       const res = await (window as any).api.invoke('auto-score:toggleRule', { ruleId, enabled })
       if (res.success) {
         MessagePlugin.success(enabled ? '自动化已启用' : '自动化已禁用')
-        fetchRules() // 刷新自动化列表
+        fetchRules()
       } else {
         MessagePlugin.error(res.message || (enabled ? '启用自动化失败' : '禁用自动化失败'))
       }
@@ -278,7 +247,6 @@ export const AutoScoreManager: React.FC = () => {
   }
 
   const handleResetForm = () => {
-    // 手动清空表单字段，避免 form.reset() 导致的栈溢出
     form.setFieldsValue({
       name: '',
       studentNames: ''
@@ -286,6 +254,73 @@ export const AutoScoreManager: React.FC = () => {
     setEditingRuleId(null)
     setTriggerList([])
     setActionList([])
+  }
+
+  const handleAddTrigger = () => {
+    const nextId = triggerList.length ? Math.max(...triggerList.map((t) => t.id)) + 1 : 1
+    const defaultTrigger = allTriggers.list[0]
+    if (!defaultTrigger) {
+      MessagePlugin.error('没有可用的触发器类型，请检查配置')
+      return
+    }
+    setTriggerList((prev) => [
+      ...prev,
+      {
+        id: nextId,
+        eventName: defaultTrigger.eventName,
+        value: ''
+      }
+    ])
+  }
+
+  const handleDeleteTrigger = (id: number) => {
+    setTriggerList((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  const handleTriggerChange = (id: number, eventName: string) => {
+    setTriggerList((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, eventName, value: '' } : t))
+    )
+  }
+
+  const handleTriggerValueChange = (id: number, value: string) => {
+    setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, value } : t)))
+  }
+
+  const handleAddAction = () => {
+    const nextId = actionList.length ? Math.max(...actionList.map((a) => a.id)) + 1 : 1
+    const defaultAction = allActions.list[0]
+    if (!defaultAction) {
+      MessagePlugin.error('没有可用的行动类型，请检查配置')
+      return
+    }
+    setActionList((prev) => [
+      ...prev,
+      {
+        id: nextId,
+        eventName: defaultAction.eventName,
+        value: '',
+        reason: ''
+      }
+    ])
+  }
+
+  const handleDeleteAction = (id: number) => {
+    setActionList((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  const handleActionChange = (id: number, eventName: string) => {
+    setActionList((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, eventName, value: '' } : a))
+    )
+  }
+
+  const handleActionValueChange = (id: number, value: string) => {
+    setActionList((prev) => prev.map((a) => (a.id === id ? { ...a, value } : a)))
+  }
+
+  const handleActionReasonChange = (id: number, reason: string) => {
+    setActionList((prev) => prev.map((a) => (a.id === id ? { ...a, reason } : a)))
   }
 
   const columns: PrimaryTableCol<AutoScoreRule>[] = [
@@ -317,7 +352,7 @@ export const AutoScoreManager: React.FC = () => {
           return <span>无</span>
         }
         const triggerLabels = row.triggers.map((t) => {
-          const def = allTriggers.find((tr) => tr.eventName === t.event)
+          const def = triggerRegistry.get(t.event)
           return def?.label || t.event
         })
         return (
@@ -341,7 +376,7 @@ export const AutoScoreManager: React.FC = () => {
           return <span>无</span>
         }
         const actionLabels = row.actions.map((a) => {
-          const def = allActions.find((ac) => ac.eventName === a.event)
+          const def = actionRegistry.get(a.event)
           return def?.label || a.event
         })
         return (
@@ -404,179 +439,32 @@ export const AutoScoreManager: React.FC = () => {
       )
     }
   ]
+
   const onDragSort = (params: any) => setRules(params.newData)
-
-  const triggerOptions = allTriggers.map((t) => ({ label: t.label, value: t.eventName }))
-
-  const [triggerList, setTriggerList] = useState<TriggerItem[]>([])
-  const [actionList, setActionList] = useState<ActionItem[]>([])
-
-  const handleTriggerChange = (id: number, value: string) => {
-    const found = allTriggers.find((a) => a.eventName === value)
-    setTriggerList((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, eventName: value, valueType: found?.valueType, value: '' } : t
-      )
-    )
-  }
-
-  const handleValueChange = (id: number, val: string) => {
-    setTriggerList((prev) => prev.map((t) => (t.id === id ? { ...t, value: val } : t)))
-  }
-
-  const handleDeleteTrigger = (id: number) => {
-    setTriggerList((prev) => prev.filter((t) => t.id !== id))
-  }
-
-  const handleAddTrigger = () => {
-    const nextId = triggerList.length ? Math.max(...triggerList.map((t) => t.id)) + 1 : 1
-    const defaultTrigger = allTriggers[0]
-    setTriggerList((prev) => [
-      ...prev,
-      {
-        id: nextId,
-        eventName: defaultTrigger.eventName,
-        valueType: defaultTrigger.valueType,
-        value: ''
-      }
-    ])
-  }
-
-  // 行动管理相关函数
-  const handleActionChange = (id: number, value: string) => {
-    const found = allActions.find((a) => a.eventName === value)
-    setActionList((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, eventName: value, valueType: found?.valueType, value: '' } : t
-      )
-    )
-  }
-
-  const handleActionValueChange = (id: number, val: string) => {
-    setActionList((prev) => prev.map((t) => (t.id === id ? { ...t, value: val } : t)))
-  }
-
-  const handleDeleteAction = (id: number) => {
-    setActionList((prev) => prev.filter((t) => t.id !== id))
-  }
-
-  const handleAddAction = () => {
-    const nextId = actionList.length ? Math.max(...actionList.map((t) => t.id)) + 1 : 1
-    const defaultAction = allActions[0]
-    setActionList((prev) => [
-      ...prev,
-      {
-        id: nextId,
-        eventName: defaultAction.eventName,
-        valueType: defaultAction.valueType,
-        value: ''
-      }
-    ])
-  }
 
   const triggerItems = triggerList
     .filter((t) => t.eventName !== null)
-    .map((triggerTest) => (
-      <div key={triggerTest.id} style={{ display: 'flex', gap: 5 }}>
-        <Button
-          theme="default"
-          variant="text"
-          icon={<Delete1Icon strokeWidth={2.4} />}
-          onClick={() => handleDeleteTrigger(triggerTest.id)}
-        />
-        <Select
-          value={triggerTest.eventName}
-          style={{ width: '200px' }}
-          options={triggerOptions}
-          placeholder="请选择触发规则"
-          onChange={(value) => handleTriggerChange(triggerTest.id, value as string)}
-        />
-        {triggerTest.valueType
-          ? React.createElement(triggerTest.valueType, {
-              placeholder:
-                triggerTest.eventName === 'interval_time_passed'
-                  ? '请选择日期'
-                  : '请输入时间间隔（天）',
-              style: { width: '150px' },
-              value:
-                triggerTest.eventName === 'interval_time_passed'
-                  ? triggerTest.value
-                    ? new Date(triggerTest.value)
-                    : undefined
-                  : String(triggerTest.value ?? ''),
-              onChange: (v: any) => handleValueChange(triggerTest.id, v ? String(v) : '')
-            })
-          : null}
-      </div>
+    .map((item) => (
+      <TriggerItemComponent
+        key={item.id}
+        item={item}
+        onDelete={handleDeleteTrigger}
+        onChange={handleTriggerChange}
+        onValueChange={handleTriggerValueChange}
+      />
     ))
-
-  const actionOptions = allActions.map((a) => ({ label: a.label, value: a.eventName }))
 
   const actionItems = actionList
     .filter((a) => a.eventName !== null)
-    .map((action) => (
-      <div key={action.id} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-        <Button
-          theme="default"
-          variant="text"
-          icon={<Delete1Icon strokeWidth={2.4} />}
-          onClick={() => handleDeleteAction(action.id)}
-        />
-        <Select
-          value={action.eventName}
-          style={{ width: '200px' }}
-          options={actionOptions}
-          placeholder="请选择触发行动"
-          onChange={(value) => handleActionChange(action.id, value as string)}
-        />
-        {(() => {
-          const actionDef = allActions.find((a) => a.eventName === action.eventName)
-          const renderConfig = actionDef?.renderConfig
-
-          // 特殊处理Radio组件
-          if (action.valueType === Radio || renderConfig?.component === Radio) {
-            return (
-              <Radio.Group
-                value={action.value || 'email'}
-                onChange={(v: any) => handleActionValueChange(action.id, v ? String(v) : '')}
-                {...renderConfig?.props}
-              >
-                {renderConfig?.props?.options?.map((option: any) => (
-                  <Radio.Button key={option.value} value={option.value}>
-                    {option.label}
-                  </Radio.Button>
-                ))}
-              </Radio.Group>
-            )
-          } else if (renderConfig?.component) {
-            return React.createElement(renderConfig.component, {
-              value: String(action.value ?? ''),
-              onChange: (v: any) => handleActionValueChange(action.id, v ? String(v) : ''),
-              ...renderConfig.props
-            })
-          } else if (action.valueType) {
-            return React.createElement(action.valueType, {
-              placeholder: '请输入Value',
-              style: { width: '150px' },
-              value: String(action.value ?? ''),
-              onChange: (v: any) => handleActionValueChange(action.id, v ? String(v) : '')
-            })
-          }
-          return null
-        })()}
-        {action.eventName === 'add_score' && (
-          <Input
-            placeholder="请输入理由"
-            style={{ width: '150px' }}
-            value={action.reason || ''}
-            onChange={(v: any) => {
-              setActionList((prev) =>
-                prev.map((a) => (a.id === action.id ? { ...a, reason: v } : a))
-              )
-            }}
-          />
-        )}
-      </div>
+    .map((item) => (
+      <ActionItemComponent
+        key={item.id}
+        item={item}
+        onDelete={handleDeleteAction}
+        onChange={handleActionChange}
+        onValueChange={handleActionValueChange}
+        onReasonChange={handleActionReasonChange}
+      />
     ))
 
   return (
@@ -671,21 +559,36 @@ export const AutoScoreManager: React.FC = () => {
           </Button>
         </Space>
       </Card>
-
       <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
-        <SyntaxHighlighter language="javascript" style={prism} showLineNumbers>
-          println("这是一个示例代码块，展示如何使用自动化加分功能的API接口")
-        </SyntaxHighlighter>
+        <Code
+          code={(() => {
+            if (editingRuleId !== null) {
+              const values = form.getFieldsValue(true) as unknown as AutoScoreRuleFormValues
+              const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
+              const triggersPayload = triggerList.map((t) => ({ event: t.eventName, value: t.value }))
+              const actionsPayload = actionList.map((a) => ({
+                event: a.eventName,
+                value: a.value,
+                reason: a.reason
+              }))
+
+              const currentRule = {
+                id: editingRuleId,
+                enabled: true,
+                name: values.name || '',
+                studentNames,
+                triggers: triggersPayload,
+                actions: actionsPayload
+              }
+
+              return JSON.stringify(currentRule, null, 2)
+            } else {
+              return JSON.stringify(rules, null, 2)
+            }
+          })()}
+          language={'json'}
+        />
       </Card>
-      {/*       <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--ss-card-bg)', borderRadius: '8px' }}>
-        <h3 style={{ marginBottom: '12px', color: 'var(--ss-text-main)' }}>使用说明</h3>
-        <ul style={{ color: 'var(--ss-text-secondary)', lineHeight: '1.6' }}>
-          <li>自动化加分功能会按照设定的时间间隔自动为学生加分</li>
-          <li>间隔时间以分钟为单位，例如1440表示每24小时（一天）执行一次</li>
-          <li>如果"适用学生"字段为空，则自动化适用于所有学生</li>
-          <li>可以随时启用/禁用自动化，不会影响已保存的自动化配置</li>
-        </ul>
-      </div> */}
     </div>
   )
 }
