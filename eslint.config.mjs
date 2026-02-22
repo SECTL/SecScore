@@ -31,7 +31,9 @@ export default defineConfig(
       'react-refresh/only-export-components': 'off',
       'react-hooks/exhaustive-deps': 'warn',
       'react-hooks/set-state-in-effect': 'off',
-      '@typescript-eslint/no-require-imports': 'off'
+      '@typescript-eslint/no-require-imports': 'off',
+      // we use TypeScript types instead of PropTypes in React components
+      'react/prop-types': 'off'
     }
   },
   eslintConfigPrettier

@@ -29,7 +29,9 @@ const RandomTimeTrigger: React.FC<TriggerComponentProps> = ({ value, onChange })
       const parsed = JSON.parse(value)
       config = { ...config, ...parsed }
     }
-  } catch {}
+  } catch (e) {
+    console.debug('RandomTimeTrigger parse error', e)
+  }
 
   const handleChange = (key: keyof RandomTimeConfig, v: any) => {
     const numV = typeof v === 'number' ? v : v ? Number(v) : undefined
