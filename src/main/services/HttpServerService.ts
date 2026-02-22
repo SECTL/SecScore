@@ -337,9 +337,7 @@ export class HttpServerService extends Service {
       }
     })
 
-    // ww
-    this.app.use
-    
+    // stray expression removed
     // 404处理
     this.app.use((_req: Request, res: Response) => {
       res.status(404).json({
@@ -349,7 +347,8 @@ export class HttpServerService extends Service {
     })
 
     // 错误处理中间件
-    this.app.use((error: Error, _: Request, res: Response, __: NextFunction) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    this.app.use((error: Error, _: Request, res: Response, _next: NextFunction) => {
       this.mainCtx.logger.error(`HTTP server error: ${error.message}`)
       res.status(500).json({
         success: false,

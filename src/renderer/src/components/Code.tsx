@@ -3,8 +3,6 @@ import { useEffect } from 'react'
 import Prism from 'prismjs'
 import { useTheme } from '../contexts/ThemeContext'
 
-// 预先导入所有主题
-import 'prismjs/themes/prism-coy.min.css'
 import 'prismjs/themes/prism-okaidia.min.css'
 
 const Code = ({ code, language }) => {

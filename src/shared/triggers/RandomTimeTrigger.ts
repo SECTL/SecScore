@@ -34,7 +34,10 @@ export const randomTimeTrigger: TriggerLogic = {
         const parsed = JSON.parse(value)
         config = { ...config, ...parsed }
       }
-    } catch {}
+    } catch (e) {
+      // swallow errors, use default config
+      console.debug('randomTimeTrigger calculateNextTime parse error', e)
+    }
 
     const minHour = config.minHour ?? 0
     const maxHour = config.maxHour ?? 23

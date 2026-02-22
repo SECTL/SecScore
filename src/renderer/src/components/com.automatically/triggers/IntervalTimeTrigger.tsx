@@ -36,8 +36,8 @@ const IntervalTimeTrigger: React.FC<TriggerComponentProps> = ({ value, onChange 
     numValue === undefined || isNaN(numValue)
       ? undefined
       : unit === 'minutes'
-      ? numValue
-      : Math.max(1, Math.round(numValue / 1440))
+        ? numValue
+        : Math.max(1, Math.round(numValue / 1440))
 
   return (
     <Space>

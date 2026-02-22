@@ -43,7 +43,7 @@ const actionDefinitions: ActionDefinition[] = [
     description: sendNotificationDescription,
     component: SendNotificationAction,
     hasReason: sendNotificationHasReason
-  },
+  }
 ]
 
 actionDefinitions.forEach((def) => actionRegistry.register(def))

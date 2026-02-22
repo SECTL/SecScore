@@ -14,8 +14,4 @@ export { default as TriggerItemComponent } from './TriggerItem'
 export { default as ActionItemComponent } from './ActionItem'
 
 export { IntervalTimeTrigger, StudentTagTrigger, RandomTimeTrigger } from './triggers'
-export {
-  AddScoreAction,
-  AddTagAction,
-  SendNotificationAction,
-} from './actions'
+export { AddScoreAction, AddTagAction, SendNotificationAction } from './actions'

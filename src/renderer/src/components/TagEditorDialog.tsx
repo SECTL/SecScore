@@ -29,15 +29,8 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
 
   const themeMode = currentTheme?.mode || 'light' // 默认为 light
 
-  useEffect(() => {
-    if (visible) {
-      setSelectedTagIds(new Set(initialTagIds))
-      setInputValue('')
-      fetchAllTags()
-    }
-  }, [visible, initialTagIds])
-
-  const fetchAllTags = async () => {
+  // fetchAllTags is declared as a function so it can be called from useEffect
+  async function fetchAllTags() {
     if (!(window as any).api) return
     try {
       const res = await (window as any).api.tagsGetAll()
@@ -49,6 +42,14 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
       MessagePlugin.error('获取标签列表失败')
     }
   }
+
+  useEffect(() => {
+    if (visible) {
+      setSelectedTagIds(new Set(initialTagIds))
+      setInputValue('')
+      fetchAllTags()
+    }
+  }, [visible, initialTagIds])
 
   const handleAddTag = async () => {
     const trimmed = inputValue.trim()
