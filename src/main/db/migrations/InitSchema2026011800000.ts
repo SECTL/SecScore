@@ -81,7 +81,7 @@ export class InitSchema2026011800000 implements MigrationInterface {
       ('迟到','纪律',-1,1,CURRENT_TIMESTAMP),
       ('未交作业','作业情况',-2,1,CURRENT_TIMESTAMP)
     `)
-    
+
     if (!(await queryRunner.hasTable('tags'))) {
       await queryRunner.query(`
         CREATE TABLE "tags" (

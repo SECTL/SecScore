@@ -357,7 +357,7 @@ export class AutoScoreService extends Service {
 
       // 使用AND/OR逻辑评估触发器
       const matchedStudents = this.evaluateTriggersWithLogic(rule, studentsToScore)
-      
+
       if (matchedStudents.length > 0) {
         for (const action of rule.actions || []) {
           await this.executeAction(action, matchedStudents, rule.name)
@@ -387,7 +387,7 @@ export class AutoScoreService extends Service {
     for (let i = 0; i < rule.triggers.length; i++) {
       const trigger = rule.triggers[i]
       const logic = getTriggerLogic(trigger.event)
-      
+
       if (!logic?.check) {
         continue
       }
@@ -404,9 +404,9 @@ export class AutoScoreService extends Service {
         },
         now: new Date()
       }
-      
+
       const result = logic.check(context, trigger.value || '')
-      
+
       if (!result.matchedStudents || result.matchedStudents.length === 0) {
         // 当前触发器没有匹配的学生
         if (currentRelation === 'AND') {
@@ -418,13 +418,13 @@ export class AutoScoreService extends Service {
         // 当前触发器有匹配的学生
         if (currentRelation === 'AND') {
           // AND关系下，取交集
-          currentGroup = currentGroup.filter(student => 
-            result.matchedStudents!.some(matched => matched.id === student.id)
+          currentGroup = currentGroup.filter((student) =>
+            result.matchedStudents!.some((matched) => matched.id === student.id)
           )
         } else {
           // OR关系下，取并集
-          const newStudents = result.matchedStudents.filter(matched => 
-            !currentGroup.some(student => student.id === matched.id)
+          const newStudents = result.matchedStudents.filter(
+            (matched) => !currentGroup.some((student) => student.id === matched.id)
           )
           currentGroup = [...currentGroup, ...newStudents]
         }
@@ -433,14 +433,14 @@ export class AutoScoreService extends Service {
       // 处理下一个关系（如果存在）
       if (i < rule.triggers.length - 1) {
         const nextRelation = rule.triggers[i + 1].relation || 'AND'
-        
+
         if (nextRelation !== currentRelation) {
           // 关系发生变化，处理当前组的结果
           if (currentRelation === 'AND') {
             // AND组结束，如果当前组不为空，则合并到结果
             if (currentGroup.length > 0) {
-              resultStudents = resultStudents.filter(student => 
-                currentGroup.some(groupStudent => groupStudent.id === student.id)
+              resultStudents = resultStudents.filter((student) =>
+                currentGroup.some((groupStudent) => groupStudent.id === student.id)
               )
             } else {
               // AND组为空，整个规则不匹配
@@ -448,12 +448,13 @@ export class AutoScoreService extends Service {
             }
           } else {
             // OR组结束，合并当前组到结果
-            const newStudents = currentGroup.filter(groupStudent => 
-              !resultStudents.some(resultStudent => resultStudent.id === groupStudent.id)
+            const newStudents = currentGroup.filter(
+              (groupStudent) =>
+                !resultStudents.some((resultStudent) => resultStudent.id === groupStudent.id)
             )
             resultStudents = [...resultStudents, ...newStudents]
           }
-          
+
           // 重置当前组为所有学生，开始新的关系组
           currentGroup = [...initialStudents]
           currentRelation = nextRelation
@@ -465,8 +466,8 @@ export class AutoScoreService extends Service {
     if (currentRelation === 'AND') {
       // AND组结束，如果当前组不为空，则合并到结果
       if (currentGroup.length > 0) {
-        resultStudents = resultStudents.filter(student => 
-          currentGroup.some(groupStudent => groupStudent.id === student.id)
+        resultStudents = resultStudents.filter((student) =>
+          currentGroup.some((groupStudent) => groupStudent.id === student.id)
         )
       } else {
         // AND组为空，整个规则不匹配
@@ -474,8 +475,9 @@ export class AutoScoreService extends Service {
       }
     } else {
       // OR组结束，合并当前组到结果
-      const newStudents = currentGroup.filter(groupStudent => 
-        !resultStudents.some(resultStudent => resultStudent.id === groupStudent.id)
+      const newStudents = currentGroup.filter(
+        (groupStudent) =>
+          !resultStudents.some((resultStudent) => resultStudent.id === groupStudent.id)
       )
       resultStudents = [...resultStudents, ...newStudents]
     }

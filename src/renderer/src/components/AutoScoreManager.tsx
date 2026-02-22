@@ -569,7 +569,7 @@ export const AutoScoreManager: React.FC = () => {
         />
       </Card>
 
-      <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
+      <Card style={{ marginBottom: '24px' }}>
         <Code
           code={(() => {
             if (editingRuleId !== null) {
