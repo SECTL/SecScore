@@ -18,7 +18,6 @@ import {
   Select,
   TooltipLite
 } from 'tdesign-react'
-import Code from './Code'
 
 interface AutoScoreRule {
   id: number
@@ -566,41 +565,6 @@ export const AutoScoreManager: React.FC = () => {
             onPageSizeChange: (size) => setPageSize(size)
           }}
           style={{ color: 'var(--ss-text-main)' }}
-        />
-      </Card>
-
-      <Card style={{ marginBottom: '24px' }}>
-        <Code
-          code={(() => {
-            if (editingRuleId !== null) {
-              const values = form.getFieldsValue(true) as unknown as AutoScoreRuleFormValues
-              const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
-              const triggersPayload = triggerList.map((t) => ({
-                event: t.eventName,
-                value: t.value,
-                relation: t.relation
-              }))
-              const actionsPayload = actionList.map((a) => ({
-                event: a.eventName,
-                value: a.value,
-                reason: a.reason
-              }))
-
-              const currentRule = {
-                id: editingRuleId,
-                enabled: true,
-                name: values.name || '',
-                studentNames,
-                triggers: triggersPayload,
-                actions: actionsPayload
-              }
-
-              return JSON.stringify(currentRule, null, 2)
-            } else {
-              return JSON.stringify(rules, null, 2)
-            }
-          })()}
-          language={'json'}
         />
       </Card>
     </div>

@@ -64,6 +64,12 @@ export class AutoScoreService extends Service {
     return await (window as any).api.invoke('auto-score:toggleRule', { ruleId, enabled })
   }
 
+  async sortRules(
+    ruleIds: number[]
+  ): Promise<{ success: boolean; data?: boolean; message?: string }> {
+    return await (window as any).api.invoke('auto-score:sortRules', ruleIds)
+  }
+
   async getStatus(): Promise<{ success: boolean; data?: { enabled: boolean }; message?: string }> {
     return await (window as any).api.invoke('auto-score:getStatus', {})
   }

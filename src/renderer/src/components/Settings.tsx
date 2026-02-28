@@ -62,18 +62,6 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   const [settleDialogVisible, setSettleDialogVisible] = useState(false)
 
   const [urlRegisterLoading, setUrlRegisterLoading] = useState(false)
-
-  // HTTP Server状态
-  const [httpServerStatus, setHttpServerStatus] = useState<{
-    isRunning: boolean
-    config: { port: number; host: string; corsOrigin?: string }
-    url: string | null
-  } | null>(null)
-  const [httpLoading, setHttpLoading] = useState(false)
-  const [httpPort, setHttpPort] = useState('3000')
-  const [httpHost, setHttpHost] = useState('localhost')
-  const [httpCorsOrigin, setHttpCorsOrigin] = useState('*')
-
   const canAdmin = permission === 'admin'
 
   const permissionTag = useMemo(() => {
@@ -103,7 +91,6 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
 
   useEffect(() => {
     loadAll()
-    refreshHttpServerStatus()
     if (!(window as any).api) return
     const unsubscribe = (window as any).api.onSettingChanged((change: any) => {
       setSettings((prev) => {
@@ -261,71 +248,6 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     setSettleDialogVisible(true)
   }
 
-  // HTTP Server函数
-  const refreshHttpServerStatus = async () => {
-    if (!(window as any).api) return
-    try {
-      const res = await (window as any).api.httpServerStatus()
-      if (res.success && res.data) {
-        setHttpServerStatus(res.data)
-        setHttpPort(res.data.config.port.toString())
-        setHttpHost(res.data.config.host)
-        setHttpCorsOrigin(res.data.config.corsOrigin || '*')
-      }
-    } catch (error) {
-      console.error('Failed to refresh HTTP server status:', error)
-    }
-  }
-
-  const handleHttpServerStart = async () => {
-    if (!(window as any).api) return
-    setHttpLoading(true)
-    try {
-      const config: any = {}
-      const portNum = parseInt(httpPort)
-      if (!isNaN(portNum) && portNum > 0 && portNum <= 65535) {
-        config.port = portNum
-      }
-      if (httpHost.trim()) {
-        config.host = httpHost.trim()
-      }
-      if (httpCorsOrigin.trim()) {
-        config.corsOrigin = httpCorsOrigin.trim()
-      }
-
-      const res = await (window as any).api.httpServerStart(config)
-      if (res.success) {
-        MessagePlugin.success(`HTTP服务器已启动: ${res.data.url}`)
-        await refreshHttpServerStatus()
-      } else {
-        MessagePlugin.error(res.message || '启动失败')
-      }
-    } catch (error) {
-      MessagePlugin.error('启动HTTP服务器时发生错误')
-      console.error(error)
-    } finally {
-      setHttpLoading(false)
-    }
-  }
-
-  const handleHttpServerStop = async () => {
-    if (!(window as any).api) return
-    setHttpLoading(true)
-    try {
-      const res = await (window as any).api.httpServerStop()
-      if (res.success) {
-        MessagePlugin.success('HTTP服务器已停止')
-        await refreshHttpServerStatus()
-      } else {
-        MessagePlugin.error(res.message || '停止失败')
-      }
-    } catch (error) {
-      MessagePlugin.error('停止HTTP服务器时发生错误')
-      console.error(error)
-    } finally {
-      setHttpLoading(false)
-    }
-  }
   const currentYear = new Date().getFullYear()
   return (
     <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
@@ -613,115 +535,6 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                     清空日志
                   </Button>
                 </Space>
-              </Form.FormItem>
-            </Form>
-          </Card>
-        </Tabs.TabPanel>
-
-        <Tabs.TabPanel value="http" label="HTTP服务器">
-          <Card style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}>
-            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
-              HTTP服务器 API
-            </div>
-            <Divider />
-            <div
-              style={{
-                marginBottom: '12px',
-                fontSize: '13px',
-                color: 'var(--ss-text-secondary)'
-              }}
-            >
-              通过HTTP API提供学生分数查询服务，可在局域网内访问。
-            </div>
-
-            <Form labelWidth={120}>
-              <Form.FormItem label="服务器状态">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Tag theme={httpServerStatus?.isRunning ? 'success' : 'default'} variant="light">
-                    {httpServerStatus?.isRunning ? '运行中' : '已停止'}
-                  </Tag>
-                  {httpServerStatus?.isRunning && (
-                    <div style={{ fontSize: '12px', color: 'var(--ss-text-secondary)' }}>
-                      访问地址: {httpServerStatus.url}
-                    </div>
-                  )}
-                </div>
-              </Form.FormItem>
-
-              <Form.FormItem label="端口设置">
-                <Input
-                  value={httpPort}
-                  onChange={(v) => setHttpPort(v)}
-                  placeholder="端口号 (默认: 3000)"
-                  style={{ width: '200px' }}
-                  disabled={!canAdmin || httpLoading}
-                />
-              </Form.FormItem>
-
-              <Form.FormItem label="主机地址">
-                <Input
-                  value={httpHost}
-                  onChange={(v) => setHttpHost(v)}
-                  placeholder="主机地址 (默认: localhost)"
-                  style={{ width: '200px' }}
-                  disabled={!canAdmin || httpLoading}
-                />
-              </Form.FormItem>
-
-              <Form.FormItem label="CORS来源">
-                <Input
-                  value={httpCorsOrigin}
-                  onChange={(v) => setHttpCorsOrigin(v)}
-                  placeholder="CORS来源 (默认: *)"
-                  style={{ width: '200px' }}
-                  disabled={!canAdmin || httpLoading}
-                />
-                <div
-                  style={{ marginTop: '4px', fontSize: '12px', color: 'var(--ss-text-secondary)' }}
-                >
-                  * 表示允许所有来源，建议在生产环境中设置具体域名
-                </div>
-              </Form.FormItem>
-
-              <Form.FormItem label="操作">
-                <Space>
-                  <Button
-                    theme="primary"
-                    loading={httpLoading}
-                    disabled={!canAdmin}
-                    onClick={handleHttpServerStart}
-                  >
-                    {httpServerStatus?.isRunning ? '重启服务器' : '启动服务器'}
-                  </Button>
-                  <Button
-                    theme="danger"
-                    variant="outline"
-                    loading={httpLoading}
-                    disabled={!canAdmin || !httpServerStatus?.isRunning}
-                    onClick={handleHttpServerStop}
-                  >
-                    停止服务器
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={!canAdmin || httpLoading}
-                    onClick={refreshHttpServerStatus}
-                  >
-                    刷新状态
-                  </Button>
-                </Space>
-              </Form.FormItem>
-
-              <Form.FormItem label="API端点">
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px' }}
-                >
-                  <div>• GET /health - 健康检查</div>
-                  <div>• GET /api/students/scores - 获取所有学生分数</div>
-                  <div>• GET /api/students/:id/score - 获取单个学生分数</div>
-                  <div>• GET /api/students/search?name=姓名 - 按姓名搜索</div>
-                  <div>• GET /api/leaderboard?limit=10 - 获取排行榜</div>
-                </div>
               </Form.FormItem>
             </Form>
           </Card>

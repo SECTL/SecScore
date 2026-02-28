@@ -17,7 +17,6 @@ export {
   WindowManagerToken,
   TrayServiceToken,
   AutoScoreServiceToken,
-  HttpServerServiceToken,
   FileSystemServiceToken
 } from './tokens'
 export type {

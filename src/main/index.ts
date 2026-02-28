@@ -13,7 +13,6 @@ import { PermissionService } from './services/PermissionService'
 import { AuthService } from './services/AuthService'
 import { DataService } from './services/DataService'
 import { ThemeService } from './services/ThemeService'
-import { HttpServerService } from './services/HttpServerService'
 import { WindowManager, type windowManagerOptions } from './services/WindowManager'
 import { TrayService } from './services/TrayService'
 import { AutoScoreService } from './services/AutoScoreService'
@@ -40,7 +39,6 @@ import {
   WindowManagerToken,
   TrayServiceToken,
   AutoScoreServiceToken,
-  HttpServerServiceToken,
   FileSystemServiceToken
 } from './hosting'
 
@@ -274,10 +272,6 @@ app.whenReady().then(async () => {
         (p) => new FileSystemService(p.get(MainContext), config.configDir)
       )
       services.addSingleton(AutoScoreServiceToken, (p) => new AutoScoreService(p.get(MainContext)))
-      services.addSingleton(
-        HttpServerServiceToken,
-        (p) => new HttpServerService(p.get(MainContext))
-      )
     })
     .configure(async (_builderContext, appCtx) => {
       const services = appCtx.services
@@ -303,7 +297,6 @@ app.whenReady().then(async () => {
         const tray = services.get(TrayServiceToken) as TrayService
         tray.initialize()
       }
-      services.get(HttpServerServiceToken)
       services.get(FileSystemServiceToken)
       const autoScore = services.get(AutoScoreServiceToken) as AutoScoreService
       await autoScore.initialize?.()
