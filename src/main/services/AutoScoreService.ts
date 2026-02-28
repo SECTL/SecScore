@@ -619,6 +619,25 @@ export class AutoScoreService extends Service {
     return true
   }
 
+  async sortRules(ruleIds: number[]): Promise<boolean> {
+    const ruleMap = new Map(this.rules.map((r) => [r.id, r]))
+    const sortedRules: AutoScoreRule[] = []
+    for (const id of ruleIds) {
+      const rule = ruleMap.get(id)
+      if (rule) {
+        sortedRules.push(rule)
+      }
+    }
+    for (const rule of this.rules) {
+      if (!ruleIds.includes(rule.id)) {
+        sortedRules.push(rule)
+      }
+    }
+    this.rules = sortedRules
+    await this.saveRulesToFile()
+    return true
+  }
+
   getRules(): AutoScoreRule[] {
     return [...this.rules]
   }

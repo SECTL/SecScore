@@ -31,7 +31,6 @@
     "mica-electron": "^1.5.16",
     "os": "^0.1.2",
     "pinyin-pro": "^3.27.0",
-    "prismjs": "^1.30.0",
     "react-router-dom": "^6.28.0",
     "reflect-metadata": "^0.2.2",
     "tdesign-react": "^1.16.3",
