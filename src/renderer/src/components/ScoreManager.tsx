@@ -14,6 +14,7 @@ import {
   Popconfirm
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useTranslation } from 'react-i18next'
 import { UndoOutlined } from '@ant-design/icons'
 import { match } from 'pinyin-pro'
 
@@ -79,6 +80,7 @@ interface scoreEvent {
 }
 
 export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+  const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [events, setEvents] = useState<scoreEvent[]>([])
@@ -133,7 +135,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleSubmit = async () => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     const values = form.getFieldsValue(true) as any
@@ -142,7 +144,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       ? values.student_name
       : [values.student_name]
     if (!studentNames || studentNames.length === 0 || !values.reason_content) {
-      messageApi.warning('请填写完整信息')
+      messageApi.warning(t('score.pleaseEnterInfo'))
       return
     }
 
@@ -153,7 +155,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     const selectedReason = Number.isFinite(reasonId) ? reasons.find((r) => r.id === reasonId) : null
 
     if (!hasDeltaInput && !selectedReason) {
-      messageApi.warning('请填写分值或选择预设理由')
+      messageApi.warning(t('score.pleaseEnterPoints'))
       return
     }
 
@@ -178,7 +180,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       }
 
       if (successCount === studentNames.length) {
-        messageApi.success(`已为 ${successCount} 名学生提交积分`)
+        messageApi.success(t('score.batchSuccess', { count: successCount }))
         form.setFieldsValue({
           student_name: [],
           delta: undefined,
@@ -189,7 +191,9 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         fetchData()
         emitDataUpdated('events')
       } else {
-        messageApi.warning(`成功提交 ${successCount}/${studentNames.length} 名学生的积分`)
+        messageApi.warning(
+          t('score.batchPartial', { success: successCount, total: studentNames.length })
+        )
         fetchData()
         emitDataUpdated('events')
       }
@@ -201,23 +205,23 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleUndo = async (uuid: string) => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     const res = await (window as any).api.deleteEvent(uuid)
     if (res.success) {
-      messageApi.success('已撤销操作')
+      messageApi.success(t('score.undoSuccess'))
       fetchData()
       emitDataUpdated('events')
     } else {
-      messageApi.error(res.message || '撤销失败')
+      messageApi.error(res.message || t('score.undoFailed'))
     }
   }
 
   const columns: ColumnsType<scoreEvent> = [
-    { title: '学生', dataIndex: 'student_name', key: 'student_name', width: 100 },
+    { title: t('score.student'), dataIndex: 'student_name', key: 'student_name', width: 100 },
     {
-      title: '变动',
+      title: t('score.change'),
       dataIndex: 'delta',
       key: 'delta',
       width: 80,
@@ -225,25 +229,27 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         <Tag color={delta > 0 ? 'success' : 'error'}>{delta > 0 ? `+${delta}` : delta}</Tag>
       )
     },
-    { title: '理由', dataIndex: 'reason_content', key: 'reason_content', ellipsis: true },
     {
-      title: '时间',
+      title: t('score.reason'),
+      dataIndex: 'reason_content',
+      key: 'reason_content',
+      ellipsis: true
+    },
+    {
+      title: t('score.time'),
       dataIndex: 'event_time',
       key: 'event_time',
       width: 160,
       render: (time: string) => new Date(time).toLocaleString()
     },
     {
-      title: '操作',
+      title: t('common.operation'),
       key: 'operation',
       width: 80,
       render: (_, row) => (
-        <Popconfirm
-          title="确定要撤销这条记录吗？学生积分将回滚。"
-          onConfirm={() => handleUndo(row.uuid)}
-        >
+        <Popconfirm title={t('score.undoConfirm')} onConfirm={() => handleUndo(row.uuid)}>
           <Button type="link" danger disabled={!canEdit} icon={<UndoOutlined />}>
-            撤销
+            {t('score.undo')}
           </Button>
         </Popconfirm>
       )
@@ -253,38 +259,38 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   return (
     <div style={{ padding: '24px' }}>
       {contextHolder}
-      <h2 style={{ marginBottom: '24px', color: 'var(--ss-text-main)' }}>积分管理</h2>
+      <h2 style={{ marginBottom: '24px', color: 'var(--ss-text-main)' }}>{t('score.title')}</h2>
 
       <Card style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}>
         <Form form={form} layout="vertical" initialValues={{ type: 'add' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            <Form.Item label="姓名" name="student_name">
+            <Form.Item label={t('score.student')} name="student_name">
               <Select
                 mode="multiple"
                 showSearch
-                placeholder="请选择或搜索学生"
+                placeholder={t('score.pleaseSelectStudent')}
                 filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
                 options={students.map((s) => ({ label: s.name, value: s.name }))}
               />
             </Form.Item>
 
-            <Form.Item label="分数">
+            <Form.Item label={t('score.points')}>
               <Space>
                 <Form.Item name="type" noStyle>
                   <Radio.Group optionType="button" buttonStyle="solid">
-                    <Radio.Button value="add">加分</Radio.Button>
-                    <Radio.Button value="subtract">扣分</Radio.Button>
+                    <Radio.Button value="add">{t('score.addPoints')}</Radio.Button>
+                    <Radio.Button value="subtract">{t('score.deductPoints')}</Radio.Button>
                   </Radio.Group>
                 </Form.Item>
                 <Form.Item name="delta" noStyle>
-                  <InputNumber min={1} placeholder="分值" style={{ width: '120px' }} />
+                  <InputNumber min={1} placeholder={t('score.points')} style={{ width: '120px' }} />
                 </Form.Item>
               </Space>
             </Form.Item>
 
-            <Form.Item label="快捷理由" name="reason_id">
+            <Form.Item label={t('score.quickReason')} name="reason_id">
               <Select
-                placeholder="选择预设理由"
+                placeholder={t('score.selectReason')}
                 onChange={(v) => {
                   const id = Number(v)
                   if (!Number.isFinite(id)) return
@@ -315,8 +321,8 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               />
             </Form.Item>
 
-            <Form.Item label="理由内容" name="reason_content">
-              <Input placeholder="手动输入或选择快捷理由" />
+            <Form.Item label={t('score.reasonContent')} name="reason_content">
+              <Input placeholder={t('score.reasonPlaceholder')} />
             </Form.Item>
           </div>
 
@@ -329,14 +335,14 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               loading={submitLoading}
               style={{ width: '200px' }}
             >
-              确认提交
+              {t('score.submit')}
             </Button>
           </div>
         </Form>
       </Card>
 
       <Card style={{ backgroundColor: 'var(--ss-card-bg)' }}>
-        <div style={{ fontWeight: 600, marginBottom: 16 }}>最近记录</div>
+        <div style={{ fontWeight: 600, marginBottom: 16 }}>{t('score.recentRecords')}</div>
         <Table
           dataSource={events}
           columns={columns}

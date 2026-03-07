@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react'
 import { Layout, Space, Button, Tag } from 'antd'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 const Home = lazy(() => import('./Home').then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() =>
@@ -34,11 +35,16 @@ export function ContentArea({
   onAuthClick,
   onLogout
 }: ContentAreaProps): React.JSX.Element {
+  const { t } = useTranslation()
   const permissionTag = (
     <Tag
       color={permission === 'admin' ? 'success' : permission === 'points' ? 'warning' : 'default'}
     >
-      {permission === 'admin' ? '管理权限' : permission === 'points' ? '积分权限' : '只读'}
+      {permission === 'admin'
+        ? t('permissions.admin')
+        : permission === 'points'
+          ? t('permissions.points')
+          : t('permissions.view')}
     </Tag>
   )
 
@@ -79,10 +85,10 @@ export function ContentArea({
             {hasAnyPassword && (
               <>
                 <Button size="small" onClick={onAuthClick}>
-                  输入密码
+                  {t('auth.enterPassword')}
                 </Button>
                 <Button size="small" danger onClick={onLogout}>
-                  锁定
+                  {t('auth.lock')}
                 </Button>
               </>
             )}

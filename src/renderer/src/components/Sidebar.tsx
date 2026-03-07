@@ -11,6 +11,7 @@ import {
   UploadOutlined
 } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import appLogo from '../assets/logoHD.svg'
 
 const { Sider } = Layout
@@ -28,6 +29,7 @@ interface DbStatus {
 }
 
 export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps): React.JSX.Element {
+  const { t } = useTranslation()
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: 'sqlite', connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -78,17 +80,17 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
 
     const statusRes = await (window as any).api.dbGetStatus()
     if (!statusRes.success || !statusRes.data) {
-      messageApi.error('获取数据库状态失败')
+      messageApi.error(t('sidebar.getDbStatusFailed'))
       return
     }
 
     if (statusRes.data.type !== 'postgresql') {
-      messageApi.error('当前不是远程数据库模式，请重启应用后重试')
+      messageApi.error(t('sidebar.notRemoteMode'))
       return
     }
 
     if (!statusRes.data.connected) {
-      messageApi.error('数据库未连接')
+      messageApi.error(t('sidebar.dbNotConnected'))
       return
     }
 
@@ -96,12 +98,12 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
     try {
       const res = await (window as any).api.dbSync()
       if (res.success && res.data?.success) {
-        messageApi.success('同步成功')
+        messageApi.success(t('sidebar.syncSuccess'))
       } else {
-        messageApi.error(res.data?.message || res.message || '同步失败')
+        messageApi.error(res.data?.message || res.message || t('sidebar.syncFailed'))
       }
     } catch (e: any) {
-      messageApi.error(e?.message || '同步失败')
+      messageApi.error(e?.message || t('sidebar.syncFailed'))
     } finally {
       setForceSyncLoading(false)
     }
@@ -111,44 +113,44 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
     {
       key: 'home',
       icon: <HomeOutlined />,
-      label: '主页'
+      label: t('sidebar.home')
     },
     {
       key: 'students',
       icon: <UserOutlined />,
-      label: '学生管理',
+      label: t('sidebar.students'),
       disabled: permission !== 'admin'
     },
     {
       key: 'score',
       icon: <HistoryOutlined />,
-      label: '积分管理'
+      label: t('sidebar.score')
     },
     {
       key: 'auto-score',
       icon: <SyncOutlined />,
-      label: '自动加分'
+      label: t('sidebar.autoScore')
     },
     {
       key: 'leaderboard',
       icon: <UnorderedListOutlined />,
-      label: '排行榜'
+      label: t('sidebar.leaderboard')
     },
     {
       key: 'settlements',
       icon: <FileTextOutlined />,
-      label: '结算历史'
+      label: t('sidebar.settlements')
     },
     {
       key: 'reasons',
       icon: <UnorderedListOutlined />,
-      label: '理由管理',
+      label: t('sidebar.reasons'),
       disabled: permission !== 'admin'
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '系统设置',
+      label: t('sidebar.settings'),
       disabled: permission !== 'admin'
     }
   ]
@@ -198,7 +200,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
             marginTop: '4px'
           }}
         >
-          教育积分管理
+          {t('settings.about.appName')}
         </div>
       </div>
 
@@ -231,13 +233,15 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Space size={4}>
                 <CloudOutlined style={{ fontSize: '12px', color: '#1890ff' }} />
-                <span style={{ fontSize: '12px', fontWeight: 500 }}>远程数据库</span>
+                <span style={{ fontSize: '12px', fontWeight: 500 }}>{t('sidebar.remoteDb')}</span>
               </Space>
               <Tag
                 color={dbStatus.connected ? 'success' : 'error'}
                 style={{ margin: 0, fontSize: '10px' }}
               >
-                {dbStatus.connected ? '已连接' : '未连接'}
+                {dbStatus.connected
+                  ? t('settings.database.connected')
+                  : t('settings.database.disconnected')}
               </Tag>
             </div>
             <Button
@@ -254,7 +258,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
                 color: 'var(--ss-text-secondary)'
               }}
             >
-              刷新状态
+              {t('sidebar.refreshStatus')}
             </Button>
             <Button
               type="primary"
@@ -270,7 +274,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
                 padding: '0 8px'
               }}
             >
-              立即同步
+              {t('sidebar.syncNow')}
             </Button>
           </Space>
         </Card>

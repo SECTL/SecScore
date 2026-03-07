@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Popconfirm } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useTranslation } from 'react-i18next'
 
 interface reason {
   id: number
@@ -11,6 +12,7 @@ interface reason {
 }
 
 export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+  const { t } = useTranslation()
   const [data, setData] = useState<reason[]>([])
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -49,15 +51,15 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleAdd = async () => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     const values = await form.validateFields()
     const content = values.content?.trim()
-    const category = values.category?.trim() || '其他'
+    const category = values.category?.trim() || t('reasons.others')
 
     if (data.some((r) => r.content === content && r.category === category)) {
-      messageApi.warning('该分类下已存在相同理由')
+      messageApi.warning(t('reasons.reasonExists'))
       return
     }
 
@@ -68,43 +70,43 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       delta: Number(values.delta)
     })
     if (res.success) {
-      messageApi.success('添加成功')
+      messageApi.success(t('reasons.addSuccess'))
       setVisible(false)
       form.resetFields()
       fetchReasons()
       emitDataUpdated('reasons')
     } else {
-      messageApi.error(res.message || '添加失败')
+      messageApi.error(res.message || t('reasons.addFailed'))
     }
   }
 
   const handleDelete = async (id: number) => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     const res = await (window as any).api.deleteReason(id)
     if (res.success) {
-      messageApi.success('删除成功')
+      messageApi.success(t('reasons.deleteSuccess'))
       fetchReasons()
       emitDataUpdated('reasons')
     } else {
-      messageApi.error(res.message || '删除失败')
+      messageApi.error(res.message || t('reasons.deleteFailed'))
     }
   }
 
   const columns: ColumnsType<reason> = [
     {
-      title: '分类',
+      title: t('reasons.category'),
       dataIndex: 'category',
       key: 'category',
       width: 120,
       render: (category: string) => <Tag>{category}</Tag>
     },
-    { title: '理由内容', dataIndex: 'content', key: 'content', width: 250 },
+    { title: t('reasons.content'), dataIndex: 'content', key: 'content', width: 250 },
     {
-      title: '预设分值',
+      title: t('reasons.presetPoints'),
       dataIndex: 'delta',
       key: 'delta',
       width: 100,
@@ -120,17 +122,17 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       )
     },
     {
-      title: '操作',
+      title: t('common.operation'),
       key: 'operation',
       width: 150,
       render: (_, row) => (
         <Popconfirm
-          title="确认删除该理由？"
+          title={t('reasons.deleteConfirm')}
           onConfirm={() => handleDelete(row.id)}
           disabled={!canEdit}
         >
           <Button type="link" danger disabled={!canEdit}>
-            删除
+            {t('common.delete')}
           </Button>
         </Popconfirm>
       )
@@ -141,9 +143,9 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     <div style={{ padding: '24px' }}>
       {contextHolder}
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>理由管理</h2>
+        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>{t('reasons.title')}</h2>
         <Button type="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
-          添加预设理由
+          {t('reasons.addReason')}
         </Button>
       </div>
 
@@ -158,31 +160,35 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       />
 
       <Modal
-        title="添加理由"
+        title={t('reasons.addTitle')}
         open={visible}
         onOk={handleAdd}
         onCancel={() => setVisible(false)}
-        okText="添加"
-        cancelText="取消"
+        okText={t('reasons.addConfirm')}
+        cancelText={t('common.cancel')}
         destroyOnHidden
       >
         <Form form={form} layout="horizontal" labelCol={{ span: 6 }} wrapperCol={{ span: 18 }}>
-          <Form.Item label="分类" name="category" initialValue="其他">
-            <Input placeholder="例如: 学习, 纪律" />
+          <Form.Item
+            label={t('reasons.category')}
+            name="category"
+            initialValue={t('reasons.others')}
+          >
+            <Input placeholder={t('reasons.categoryPlaceholder')} />
           </Form.Item>
           <Form.Item
-            label="理由内容"
+            label={t('reasons.content')}
             name="content"
-            rules={[{ required: true, message: '请输入理由内容' }]}
+            rules={[{ required: true, message: t('reasons.contentRequired') }]}
           >
-            <Input placeholder="请输入理由" />
+            <Input placeholder={t('reasons.contentPlaceholder')} />
           </Form.Item>
           <Form.Item
-            label="预设分值"
+            label={t('reasons.presetPoints')}
             name="delta"
-            rules={[{ required: true, message: '请输入预设分值' }]}
+            rules={[{ required: true, message: t('reasons.pointsRequired') }]}
           >
-            <InputNumber placeholder="例如: 2 或 -2" style={{ width: '100%' }} />
+            <InputNumber placeholder={t('reasons.pointsPlaceholder')} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

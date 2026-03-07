@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Table, Button, Space, message, Modal, Form, Input, Tag, Pagination } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useTranslation } from 'react-i18next'
 import { TagEditorDialog } from './TagEditorDialog'
 
 const createXlsxWorker = () => {
@@ -18,6 +19,7 @@ interface student {
 }
 
 export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+  const { t } = useTranslation()
   const [data, setData] = useState<student[]>([])
   const [loading, setLoading] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -105,31 +107,31 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleAdd = async () => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     try {
       const values = await form.validateFields()
       if (!values.name) {
-        messageApi.warning('请输入姓名')
+        messageApi.warning(t('students.nameRequired'))
         return
       }
 
       const name = values.name.trim()
       if (data.some((s) => s.name === name)) {
-        messageApi.warning('学生姓名已存在')
+        messageApi.warning(t('students.nameExists'))
         return
       }
 
       const res = await (window as any).api.createStudent({ ...values, name })
       if (res.success) {
-        messageApi.success('添加成功')
+        messageApi.success(t('students.addSuccess'))
         setVisible(false)
         form.resetFields()
         fetchStudents()
         emitDataUpdated('students')
       } else {
-        messageApi.error(res.message || '添加失败')
+        messageApi.error(res.message || t('students.addFailed'))
       }
     } catch (err) {
       try {
@@ -149,22 +151,22 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleDelete = async (id: number) => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     const res = await (window as any).api.deleteStudent(id)
     if (res.success) {
-      messageApi.success('删除成功')
+      messageApi.success(t('students.deleteSuccess'))
       fetchStudents()
       emitDataUpdated('students')
     } else {
-      messageApi.error(res.message || '删除失败')
+      messageApi.error(res.message || t('students.deleteFailed'))
     }
   }
 
   const handleOpenTagEditor = (student: student) => {
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     setEditingStudent(student)
@@ -183,12 +185,12 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         fetchStudents()
         emitDataUpdated('students')
       } else {
-        const errorMsg = res?.message || '保存标签失败'
+        const errorMsg = res?.message || t('students.tagSaveFailed')
         messageApi.error(errorMsg)
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      messageApi.error(`保存标签失败: ${errorMsg}`)
+      messageApi.error(`${t('students.tagSaveFailed')}: ${errorMsg}`)
     }
   }
 
@@ -205,7 +207,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const parseXlsxFile = async (file: File) => {
     if (!xlsxWorkerRef.current) {
-      messageApi.error('Worker 未初始化')
+      messageApi.error(t('students.workerNotReady'))
       return
     }
 
@@ -227,7 +229,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           setImportVisible(false)
           setXlsxLoading(false)
         } else if (event.data.type === 'error') {
-          messageApi.error(event.data.error || '解析 xlsx 失败')
+          messageApi.error(event.data.error || t('students.parseXlsxFailed'))
           setXlsxLoading(false)
         }
         xlsxWorkerRef.current?.removeEventListener('message', handleMessage)
@@ -235,7 +237,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
       xlsxWorkerRef.current.addEventListener('message', handleMessage)
     } catch (e: any) {
-      messageApi.error(e?.message || '解析 xlsx 失败')
+      messageApi.error(e?.message || t('students.parseXlsxFailed'))
       setXlsxLoading(false)
     }
   }
@@ -297,7 +299,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const extractNamesFromAoa = (aoa: any[][], colIdx: number) => {
     const out: string[] = []
     const seen = new Set<string>()
-    const banned = new Set(['姓名', 'name', '名字'])
+    const banned = new Set([t('students.name').toLowerCase(), 'name', t('students.name')])
     for (const row of aoa) {
       const raw = row?.[colIdx]
       const name = String(raw ?? '').trim()
@@ -313,17 +315,17 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const handleConfirmXlsxImport = async () => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     if (xlsxSelectedCol == null) {
-      messageApi.warning('请先点击选择"姓名列"')
+      messageApi.warning(t('students.selectNameColFirst'))
       return
     }
 
     const names = extractNamesFromAoa(xlsxAoa, xlsxSelectedCol)
     if (!names.length) {
-      messageApi.error('所选列未解析到可导入的姓名')
+      messageApi.error(t('students.noNamesFound'))
       return
     }
 
@@ -331,12 +333,12 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     try {
       const res = await (window as any).api.importStudentsFromXlsx({ names })
       if (!res?.success) {
-        messageApi.error(res?.message || '导入失败')
+        messageApi.error(res?.message || t('students.importFailed'))
         return
       }
       const inserted = Number(res?.data?.inserted ?? 0)
       const skipped = Number(res?.data?.skipped ?? 0)
-      messageApi.success(`导入完成：新增 ${inserted}，跳过 ${skipped}`)
+      messageApi.success(t('students.importComplete', { inserted, skipped }))
       setXlsxVisible(false)
       setXlsxAoa([])
       setXlsxFileName('')
@@ -349,9 +351,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const columns: ColumnsType<student> = [
-    { title: '姓名', dataIndex: 'name', key: 'name', width: 100 },
+    { title: t('students.name'), dataIndex: 'name', key: 'name', width: 100 },
     {
-      title: '当前积分',
+      title: t('students.currentScore'),
       dataIndex: 'score',
       key: 'score',
       width: 160,
@@ -373,14 +375,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       )
     },
     {
-      title: '标签',
+      title: t('students.tags'),
       dataIndex: 'tags',
       key: 'tags',
       width: 200,
       render: (tags: string[] = []) => (
         <Space>
           {tags.length === 0 ? (
-            <span style={{ color: 'var(--ss-text-secondary)' }}>无标签</span>
+            <span style={{ color: 'var(--ss-text-secondary)' }}>{t('students.noTags')}</span>
           ) : (
             tags.slice(0, 3).map((tag) => (
               <Tag key={tag} color="blue">
@@ -393,16 +395,16 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       )
     },
     {
-      title: '操作',
+      title: t('common.operation'),
       key: 'operation',
       width: 150,
       render: (_, row) => (
         <Space>
           <Button type="link" disabled={!canEdit} onClick={() => handleOpenTagEditor(row)}>
-            编辑标签
+            {t('students.editTags')}
           </Button>
           <Button type="link" danger disabled={!canEdit} onClick={() => handleDelete(row.id)}>
-            删除
+            {t('common.delete')}
           </Button>
         </Space>
       )
@@ -415,13 +417,13 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     <div style={{ padding: '24px' }}>
       {contextHolder}
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
-        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>学生管理</h2>
+        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>{t('students.title')}</h2>
         <Space>
           <Button disabled={!canEdit} onClick={() => setImportVisible(true)}>
-            导入名单
+            {t('students.importList')}
           </Button>
           <Button type="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
-            添加学生
+            {t('students.addStudent')}
           </Button>
         </Space>
       </div>
@@ -444,34 +446,38 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             setPageSize(size)
           }}
           showSizeChanger
-          showTotal={(total) => `共 ${total} 条`}
+          showTotal={(total) => t('common.total', { count: total })}
         />
       </div>
 
       <Modal
-        title="添加学生"
+        title={t('students.addTitle')}
         open={visible}
         onOk={handleAdd}
         onCancel={() => setVisible(false)}
-        okText="添加"
-        cancelText="取消"
+        okText={t('students.addConfirm')}
+        cancelText={t('common.cancel')}
         destroyOnHidden
       >
         <Form form={form} layout="vertical">
-          <Form.Item label="姓名" name="name" rules={[{ required: true, message: '请输入姓名' }]}>
-            <Input placeholder="请输入学生姓名" />
+          <Form.Item
+            label={t('students.name')}
+            name="name"
+            rules={[{ required: true, message: t('students.nameRequired') }]}
+          >
+            <Input placeholder={t('students.namePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title="导入名单"
+        title={t('students.importTitle')}
         open={importVisible}
         onCancel={() => setImportVisible(false)}
         footer={null}
         destroyOnHidden
       >
-        <Space orientation="vertical" style={{ width: '100%' }}>
+        <Space direction="vertical" style={{ width: '100%' }}>
           <Button
             loading={xlsxLoading}
             disabled={!canEdit}
@@ -479,7 +485,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               xlsxInputRef.current?.click()
             }}
           >
-            通过 xlsx 导入
+            {t('students.importByXlsx')}
           </Button>
           <input
             ref={xlsxInputRef}
@@ -496,21 +502,25 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       </Modal>
 
       <Modal
-        title="xlsx 预览与导入"
+        title={t('students.xlsxPreview')}
         open={xlsxVisible}
         onCancel={() => setXlsxVisible(false)}
         onOk={handleConfirmXlsxImport}
-        okText="导入"
+        okText={t('students.importConfirm')}
         okButtonProps={{ loading: xlsxLoading, disabled: xlsxSelectedCol == null }}
         width="80%"
         destroyOnHidden
       >
         <div style={{ marginBottom: '12px', color: 'var(--ss-text-secondary)', fontSize: '12px' }}>
-          <div>文件：{xlsxFileName || '-'}</div>
           <div>
-            点击表头选择姓名列：{xlsxSelectedCol == null ? '-' : excelColName(xlsxSelectedCol)}
+            {t('students.file')}
+            {xlsxFileName || '-'}
           </div>
-          <div>预览前 50 行</div>
+          <div>
+            {t('students.selectNameCol')}
+            {xlsxSelectedCol == null ? '-' : excelColName(xlsxSelectedCol)}
+          </div>
+          <div>{t('students.previewRows')}</div>
         </div>
         <Table
           dataSource={xlsxPreviewRows}
@@ -531,7 +541,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         }}
         onConfirm={handleSaveTags}
         initialTagIds={editingStudent?.tagIds || []}
-        title={`编辑标签 - ${editingStudent?.name || ''}`}
+        title={t('students.editTagTitle', { name: editingStudent?.name || '' })}
       />
     </div>
   )

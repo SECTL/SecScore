@@ -1,12 +1,14 @@
 import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { HashRouter, useLocation, useNavigate, Routes, Route } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Sidebar } from './components/Sidebar'
 import { ContentArea } from './components/ContentArea'
-import { Wizard } from './components/Wizard'
+import { OOBE } from './components/OOBE'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 
 function MainContent(): React.JSX.Element {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const { currentTheme } = useTheme()
@@ -80,9 +82,9 @@ function MainContent(): React.JSX.Element {
       setPermission(res.data.permission)
       setAuthVisible(false)
       setAuthPassword('')
-      messageApi.success('权限已解锁')
+      messageApi.success(t('auth.unlocked'))
     } else {
-      messageApi.error(res.message || '密码错误')
+      messageApi.error(res.message || t('common.error'))
     }
   }
 
@@ -91,7 +93,7 @@ function MainContent(): React.JSX.Element {
     const res = await (window as any).api.authLogout()
     if (res?.success && res.data) {
       setPermission(res.data.permission)
-      messageApi.success('已切换为只读')
+      messageApi.success(t('auth.logout'))
     }
   }
 
@@ -129,25 +131,25 @@ function MainContent(): React.JSX.Element {
           onLogout={logout}
         />
 
-        <Wizard visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
+        <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 
         <Modal
-          title="权限解锁"
+          title={t('auth.unlock')}
           open={authVisible}
           onCancel={() => setAuthVisible(false)}
           onOk={login}
           confirmLoading={authLoading}
-          okText="解锁"
-          cancelText="取消"
+          okText={t('auth.unlockButton')}
+          cancelText={t('common.cancel')}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ color: 'var(--ss-text-secondary)', fontSize: '12px' }}>
-              输入 6 位数字密码：管理密码=全功能，积分密码=仅积分操作。
+              {t('auth.unlockHint')}
             </div>
             <Input
               value={authPassword}
               onChange={(e) => setAuthPassword(e.target.value)}
-              placeholder="例如 123456"
+              placeholder={t('auth.passwordPlaceholder')}
               maxLength={6}
             />
           </div>

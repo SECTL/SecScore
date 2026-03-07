@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, ColorPicker, Input, Segmented, Space, Typography, message } from 'antd'
 import type { Color } from 'antd/es/color-picker'
+import { useTranslation } from 'react-i18next'
 import { useTheme } from '../contexts/ThemeContext'
 import type { themeConfig } from '../../../preload/types'
 
@@ -22,31 +23,31 @@ const presetPrimaryColors = [
 
 const presetGradients: {
   id: string
-  label: string
+  labelKey: string
   light: string
   dark: string
 }[] = [
   {
     id: 'blue',
-    label: '清爽蓝',
+    labelKey: 'blue',
     light: 'linear-gradient(180deg, #f7fbff 0%, #f1f7ff 55%, #f8f9fc 100%)',
     dark: 'linear-gradient(180deg, #0f1220 0%, #101524 55%, #0b0d16 100%)'
   },
   {
     id: 'pink',
-    label: '柔和粉',
+    labelKey: 'pink',
     light: 'linear-gradient(180deg, #fff7f1 0%, #fff1f1 55%, #f7f7fb 100%)',
     dark: 'linear-gradient(180deg, #1a0f14 0%, #1d1218 55%, #120c10 100%)'
   },
   {
     id: 'cyan',
-    label: '青蓝',
+    labelKey: 'cyan',
     light: 'linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 55%, #f0f9ff 100%)',
     dark: 'linear-gradient(180deg, #050b10 0%, #06121a 55%, #05070a 100%)'
   },
   {
     id: 'purple',
-    label: '紫韵',
+    labelKey: 'purple',
     light: 'linear-gradient(180deg, #faf5ff 0%, #f3e8ff 55%, #faf5ff 100%)',
     dark: 'linear-gradient(180deg, #0f0a14 0%, #151020 55%, #0d0910 100%)'
   }
@@ -68,6 +69,7 @@ const buildGradient = (a: string, b: string, dir: 'v' | 'h' | 'd'): string => {
 }
 
 export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
+  const { t } = useTranslation()
   const { currentTheme, setTheme, themes, applyTheme } = useTheme()
   const [messageApi, holder] = message.useMessage()
 
@@ -92,12 +94,12 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
     const editable =
       base.id === 'custom-default' || base.id.startsWith('custom-')
         ? base
-        : { ...base, id: 'custom-default', name: '我的主题' }
+        : { ...base, id: 'custom-default', name: t('theme.myTheme') }
     setWorkingTheme(editable)
     setPrimaryInput(editable.config?.tdesign?.brandColor || '')
   }, [currentTheme])
 
-  // 实时预览主题变化
+  // Real-time theme preview
   useEffect(() => {
     if (!workingTheme) return
     applyTheme(workingTheme)
@@ -116,14 +118,22 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
     return true
   }
 
-  const patchThemeConfig = (type: 'tdesign' | 'custom', key: string, value: string) => {
-    setWorkingTheme((prev) => {
-      if (!prev) return prev
-      const next = deepClone(prev)
-      next.config = next.config || ({} as any)
-      next.config[type] = { ...(next.config[type] || {}), [key]: value }
-      return next
-    })
+  const saveThemeToDb = async (theme: themeConfig) => {
+    if (!(window as any).api) return false
+    try {
+      const exists = themes.some((t) => t.id === theme.id)
+      if (!exists) {
+        const res = await (window as any).api.saveTheme(theme)
+        if (!res?.success) return false
+      }
+      if (currentTheme?.id !== theme.id) {
+        await setTheme(theme.id)
+      }
+      const res = await (window as any).api.saveTheme(theme)
+      return res?.success
+    } catch {
+      return false
+    }
   }
 
   const save = async () => {
@@ -135,30 +145,50 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
       if (!ok) throw new Error('保存失败')
       const res = await (window as any).api.saveTheme(workingTheme)
       if (!res?.success) throw new Error(res?.message || '保存失败')
-      messageApi.success('已保存')
+      messageApi.success(t('theme.saved'))
     } catch (e: any) {
-      messageApi.error(e?.message || '保存失败')
+      messageApi.error(e?.message || t('theme.saveFailed'))
     } finally {
       setSaving(false)
     }
   }
 
-  const setPrimary = (hex: string) => {
+  const setPrimary = async (hex: string) => {
     setPrimaryInput(hex)
-    patchThemeConfig('tdesign', 'brandColor', hex)
+    setWorkingTheme((prev) => {
+      if (!prev) return prev
+      const next = deepClone(prev)
+      next.config = next.config || ({} as any)
+      next.config.tdesign = { ...(next.config.tdesign || {}), brandColor: hex }
+      saveThemeToDb(next)
+      return next
+    })
   }
 
-  const setGradientPreset = (value: string) => {
-    patchThemeConfig('custom', '--ss-bg-color', value)
+  const setGradientPreset = async (value: string) => {
+    setWorkingTheme((prev) => {
+      if (!prev) return prev
+      const next = deepClone(prev)
+      next.config = next.config || ({} as any)
+      next.config.custom = { ...(next.config.custom || {}), '--ss-bg-color': value }
+      saveThemeToDb(next)
+      return next
+    })
   }
 
-  const setGradientFromPickers = () => {
+  const setGradientFromPickers = async () => {
     const g = buildGradient(g1, g2, gradientDir)
-    patchThemeConfig('custom', '--ss-bg-color', g)
+    setWorkingTheme((prev) => {
+      if (!prev) return prev
+      const next = deepClone(prev)
+      next.config = next.config || ({} as any)
+      next.config.custom = { ...(next.config.custom || {}), '--ss-bg-color': g }
+      saveThemeToDb(next)
+      return next
+    })
   }
 
   const setMode = async (mode: 'light' | 'dark') => {
-    // 根据模式切换到对应的内置主题
     const targetThemeId = mode === 'light' ? 'light-default' : 'dark-default'
     await setTheme(targetThemeId)
   }
@@ -170,28 +200,28 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
       {holder}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography.Text strong>颜色与背景</Typography.Text>
+        <Typography.Text strong>{t('theme.colorAndBackground')}</Typography.Text>
         <Space>
           <Button type="primary" loading={saving} onClick={save}>
-            保存
+            {t('common.save')}
           </Button>
         </Space>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Typography.Text>模式</Typography.Text>
+        <Typography.Text>{t('theme.mode')}</Typography.Text>
         <Segmented
           value={workingTheme.mode}
           onChange={(v) => setMode(v as any)}
           options={[
-            { label: '浅色', value: 'light' },
-            { label: '深色', value: 'dark' }
+            { label: t('settings.lightMode'), value: 'light' },
+            { label: t('settings.darkMode'), value: 'dark' }
           ]}
         />
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Typography.Text>主色</Typography.Text>
+        <Typography.Text>{t('settings.primaryColor')}</Typography.Text>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <Input
             value={primaryInput}
@@ -228,7 +258,7 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Typography.Text>背景渐变</Typography.Text>
+        <Typography.Text>{t('settings.backgroundGradient')}</Typography.Text>
         <div
           style={{
             display: 'grid',
@@ -264,7 +294,7 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
                   }}
                 />
                 <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ss-text-secondary)' }}>
-                  {g.label}
+                  {t(`theme.gradientLabels.${g.labelKey}`)}
                 </div>
               </button>
             )
@@ -276,15 +306,15 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
             value={gradientDir}
             onChange={(v) => setGradientDir(v as any)}
             options={[
-              { label: '纵向', value: 'v' },
-              { label: '横向', value: 'h' },
-              { label: '对角', value: 'd' }
+              { label: t('theme.gradientDirections.vertical'), value: 'v' },
+              { label: t('theme.gradientDirections.horizontal'), value: 'h' },
+              { label: t('theme.gradientDirections.diagonal'), value: 'd' }
             ]}
           />
           <Space size="small">
             <ColorPicker value={g1} onChange={(c: Color) => setG1(c.toHexString())} />
             <ColorPicker value={g2} onChange={(c: Color) => setG2(c.toHexString())} />
-            <Button onClick={setGradientFromPickers}>生成</Button>
+            <Button onClick={setGradientFromPickers}>{t('theme.generate')}</Button>
           </Space>
           <div
             style={{

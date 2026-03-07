@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Card, Space, Button, Tag, Input, Select, Modal, message, InputNumber, Divider } from 'antd'
 import { SearchOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useTranslation } from 'react-i18next'
 import { match, pinyin } from 'pinyin-pro'
 
 interface student {
@@ -21,6 +22,7 @@ interface reason {
 type SortType = 'alphabet' | 'surname' | 'score'
 
 export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+  const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [loading, setLoading] = useState(false)
@@ -164,13 +166,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const groupedReasons = useMemo(() => {
     const groups: Record<string, reason[]> = {}
     reasons.forEach((r) => {
-      const cat = r.category || '其他'
+      const cat = r.category || t('home.category.others')
       if (!groups[cat]) groups[cat] = []
       groups[cat].push(r)
     })
     return Object.entries(groups).sort(([a], [b]) => {
-      if (a === '其他') return 1
-      if (b === '其他') return -1
+      if (a === t('home.category.others')) return 1
+      if (b === t('home.category.others')) return -1
       return a.localeCompare(b, 'zh-CN')
     })
   }, [reasons])
@@ -205,7 +207,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const openOperation = (student: student) => {
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
     setSelectedStudent(student)
@@ -217,7 +219,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const performSubmit = async (student: student, delta: number, content: string) => {
     if (!(window as any).api) return
     if (!canEdit) {
-      messageApi.error('当前为只读权限')
+      messageApi.error(t('common.readOnly'))
       return
     }
 
@@ -229,7 +231,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     })
 
     if (res.success) {
-      messageApi.success(`已为 ${student.name} ${delta > 0 ? '加' : '扣'}${Math.abs(delta)}分`)
+      messageApi.success(
+        delta > 0
+          ? t('home.scoreAdded', { name: student.name, points: Math.abs(delta) })
+          : t('home.scoreDeducted', { name: student.name, points: Math.abs(delta) })
+      )
       setOperationVisible(false)
 
       setStudents((prev) =>
@@ -238,7 +244,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
       emitDataUpdated('events')
     } else {
-      messageApi.error(res.message || '提交失败')
+      messageApi.error(res.message || t('home.submitFailed'))
     }
     setSubmitLoading(false)
   }
@@ -248,11 +254,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     const delta = customScore
     if (delta === undefined || !Number.isFinite(delta)) {
-      messageApi.warning('请选择或输入分值')
+      messageApi.warning(t('home.pleaseSelectPoints'))
       return
     }
 
-    const content = reasonContent || (delta > 0 ? '加分' : delta < 0 ? '扣分' : '积分变更')
+    const content =
+      reasonContent ||
+      (delta > 0
+        ? t('home.addPoints')
+        : delta < 0
+          ? t('home.deductPoints')
+          : t('home.pointsChange'))
     await performSubmit(selectedStudent, delta, content)
   }
 
@@ -374,7 +386,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <span
               style={{ fontSize: '12px', color: 'var(--ss-text-secondary)', fontWeight: 'normal' }}
             >
-              ({group.students.length} 人)
+              ({t('home.studentCount', { count: group.students.length })})
             </span>
           </div>
         )}
@@ -524,10 +536,10 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       >
         <div>
           <h2 style={{ margin: 0, color: 'var(--ss-text-main)', fontSize: '24px' }}>
-            学生积分主页
+            {t('home.title')}
           </h2>
           <p style={{ margin: '4px 0 0', color: 'var(--ss-text-secondary)', fontSize: '13px' }}>
-            共 {students.length} 名学生，点击卡片进行积分操作
+            {t('home.subtitle', { count: students.length })}
           </p>
         </div>
 
@@ -535,7 +547,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <Input
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
-            placeholder="搜索姓名/拼音..."
+            placeholder={t('home.searchPlaceholder')}
             prefix={<SearchOutlined />}
             allowClear
             style={{ width: '220px' }}
@@ -546,9 +558,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             onChange={(v) => setSortType(v as SortType)}
             style={{ width: '140px' }}
             options={[
-              { value: 'alphabet', label: '姓名排序' },
-              { value: 'surname', label: '姓氏分组' },
-              { value: 'score', label: '积分排行' }
+              { value: 'alphabet', label: t('home.sortBy.alphabet') },
+              { value: 'surname', label: t('home.sortBy.surname') },
+              { value: 'score', label: t('home.sortBy.score') }
             ]}
           />
         </Space>
@@ -559,7 +571,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <div style={{ minHeight: '400px' }} ref={scrollContainerRef}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '100px 0' }}>
-            <div style={{ color: 'var(--ss-text-secondary)' }}>加载中...</div>
+            <div style={{ color: 'var(--ss-text-secondary)' }}>{t('common.loading')}</div>
           </div>
         ) : sortedStudents.length === 0 ? (
           <div
@@ -572,11 +584,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             }}
           >
             <div style={{ fontSize: '16px', color: 'var(--ss-text-secondary)' }}>
-              {searchKeyword ? '未找到匹配的学生' : '暂无学生数据，请前往学生管理添加'}
+              {searchKeyword ? t('home.noMatch') : t('home.noStudents')}
             </div>
             {searchKeyword && (
               <Button type="link" onClick={() => setSearchKeyword('')} style={{ marginTop: '8px' }}>
-                清除搜索
+                {t('home.clearSearch')}
               </Button>
             )}
           </div>
@@ -586,13 +598,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       </div>
 
       <Modal
-        title={`积分操作：${selectedStudent?.name}`}
+        title={t('home.operationTitle', { name: selectedStudent?.name })}
         open={operationVisible}
         onCancel={() => setOperationVisible(false)}
         onOk={handleSubmit}
         confirmLoading={submitLoading}
-        okText="提交操作"
-        cancelText="取消"
+        okText={t('home.submitOperation')}
+        cancelText={t('common.cancel')}
         width={560}
         destroyOnHidden
       >
@@ -629,7 +641,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: 'var(--ss-text-secondary)', fontSize: '13px' }}>
-                  当前积分：
+                  {t('home.currentScore')}：
                 </span>
                 <Tag
                   color={
@@ -656,7 +668,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     gap: '8px'
                   }}
                 >
-                  <span style={{ fontWeight: 600, fontSize: '14px' }}>快捷选项</span>
+                  <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                    {t('home.quickOptions')}
+                  </span>
                   <Divider style={{ flex: 1, margin: 0 }} />
                 </div>
                 <div
@@ -724,7 +738,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <div
                 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <span style={{ fontWeight: 600, fontSize: '14px' }}>调整分值</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{t('home.adjustPoints')}</span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
@@ -752,10 +766,10 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   max={99}
                   step={1}
                   style={{ width: '140px' }}
-                  placeholder="自定义分值"
+                  placeholder={t('home.customPoints')}
                 />
                 <span style={{ fontSize: '13px', color: 'var(--ss-text-secondary)' }}>
-                  可在输入框微调特输入任意分值
+                  {t('home.customPointsHint')}
                 </span>
               </div>
             </div>
@@ -764,13 +778,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <div
                 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <span style={{ fontWeight: 600, fontSize: '14px' }}>操作理由</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{t('home.reason')}</span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
               <Input
                 value={reasonContent}
                 onChange={(e) => setReasonContent(e.target.value)}
-                placeholder="输入加分/扣分的原因（可选）"
+                placeholder={t('home.reasonPlaceholder')}
                 suffix={
                   reasonContent ? (
                     <DeleteOutlined
@@ -805,7 +819,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     color: 'var(--ss-text-main)'
                   }}
                 >
-                  变更预览：
+                  {t('home.preview')}：
                 </div>
                 <div style={{ fontSize: '15px' }}>
                   {selectedStudent.name}{' '}
@@ -822,9 +836,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   >
                     {customScore > 0 ? `+${customScore}` : customScore}
                   </span>{' '}
-                  分
+                  {t('home.points')}
                   <span style={{ color: 'var(--ss-text-secondary)', marginLeft: '8px' }}>
-                    {reasonContent ? `理由：${reasonContent}` : '（无理由）'}
+                    {reasonContent
+                      ? `${t('home.reasonLabel')}${reasonContent}`
+                      : t('home.noReason')}
                   </span>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button, Card, message, Space, Table } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useTranslation } from 'react-i18next'
 
 interface settlementSummary {
   id: number
@@ -15,6 +16,7 @@ interface settlementLeaderboardRow {
 }
 
 export const SettlementHistory: React.FC = () => {
+  const { t } = useTranslation()
   const [settlements, setSettlements] = useState<settlementSummary[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -40,7 +42,7 @@ export const SettlementHistory: React.FC = () => {
     try {
       const res = await (window as any).api.querySettlements()
       if (!res.success) {
-        messageApi.error(res.message || '查询失败')
+        messageApi.error(res.message || t('settlements.queryFailed'))
         return
       }
       setSettlements(res.data || [])
@@ -71,7 +73,7 @@ export const SettlementHistory: React.FC = () => {
     try {
       const res = await (window as any).api.querySettlementLeaderboard({ settlement_id: id })
       if (!res.success || !res.data) {
-        messageApi.error(res.message || '查询失败')
+        messageApi.error(res.message || t('settlements.queryFailed'))
         return
       }
       setSelectedSettlement(res.data.settlement)
@@ -86,15 +88,15 @@ export const SettlementHistory: React.FC = () => {
   const columns: ColumnsType<settlementLeaderboardRow> = useMemo(
     () => [
       {
-        title: '排名',
+        title: t('settlements.rank'),
         key: 'rank',
         width: 70,
         align: 'center',
         render: (_, __, index) => <span style={{ fontWeight: 'bold' }}>{index + 1}</span>
       },
-      { title: '姓名', dataIndex: 'name', key: 'name', width: 160 },
+      { title: t('settlements.name'), dataIndex: 'name', key: 'name', width: 160 },
       {
-        title: '阶段积分',
+        title: t('settlements.phaseScore'),
         dataIndex: 'score',
         key: 'score',
         width: 120,
@@ -116,9 +118,11 @@ export const SettlementHistory: React.FC = () => {
               setRows([])
             }}
           >
-            返回
+            {t('settlements.back')}
           </Button>
-          <div style={{ color: 'var(--ss-text-main)', fontWeight: 700 }}>结算排行榜</div>
+          <div style={{ color: 'var(--ss-text-main)', fontWeight: 700 }}>
+            {t('settlements.leaderboardTitle')}
+          </div>
           <div style={{ color: 'var(--ss-text-secondary)', fontSize: '12px' }}>
             {formatRange(selectedSettlement)}
           </div>
@@ -142,7 +146,9 @@ export const SettlementHistory: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       {contextHolder}
-      <h2 style={{ marginBottom: '16px', color: 'var(--ss-text-main)' }}>结算历史</h2>
+      <h2 style={{ marginBottom: '16px', color: 'var(--ss-text-main)' }}>
+        {t('settlements.title')}
+      </h2>
       <div
         style={{
           display: 'grid',
@@ -155,7 +161,9 @@ export const SettlementHistory: React.FC = () => {
             key={s.id}
             style={{ backgroundColor: 'var(--ss-card-bg)', color: 'var(--ss-text-main)' }}
           >
-            <div style={{ fontWeight: 700, marginBottom: '8px' }}>阶段 #{s.id}</div>
+            <div style={{ fontWeight: 700, marginBottom: '8px' }}>
+              {t('settlements.phase', { id: s.id })}
+            </div>
             <div
               style={{ fontSize: '12px', color: 'var(--ss-text-secondary)', marginBottom: '12px' }}
             >
@@ -163,17 +171,19 @@ export const SettlementHistory: React.FC = () => {
             </div>
             <Space>
               <Button type="primary" onClick={() => openSettlement(s.id)}>
-                查看排行榜
+                {t('settlements.viewLeaderboard')}
               </Button>
               <div style={{ fontSize: '12px', color: 'var(--ss-text-secondary)' }}>
-                记录数: {s.event_count}
+                {t('settlements.recordCount', { count: s.event_count })}
               </div>
             </Space>
           </Card>
         ))}
       </div>
       {!loading && settlements.length === 0 && (
-        <div style={{ marginTop: '16px', color: 'var(--ss-text-secondary)' }}>暂无结算记录</div>
+        <div style={{ marginTop: '16px', color: 'var(--ss-text-secondary)' }}>
+          {t('settlements.noSettlements')}
+        </div>
       )}
     </div>
   )

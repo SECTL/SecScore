@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Table, Tag, Button, Select, Space, Card, message, Modal } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { useTranslation } from 'react-i18next'
 import { EyeOutlined, DownloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 
@@ -12,6 +13,7 @@ interface studentRank {
 }
 
 export const Leaderboard: React.FC = () => {
+  const { t } = useTranslation()
   const [data, setData] = useState<studentRank[]>([])
   const [loading, setLoading] = useState(false)
   const [timeRange, setTimeRange] = useState('today')
@@ -58,7 +60,7 @@ export const Leaderboard: React.FC = () => {
       startTime
     })
     if (!res.success) {
-      messageApi.error(res.message || '查询失败')
+      messageApi.error(res.message || t('leaderboard.queryFailed'))
       return
     }
 
@@ -68,14 +70,19 @@ export const Leaderboard: React.FC = () => {
       return `${time}  ${delta}  ${e.reason_content}`
     })
 
-    setHistoryHeader(`${studentName} - 操作记录`)
-    setHistoryText(lines.join('\n') || '暂无记录')
+    setHistoryHeader(t('leaderboard.historyTitle', { name: studentName }))
+    setHistoryText(lines.join('\n') || t('common.noData'))
     setHistoryVisible(true)
   }
 
   const handleExport = () => {
     setTimeout(() => {
-      const title = timeRange === 'today' ? '今天' : timeRange === 'week' ? '本周' : '本月'
+      const title =
+        timeRange === 'today'
+          ? t('leaderboard.today')
+          : timeRange === 'week'
+            ? t('leaderboard.week')
+            : t('leaderboard.month')
 
       const sanitizeCell = (v: unknown) => {
         if (typeof v !== 'string') return v
@@ -84,7 +91,12 @@ export const Leaderboard: React.FC = () => {
       }
 
       const sheetData = [
-        ['排名', '姓名', '总积分', `${title}变化`],
+        [
+          t('leaderboard.rank'),
+          t('leaderboard.name'),
+          t('leaderboard.totalScore'),
+          `${title}${t('leaderboard.change')}`
+        ],
         ...data.map((item, index) => [
           index + 1,
           sanitizeCell(item.name),
@@ -97,7 +109,7 @@ export const Leaderboard: React.FC = () => {
       ws['!cols'] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
 
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '排行榜')
+      XLSX.utils.book_append_sheet(wb, ws, t('leaderboard.title'))
 
       const xlsxBytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([xlsxBytes], {
@@ -109,20 +121,20 @@ export const Leaderboard: React.FC = () => {
       link.setAttribute('href', url)
       link.setAttribute(
         'download',
-        `排行榜_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
+        `${t('leaderboard.title')}_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
       )
       link.style.visibility = 'hidden'
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-      messageApi.success('导出成功')
+      messageApi.success(t('leaderboard.exportSuccess'))
     }, 0)
   }
 
   const columns: ColumnsType<studentRank> = [
     {
-      title: '排名',
+      title: t('leaderboard.rank'),
       key: 'rank',
       width: 70,
       align: 'center',
@@ -139,9 +151,9 @@ export const Leaderboard: React.FC = () => {
         )
       }
     },
-    { title: '姓名', dataIndex: 'name', key: 'name', width: 120, align: 'center' },
+    { title: t('leaderboard.name'), dataIndex: 'name', key: 'name', width: 120, align: 'center' },
     {
-      title: '总积分',
+      title: t('leaderboard.totalScore'),
       dataIndex: 'score',
       key: 'score',
       width: 100,
@@ -149,7 +161,12 @@ export const Leaderboard: React.FC = () => {
       render: (score: number) => <span style={{ fontWeight: 'bold' }}>{score}</span>
     },
     {
-      title: timeRange === 'today' ? '今日变化' : timeRange === 'week' ? '本周变化' : '本月变化',
+      title:
+        timeRange === 'today'
+          ? t('leaderboard.todayChange')
+          : timeRange === 'week'
+            ? t('leaderboard.weekChange')
+            : t('leaderboard.monthChange'),
       dataIndex: 'range_change',
       key: 'range_change',
       width: 100,
@@ -161,13 +178,13 @@ export const Leaderboard: React.FC = () => {
       )
     },
     {
-      title: '操作记录',
+      title: t('leaderboard.operationRecord'),
       key: 'operation',
       width: 100,
       align: 'center',
       render: (_, row) => (
         <Button type="link" icon={<EyeOutlined />} onClick={() => handleViewHistory(row.name)}>
-          查看
+          {t('leaderboard.viewHistory')}
         </Button>
       )
     }
@@ -184,20 +201,20 @@ export const Leaderboard: React.FC = () => {
           alignItems: 'center'
         }}
       >
-        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>积分排行榜</h2>
+        <h2 style={{ margin: 0, color: 'var(--ss-text-main)' }}>{t('leaderboard.title')}</h2>
         <Space>
           <Select
             value={timeRange}
             onChange={(v) => setTimeRange(v)}
             style={{ width: '120px' }}
             options={[
-              { value: 'today', label: '今天' },
-              { value: 'week', label: '本周' },
-              { value: 'month', label: '本月' }
+              { value: 'today', label: t('leaderboard.today') },
+              { value: 'week', label: t('leaderboard.week') },
+              { value: 'month', label: t('leaderboard.month') }
             ]}
           />
           <Button icon={<DownloadOutlined />} onClick={handleExport}>
-            导出 XLSX
+            {t('leaderboard.exportXlsx')}
           </Button>
         </Space>
       </div>
@@ -218,7 +235,7 @@ export const Leaderboard: React.FC = () => {
         title={historyHeader}
         open={historyVisible}
         onCancel={() => setHistoryVisible(false)}
-        footer={<Button onClick={() => setHistoryVisible(false)}>关闭</Button>}
+        footer={<Button onClick={() => setHistoryVisible(false)}>{t('common.close')}</Button>}
         width="80%"
       >
         <div

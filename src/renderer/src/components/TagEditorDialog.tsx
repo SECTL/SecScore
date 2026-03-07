@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Modal, Input, Button, Space, Tag, message } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 interface TagItem {
   id: number
@@ -19,8 +20,9 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
   onClose,
   onConfirm,
   initialTagIds = [],
-  title = '编辑标签'
+  title
 }) => {
+  const { t } = useTranslation()
   const [inputValue, setInputValue] = useState('')
   const [allTags, setAllTags] = useState<TagItem[]>([])
   const [selectedTagIds, setSelectedTagIds] = useState<Set<number>>(new Set(initialTagIds))
@@ -35,7 +37,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
       }
     } catch (e) {
       console.error('Failed to fetch tags:', e)
-      messageApi.error('获取标签列表失败')
+      messageApi.error(t('tags.fetchFailed'))
     }
   }
 
@@ -52,7 +54,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
     if (!trimmed) return
 
     if (trimmed.length > 30) {
-      messageApi.error('标签名称不能超过 30 个字符')
+      messageApi.error(t('tags.nameTooLong'))
       return
     }
 
@@ -72,11 +74,11 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
         setSelectedTagIds((prev) => new Set([...prev, res.data.id]))
         setInputValue('')
       } else {
-        messageApi.error(res.message || '添加标签失败')
+        messageApi.error(res.message || t('tags.addFailed'))
       }
     } catch (e) {
       console.error('Failed to create tag:', e)
-      messageApi.error('添加标签失败')
+      messageApi.error(t('tags.addFailed'))
     }
   }
 
@@ -102,13 +104,13 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
           newSet.delete(tagId)
           return newSet
         })
-        messageApi.success('标签删除成功')
+        messageApi.success(t('tags.deleteSuccess'))
       } else {
-        messageApi.error(res.message || '删除标签失败')
+        messageApi.error(res.message || t('tags.deleteFailed'))
       }
     } catch (e) {
       console.error('Failed to delete tag:', e)
-      messageApi.error('删除标签失败')
+      messageApi.error(t('tags.deleteFailed'))
     }
   }
 
@@ -122,12 +124,12 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
 
   return (
     <Modal
-      title={title}
+      title={title || t('tags.editTitle')}
       open={visible}
       onCancel={onClose}
       onOk={handleConfirm}
-      okText="保存"
-      cancelText="取消"
+      okText={t('common.save')}
+      cancelText={t('common.cancel')}
       destroyOnHidden
       width={500}
     >
@@ -135,20 +137,20 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
           <Input
-            placeholder="输入标签名称，按 Enter 添加"
+            placeholder={t('tags.inputPlaceholder')}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onPressEnter={handleAddTag}
             style={{ flex: 1 }}
           />
           <Button type="primary" onClick={handleAddTag} disabled={!inputValue.trim()}>
-            添加
+            {t('common.add')}
           </Button>
         </div>
 
         <div>
           <div style={{ fontSize: '14px', color: 'var(--ss-text-secondary)', marginBottom: '8px' }}>
-            已选标签（点击取消）
+            {t('tags.selectedTags')}
           </div>
           <div
             style={{
@@ -159,7 +161,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
             }}
           >
             {selectedTags.length === 0 ? (
-              <span style={{ color: 'var(--ss-text-secondary)' }}>未选择标签</span>
+              <span style={{ color: 'var(--ss-text-secondary)' }}>{t('tags.noTagsSelected')}</span>
             ) : (
               <Space wrap>
                 {selectedTags.map((tag) => (
@@ -180,7 +182,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
 
         <div>
           <div style={{ fontSize: '14px', color: 'var(--ss-text-secondary)', marginBottom: '8px' }}>
-            可选标签（点击选择）
+            {t('tags.availableTags')}
           </div>
           <div
             style={{
@@ -191,7 +193,7 @@ export const TagEditorDialog: React.FC<TagEditorDialogProps> = ({
             }}
           >
             {availableTags.length === 0 ? (
-              <span style={{ color: 'var(--ss-text-secondary)' }}>无可用标签</span>
+              <span style={{ color: 'var(--ss-text-secondary)' }}>{t('tags.noAvailableTags')}</span>
             ) : (
               <Space wrap>
                 {availableTags.map((tag) => (

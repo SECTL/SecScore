@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal, message, Typography } from 'antd'
+import { useTranslation } from 'react-i18next'
 import { ThemeQuickSettings } from './ThemeQuickSettings'
 
 interface wizardProps {
@@ -8,6 +9,7 @@ interface wizardProps {
 }
 
 export const Wizard: React.FC<wizardProps> = ({ visible, onComplete }) => {
+  const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -18,10 +20,10 @@ export const Wizard: React.FC<wizardProps> = ({ visible, onComplete }) => {
       const res = await (window as any).api.setSetting('is_wizard_completed', true)
       if (!res?.success) throw new Error(res?.message || 'failed')
 
-      messageApi.success('配置完成！')
+      messageApi.success(t('wizard.configComplete'))
       onComplete()
     } catch {
-      messageApi.error('配置保存失败')
+      messageApi.error(t('wizard.configFailed'))
     } finally {
       setLoading(false)
     }
@@ -29,12 +31,12 @@ export const Wizard: React.FC<wizardProps> = ({ visible, onComplete }) => {
 
   return (
     <Modal
-      title="欢迎使用 SecScore 积分管理"
+      title={t('wizard.welcomeTitle')}
       open={visible}
       onOk={handleFinish}
       onCancel={() => {}}
       confirmLoading={loading}
-      okText="开启积分之旅"
+      okText={t('wizard.startJourney')}
       cancelButtonProps={{ style: { display: 'none' } }}
       closable={false}
       mask={{ closable: false }}
@@ -43,7 +45,7 @@ export const Wizard: React.FC<wizardProps> = ({ visible, onComplete }) => {
     >
       {contextHolder}
       <Typography.Paragraph style={{ marginBottom: '24px', color: 'var(--ss-text-secondary)' }}>
-        感谢选择 SecScore。在开始之前，请花一分钟完成基础配置。
+        {t('wizard.welcomeDesc')}
       </Typography.Paragraph>
 
       <ThemeQuickSettings compact />
