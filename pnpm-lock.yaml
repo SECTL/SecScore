@@ -62,6 +62,9 @@ importers:
       json-rules-engine:
         specifier: ^7.3.1
         version: 7.3.1
+      math-intrinsics:
+        specifier: ^1.1.0
+        version: 1.1.0
       mica-electron:
         specifier: ^1.5.16
         version: 1.5.16

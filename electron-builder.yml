@@ -14,6 +14,28 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - from: node_modules/math-intrinsics
+    to: node_modules/math-intrinsics
+  - from: node_modules/get-intrinsic
+    to: node_modules/get-intrinsic
+  - from: node_modules/call-bind
+    to: node_modules/call-bind
+  - from: node_modules/call-bound
+    to: node_modules/call-bound
+  - from: node_modules/es-define-property
+    to: node_modules/es-define-property
+  - from: node_modules/es-errors
+    to: node_modules/es-errors
+  - from: node_modules/function-bind
+    to: node_modules/function-bind
+  - from: node_modules/has-proto
+    to: node_modules/has-proto
+  - from: node_modules/has-symbols
+    to: node_modules/has-symbols
+  - from: node_modules/hasown
+    to: node_modules/hasown
+  - from: node_modules/set-function-length
+    to: node_modules/set-function-length
 asarUnpack:
   - resources/**
 afterPack: ./scripts/afterPack.cjs
