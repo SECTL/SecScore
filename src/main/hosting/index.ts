@@ -16,8 +16,7 @@ export {
   ThemeServiceToken,
   WindowManagerToken,
   TrayServiceToken,
-  AutoScoreServiceToken,
-  FileSystemServiceToken
+  AutoScoreServiceToken
 } from './tokens'
 export type {
   appRuntimeContext,

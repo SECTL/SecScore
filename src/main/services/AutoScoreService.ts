@@ -11,29 +11,11 @@ interface AutoScoreRule extends RuleConfig {
   lastExecuted?: Date
 }
 
-interface AutoScoreRuleFileData {
-  id: number
-  enabled: boolean
-  name: string
-  studentNames: string[]
-  lastExecuted?: string
-  triggers?: Array<{ event: string; value?: string; relation?: 'AND' | 'OR' }>
-  actions?: Array<{ event: string; value?: string; reason?: string }>
-}
-
-interface AutoScoreRulesFile {
-  version: number
-  rules: AutoScoreRuleFileData[]
-  updatedAt?: string
-}
-
 declare module '../../shared/kernel' {
   interface Context {
     autoScore: AutoScoreService
   }
 }
-
-const RULES_FILE_NAME = 'auto-score-rules.json'
 
 export class AutoScoreService extends Service {
   private rules: AutoScoreRule[] = []
@@ -130,83 +112,7 @@ export class AutoScoreService extends Service {
   }
 
   private async loadRulesFromFile(): Promise<void> {
-    try {
-      const fs = this.mainCtx.fileSystem
-      if (!fs) {
-        this.logger.warn('FileSystemService not available, falling back to settings')
-        await this.loadRulesFromSettings()
-        return
-      }
-
-      const data = await fs.readJsonFile<AutoScoreRulesFile>(RULES_FILE_NAME, 'automatic')
-      if (data && data.rules) {
-        this.rules = data.rules.map((rule: any) => {
-          const migratedRule = this.migrateRule(rule)
-          return {
-            ...migratedRule,
-            lastExecuted: migratedRule.lastExecuted
-              ? new Date(migratedRule.lastExecuted)
-              : undefined
-          }
-        })
-        if (
-          data.rules.some(
-            (rule: any) => rule.intervalMinutes !== undefined || rule.scoreValue !== undefined
-          )
-        ) {
-          await this.saveRulesToFile()
-        }
-      } else {
-        await this.loadRulesFromSettings()
-        await this.saveRulesToFile()
-      }
-    } catch (error) {
-      this.logger.warn('Failed to load auto score rules from file, falling back to settings', {
-        error
-      })
-      await this.loadRulesFromSettings()
-    }
-  }
-
-  private migrateRule(rule: any): AutoScoreRule {
-    if (!rule.intervalMinutes && !rule.scoreValue) {
-      return rule
-    }
-
-    const migratedRule: AutoScoreRule = {
-      id: rule.id,
-      enabled: rule.enabled,
-      name: rule.name,
-      studentNames: rule.studentNames || [],
-      lastExecuted: rule.lastExecuted,
-      triggers: rule.triggers || [],
-      actions: rule.actions || []
-    }
-
-    if (
-      rule.intervalMinutes &&
-      !migratedRule.triggers?.find((t) => t.event === 'interval_time_passed')
-    ) {
-      migratedRule.triggers = migratedRule.triggers || []
-      migratedRule.triggers.push({
-        event: 'interval_time_passed',
-        value: String(rule.intervalMinutes)
-      })
-    }
-
-    if (
-      rule.scoreValue !== undefined &&
-      !migratedRule.actions?.find((a) => a.event === 'add_score')
-    ) {
-      migratedRule.actions = migratedRule.actions || []
-      migratedRule.actions.push({
-        event: 'add_score',
-        value: String(rule.scoreValue),
-        reason: rule.reason
-      })
-    }
-
-    return migratedRule
+    await this.loadRulesFromSettings()
   }
 
   private async loadRulesFromSettings() {
@@ -226,32 +132,7 @@ export class AutoScoreService extends Service {
   }
 
   private async saveRulesToFile(): Promise<void> {
-    try {
-      const fs = this.mainCtx.fileSystem
-      if (!fs) {
-        this.logger.warn('FileSystemService not available, falling back to settings')
-        await this.saveRulesToSettings()
-        return
-      }
-
-      const data: AutoScoreRulesFile = {
-        version: 1,
-        rules: this.rules.map(({ lastExecuted, ...rule }) => ({
-          ...rule,
-          lastExecuted: lastExecuted?.toISOString()
-        })),
-        updatedAt: new Date().toISOString()
-      }
-
-      const success = await fs.writeJsonFile(RULES_FILE_NAME, data, 'automatic')
-      if (!success) {
-        this.logger.warn('Failed to save rules to file, falling back to settings')
-        await this.saveRulesToSettings()
-      }
-    } catch (error) {
-      this.logger.error('Failed to save auto score rules to file:', { error })
-      await this.saveRulesToSettings()
-    }
+    await this.saveRulesToSettings()
   }
 
   private async saveRulesToSettings() {

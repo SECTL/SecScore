@@ -16,7 +16,6 @@ import { ThemeService } from './services/ThemeService'
 import { WindowManager, type windowManagerOptions } from './services/WindowManager'
 import { TrayService } from './services/TrayService'
 import { AutoScoreService } from './services/AutoScoreService'
-import { FileSystemService } from './services/FileSystemService'
 import { DbConnectionService } from './services/DbConnectionService'
 import { StudentRepository } from './repos/StudentRepository'
 import { ReasonRepository } from './repos/ReasonRepository'
@@ -39,8 +38,7 @@ import {
   ThemeServiceToken,
   WindowManagerToken,
   TrayServiceToken,
-  AutoScoreServiceToken,
-  FileSystemServiceToken
+  AutoScoreServiceToken
 } from './hosting'
 
 type mainAppConfig = {
@@ -267,10 +265,6 @@ app.whenReady().then(async () => {
         TrayServiceToken,
         (p) => new TrayService(p.get(MainContext), config.window)
       )
-      services.addSingleton(
-        FileSystemServiceToken,
-        (p) => new FileSystemService(p.get(MainContext), config.configDir)
-      )
       services.addSingleton(AutoScoreServiceToken, (p) => new AutoScoreService(p.get(MainContext)))
       services.addSingleton(DbConnectionService, (p) => new DbConnectionService(p.get(MainContext)))
     })
@@ -320,7 +314,6 @@ app.whenReady().then(async () => {
         const tray = services.get(TrayServiceToken) as TrayService
         tray.initialize()
       }
-      services.get(FileSystemServiceToken)
       const autoScore = services.get(AutoScoreServiceToken) as AutoScoreService
       await autoScore.initialize?.()
       services.get(DbConnectionService)
