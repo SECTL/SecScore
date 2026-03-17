@@ -9,6 +9,10 @@ export default defineConfig({
       "@": resolve(__dirname, "src"),
     },
   },
+  optimizeDeps: {
+    // Avoid scanning legacy `old-ss` entries under project root.
+    entries: ["index.html"],
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

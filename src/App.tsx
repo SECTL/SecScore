@@ -15,16 +15,34 @@ function MainContent(): React.JSX.Element {
   const [messageApi, contextHolder] = message.useMessage()
 
   useEffect(() => {
-    if (!(window as any).api) return
-    const unlisten = (window as any).api.onNavigate((route: string) => {
-      const currentPath = location.pathname === "/" ? "/home" : location.pathname
-      const targetPath = route === "/" ? "/home" : route
+    const api = (window as any).api
+    if (!api) return
 
-      if (currentPath !== targetPath) {
-        navigate(route)
-      }
-    })
-    return () => unlisten()
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onNavigate((route: string) => {
+        const currentPath = location.pathname === "/" ? "/home" : location.pathname
+        const targetPath = route === "/" ? "/home" : route
+
+        if (currentPath !== targetPath) {
+          navigate(route)
+        }
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
   }, [navigate, location.pathname])
 
   const [wizardVisible, setWizardVisible] = useState(false)

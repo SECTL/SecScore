@@ -6,15 +6,22 @@ node_modules
 # Build outputs
 dist
 dist-ssr
+out
 *.local
 
 # Tauri
 src-tauri/target
 src-tauri/Cargo.lock
 src-tauri/gen
+.cargo-local/
 
 # Database
 data.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
 
 # Logs
 logs

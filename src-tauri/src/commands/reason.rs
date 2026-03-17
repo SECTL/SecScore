@@ -1,5 +1,5 @@
 use parking_lot::RwLock;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryOrder, Set};
+use sea_orm::{ActiveModelTrait, EntityTrait, QueryOrder, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;

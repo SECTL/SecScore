@@ -173,6 +173,9 @@ const api = {
   windowMaximize: (): Promise<boolean> => invoke("window_maximize"),
   windowClose: (): Promise<void> => invoke("window_close"),
   windowIsMaximized: (): Promise<boolean> => invoke("window_is_maximized"),
+  toggleDevTools: (): Promise<void> => invoke("toggle_devtools"),
+  windowResize: (width: number, height: number): Promise<void> =>
+    invoke("window_resize", { width, height }),
   onWindowMaximizedChanged: (callback: (maximized: boolean) => void): Promise<UnlistenFn> => {
     return listen<boolean>("window:maximized-changed", (event) => {
       callback(event.payload)
@@ -185,15 +188,19 @@ const api = {
   },
 
   // Logger
-  queryLogs: (params?: { lines?: number }): Promise<{ success: boolean; data: string[] }> =>
-    invoke("log_query", { params }),
+  queryLogs: (
+    input?: number | { lines?: number }
+  ): Promise<{ success: boolean; data: string[] }> => {
+    const lines = typeof input === "number" ? input : input?.lines
+    return invoke("log_query", { lines })
+  },
   clearLogs: (): Promise<{ success: boolean }> => invoke("log_clear"),
   setLogLevel: (level: string): Promise<{ success: boolean }> => invoke("log_set_level", { level }),
   writeLog: (payload: {
     level: string
     message: string
     meta?: any
-  }): Promise<{ success: boolean }> => invoke("log_write", payload),
+  }): Promise<{ success: boolean }> => invoke("log_write", { payload }),
 
   // Database Connection
   dbTestConnection: (
@@ -291,6 +298,28 @@ const api = {
     ruleIds: number[]
   ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_sort_rules", { ruleIds }),
+
+  // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
+  invoke: async (channel: string, ...args: any[]): Promise<any> => {
+    switch (channel) {
+      case "auto-score:getRules":
+        return api.autoScoreGetRules()
+      case "auto-score:addRule":
+        return api.autoScoreAddRule(args[0])
+      case "auto-score:updateRule":
+        return api.autoScoreUpdateRule(args[0])
+      case "auto-score:deleteRule":
+        return api.autoScoreDeleteRule(args[0])
+      case "auto-score:toggleRule":
+        return api.autoScoreToggleRule(args[0])
+      case "auto-score:sortRules":
+        return api.autoScoreSortRules(args[0])
+      case "auto-score:getStatus":
+        return api.autoScoreGetStatus()
+      default:
+        throw new Error(`Unsupported legacy invoke channel: ${channel}`)
+    }
+  },
 }
 
 export default api

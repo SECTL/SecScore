@@ -7,6 +7,11 @@ import App from "./App"
 import { ClientContext } from "./ClientContext"
 import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
+import { api } from "./preload/types"
+
+if (!(window as any).api) {
+  ;(window as any).api = api
+}
 
 const ctx = new ClientContext()
 new StudentService(ctx)
@@ -19,7 +24,7 @@ const safeWriteLog = (payload: {
   try {
     const api = (window as any).api
     if (!api?.writeLog) return
-    api.writeLog(payload)
+    Promise.resolve(api.writeLog(payload)).catch(() => void 0)
   } catch {
     return
   }

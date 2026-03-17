@@ -29,7 +29,7 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-    let handle = app.handle();
+    let handle = app.handle().clone();
     let db_path = if cfg!(debug_assertions) {
         std::path::PathBuf::from("data.sql")
     } else {
@@ -52,7 +52,7 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         match create_sqlite_connection(&db_path_str).await {
             Ok(conn) => {
                 let state = handle.state::<crate::state::SafeAppState>();
-                let mut state_guard = state.write();
+                let state_guard = state.write();
                 let mut db_guard = state_guard.db.write();
                 *db_guard = Some(conn);
                 eprintln!("Database connected to: {}", db_path_str);

@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react"
 import { Layout, Space, Button, Tag, Spin } from "antd"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
+import { WindowControls } from "./WindowControls"
 
 const Home = lazy(() => import("./Home").then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() =>
@@ -67,6 +68,7 @@ export function ContentArea({
             background: "var(--ss-header-bg)",
             borderBottom: "1px solid var(--ss-border-color)",
             flexShrink: 0,
+            WebkitAppRegion: "drag",
           } as React.CSSProperties
         }
       >
@@ -76,7 +78,8 @@ export function ContentArea({
             {
               display: "flex",
               alignItems: "center",
-              paddingRight: "12px",
+              paddingRight: "8px",
+              WebkitAppRegion: "no-drag",
             } as React.CSSProperties
           }
         >
@@ -94,6 +97,7 @@ export function ContentArea({
             )}
           </Space>
         </div>
+        <WindowControls />
       </div>
 
       <Content style={{ flex: 1, overflowY: "auto" }}>

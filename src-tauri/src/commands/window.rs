@@ -4,8 +4,6 @@ use tauri::{AppHandle, Manager};
 
 use crate::state::AppState;
 
-use super::response::IpcResponse;
-
 #[tauri::command]
 pub async fn window_minimize(
     app: AppHandle,
