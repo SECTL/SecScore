@@ -39,15 +39,30 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
     const handleStatusChange = () => {
       loadDbStatus()
     }
-    if ((window as any).api) {
-      const unsubscribe = (window as any).api.onSettingChanged(
-        (change: { key: string; value: any }) => {
-          if (change.key === "pg_connection_status") {
-            handleStatusChange()
-          }
+    const api = (window as any).api
+    if (!api) return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onSettingChanged((change: { key: string; value: any }) => {
+        if (change.key === "pg_connection_status") {
+          handleStatusChange()
         }
-      )
-      return unsubscribe
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
     }
   }, [])
 

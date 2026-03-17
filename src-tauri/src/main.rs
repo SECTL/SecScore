@@ -9,9 +9,9 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            setup_app(app)?;
             let state = AppState::new(app.handle().clone());
             app.manage(Arc::new(RwLock::new(state)));
+            setup_app(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

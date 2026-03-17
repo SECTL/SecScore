@@ -24,7 +24,7 @@ const safeWriteLog = (payload: {
   try {
     const api = (window as any).api
     if (!api?.writeLog) return
-    api.writeLog(payload)
+    Promise.resolve(api.writeLog(payload)).catch(() => void 0)
   } catch {
     return
   }

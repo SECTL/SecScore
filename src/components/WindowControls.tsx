@@ -14,6 +14,7 @@ export function WindowControls(): React.JSX.Element {
     const api = (window as any).api
     if (!api) return
 
+    let disposed = false
     let unlisten: (() => void) | null = null
 
     api
@@ -26,11 +27,16 @@ export function WindowControls(): React.JSX.Element {
         setIsMaximized(maximized)
       })
       .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
         unlisten = fn
       })
       .catch(() => void 0)
 
     return () => {
+      disposed = true
       if (unlisten) unlisten()
     }
   }, [])

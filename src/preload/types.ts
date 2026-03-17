@@ -188,15 +188,19 @@ const api = {
   },
 
   // Logger
-  queryLogs: (params?: { lines?: number }): Promise<{ success: boolean; data: string[] }> =>
-    invoke("log_query", { params }),
+  queryLogs: (
+    input?: number | { lines?: number }
+  ): Promise<{ success: boolean; data: string[] }> => {
+    const lines = typeof input === "number" ? input : input?.lines
+    return invoke("log_query", { lines })
+  },
   clearLogs: (): Promise<{ success: boolean }> => invoke("log_clear"),
   setLogLevel: (level: string): Promise<{ success: boolean }> => invoke("log_set_level", { level }),
   writeLog: (payload: {
     level: string
     message: string
     meta?: any
-  }): Promise<{ success: boolean }> => invoke("log_write", payload),
+  }): Promise<{ success: boolean }> => invoke("log_write", { payload }),
 
   // Database Connection
   dbTestConnection: (

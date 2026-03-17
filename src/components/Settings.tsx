@@ -95,20 +95,36 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
 
   useEffect(() => {
     loadAll()
-    if (!(window as any).api) return
-    const unsubscribe = (window as any).api.onSettingChanged((change: any) => {
-      setSettings((prev) => {
-        if (change?.key === "log_level") return { ...prev, log_level: change.value }
-        if (change?.key === "is_wizard_completed")
-          return { ...prev, is_wizard_completed: change.value }
-        if (change?.key === "window_zoom") return { ...prev, window_zoom: change.value }
-        if (change?.key === "auto_score_enabled")
-          return { ...prev, auto_score_enabled: change.value }
-        return prev
+    const api = (window as any).api
+    if (!api) return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onSettingChanged((change: any) => {
+        setSettings((prev) => {
+          if (change?.key === "log_level") return { ...prev, log_level: change.value }
+          if (change?.key === "is_wizard_completed")
+            return { ...prev, is_wizard_completed: change.value }
+          if (change?.key === "window_zoom") return { ...prev, window_zoom: change.value }
+          if (change?.key === "auto_score_enabled")
+            return { ...prev, auto_score_enabled: change.value }
+          return prev
+        })
       })
-    })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
     return () => {
-      if (typeof unsubscribe === "function") unsubscribe()
+      disposed = true
+      if (unlisten) unlisten()
     }
   }, [])
 

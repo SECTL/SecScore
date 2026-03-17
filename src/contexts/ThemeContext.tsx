@@ -120,23 +120,36 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [applyThemeConfig])
 
   useEffect(() => {
-    if (!(window as any).api) return
+    const api = (window as any).api
+    if (!api) return
+
     ;(async () => {
       await loadThemes()
       await loadCurrentTheme()
     })()
 
-    const unsubscribe = (window as any).api.onThemeChanged((theme: themeConfig) => {
-      setCurrentTheme(theme)
-      currentThemeRef.current = theme
-      applyThemeConfig(theme)
-      loadThemes()
-    })
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onThemeChanged((theme: themeConfig) => {
+        setCurrentTheme(theme)
+        currentThemeRef.current = theme
+        applyThemeConfig(theme)
+        loadThemes()
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
 
     return () => {
-      if (typeof unsubscribe === "function") {
-        unsubscribe()
-      }
+      disposed = true
+      if (unlisten) unlisten()
     }
   }, [applyThemeConfig, loadCurrentTheme, loadThemes])
 
