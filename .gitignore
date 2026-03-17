@@ -6,6 +6,7 @@ node_modules
 # Build outputs
 dist
 dist-ssr
+out
 *.local
 
 # Tauri
@@ -15,6 +16,11 @@ src-tauri/gen
 
 # Database
 data.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
 
 # Logs
 logs
