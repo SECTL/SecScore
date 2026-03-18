@@ -1471,6 +1471,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     </div>
   )
 
+  const applyDrawerDragRegion = useCallback((open: boolean) => {
+    if (!open || typeof document === "undefined") return
+    requestAnimationFrame(() => {
+      const drawerRoot = document.querySelector(".ss-operation-drawer")
+      if (!drawerRoot) return
+
+      const dragTargets = drawerRoot.querySelectorAll(".ant-drawer-header, .ant-drawer-title")
+      dragTargets.forEach((el) => el.setAttribute("data-tauri-drag-region", "true"))
+
+      const noDragTargets = drawerRoot.querySelectorAll(".ant-drawer-close, button, input")
+      noDragTargets.forEach((el) => el.removeAttribute("data-tauri-drag-region"))
+    })
+  }, [])
+
   return (
     <div
       style={{
@@ -1629,12 +1643,15 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
       {isPortraitMode ? (
         <Drawer
-          title={t("home.operationTitle", { name: selectedStudent?.name })}
+          title={
+            <div data-tauri-drag-region>{t("home.operationTitle", { name: selectedStudent?.name })}</div>
+          }
           className="ss-operation-drawer"
           placement="bottom"
           height="100%"
           open={operationVisible}
           onClose={() => setOperationVisible(false)}
+          afterOpenChange={applyDrawerDragRegion}
           destroyOnClose
           styles={{
             body: { padding: "12px 16px 24px", overflowX: "hidden" },
