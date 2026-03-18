@@ -194,53 +194,51 @@ export function Sidebar({
 
   const renderSidebarBody = (isCollapsedView: boolean, hideMenu = false) => (
     <>
-      {!(isCollapsedView && floatingExpand && collapsed) && (
-        <div
-          data-tauri-drag-region
-          style={
-            {
-              padding: isCollapsedView ? "20px 8px 12px" : "24px 24px 16px",
-              textAlign: "center",
-              WebkitAppRegion: "drag",
-              userSelect: "none",
-              flexShrink: 0,
-            } as React.CSSProperties
-          }
-        >
-          <img
-            src={appLogo}
-            style={{
-              width: isCollapsedView ? "40px" : "48px",
-              height: isCollapsedView ? "40px" : "48px",
-              marginBottom: isCollapsedView ? "0" : "12px",
-            }}
-            alt="logo"
-          />
-          {!isCollapsedView && (
-            <>
-              <h2
-                style={{
-                  color: "var(--ss-sidebar-text, var(--ss-text-main))",
-                  margin: 0,
-                  fontSize: "20px",
-                }}
-              >
-                SecScore
-              </h2>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "var(--ss-sidebar-text, var(--ss-text-main))",
-                  opacity: 0.8,
-                  marginTop: "4px",
-                }}
-              >
-                {t("settings.about.appName")}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      <div
+        data-tauri-drag-region
+        style={
+          {
+            padding: isCollapsedView ? "20px 8px 12px" : "24px 24px 16px",
+            textAlign: "center",
+            WebkitAppRegion: "drag",
+            userSelect: "none",
+            flexShrink: 0,
+          } as React.CSSProperties
+        }
+      >
+        <img
+          src={appLogo}
+          style={{
+            width: isCollapsedView ? "40px" : "48px",
+            height: isCollapsedView ? "40px" : "48px",
+            marginBottom: isCollapsedView ? "0" : "12px",
+          }}
+          alt="logo"
+        />
+        {!isCollapsedView && (
+          <>
+            <h2
+              style={{
+                color: "var(--ss-sidebar-text, var(--ss-text-main))",
+                margin: 0,
+                fontSize: "20px",
+              }}
+            >
+              SecScore
+            </h2>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--ss-sidebar-text, var(--ss-text-main))",
+                opacity: 0.8,
+                marginTop: "4px",
+              }}
+            >
+              {t("settings.about.appName")}
+            </div>
+          </>
+        )}
+      </div>
 
       {!hideMenu && (
         <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
