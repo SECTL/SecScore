@@ -1,25 +1,42 @@
-import React, { Suspense, lazy } from "react"
+import React, { Suspense, lazy, useEffect } from "react"
 import { Layout, Space, Button, Tag, Spin } from "antd"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 
-const Home = lazy(() => import("./Home").then((m) => ({ default: m.Home })))
-const StudentManager = lazy(() =>
-  import("./StudentManager").then((m) => ({ default: m.StudentManager }))
-)
-const Settings = lazy(() => import("./Settings").then((m) => ({ default: m.Settings })))
-const ReasonManager = lazy(() =>
-  import("./ReasonManager").then((m) => ({ default: m.ReasonManager }))
-)
-const ScoreManager = lazy(() => import("./ScoreManager").then((m) => ({ default: m.ScoreManager })))
-const Leaderboard = lazy(() => import("./Leaderboard").then((m) => ({ default: m.Leaderboard })))
+const loadHome = () => import("./Home")
+const loadStudentManager = () => import("./StudentManager")
+const loadSettings = () => import("./Settings")
+const loadReasonManager = () => import("./ReasonManager")
+const loadScoreManager = () => import("./ScoreManager")
+const loadLeaderboard = () => import("./Leaderboard")
+const loadSettlementHistory = () => import("./SettlementHistory")
+const loadAutoScoreManager = () => import("./AutoScoreManager")
+
+const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
+const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
+const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })))
+const ReasonManager = lazy(() => loadReasonManager().then((m) => ({ default: m.ReasonManager })))
+const ScoreManager = lazy(() => loadScoreManager().then((m) => ({ default: m.ScoreManager })))
+const Leaderboard = lazy(() => loadLeaderboard().then((m) => ({ default: m.Leaderboard })))
 const SettlementHistory = lazy(() =>
-  import("./SettlementHistory").then((m) => ({ default: m.SettlementHistory }))
+  loadSettlementHistory().then((m) => ({ default: m.SettlementHistory }))
 )
 const AutoScoreManager = lazy(() =>
-  import("./AutoScoreManager").then((m) => ({ default: m.AutoScoreManager }))
+  loadAutoScoreManager().then((m) => ({ default: m.AutoScoreManager }))
 )
+
+const warmupRouteChunks = () =>
+  Promise.allSettled([
+    loadHome(),
+    loadStudentManager(),
+    loadSettings(),
+    loadReasonManager(),
+    loadScoreManager(),
+    loadLeaderboard(),
+    loadSettlementHistory(),
+    loadAutoScoreManager(),
+  ])
 
 const { Content } = Layout
 
@@ -37,6 +54,28 @@ export function ContentArea({
   onLogout,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const runWarmup = () => {
+      if (cancelled) return
+      warmupRouteChunks().catch(() => void 0)
+    }
+
+    if ("requestIdleCallback" in window) {
+      ;(window as any).requestIdleCallback(runWarmup, { timeout: 1500 })
+    } else {
+      timer = setTimeout(runWarmup, 300)
+    }
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [])
+
   const permissionTag = (
     <Tag
       color={permission === "admin" ? "success" : permission === "points" ? "warning" : "default"}
