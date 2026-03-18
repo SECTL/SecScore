@@ -908,8 +908,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 style={{
                   position: "absolute",
                   top: "calc(100% + 8px)",
-                  left: 0,
-                  width: searchKeyboardLayout === "qwerty26" ? "260px" : "220px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: searchKeyboardLayout === "qwerty26" ? "288px" : "220px",
                   padding: "8px",
                   borderRadius: "10px",
                   border: "1px solid var(--ss-border-color)",
@@ -926,7 +927,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                           style={{
                             display: "grid",
                             gridTemplateColumns: `repeat(${row.length}, 1fr)`,
-                            gap: "6px",
+                            gap: "7px",
                           }}
                         >
                           {row.map((keyItem) => (
@@ -934,7 +935,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                               key={keyItem}
                               size="small"
                               onClick={() => handleSearchKeyPress(keyItem)}
-                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                              style={{ height: "32px", fontSize: "12px", padding: 0 }}
                             >
                               {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
                             </Button>
