@@ -13,6 +13,7 @@ interface student {
   avatarUrl?: string | null
   pinyinName?: string
   pinyinFirst?: string
+  pinyinInitials?: string
 }
 
 interface reason {
@@ -103,6 +104,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         ...s,
         avatarUrl: getAvatarFromExtraJson(s.extra_json),
         pinyinName: pinyin(s.name, { toneType: "none" }).toLowerCase(),
+        pinyinInitials: pinyin(s.name, { pattern: "first", toneType: "none" }).toLowerCase(),
         pinyinFirst: getFirstLetter(s.name),
       }))
       setStudents(enrichedStudents)
@@ -181,17 +183,23 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     const pyLower = s.pinyinName || ""
     if (pyLower.includes(q0)) return true
+    const pyInitialsLower = s.pinyinInitials || ""
+    if (pyInitialsLower.includes(q0)) return true
 
     const q1 = q0.replace(/\s+/g, "")
     const isT9Query = /^[2-9]+$/.test(q1)
     if (isT9Query) {
       const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
+      const pyInitialsDigits = toT9Digits(pyInitialsLower.replace(/[^a-z]/g, ""))
       if (pyDigits.includes(q1)) return true
+      if (pyInitialsDigits.includes(q1)) return true
     }
 
     if (
       q1 &&
-      (nameLower.replace(/\s+/g, "").includes(q1) || pyLower.replace(/\s+/g, "").includes(q1))
+      (nameLower.replace(/\s+/g, "").includes(q1) ||
+        pyLower.replace(/\s+/g, "").includes(q1) ||
+        pyInitialsLower.replace(/\s+/g, "").includes(q1))
     )
       return true
 
