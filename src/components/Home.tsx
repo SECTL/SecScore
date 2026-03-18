@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { Card, Space, Button, Tag, Input, Select, Modal, message, InputNumber, Divider } from "antd"
+import { Card, Space, Button, Tag, Input, Select, Modal, Drawer, message, InputNumber, Divider } from "antd"
 import { SearchOutlined, DeleteOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
@@ -1180,6 +1180,277 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     )
   }
 
+  const operationPanelContent = selectedStudent && (
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "8px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          backgroundColor: "var(--ss-bg-color)",
+          borderRadius: "8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {selectedStudent.avatarUrl ? (
+            <img
+              src={selectedStudent.avatarUrl}
+              alt={selectedStudent.name}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                objectFit: "cover",
+                border: "1px solid var(--ss-border-color)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "50%",
+                backgroundColor: getAvatarColor(selectedStudent.name),
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "14px",
+                fontWeight: "bold",
+              }}
+            >
+              {getDisplayText(selectedStudent.name)}
+            </div>
+          )}
+          <span style={{ fontWeight: 600 }}>{selectedStudent.name}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
+            {t("home.currentScore")}：
+          </span>
+          <Tag
+            color={
+              selectedStudent.score > 0 ? "success" : selectedStudent.score < 0 ? "error" : "default"
+            }
+            style={{ fontWeight: "bold" }}
+          >
+            {selectedStudent.score > 0 ? `+${selectedStudent.score}` : selectedStudent.score}
+          </Tag>
+        </div>
+      </div>
+
+      {groupedReasons.length > 0 && (
+        <div>
+          <div
+            style={{
+              marginBottom: "12px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontWeight: 600,
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+                wordBreak: "keep-all",
+                flexShrink: 0,
+              }}
+            >
+              {t("home.quickOptions")}
+            </span>
+            <Divider style={{ flex: 1, margin: 0 }} />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+              maxHeight: "240px",
+              overflowY: "auto",
+              paddingRight: "4px",
+            }}
+          >
+            {groupedReasons.map(([category, items]) => (
+              <div key={category}>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "var(--ss-text-secondary)",
+                    marginBottom: "6px",
+                    paddingLeft: "2px",
+                  }}
+                >
+                  {category}
+                </div>
+                <Space wrap size="small">
+                  {items.map((r) => (
+                    <Button
+                      key={r.id}
+                      size="small"
+                      onClick={() => handleReasonSelect(r)}
+                      style={{
+                        whiteSpace: "nowrap",
+                        wordBreak: "keep-all",
+                        borderColor:
+                          r.delta > 0
+                            ? "var(--ant-color-success, #52c41a)"
+                            : r.delta < 0
+                              ? "var(--ant-color-error, #ff4d4f)"
+                              : undefined,
+                      }}
+                    >
+                      {r.content}{" "}
+                      <span
+                        style={{
+                          marginLeft: "4px",
+                          color:
+                            r.delta > 0
+                              ? "var(--ant-color-success, #52c41a)"
+                              : r.delta < 0
+                                ? "var(--ant-color-error, #ff4d4f)"
+                                : "inherit",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {r.delta > 0 ? `+${r.delta}` : r.delta}
+                      </span>
+                    </Button>
+                  ))}
+                </Space>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
+              whiteSpace: "nowrap",
+              wordBreak: "keep-all",
+              flexShrink: 0,
+            }}
+          >
+            {t("home.adjustPoints")}
+          </span>
+          <Divider style={{ flex: 1, margin: 0 }} />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
+          {[-5, -3, -2, -1, 1, 2, 3, 5, 10].map((num) => (
+            <Button
+              key={num}
+              size="small"
+              type={customScore === num ? "primary" : "default"}
+              danger={num < 0}
+              onClick={() => setCustomScore(num)}
+              style={{ minWidth: "42px" }}
+            >
+              {num > 0 ? `+${num}` : num}
+            </Button>
+          ))}
+          <Button size="small" onClick={() => setCustomScore(0)} style={{ minWidth: "42px" }}>
+            0
+          </Button>
+        </div>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <InputNumber
+            value={customScore}
+            onChange={(v) => setCustomScore(v as number)}
+            min={-99}
+            max={99}
+            step={1}
+            style={{ width: "140px" }}
+            placeholder={t("home.customPoints")}
+          />
+          <span style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
+            {t("home.customPointsHint")}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
+              whiteSpace: "nowrap",
+              wordBreak: "keep-all",
+              flexShrink: 0,
+            }}
+          >
+            {t("home.reason")}
+          </span>
+          <Divider style={{ flex: 1, margin: 0 }} />
+        </div>
+        <Input
+          value={reasonContent}
+          onChange={(e) => setReasonContent(e.target.value)}
+          placeholder={t("home.reasonPlaceholder")}
+          suffix={
+            reasonContent ? (
+              <DeleteOutlined onClick={() => setReasonContent("")} style={{ cursor: "pointer" }} />
+            ) : undefined
+          }
+        />
+      </div>
+
+      {customScore !== undefined && (
+        <div
+          style={{
+            padding: "16px",
+            background:
+              customScore > 0
+                ? "var(--ant-color-success-bg, #f6ffed)"
+                : customScore < 0
+                  ? "var(--ant-color-error-bg, #fff2f0)"
+                  : "var(--ss-bg-color)",
+            borderRadius: "8px",
+            border: `1px solid ${customScore > 0 ? "var(--ant-color-success-border, #b7eb8f)" : customScore < 0 ? "var(--ant-color-error-border, #ffccc7)" : "var(--ss-border-color)"}`,
+            marginTop: "4px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              marginBottom: "4px",
+              color: "var(--ss-text-main)",
+            }}
+          >
+            {t("home.preview")}：
+          </div>
+          <div style={{ fontSize: "15px" }}>
+            {selectedStudent.name}{" "}
+            <span
+              style={{
+                fontWeight: "bold",
+                color:
+                  customScore > 0
+                    ? "var(--ant-color-success, #52c41a)"
+                    : customScore < 0
+                      ? "var(--ant-color-error, #ff4d4f)"
+                      : "inherit",
+              }}
+            >
+              {customScore > 0 ? `+${customScore}` : customScore}
+            </span>{" "}
+            {t("home.points")}
+            <span style={{ color: "var(--ss-text-secondary)", marginLeft: "8px" }}>
+              {reasonContent ? `${t("home.reasonLabel")}${reasonContent}` : t("home.noReason")}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div
       style={{
@@ -1336,301 +1607,41 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         )}
       </div>
 
-      <Modal
-        title={t("home.operationTitle", { name: selectedStudent?.name })}
-        open={operationVisible}
-        onCancel={() => setOperationVisible(false)}
-        onOk={handleSubmit}
-        confirmLoading={submitLoading}
-        okText={t("home.submitOperation")}
-        cancelText={t("common.cancel")}
-        width={560}
-        destroyOnHidden
-      >
-        {selectedStudent && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "8px 0" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 16px",
-                backgroundColor: "var(--ss-bg-color)",
-                borderRadius: "8px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                {selectedStudent.avatarUrl ? (
-                  <img
-                    src={selectedStudent.avatarUrl}
-                    alt={selectedStudent.name}
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: "1px solid var(--ss-border-color)",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      backgroundColor: getAvatarColor(selectedStudent.name),
-                      color: "white",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "14px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {getDisplayText(selectedStudent.name)}
-                  </div>
-                )}
-                <span style={{ fontWeight: 600 }}>{selectedStudent.name}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
-                  {t("home.currentScore")}：
-                </span>
-                <Tag
-                  color={
-                    selectedStudent.score > 0
-                      ? "success"
-                      : selectedStudent.score < 0
-                        ? "error"
-                        : "default"
-                  }
-                  style={{ fontWeight: "bold" }}
-                >
-                  {selectedStudent.score > 0 ? `+${selectedStudent.score}` : selectedStudent.score}
-                </Tag>
-              </div>
-            </div>
-
-            {groupedReasons.length > 0 && (
-              <div>
-                <div
-                  style={{
-                    marginBottom: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "14px",
-                      whiteSpace: "nowrap",
-                      wordBreak: "keep-all",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {t("home.quickOptions")}
-                  </span>
-                  <Divider style={{ flex: 1, margin: 0 }} />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                    maxHeight: "240px",
-                    overflowY: "auto",
-                    paddingRight: "4px",
-                  }}
-                >
-                  {groupedReasons.map(([category, items]) => (
-                    <div key={category}>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--ss-text-secondary)",
-                          marginBottom: "6px",
-                          paddingLeft: "2px",
-                        }}
-                      >
-                        {category}
-                      </div>
-                      <Space wrap size="small">
-                        {items.map((r) => (
-                          <Button
-                            key={r.id}
-                            size="small"
-                            onClick={() => handleReasonSelect(r)}
-                            style={{
-                              whiteSpace: "nowrap",
-                              wordBreak: "keep-all",
-                              borderColor:
-                                r.delta > 0
-                                  ? "var(--ant-color-success, #52c41a)"
-                                  : r.delta < 0
-                                    ? "var(--ant-color-error, #ff4d4f)"
-                                    : undefined,
-                            }}
-                          >
-                            {r.content}{" "}
-                            <span
-                              style={{
-                                marginLeft: "4px",
-                                color:
-                                  r.delta > 0
-                                    ? "var(--ant-color-success, #52c41a)"
-                                    : r.delta < 0
-                                      ? "var(--ant-color-error, #ff4d4f)"
-                                      : "inherit",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              {r.delta > 0 ? `+${r.delta}` : r.delta}
-                            </span>
-                          </Button>
-                        ))}
-                      </Space>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <div
-                style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    whiteSpace: "nowrap",
-                    wordBreak: "keep-all",
-                    flexShrink: 0,
-                  }}
-                >
-                  {t("home.adjustPoints")}
-                </span>
-                <Divider style={{ flex: 1, margin: 0 }} />
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-                {[-5, -3, -2, -1, 1, 2, 3, 5, 10].map((num) => (
-                  <Button
-                    key={num}
-                    size="small"
-                    type={customScore === num ? "primary" : "default"}
-                    danger={num < 0}
-                    onClick={() => setCustomScore(num)}
-                    style={{ minWidth: "42px" }}
-                  >
-                    {num > 0 ? `+${num}` : num}
-                  </Button>
-                ))}
-                <Button size="small" onClick={() => setCustomScore(0)} style={{ minWidth: "42px" }}>
-                  0
-                </Button>
-              </div>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                <InputNumber
-                  value={customScore}
-                  onChange={(v) => setCustomScore(v as number)}
-                  min={-99}
-                  max={99}
-                  step={1}
-                  style={{ width: "140px" }}
-                  placeholder={t("home.customPoints")}
-                />
-                <span style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
-                  {t("home.customPointsHint")}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <div
-                style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <span
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "14px",
-                    whiteSpace: "nowrap",
-                    wordBreak: "keep-all",
-                    flexShrink: 0,
-                  }}
-                >
-                  {t("home.reason")}
-                </span>
-                <Divider style={{ flex: 1, margin: 0 }} />
-              </div>
-              <Input
-                value={reasonContent}
-                onChange={(e) => setReasonContent(e.target.value)}
-                placeholder={t("home.reasonPlaceholder")}
-                suffix={
-                  reasonContent ? (
-                    <DeleteOutlined
-                      onClick={() => setReasonContent("")}
-                      style={{ cursor: "pointer" }}
-                    />
-                  ) : undefined
-                }
-              />
-            </div>
-
-            {customScore !== undefined && (
-              <div
-                style={{
-                  padding: "16px",
-                  background:
-                    customScore > 0
-                      ? "var(--ant-color-success-bg, #f6ffed)"
-                      : customScore < 0
-                        ? "var(--ant-color-error-bg, #fff2f0)"
-                        : "var(--ss-bg-color)",
-                  borderRadius: "8px",
-                  border: `1px solid ${customScore > 0 ? "var(--ant-color-success-border, #b7eb8f)" : customScore < 0 ? "var(--ant-color-error-border, #ffccc7)" : "var(--ss-border-color)"}`,
-                  marginTop: "4px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    marginBottom: "4px",
-                    color: "var(--ss-text-main)",
-                  }}
-                >
-                  {t("home.preview")}：
-                </div>
-                <div style={{ fontSize: "15px" }}>
-                  {selectedStudent.name}{" "}
-                  <span
-                    style={{
-                      fontWeight: "bold",
-                      color:
-                        customScore > 0
-                          ? "var(--ant-color-success, #52c41a)"
-                          : customScore < 0
-                            ? "var(--ant-color-error, #ff4d4f)"
-                            : "inherit",
-                    }}
-                  >
-                    {customScore > 0 ? `+${customScore}` : customScore}
-                  </span>{" "}
-                  {t("home.points")}
-                  <span style={{ color: "var(--ss-text-secondary)", marginLeft: "8px" }}>
-                    {reasonContent
-                      ? `${t("home.reasonLabel")}${reasonContent}`
-                      : t("home.noReason")}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+      {isPortraitMode ? (
+        <Drawer
+          title={t("home.operationTitle", { name: selectedStudent?.name })}
+          placement="bottom"
+          height="100%"
+          open={operationVisible}
+          onClose={() => setOperationVisible(false)}
+          destroyOnClose
+          styles={{ body: { padding: "12px 16px 24px" } }}
+          footer={
+            <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+              <Button onClick={() => setOperationVisible(false)}>{t("common.cancel")}</Button>
+              <Button type="primary" onClick={handleSubmit} loading={submitLoading}>
+                {t("home.submitOperation")}
+              </Button>
+            </Space>
+          }
+        >
+          {operationPanelContent}
+        </Drawer>
+      ) : (
+        <Modal
+          title={t("home.operationTitle", { name: selectedStudent?.name })}
+          open={operationVisible}
+          onCancel={() => setOperationVisible(false)}
+          onOk={handleSubmit}
+          confirmLoading={submitLoading}
+          okText={t("home.submitOperation")}
+          cancelText={t("common.cancel")}
+          width={560}
+          destroyOnHidden
+        >
+          {operationPanelContent}
+        </Modal>
+      )}
     </div>
   )
 }
