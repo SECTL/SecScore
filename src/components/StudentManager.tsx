@@ -39,9 +39,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [avatarValue, setAvatarValue] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const [xlsxLoading, setXlsxLoading] = useState(false)
+  const [textImportLoading, setTextImportLoading] = useState(false)
   const [xlsxFileName, setXlsxFileName] = useState("")
   const [xlsxAoa, setXlsxAoa] = useState<any[][]>([])
   const [xlsxSelectedCol, setXlsxSelectedCol] = useState<number | null>(null)
+  const [textImportValue, setTextImportValue] = useState("")
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
@@ -377,12 +379,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return cols
   }, [xlsxMaxCols, xlsxSelectedCol])
 
-  const extractNamesFromAoa = (aoa: any[][], colIdx: number) => {
+  const extractUniqueNames = (rawNames: string[]) => {
     const out: string[] = []
     const seen = new Set<string>()
     const banned = new Set([t("students.name").toLowerCase(), "name", t("students.name")])
-    for (const row of aoa) {
-      const raw = row?.[colIdx]
+    for (const raw of rawNames) {
       const name = String(raw ?? "").trim()
       if (!name) continue
       if (banned.has(name.toLowerCase()) || banned.has(name)) continue
@@ -393,8 +394,32 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return out
   }
 
+  const extractNamesFromAoa = (aoa: any[][], colIdx: number) => {
+    const names = aoa.map((row) => String(row?.[colIdx] ?? ""))
+    return extractUniqueNames(names)
+  }
+
+  const extractNamesFromText = (text: string) => {
+    const lines = text.split(/\r?\n/)
+    return extractUniqueNames(lines)
+  }
+
+  const importNames = async (names: string[]) => {
+    if (!(window as any).api) return false
+    const res = await (window as any).api.importStudentsFromXlsx({ names })
+    if (!res?.success) {
+      messageApi.error(res?.message || t("students.importFailed"))
+      return false
+    }
+    const inserted = Number(res?.data?.inserted ?? 0)
+    const skipped = Number(res?.data?.skipped ?? 0)
+    messageApi.success(t("students.importComplete", { inserted, skipped }))
+    fetchStudents()
+    emitDataUpdated("students")
+    return true
+  }
+
   const handleConfirmXlsxImport = async () => {
-    if (!(window as any).api) return
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -412,22 +437,36 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     setXlsxLoading(true)
     try {
-      const res = await (window as any).api.importStudentsFromXlsx({ names })
-      if (!res?.success) {
-        messageApi.error(res?.message || t("students.importFailed"))
-        return
-      }
-      const inserted = Number(res?.data?.inserted ?? 0)
-      const skipped = Number(res?.data?.skipped ?? 0)
-      messageApi.success(t("students.importComplete", { inserted, skipped }))
+      const success = await importNames(names)
+      if (!success) return
       setXlsxVisible(false)
       setXlsxAoa([])
       setXlsxFileName("")
       setXlsxSelectedCol(null)
-      fetchStudents()
-      emitDataUpdated("students")
     } finally {
       setXlsxLoading(false)
+    }
+  }
+
+  const handleImportTextNames = async () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    const names = extractNamesFromText(textImportValue)
+    if (!names.length) {
+      messageApi.warning(t("students.noNamesFound"))
+      return
+    }
+
+    setTextImportLoading(true)
+    try {
+      const success = await importNames(names)
+      if (!success) return
+      setTextImportValue("")
+      setImportVisible(false)
+    } finally {
+      setTextImportLoading(false)
     }
   }
 
@@ -600,6 +639,19 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         destroyOnHidden
       >
         <Space orientation="vertical" style={{ width: "100%" }}>
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.importTextHint")}
+          </div>
+          <Input.TextArea
+            value={textImportValue}
+            onChange={(e) => setTextImportValue(e.target.value)}
+            rows={8}
+            placeholder={t("students.importTextPlaceholder")}
+            disabled={!canEdit || textImportLoading}
+          />
+          <Button type="primary" loading={textImportLoading} disabled={!canEdit} onClick={handleImportTextNames}>
+            {t("students.importByText")}
+          </Button>
           <Button
             loading={xlsxLoading}
             disabled={!canEdit}
