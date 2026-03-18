@@ -1,5 +1,9 @@
 # Agent Collaboration Rules
 
+## 分支定位
+- 当前分支（`SecScore-tauri`）主要用于推进 Tauri 版本开发与维护。
+- 不以 Electron 版本作为该分支的实现目标。
+
 ## 提交规范
 - 每次代码改动都必须使用中文 `commit message`。
 - 完成提交后必须推送到远程仓库对应分支（`git push`）。
