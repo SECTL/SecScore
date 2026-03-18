@@ -22,6 +22,9 @@ interface SidebarProps {
   activeMenu: string
   permission: "admin" | "points" | "view"
   onMenuChange: (value: string) => void
+  collapsed: boolean
+  floatingExpand: boolean
+  onCollapsedChange: (collapsed: boolean) => void
 }
 
 interface DbStatus {
@@ -30,9 +33,16 @@ interface DbStatus {
   error?: string
 }
 
-export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps): React.JSX.Element {
+export function Sidebar({
+  activeMenu,
+  permission,
+  onMenuChange,
+  collapsed,
+  floatingExpand,
+  onCollapsedChange,
+}: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
-  const [collapsed, setCollapsed] = useState(false)
+  const [floatingExpanded, setFloatingExpanded] = useState(false)
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -94,6 +104,12 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
   }
 
   const [forceSyncLoading, setForceSyncLoading] = useState(false)
+
+  useEffect(() => {
+    if (!floatingExpand || !collapsed) {
+      setFloatingExpanded(false)
+    }
+  }, [floatingExpand, collapsed])
 
   const handleForceSync = async () => {
     if (!(window as any).api) return
@@ -175,25 +191,15 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
     },
   ]
 
-  return (
-    <Sider
-      className="ss-sidebar"
-      width={200}
-      collapsed={collapsed}
-      collapsedWidth={64}
-      style={{
-        background: "var(--ss-sidebar-bg)",
-        borderRight: "1px solid var(--ss-border-color)",
-        display: "flex",
-        flexDirection: "column",
-      }}
-      theme="light"
-    >
+  const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
+
+  const renderSidebarBody = (isCollapsedView: boolean, isFloatingPanel = false) => (
+    <>
       <div
         data-tauri-drag-region
         style={
           {
-            padding: collapsed ? "24px 8px 12px" : "32px 24px 16px",
+            padding: isCollapsedView ? "24px 8px 12px" : "32px 24px 16px",
             textAlign: "center",
             WebkitAppRegion: "drag",
             userSelect: "none",
@@ -205,25 +211,41 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
         <Button
           type="text"
           size="small"
-          onClick={() => setCollapsed((prev) => !prev)}
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          style={{
-            position: "absolute",
-            top: "8px",
-            right: "8px",
-            WebkitAppRegion: "no-drag",
+          onClick={() => {
+            if (floatingExpand && collapsed) {
+              setFloatingExpanded((prev) => !prev)
+              return
+            }
+            onCollapsedChange(!collapsed)
           }}
+          icon={
+            floatingExpand && collapsed
+              ? isFloatingPanel
+                ? <MenuFoldOutlined />
+                : <MenuUnfoldOutlined />
+              : isCollapsedView
+                ? <MenuUnfoldOutlined />
+                : <MenuFoldOutlined />
+          }
+          style={
+            {
+              position: "absolute",
+              top: "8px",
+              right: "8px",
+              WebkitAppRegion: "no-drag",
+            } as React.CSSProperties
+          }
         />
         <img
           src={appLogo}
           style={{
-            width: collapsed ? "40px" : "48px",
-            height: collapsed ? "40px" : "48px",
-            marginBottom: collapsed ? "0" : "12px",
+            width: isCollapsedView ? "40px" : "48px",
+            height: isCollapsedView ? "40px" : "48px",
+            marginBottom: isCollapsedView ? "0" : "12px",
           }}
           alt="logo"
         />
-        {!collapsed && (
+        {!isCollapsedView && (
           <>
             <h2
               style={{
@@ -251,9 +273,14 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <Menu
           mode="inline"
-          inlineCollapsed={collapsed}
+          inlineCollapsed={isCollapsedView}
           selectedKeys={[activeMenu]}
-          onClick={({ key }) => onMenuChange(key)}
+          onClick={({ key }) => {
+            onMenuChange(key)
+            if (floatingExpand && collapsed) {
+              setFloatingExpanded(false)
+            }
+          }}
           style={{
             width: "100%",
             border: "none",
@@ -263,7 +290,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
         />
       </div>
 
-      {!collapsed && dbStatus.type === "postgresql" && (
+      {!isCollapsedView && dbStatus.type === "postgresql" && (
         <Card
           size="small"
           style={{
@@ -273,7 +300,6 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
           }}
           styles={{ body: { padding: "12px" } }}
         >
-          {contextHolder}
           <Space orientation="vertical" size={4} style={{ width: "100%" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <Space size={4}>
@@ -323,6 +349,47 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
             </Button>
           </Space>
         </Card>
+      )}
+    </>
+  )
+
+  return (
+    <Sider
+      className="ss-sidebar"
+      width={200}
+      collapsed={collapsed}
+      collapsedWidth={64}
+      style={{
+        background: "var(--ss-sidebar-bg)",
+        borderRight: "1px solid var(--ss-border-color)",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "visible",
+        position: "relative",
+      }}
+      theme="light"
+    >
+      {contextHolder}
+      {renderSidebarBody(collapsed)}
+
+      {showFloatingPanel && (
+        <div
+          style={{
+            position: "absolute",
+            left: "64px",
+            top: 0,
+            bottom: 0,
+            width: "200px",
+            background: "var(--ss-sidebar-bg)",
+            borderRight: "1px solid var(--ss-border-color)",
+            boxShadow: "6px 0 18px rgba(0, 0, 0, 0.12)",
+            zIndex: 1200,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {renderSidebarBody(false, true)}
+        </div>
       )}
     </Sider>
   )

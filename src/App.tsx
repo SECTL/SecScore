@@ -51,6 +51,8 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
+  const [isPortraitMode, setIsPortraitMode] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -127,6 +129,30 @@ function MainContent(): React.JSX.Element {
     if (key === "settings") navigate("/settings")
   }
 
+  const toggleOrientationMode = async () => {
+    const api = (window as any).api
+    if (!api) return
+
+    const nextPortraitMode = !isPortraitMode
+    try {
+      const maximized = await api.windowIsMaximized()
+      if (maximized) {
+        await api.windowMaximize()
+      }
+      if (nextPortraitMode) {
+        await api.windowResize(800, 1000)
+        setSidebarCollapsed(true)
+      } else {
+        await api.windowResize(1180, 680)
+        setSidebarCollapsed(false)
+      }
+      setIsPortraitMode(nextPortraitMode)
+    } catch (error) {
+      messageApi.error(t("common.error"))
+      console.error("Failed to toggle orientation mode:", error)
+    }
+  }
+
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
 
@@ -141,12 +167,21 @@ function MainContent(): React.JSX.Element {
     >
       {contextHolder}
       <Layout style={{ height: "100vh", flexDirection: "row", overflow: "hidden" }}>
-        <Sidebar activeMenu={activeMenu} permission={permission} onMenuChange={onMenuChange} />
+        <Sidebar
+          activeMenu={activeMenu}
+          permission={permission}
+          onMenuChange={onMenuChange}
+          collapsed={sidebarCollapsed}
+          floatingExpand={isPortraitMode}
+          onCollapsedChange={setSidebarCollapsed}
+        />
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
+          isPortraitMode={isPortraitMode}
+          onToggleOrientation={toggleOrientationMode}
         />
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />

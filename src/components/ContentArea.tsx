@@ -45,6 +45,8 @@ interface ContentAreaProps {
   hasAnyPassword: boolean
   onAuthClick: () => void
   onLogout: () => void
+  isPortraitMode: boolean
+  onToggleOrientation: () => void
 }
 
 export function ContentArea({
@@ -52,6 +54,8 @@ export function ContentArea({
   hasAnyPassword,
   onAuthClick,
   onLogout,
+  isPortraitMode,
+  onToggleOrientation,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
 
@@ -132,6 +136,13 @@ export function ContentArea({
           }
         >
           <Space size="small">
+            <Button
+              size="small"
+              onClick={onToggleOrientation}
+              title={isPortraitMode ? "当前：竖屏模式" : "当前：横屏模式"}
+            >
+              切换横竖模式
+            </Button>
             {permissionTag}
             {hasAnyPassword && (
               <>
