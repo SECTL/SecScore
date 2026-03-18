@@ -783,7 +783,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <div
                 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
               >
-                <span style={{ fontWeight: 600, fontSize: "14px" }}>{t("home.adjustPoints")}</span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    whiteSpace: "nowrap",
+                    wordBreak: "keep-all",
+                    flexShrink: 0,
+                  }}
+                >
+                  {t("home.adjustPoints")}
+                </span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
@@ -823,7 +833,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               <div
                 style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
               >
-                <span style={{ fontWeight: 600, fontSize: "14px" }}>{t("home.reason")}</span>
+                <span
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    whiteSpace: "nowrap",
+                    wordBreak: "keep-all",
+                    flexShrink: 0,
+                  }}
+                >
+                  {t("home.reason")}
+                </span>
                 <Divider style={{ flex: 1, margin: 0 }} />
               </div>
               <Input
