@@ -529,8 +529,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           style={{
             backgroundColor: "var(--ss-card-bg)",
             transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
-            border: "1px solid var(--ss-border-color)",
+            border: isQuickActionMode
+              ? "1px solid var(--ant-color-primary, #1677ff)"
+              : "1px solid var(--ss-border-color)",
             overflow: "visible",
+            boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
           }}
           styles={{ body: { padding: "12px" } }}
         >
@@ -583,9 +586,20 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {avatarText}
               </div>
             )}
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              {isQuickActionMode ? (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: "40px" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: isQuickActionMode ? 1 : 0,
+                  transform: isQuickActionMode ? "translateY(0)" : "translateY(6px)",
+                  transition: "opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                  pointerEvents: isQuickActionMode ? "auto" : "none",
+                }}
+              >
                   <Button
                     type="primary"
                     size="small"
@@ -620,9 +634,39 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   >
                     -1
                   </Button>
+              </div>
+              <div
+                style={{
+                  opacity: isQuickActionMode ? 0 : 1,
+                  transform: isQuickActionMode ? "translateY(-6px)" : "translateY(0)",
+                  transition: "opacity 180ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+                  pointerEvents: isQuickActionMode ? "none" : "auto",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "15px",
+                    color: "var(--ss-text-main)",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {student.name}
                 </div>
-              ) : (
-                <>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
+                >
+                  <Tag
+                    color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                    style={{ fontWeight: "bold" }}
+                  >
+                    {student.score > 0 ? `+${student.score}` : student.score}
+                  </Tag>
+                </div>
+              </div>
+              <div style={{ visibility: "hidden" }}>
                   <div
                     style={{
                       fontWeight: 600,
@@ -645,8 +689,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                       {student.score > 0 ? `+${student.score}` : student.score}
                     </Tag>
                   </div>
-                </>
-              )}
+              </div>
             </div>
           </div>
         </Card>
