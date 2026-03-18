@@ -18,6 +18,7 @@ pub async fn register_url_protocol(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<RegisterUrlProtocolResult>, String> {
+    #[cfg(target_os = "windows")]
     let protocol = "secscore";
 
     #[cfg(target_os = "windows")]
