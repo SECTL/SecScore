@@ -1,5 +1,12 @@
 @import "antd/dist/reset.css";
 
+:root {
+  --ss-font-family:
+    "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Noto Sans SC", "Noto Sans CJK SC",
+    "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
 html,
 body,
 #root {
@@ -9,11 +16,20 @@ body,
   overflow: hidden;
   user-select: none;
   background: var(--ss-bg-color, #f5f5f5);
+  font-family: var(--ss-font-family);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 input,
 textarea {
   user-select: text;
+  font-family: var(--ss-font-family);
+}
+
+button,
+select {
+  font-family: var(--ss-font-family);
 }
 
 .ss-sidebar {

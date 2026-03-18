@@ -181,6 +181,8 @@ function MainContent(): React.JSX.Element {
         algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {
           colorPrimary: brandColor,
+          fontFamily:
+            '"PingFang SC", "Hiragino Sans GB", "Heiti SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
         },
       }}
     >
