@@ -348,7 +348,7 @@ export function Sidebar({
         <div
           style={{
             position: "absolute",
-            left: "64px",
+            left: 0,
             top: 0,
             bottom: 0,
             width: "200px",
