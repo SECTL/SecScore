@@ -430,22 +430,21 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const bodyWebkitUserSelectRef = useRef("")
   const [navActiveKey, setNavActiveKey] = useState<string | null>(null)
   const [navIndicatorY, setNavIndicatorY] = useState(0)
-  const [navIndicatorVisible, setNavIndicatorVisible] = useState(false)
+  const [isNavDraggingState, setIsNavDraggingState] = useState(false)
 
   const setNavDraggingState = useCallback((dragging: boolean) => {
     isNavDragging.current = dragging
+    setIsNavDraggingState(dragging)
     if (dragging) {
       bodyUserSelectRef.current = document.body.style.userSelect
       bodyWebkitUserSelectRef.current = document.body.style.webkitUserSelect
       document.body.style.userSelect = "none"
       document.body.style.webkitUserSelect = "none"
-      setNavIndicatorVisible(true)
       return
     }
 
     document.body.style.userSelect = bodyUserSelectRef.current
     document.body.style.webkitUserSelect = bodyWebkitUserSelectRef.current
-    setNavIndicatorVisible(false)
   }, [])
 
   const handleNavAction = useCallback(
@@ -520,6 +519,45 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }, [])
 
+  useEffect(() => {
+    if (!groupedStudents.length) {
+      setNavActiveKey(null)
+      return
+    }
+
+    const refreshActiveByScroll = () => {
+      let currentKey = groupedStudents[0]?.key || null
+      const anchorY = 140
+
+      groupedStudents.forEach((group) => {
+        const el = groupRefs.current[group.key]
+        if (!el) return
+        const top = el.getBoundingClientRect().top
+        if (top <= anchorY) {
+          currentKey = group.key
+        }
+      })
+
+      if (currentKey) {
+        setNavActiveKey(currentKey)
+        const idx = groupedStudents.findIndex((g) => g.key === currentKey)
+        if (idx >= 0 && navContainerRef.current) {
+          const rect = navContainerRef.current.getBoundingClientRect()
+          const itemHeight = rect.height / groupedStudents.length
+          setNavIndicatorY((idx + 0.5) * itemHeight)
+        }
+      }
+    }
+
+    refreshActiveByScroll()
+    window.addEventListener("scroll", refreshActiveByScroll, { passive: true })
+    window.addEventListener("resize", refreshActiveByScroll)
+    return () => {
+      window.removeEventListener("scroll", refreshActiveByScroll)
+      window.removeEventListener("resize", refreshActiveByScroll)
+    }
+  }, [groupedStudents])
+
   const renderQuickNav = () => {
     if (
       groupedStudents.length <= 1 ||
@@ -555,18 +593,23 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           touchAction: "none",
         }}
       >
-        {navIndicatorVisible && navActiveKey && (
+        {navActiveKey && (
           <div
             style={{
               position: "absolute",
-              left: "-14px",
+              left: "-10px",
               top: `${navIndicatorY}px`,
               width: "34px",
               height: "34px",
-              transform: "translate(-100%, -50%) rotate(-45deg)",
-              borderRadius: "50% 50% 50% 4px",
-              backgroundColor: "var(--ant-color-primary, #1890ff)",
-              boxShadow: "0 6px 16px rgba(0,0,0,0.2)",
+              transform: "translate(-100%, -50%)",
+              borderRadius: "50%",
+              backgroundColor: isNavDraggingState
+                ? "var(--ant-color-primary, #1890ff)"
+                : "rgba(24, 144, 255, 0.16)",
+              border: isNavDraggingState
+                ? "1px solid transparent"
+                : "1px solid rgba(24, 144, 255, 0.32)",
+              boxShadow: isNavDraggingState ? "0 6px 16px rgba(0,0,0,0.2)" : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -574,12 +617,26 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               zIndex: 2,
             }}
           >
+            <div
+              style={{
+                position: "absolute",
+                right: "-4px",
+                top: "50%",
+                width: "10px",
+                height: "10px",
+                transform: "translateY(-50%) rotate(45deg)",
+                backgroundColor: isNavDraggingState
+                  ? "var(--ant-color-primary, #1890ff)"
+                  : "rgba(24, 144, 255, 0.16)",
+                borderTop: isNavDraggingState ? "none" : "1px solid rgba(24, 144, 255, 0.32)",
+                borderRight: isNavDraggingState ? "none" : "1px solid rgba(24, 144, 255, 0.32)",
+              }}
+            />
             <span
               style={{
-                color: "#fff",
+                color: isNavDraggingState ? "#fff" : "var(--ant-color-primary, #1890ff)",
                 fontSize: "13px",
                 fontWeight: 700,
-                transform: "rotate(45deg)",
                 lineHeight: 1,
               }}
             >
@@ -599,13 +656,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               fontSize: "11px",
               fontWeight: "bold",
               color:
-                navIndicatorVisible && navActiveKey === group.key
-                  ? "#ffffff"
+                navActiveKey === group.key
+                  ? isNavDraggingState
+                    ? "#ffffff"
+                    : "var(--ant-color-primary, #1890ff)"
                   : "var(--ant-color-primary, #1890ff)",
               borderRadius: "50%",
               backgroundColor:
-                navIndicatorVisible && navActiveKey === group.key
-                  ? "var(--ant-color-primary, #1890ff)"
+                navActiveKey === group.key
+                  ? isNavDraggingState
+                    ? "var(--ant-color-primary, #1890ff)"
+                    : "rgba(24, 144, 255, 0.36)"
                   : "transparent",
               pointerEvents: "none",
             }}
