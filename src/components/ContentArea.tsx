@@ -155,7 +155,7 @@ export function ContentArea({
         />
       </div>
 
-      <Content style={{ flex: 1, overflowY: "auto" }}>
+      <Content style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
         <Suspense
           fallback={
             <div
@@ -175,7 +175,12 @@ export function ContentArea({
           <Routes>
             <Route
               path="/"
-              element={<Home canEdit={permission === "admin" || permission === "points"} />}
+              element={
+                <Home
+                  canEdit={permission === "admin" || permission === "points"}
+                  isPortraitMode={isPortraitMode}
+                />
+              }
             />
             <Route path="/students" element={<StudentManager canEdit={permission === "admin"} />} />
             <Route

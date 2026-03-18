@@ -55,7 +55,12 @@ const T9_KEY_MAP: Record<string, string> = {
   z: "9",
 }
 
-export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+interface HomeProps {
+  canEdit: boolean
+  isPortraitMode?: boolean
+}
+
+export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) => {
   const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
@@ -535,7 +540,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             overflow: "visible",
             boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
           }}
-          styles={{ body: { padding: "12px" } }}
+          styles={{ body: { padding: isPortraitMode ? "10px 12px" : "12px" } }}
         >
           {rankBadge && (
             <div
@@ -550,14 +555,14 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               {rankBadge}
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isPortraitMode ? "10px" : "12px" }}>
             {student.avatarUrl ? (
               <img
                 src={student.avatarUrl}
                 alt={student.name}
                 style={{
-                  width: "44px",
-                  height: "44px",
+                  width: isPortraitMode ? "40px" : "44px",
+                  height: isPortraitMode ? "40px" : "44px",
                   borderRadius: "12px",
                   objectFit: "cover",
                   flexShrink: 0,
@@ -569,8 +574,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             ) : (
               <div
                 style={{
-                  width: "44px",
-                  height: "44px",
+                  width: isPortraitMode ? "40px" : "44px",
+                  height: isPortraitMode ? "40px" : "44px",
                   borderRadius: "12px",
                   backgroundColor: avatarColor,
                   display: "flex",
@@ -578,7 +583,13 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   justifyContent: "center",
                   color: "white",
                   fontWeight: "bold",
-                  fontSize: avatarText.length > 1 ? "14px" : "18px",
+                  fontSize: isPortraitMode
+                    ? avatarText.length > 1
+                      ? "13px"
+                      : "16px"
+                    : avatarText.length > 1
+                      ? "14px"
+                      : "18px",
                   flexShrink: 0,
                   boxShadow: `0 4px 10px ${avatarColor}40`,
                 }}
@@ -586,7 +597,14 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {avatarText}
               </div>
             )}
-            <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: "44px" }}>
+            <div
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                position: "relative",
+                minHeight: isPortraitMode ? "40px" : "44px",
+              }}
+            >
               <div
                 style={{
                   position: "absolute",
@@ -677,7 +695,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return groupedStudents.map((group) => (
       <div
         key={group.key}
-        style={{ marginBottom: "32px" }}
+        style={{ marginBottom: isPortraitMode ? "20px" : "32px" }}
         ref={(el) => {
           groupRefs.current[group.key] = el
         }}
@@ -706,9 +724,10 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         )}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: "16px",
+            display: isPortraitMode ? "flex" : "grid",
+            flexDirection: isPortraitMode ? "column" : undefined,
+            gridTemplateColumns: isPortraitMode ? undefined : "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: isPortraitMode ? "10px" : "16px",
           }}
         >
           {group.students.map((student, idx) => renderStudentCard(student, idx))}
@@ -902,6 +921,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const renderQuickNav = () => {
     if (
+      isPortraitMode ||
       groupedStudents.length <= 1 ||
       sortType === "score" ||
       (sortType === "alphabet" && searchKeyword)
@@ -1023,7 +1043,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto", position: "relative" }}>
+    <div
+      style={{
+        padding: isPortraitMode ? "16px" : "24px",
+        width: "100%",
+        boxSizing: "border-box",
+        maxWidth: isPortraitMode ? "100%" : "1200px",
+        margin: "0 auto",
+        position: "relative",
+        overflowX: "hidden",
+      }}
+    >
       {contextHolder}
       <div
         style={{
