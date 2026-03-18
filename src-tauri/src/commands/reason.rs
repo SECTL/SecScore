@@ -39,10 +39,14 @@ pub struct DeleteResult {
     pub changes: i32,
 }
 
-fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> bool {
+fn check_admin_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) -> bool {
     let state_guard = state.read();
     let mut permissions = state_guard.permissions.write();
-    permissions.require_permission(0, PermissionLevel::Admin)
+    if let Some(id) = sender_id {
+        permissions.require_permission(id, PermissionLevel::Admin)
+    } else {
+        false
+    }
 }
 
 #[tauri::command]
@@ -87,9 +91,10 @@ pub async fn reason_query(
 #[tauri::command]
 pub async fn reason_create(
     state: State<'_, Arc<RwLock<AppState>>>,
+    sender_id: Option<u32>,
     data: CreateReason,
 ) -> Result<IpcResponse<i32>, String> {
-    if !check_admin_permission(&state) {
+    if !check_admin_permission(&state, sender_id) {
         return Ok(IpcResponse::error("Permission denied: admin required"));
     }
 
@@ -129,10 +134,11 @@ pub async fn reason_create(
 #[tauri::command]
 pub async fn reason_update(
     state: State<'_, Arc<RwLock<AppState>>>,
+    sender_id: Option<u32>,
     id: i32,
     data: UpdateReason,
 ) -> Result<IpcResponse<()>, String> {
-    if !check_admin_permission(&state) {
+    if !check_admin_permission(&state, sender_id) {
         return Ok(IpcResponse::error("Permission denied: admin required"));
     }
 
@@ -180,9 +186,10 @@ pub async fn reason_update(
 #[tauri::command]
 pub async fn reason_delete(
     state: State<'_, Arc<RwLock<AppState>>>,
+    sender_id: Option<u32>,
     id: i32,
 ) -> Result<IpcResponse<DeleteResult>, String> {
-    if !check_admin_permission(&state) {
+    if !check_admin_permission(&state, sender_id) {
         return Ok(IpcResponse::error("Permission denied: admin required"));
     }
 
