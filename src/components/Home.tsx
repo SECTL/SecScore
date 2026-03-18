@@ -517,9 +517,53 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const isNavDragging = useRef(false)
   const bodyUserSelectRef = useRef("")
   const bodyWebkitUserSelectRef = useRef("")
+  const [viewportHeight, setViewportHeight] = useState(() =>
+    typeof window === "undefined" ? 900 : window.innerHeight
+  )
   const [navActiveKey, setNavActiveKey] = useState<string | null>(null)
   const [navIndicatorY, setNavIndicatorY] = useState(0)
   const [isNavDraggingState, setIsNavDraggingState] = useState(false)
+
+  const quickNavLayout = useMemo(() => {
+    const baseItemSize = 24
+    const baseFontSize = 11
+    const basePaddingY = 8
+    const basePaddingX = 4
+    const baseBorderRadius = 20
+    const baseBubbleSize = 34
+    const baseBubbleFontSize = 13
+    const minScale = 0.58
+    const maxHeight = Math.max(120, Math.floor(viewportHeight * 0.8))
+    const count = groupedStudents.length
+
+    if (count <= 0) {
+      return {
+        maxHeight,
+        itemSize: baseItemSize,
+        fontSize: baseFontSize,
+        paddingY: basePaddingY,
+        paddingX: basePaddingX,
+        borderRadius: baseBorderRadius,
+        bubbleSize: baseBubbleSize,
+        bubbleFontSize: baseBubbleFontSize,
+      }
+    }
+
+    const baseContentHeight = count * baseItemSize + basePaddingY * 2
+    const rawScale = Math.min(1, maxHeight / baseContentHeight)
+    const scale = Math.max(minScale, rawScale)
+
+    return {
+      maxHeight,
+      itemSize: Math.max(14, baseItemSize * scale),
+      fontSize: Math.max(8, baseFontSize * scale),
+      paddingY: Math.max(4, basePaddingY * scale),
+      paddingX: Math.max(3, basePaddingX * scale),
+      borderRadius: Math.max(12, baseBorderRadius * scale),
+      bubbleSize: Math.max(22, baseBubbleSize * scale),
+      bubbleFontSize: Math.max(10, baseBubbleFontSize * scale),
+    }
+  }, [groupedStudents.length, viewportHeight])
 
   const setNavDraggingState = useCallback((dragging: boolean) => {
     isNavDragging.current = dragging
@@ -541,22 +585,23 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       if (!navContainerRef.current) return
       const rect = navContainerRef.current.getBoundingClientRect()
       const y = clientY - rect.top
-      const items = navContainerRef.current.children
-      const itemCount = items.length
+      const itemCount = groupedStudents.length
       if (itemCount === 0) return
 
-      const itemHeight = rect.height / itemCount
-      const index = Math.floor(y / itemHeight)
+      const innerTop = quickNavLayout.paddingY
+      const innerBottom = rect.height - quickNavLayout.paddingY
+      const clampedY = Math.max(innerTop, Math.min(innerBottom - 0.001, y))
+      const index = Math.floor((clampedY - innerTop) / quickNavLayout.itemSize)
       const safeIndex = Math.max(0, Math.min(itemCount - 1, index))
 
       const targetGroup = groupedStudents[safeIndex]
       if (targetGroup) {
         setNavActiveKey(targetGroup.key)
-        setNavIndicatorY((safeIndex + 0.5) * itemHeight)
+        setNavIndicatorY(quickNavLayout.paddingY + (safeIndex + 0.5) * quickNavLayout.itemSize)
         scrollToGroup(targetGroup.key)
       }
     },
-    [groupedStudents]
+    [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY]
   )
 
   const onNavMouseDown = (e: React.MouseEvent) => {
@@ -600,6 +645,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [])
+
+  useEffect(() => {
     return () => {
       document.removeEventListener("mousemove", onGlobalMouseMove)
       document.removeEventListener("mouseup", onGlobalMouseUp)
@@ -631,9 +682,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         setNavActiveKey(currentKey)
         const idx = groupedStudents.findIndex((g) => g.key === currentKey)
         if (idx >= 0 && navContainerRef.current) {
-          const rect = navContainerRef.current.getBoundingClientRect()
-          const itemHeight = rect.height / groupedStudents.length
-          setNavIndicatorY((idx + 0.5) * itemHeight)
+          setNavIndicatorY(quickNavLayout.paddingY + (idx + 0.5) * quickNavLayout.itemSize)
         }
       }
     }
@@ -645,7 +694,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       window.removeEventListener("scroll", refreshActiveByScroll)
       window.removeEventListener("resize", refreshActiveByScroll)
     }
-  }, [groupedStudents])
+  }, [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY])
 
   const renderQuickNav = () => {
     if (
@@ -671,11 +720,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           display: "flex",
           flexDirection: "column",
           backgroundColor: "var(--ss-card-bg)",
-          padding: "8px 4px",
-          borderRadius: "20px",
+          padding: `${quickNavLayout.paddingY}px ${quickNavLayout.paddingX}px`,
+          borderRadius: `${quickNavLayout.borderRadius}px`,
           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
           zIndex: 100,
-          maxHeight: "80vh",
+          maxHeight: `${quickNavLayout.maxHeight}px`,
           border: "1px solid var(--ss-border-color)",
           cursor: "pointer",
           userSelect: "none",
@@ -688,8 +737,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               position: "absolute",
               left: "-10px",
               top: `${navIndicatorY}px`,
-              width: "34px",
-              height: "34px",
+              width: `${quickNavLayout.bubbleSize}px`,
+              height: `${quickNavLayout.bubbleSize}px`,
               transform: "translate(-100%, -50%)",
               borderRadius: "50%",
               backgroundColor: isNavDraggingState
@@ -726,7 +775,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <span
               style={{
                 color: isNavDraggingState ? "#fff" : "var(--ant-color-primary, #1890ff)",
-                fontSize: "13px",
+                fontSize: `${quickNavLayout.bubbleFontSize}px`,
                 fontWeight: 700,
                 lineHeight: 1,
               }}
@@ -739,12 +788,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <div
             key={group.key}
             style={{
-              width: "24px",
-              height: "24px",
+              width: `${quickNavLayout.itemSize}px`,
+              height: `${quickNavLayout.itemSize}px`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "11px",
+              fontSize: `${quickNavLayout.fontSize}px`,
               fontWeight: "bold",
               color:
                 navActiveKey === group.key
