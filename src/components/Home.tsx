@@ -426,6 +426,27 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const navContainerRef = useRef<HTMLDivElement>(null)
   const isNavDragging = useRef(false)
+  const bodyUserSelectRef = useRef("")
+  const bodyWebkitUserSelectRef = useRef("")
+  const [navActiveKey, setNavActiveKey] = useState<string | null>(null)
+  const [navIndicatorY, setNavIndicatorY] = useState(0)
+  const [navIndicatorVisible, setNavIndicatorVisible] = useState(false)
+
+  const setNavDraggingState = useCallback((dragging: boolean) => {
+    isNavDragging.current = dragging
+    if (dragging) {
+      bodyUserSelectRef.current = document.body.style.userSelect
+      bodyWebkitUserSelectRef.current = document.body.style.webkitUserSelect
+      document.body.style.userSelect = "none"
+      document.body.style.webkitUserSelect = "none"
+      setNavIndicatorVisible(true)
+      return
+    }
+
+    document.body.style.userSelect = bodyUserSelectRef.current
+    document.body.style.webkitUserSelect = bodyWebkitUserSelectRef.current
+    setNavIndicatorVisible(false)
+  }, [])
 
   const handleNavAction = useCallback(
     (clientY: number) => {
@@ -442,6 +463,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
       const targetGroup = groupedStudents[safeIndex]
       if (targetGroup) {
+        setNavActiveKey(targetGroup.key)
+        setNavIndicatorY((safeIndex + 0.5) * itemHeight)
         scrollToGroup(targetGroup.key)
       }
     },
@@ -449,7 +472,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   )
 
   const onNavMouseDown = (e: React.MouseEvent) => {
-    isNavDragging.current = true
+    e.preventDefault()
+    setNavDraggingState(true)
     handleNavAction(e.clientY)
     document.addEventListener("mousemove", onGlobalMouseMove)
     document.addEventListener("mouseup", onGlobalMouseUp)
@@ -457,21 +481,23 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
   const onGlobalMouseMove = (e: MouseEvent) => {
     if (isNavDragging.current) {
+      if (e.cancelable) e.preventDefault()
       handleNavAction(e.clientY)
     }
   }
 
   const onGlobalMouseUp = () => {
-    isNavDragging.current = false
+    setNavDraggingState(false)
     document.removeEventListener("mousemove", onGlobalMouseMove)
     document.removeEventListener("mouseup", onGlobalMouseUp)
   }
 
   const onNavTouchStart = (e: React.TouchEvent) => {
-    isNavDragging.current = true
+    setNavDraggingState(true)
     if (e.touches[0]) {
       handleNavAction(e.touches[0].clientY)
     }
+    if (e.cancelable) e.preventDefault()
   }
 
   const onNavTouchMove = (e: React.TouchEvent) => {
@@ -482,8 +508,17 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const onNavTouchEnd = () => {
-    isNavDragging.current = false
+    setNavDraggingState(false)
   }
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener("mousemove", onGlobalMouseMove)
+      document.removeEventListener("mouseup", onGlobalMouseUp)
+      document.body.style.userSelect = bodyUserSelectRef.current
+      document.body.style.webkitUserSelect = bodyWebkitUserSelectRef.current
+    }
+  }, [])
 
   const renderQuickNav = () => {
     if (
@@ -500,6 +535,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         onTouchStart={onNavTouchStart}
         onTouchMove={onNavTouchMove}
         onTouchEnd={onNavTouchEnd}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           position: "fixed",
           right: "12px",
@@ -519,6 +555,38 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           touchAction: "none",
         }}
       >
+        {navIndicatorVisible && navActiveKey && (
+          <div
+            style={{
+              position: "absolute",
+              left: "-14px",
+              top: `${navIndicatorY}px`,
+              width: "34px",
+              height: "34px",
+              transform: "translate(-100%, -50%) rotate(-45deg)",
+              borderRadius: "50% 50% 50% 4px",
+              backgroundColor: "var(--ant-color-primary, #1890ff)",
+              boxShadow: "0 6px 16px rgba(0,0,0,0.2)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              zIndex: 2,
+            }}
+          >
+            <span
+              style={{
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 700,
+                transform: "rotate(45deg)",
+                lineHeight: 1,
+              }}
+            >
+              {navActiveKey}
+            </span>
+          </div>
+        )}
         {groupedStudents.map((group) => (
           <div
             key={group.key}
@@ -530,8 +598,15 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               justifyContent: "center",
               fontSize: "11px",
               fontWeight: "bold",
-              color: "var(--ant-color-primary, #1890ff)",
+              color:
+                navIndicatorVisible && navActiveKey === group.key
+                  ? "#ffffff"
+                  : "var(--ant-color-primary, #1890ff)",
               borderRadius: "50%",
+              backgroundColor:
+                navIndicatorVisible && navActiveKey === group.key
+                  ? "var(--ant-color-primary, #1890ff)"
+                  : "transparent",
               pointerEvents: "none",
             }}
           >
