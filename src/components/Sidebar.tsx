@@ -185,6 +185,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
       theme="light"
     >
       <div
+        data-tauri-drag-region
         style={
           {
             padding: "32px 24px 16px",

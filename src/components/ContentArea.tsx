@@ -111,7 +111,16 @@ export function ContentArea({
           } as React.CSSProperties
         }
       >
-        <div style={{ flex: 1 }} />
+        <div
+          data-tauri-drag-region
+          style={
+            {
+              flex: 1,
+              height: "100%",
+              WebkitAppRegion: "drag",
+            } as React.CSSProperties
+          }
+        />
         <div
           style={
             {
