@@ -71,6 +71,7 @@ fn main() {
             window_is_maximized,
             toggle_devtools,
             window_resize,
+            window_set_resizable,
             db_test_connection,
             db_switch_connection,
             db_get_status,

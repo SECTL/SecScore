@@ -136,13 +136,6 @@ export function ContentArea({
           }
         >
           <Space size="small">
-            <Button
-              size="small"
-              onClick={onToggleOrientation}
-              title={isPortraitMode ? "当前：竖屏模式" : "当前：横屏模式"}
-            >
-              切换横竖模式
-            </Button>
             {permissionTag}
             {hasAnyPassword && (
               <>
@@ -156,7 +149,10 @@ export function ContentArea({
             )}
           </Space>
         </div>
-        <WindowControls />
+        <WindowControls
+          isPortraitMode={isPortraitMode}
+          onToggleOrientation={onToggleOrientation}
+        />
       </div>
 
       <Content style={{ flex: 1, overflowY: "auto" }}>

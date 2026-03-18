@@ -140,10 +140,12 @@ function MainContent(): React.JSX.Element {
         await api.windowMaximize()
       }
       if (nextPortraitMode) {
-        await api.windowResize(800, 1000)
+        await api.windowSetResizable(false)
+        await api.windowResize(940, 1280)
         setSidebarCollapsed(true)
       } else {
-        await api.windowResize(1180, 680)
+        await api.windowSetResizable(true)
+        await api.windowResize(1440, 900)
         setSidebarCollapsed(false)
       }
       setIsPortraitMode(nextPortraitMode)

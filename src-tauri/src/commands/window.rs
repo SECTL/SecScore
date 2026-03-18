@@ -87,3 +87,15 @@ pub async fn window_resize(
     }
     Ok(())
 }
+
+#[tauri::command]
+pub async fn window_set_resizable(
+    resizable: bool,
+    app: AppHandle,
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_resizable(resizable).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}

@@ -185,6 +185,8 @@ const api = {
   toggleDevTools: (): Promise<void> => invoke("toggle_devtools"),
   windowResize: (width: number, height: number): Promise<void> =>
     invoke("window_resize", { width, height }),
+  windowSetResizable: (resizable: boolean): Promise<void> =>
+    invoke("window_set_resizable", { resizable }),
   onWindowMaximizedChanged: (callback: (maximized: boolean) => void): Promise<UnlistenFn> => {
     return listen<boolean>("window:maximized-changed", (event) => {
       callback(event.payload)
