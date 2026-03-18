@@ -31,9 +31,11 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [loading, setLoading] = useState(false)
   const [sortType, setSortType] = useState<SortType>("alphabet")
   const [searchKeyword, setSearchKeyword] = useState("")
+  const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const searchAreaRef = useRef<HTMLDivElement>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [operationVisible, setOperationVisible] = useState(false)
@@ -91,6 +93,31 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     window.addEventListener("ss:data-updated", onDataUpdated as any)
     return () => window.removeEventListener("ss:data-updated", onDataUpdated as any)
   }, [fetchData])
+
+  useEffect(() => {
+    const onDocumentClick = (e: MouseEvent) => {
+      const target = e.target as Node | null
+      if (searchAreaRef.current && target && !searchAreaRef.current.contains(target)) {
+        setShowPinyinKeyboard(false)
+      }
+    }
+    document.addEventListener("mousedown", onDocumentClick)
+    return () => document.removeEventListener("mousedown", onDocumentClick)
+  }, [])
+
+  const pinyinKeyRows = [
+    ["ABC", "DEF", "GHI"],
+    ["JKL", "MNO", "PQRS"],
+    ["TUV", "WXYZ", "⌫"],
+  ]
+
+  const handlePinyinKeyPress = (value: string) => {
+    if (value === "⌫") {
+      setSearchKeyword((prev) => prev.slice(0, -1))
+      return
+    }
+    setSearchKeyword((prev) => `${prev}${value.charAt(0).toLowerCase()}`)
+  }
 
   const getDisplayText = (name: string) => {
     if (!name) return ""
@@ -702,15 +729,58 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           </p>
         </div>
 
-        <Space size="middle">
-          <Input
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            placeholder={t("home.searchPlaceholder")}
-            prefix={<SearchOutlined />}
-            allowClear
-            style={{ width: "220px" }}
-          />
+        <Space size="middle" align="start">
+          <div ref={searchAreaRef} style={{ position: "relative", width: "220px" }}>
+            <Input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onFocus={() => setShowPinyinKeyboard(true)}
+              onClick={() => setShowPinyinKeyboard(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setShowPinyinKeyboard(false)
+              }}
+              placeholder={t("home.searchPlaceholder")}
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: "220px" }}
+            />
+            {showPinyinKeyboard && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  left: 0,
+                  width: "220px",
+                  padding: "8px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--ss-border-color)",
+                  backgroundColor: "var(--ss-card-bg)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
+                  zIndex: 20,
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {pinyinKeyRows.map((row, rowIndex) => (
+                    <div
+                      key={`pinyin-row-${rowIndex}`}
+                      style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}
+                    >
+                      {row.map((keyValue) => (
+                        <Button
+                          key={keyValue}
+                          size="small"
+                          onClick={() => handlePinyinKeyPress(keyValue)}
+                          style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                        >
+                          {keyValue}
+                        </Button>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           <Select
             value={sortType}
