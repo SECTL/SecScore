@@ -1062,9 +1062,18 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     }
   }, [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY])
 
+  const shouldShowQuickNav =
+    groupedStudents.length > 1 &&
+    sortType !== "score" &&
+    !(sortType === "alphabet" && searchKeyword)
+
+  const portraitListRightPadding =
+    isPortraitMode && shouldShowQuickNav
+      ? quickNavLayout.itemSize + quickNavLayout.paddingX * 2 + 16
+      : 0
+
   const renderQuickNav = () => {
-    if (groupedStudents.length <= 1 || sortType === "score" || (sortType === "alphabet" && searchKeyword))
-      return null
+    if (!shouldShowQuickNav) return null
 
     return (
       <div
@@ -1612,7 +1621,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
       {renderQuickNav()}
 
-      <div style={{ minHeight: "400px" }} ref={scrollContainerRef}>
+      <div
+        style={{
+          minHeight: "400px",
+          paddingRight: portraitListRightPadding ? `${portraitListRightPadding}px` : undefined,
+        }}
+        ref={scrollContainerRef}
+      >
         {loading ? (
           <div style={{ textAlign: "center", padding: "100px 0" }}>
             <div style={{ color: "var(--ss-text-secondary)" }}>{t("common.loading")}</div>
