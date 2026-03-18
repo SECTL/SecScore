@@ -703,7 +703,15 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     gap: "8px",
                   }}
                 >
-                  <span style={{ fontWeight: 600, fontSize: "14px" }}>
+                  <span
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "14px",
+                      whiteSpace: "nowrap",
+                      wordBreak: "keep-all",
+                      flexShrink: 0,
+                    }}
+                  >
                     {t("home.quickOptions")}
                   </span>
                   <Divider style={{ flex: 1, margin: 0 }} />
@@ -737,6 +745,8 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                             size="small"
                             onClick={() => handleReasonSelect(r)}
                             style={{
+                              whiteSpace: "nowrap",
+                              wordBreak: "keep-all",
                               borderColor:
                                 r.delta > 0
                                   ? "var(--ant-color-success, #52c41a)"
