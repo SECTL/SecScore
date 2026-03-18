@@ -620,22 +620,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   >
                     -1
                   </Button>
-                  <Button
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setQuickActionStudentId(null)
-                    }}
-                    style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "18px",
-                      paddingInline: 0,
-                      fontWeight: 700,
-                    }}
-                  >
-                    ×
-                  </Button>
                 </div>
               ) : (
                 <>
