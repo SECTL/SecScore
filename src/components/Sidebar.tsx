@@ -9,6 +9,8 @@ import {
   FileTextOutlined,
   CloudOutlined,
   UploadOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -30,6 +32,7 @@ interface DbStatus {
 
 export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
+  const [collapsed, setCollapsed] = useState(false)
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -176,6 +179,8 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
     <Sider
       className="ss-sidebar"
       width={200}
+      collapsed={collapsed}
+      collapsedWidth={80}
       style={{
         background: "var(--ss-sidebar-bg)",
         borderRight: "1px solid var(--ss-border-color)",
@@ -188,43 +193,61 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
         data-tauri-drag-region
         style={
           {
-            padding: "32px 24px 16px",
+            padding: collapsed ? "24px 8px 12px" : "32px 24px 16px",
             textAlign: "center",
             WebkitAppRegion: "drag",
             userSelect: "none",
             flexShrink: 0,
+            position: "relative",
           } as React.CSSProperties
         }
       >
+        <Button
+          type="text"
+          size="small"
+          onClick={() => setCollapsed((prev) => !prev)}
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+            WebkitAppRegion: "no-drag",
+          }}
+        />
         <img
           src={appLogo}
-          style={{ width: "48px", height: "48px", marginBottom: "12px" }}
+          style={{ width: "48px", height: "48px", marginBottom: collapsed ? "0" : "12px" }}
           alt="logo"
         />
-        <h2
-          style={{
-            color: "var(--ss-sidebar-text, var(--ss-text-main))",
-            margin: 0,
-            fontSize: "20px",
-          }}
-        >
-          SecScore
-        </h2>
-        <div
-          style={{
-            fontSize: "12px",
-            color: "var(--ss-sidebar-text, var(--ss-text-main))",
-            opacity: 0.8,
-            marginTop: "4px",
-          }}
-        >
-          {t("settings.about.appName")}
-        </div>
+        {!collapsed && (
+          <>
+            <h2
+              style={{
+                color: "var(--ss-sidebar-text, var(--ss-text-main))",
+                margin: 0,
+                fontSize: "20px",
+              }}
+            >
+              SecScore
+            </h2>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--ss-sidebar-text, var(--ss-text-main))",
+                opacity: 0.8,
+                marginTop: "4px",
+              }}
+            >
+              {t("settings.about.appName")}
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <Menu
           mode="inline"
+          inlineCollapsed={collapsed}
           selectedKeys={[activeMenu]}
           onClick={({ key }) => onMenuChange(key)}
           style={{
@@ -236,7 +259,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
         />
       </div>
 
-      {dbStatus.type === "postgresql" && (
+      {!collapsed && dbStatus.type === "postgresql" && (
         <Card
           size="small"
           style={{
