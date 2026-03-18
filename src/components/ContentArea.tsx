@@ -100,6 +100,7 @@ export function ContentArea({
           : t("permissions.view")}
     </Tag>
   )
+  const useFloatingSidebarToggle = floatingExpand && sidebarCollapsed
 
   return (
     <Layout
@@ -128,14 +129,20 @@ export function ContentArea({
         <div
           style={
             {
-              paddingLeft: "8px",
+              paddingLeft: useFloatingSidebarToggle ? 0 : "8px",
               display: "flex",
               alignItems: "center",
-              height: "100%",
+              height: useFloatingSidebarToggle ? "auto" : "100%",
               WebkitAppRegion: "no-drag",
               flexShrink: 0,
-              position: "relative",
-              zIndex: floatingExpand && sidebarCollapsed && floatingExpanded ? 1301 : 1,
+              position: useFloatingSidebarToggle ? "fixed" : "relative",
+              left: useFloatingSidebarToggle ? "8px" : undefined,
+              top: useFloatingSidebarToggle ? "4px" : undefined,
+              zIndex: useFloatingSidebarToggle
+                ? 1402
+                : floatingExpand && sidebarCollapsed && floatingExpanded
+                  ? 1301
+                  : 1,
             } as React.CSSProperties
           }
         >
