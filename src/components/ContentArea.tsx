@@ -125,35 +125,6 @@ export function ContentArea({
         }
       >
         <div
-          style={
-            {
-              paddingLeft: "8px",
-              display: "flex",
-              alignItems: "center",
-              height: "100%",
-              WebkitAppRegion: "no-drag",
-              flexShrink: 0,
-            } as React.CSSProperties
-          }
-        >
-          <Button
-            type="text"
-            size="small"
-            onClick={onToggleSidebar}
-            icon={
-              floatingExpand && sidebarCollapsed
-                ? floatingExpanded
-                  ? <MenuFoldOutlined />
-                  : <MenuUnfoldOutlined />
-                : sidebarCollapsed
-                  ? <MenuUnfoldOutlined />
-                  : <MenuFoldOutlined />
-            }
-            title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
-            style={{ width: "32px", height: "32px" }}
-          />
-        </div>
-        <div
           data-tauri-drag-region
           style={
             {
@@ -174,6 +145,22 @@ export function ContentArea({
           }
         >
           <Space size="small">
+            <Button
+              type="text"
+              size="small"
+              onClick={onToggleSidebar}
+              icon={
+                floatingExpand && sidebarCollapsed
+                  ? floatingExpanded
+                    ? <MenuFoldOutlined />
+                    : <MenuUnfoldOutlined />
+                  : sidebarCollapsed
+                    ? <MenuUnfoldOutlined />
+                    : <MenuFoldOutlined />
+              }
+              title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
+              style={{ width: "32px", height: "32px" }}
+            />
             {permissionTag}
             {hasAnyPassword && (
               <>
