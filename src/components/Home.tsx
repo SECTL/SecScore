@@ -586,7 +586,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {avatarText}
               </div>
             )}
-            <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: "40px" }}>
+            <div style={{ flex: 1, overflow: "hidden", position: "relative", minHeight: "44px" }}>
               <div
                 style={{
                   position: "absolute",
@@ -665,30 +665,6 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     {student.score > 0 ? `+${student.score}` : student.score}
                   </Tag>
                 </div>
-              </div>
-              <div style={{ visibility: "hidden" }}>
-                  <div
-                    style={{
-                      fontWeight: 600,
-                      fontSize: "15px",
-                      color: "var(--ss-text-main)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {student.name}
-                  </div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
-                  >
-                    <Tag
-                      color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
-                      style={{ fontWeight: "bold" }}
-                    >
-                      {student.score > 0 ? `+${student.score}` : student.score}
-                    </Tag>
-                  </div>
               </div>
             </div>
           </div>
