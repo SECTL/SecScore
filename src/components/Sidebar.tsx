@@ -180,7 +180,7 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
       className="ss-sidebar"
       width={200}
       collapsed={collapsed}
-      collapsedWidth={80}
+      collapsedWidth={64}
       style={{
         background: "var(--ss-sidebar-bg)",
         borderRight: "1px solid var(--ss-border-color)",
@@ -216,7 +216,11 @@ export function Sidebar({ activeMenu, permission, onMenuChange }: SidebarProps):
         />
         <img
           src={appLogo}
-          style={{ width: "48px", height: "48px", marginBottom: collapsed ? "0" : "12px" }}
+          style={{
+            width: collapsed ? "40px" : "48px",
+            height: collapsed ? "40px" : "48px",
+            marginBottom: collapsed ? "0" : "12px",
+          }}
           alt="logo"
         />
         {!collapsed && (
