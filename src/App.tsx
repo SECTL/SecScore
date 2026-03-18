@@ -219,6 +219,7 @@ function MainContent(): React.JSX.Element {
               left: "20px",
               opacity: 0.6,
               zIndex: 9999,
+              pointerEvents: "none",
             }}
           >
             <p
