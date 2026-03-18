@@ -138,6 +138,15 @@
       }
     },
     "interfaceZoom": "界面缩放",
+    "zoomOptions": {
+      "small70": "小 (70%)",
+      "default100": "默认 (100%)",
+      "large150": "大 (150%)"
+    },
+    "general": {
+      "saved": "已保存",
+      "saveFailed": "保存失败"
+    },
     "zoomHint": "调节应用界面的整体大小",
     "zoomUpdated": "界面缩放已更新",
     "updateFailed": "更新失败",
@@ -615,6 +624,7 @@
     "title": "SecScore 找回字符串",
     "saved": "我已保存",
     "export": "导出文本文件",
+    "exportHint": "建议导出后离线保存，遗失将无法找回。",
     "hint": "建议导出后离线保存，遗失将无法找回。"
   }
 }

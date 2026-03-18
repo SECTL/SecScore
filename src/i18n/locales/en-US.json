@@ -138,6 +138,15 @@
       }
     },
     "interfaceZoom": "Interface Zoom",
+    "zoomOptions": {
+      "small70": "Small (70%)",
+      "default100": "Default (100%)",
+      "large150": "Large (150%)"
+    },
+    "general": {
+      "saved": "Saved",
+      "saveFailed": "Save failed"
+    },
     "zoomHint": "Adjust the overall size of the application interface",
     "zoomUpdated": "Interface zoom updated",
     "updateFailed": "Update failed",
@@ -573,6 +582,9 @@
     "intervalTime": {
       "label": "Interval time trigger",
       "description": "Trigger automation when interval time is reached",
+      "monthLabel": "Month",
+      "weekLabel": "Week",
+      "timeLabel": "Time",
       "days": "Days",
       "minutes": "Minutes",
       "placeholderMinutes": "Enter interval (minutes)",
@@ -622,6 +634,7 @@
     "title": "SecScore Recovery String",
     "saved": "I have saved",
     "export": "Export Text File",
+    "exportHint": "It is recommended to export and store offline. If lost, it cannot be recovered.",
     "hint": "Recommended to save offline after export, cannot be recovered if lost."
   }
 }
