@@ -22,6 +22,7 @@ export type settingsKey =
   | "log_level"
   | "window_zoom"
   | "search_keyboard_layout"
+  | "disable_search_keyboard"
   | "themes_custom"
   | "auto_score_enabled"
   | "auto_score_rules"
@@ -34,6 +35,7 @@ export interface settingsSpec {
   log_level: string
   window_zoom: number
   search_keyboard_layout: "t9" | "qwerty26"
+  disable_search_keyboard: boolean
   themes_custom: themeConfig[]
   auto_score_enabled: boolean
   auto_score_rules: any[]

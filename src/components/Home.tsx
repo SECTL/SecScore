@@ -64,6 +64,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
+  const [disableSearchKeyboard, setDisableSearchKeyboard] = useState(false)
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -146,10 +147,20 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       .catch(() => void 0)
 
     api
+      .getSetting("disable_search_keyboard")
+      .then((res: any) => {
+        if (disposed) return
+        setDisableSearchKeyboard(Boolean(res?.data))
+      })
+      .catch(() => void 0)
+
+    api
       .onSettingChanged((change: any) => {
-        if (change?.key !== "search_keyboard_layout") return
-        if (change?.value === "t9" || change?.value === "qwerty26") {
+        if (change?.key === "search_keyboard_layout" && (change?.value === "t9" || change?.value === "qwerty26")) {
           setSearchKeyboardLayout(change.value)
+        }
+        if (change?.key === "disable_search_keyboard") {
+          setDisableSearchKeyboard(Boolean(change?.value))
         }
       })
       .then((fn: () => void) => {
@@ -166,6 +177,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       if (unlisten) unlisten()
     }
   }, [])
+
+  useEffect(() => {
+    if (disableSearchKeyboard && showPinyinKeyboard) {
+      setShowPinyinKeyboard(false)
+    }
+  }, [disableSearchKeyboard, showPinyinKeyboard])
 
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
@@ -893,8 +910,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <Input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
-              onFocus={() => setShowPinyinKeyboard(true)}
-              onClick={() => setShowPinyinKeyboard(true)}
+              onFocus={() => {
+                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+              }}
+              onClick={() => {
+                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") setShowPinyinKeyboard(false)
               }}
@@ -903,7 +924,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               allowClear
               style={{ width: "220px" }}
             />
-            {showPinyinKeyboard && (
+            {!disableSearchKeyboard && showPinyinKeyboard && (
               <div
                 style={{
                   position: "absolute",

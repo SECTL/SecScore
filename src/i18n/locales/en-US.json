@@ -130,6 +130,8 @@
     "searchKeyboard": {
       "title": "Search Keyboard",
       "hint": "Choose the pop-up keyboard layout under the search box",
+      "disableToggle": "Disable Search Keyboard",
+      "disableHint": "When enabled, the keyboard will no longer pop up below the search box",
       "options": {
         "qwerty26": "26-key (QWERTY)",
         "t9": "9-key (T9)"

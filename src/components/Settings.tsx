@@ -1,5 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { Tabs, Card, Form, Select, Input, Button, Space, Divider, Tag, Modal, message } from "antd"
+import {
+  Tabs,
+  Card,
+  Form,
+  Select,
+  Input,
+  Button,
+  Space,
+  Divider,
+  Tag,
+  Modal,
+  Switch,
+  message,
+} from "antd"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
@@ -10,6 +23,7 @@ type appSettings = {
   log_level: "debug" | "info" | "warn" | "error"
   window_zoom?: string
   search_keyboard_layout?: "t9" | "qwerty26"
+  disable_search_keyboard?: boolean
   auto_score_enabled?: boolean
 }
 
@@ -22,6 +36,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     log_level: "info",
     window_zoom: "1.0",
     search_keyboard_layout: "qwerty26",
+    disable_search_keyboard: false,
   })
 
   const [securityStatus, setSecurityStatus] = useState<{
@@ -112,6 +127,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           if (change?.key === "window_zoom") return { ...prev, window_zoom: change.value }
           if (change?.key === "search_keyboard_layout")
             return { ...prev, search_keyboard_layout: change.value }
+          if (change?.key === "disable_search_keyboard")
+            return { ...prev, disable_search_keyboard: Boolean(change.value) }
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
           return prev
@@ -406,6 +423,31 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                 style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
               >
                 {t("settings.searchKeyboard.hint")}
+              </div>
+            </Form.Item>
+
+            <Form.Item label={t("settings.searchKeyboard.disableToggle")}>
+              <Switch
+                checked={Boolean(settings.disable_search_keyboard)}
+                onChange={async (checked) => {
+                  if (!(window as any).api) return
+                  const res = await (window as any).api.setSetting(
+                    "disable_search_keyboard",
+                    checked
+                  )
+                  if (res.success) {
+                    setSettings((prev) => ({ ...prev, disable_search_keyboard: checked }))
+                    messageApi.success(t("settings.general.saved"))
+                  } else {
+                    messageApi.error(res.message || t("settings.general.saveFailed"))
+                  }
+                }}
+                disabled={!canAdmin}
+              />
+              <div
+                style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+              >
+                {t("settings.searchKeyboard.disableHint")}
               </div>
             </Form.Item>
 

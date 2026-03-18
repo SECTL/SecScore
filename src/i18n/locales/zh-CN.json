@@ -130,6 +130,8 @@
     "searchKeyboard": {
       "title": "搜索小键盘",
       "hint": "选择搜索框下方弹出的小键盘布局",
+      "disableToggle": "禁用搜索小键盘",
+      "disableHint": "开启后，搜索框下方不再弹出小键盘",
       "options": {
         "qwerty26": "26 键（QWERTY）",
         "t9": "9 键（T9）"
