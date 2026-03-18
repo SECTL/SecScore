@@ -53,8 +53,13 @@ const api = {
   deleteTheme: (themeId: string): Promise<{ success: boolean }> =>
     invoke("theme_delete", { themeId }),
   onThemeChanged: (callback: (theme: themeConfig) => void): Promise<UnlistenFn> => {
-    return listen<{ theme: themeConfig }>("theme:updated", (event) => {
-      callback(event.payload.theme)
+    return listen<themeConfig | { theme?: themeConfig }>("theme:updated", (event) => {
+      const payload = event.payload as themeConfig | { theme?: themeConfig } | undefined
+      const theme =
+        payload && typeof payload === "object" && "theme" in payload
+          ? payload.theme
+          : (payload as themeConfig | undefined)
+      if (theme) callback(theme)
     })
   },
 

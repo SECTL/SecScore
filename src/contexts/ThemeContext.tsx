@@ -18,13 +18,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const currentThemeRef = useRef<themeConfig | null>(null)
 
   const applyThemeConfig = useCallback((theme: themeConfig) => {
-    const { tdesign, custom } = theme.config
+    if (!theme) return
+    const tdesign = theme.config?.tdesign || {}
+    const custom = theme.config?.custom || {}
     const root = document.documentElement
     const prevKeys = appliedStyleKeysRef.current
     for (const k of prevKeys) root.style.removeProperty(k)
     const nextKeys: string[] = []
 
-    root.setAttribute("theme-mode", theme.mode)
+    root.setAttribute("theme-mode", theme.mode || "light")
 
     const brandColor = tdesign.brandColor || "#1677FF"
     const hex = brandColor.replace("#", "")
@@ -38,7 +40,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     nextKeys.push("--ss-primary-rgb")
 
     if (brandColor) {
-      const colorMap = generateColorMap(brandColor, theme.mode)
+      const colorMap = generateColorMap(brandColor, theme.mode || "light")
       Object.entries(colorMap).forEach(([key, value]) => {
         root.style.setProperty(key, value)
         nextKeys.push(key)
