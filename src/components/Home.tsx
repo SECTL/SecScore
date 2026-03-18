@@ -24,6 +24,7 @@ interface reason {
 }
 
 type SortType = "alphabet" | "surname" | "score"
+type LayoutType = "grouped" | "squareGrid"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 
 const T9_KEY_MAP: Record<string, string> = {
@@ -66,6 +67,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const [reasons, setReasons] = useState<reason[]>([])
   const [loading, setLoading] = useState(false)
   const [sortType, setSortType] = useState<SortType>("alphabet")
+  const [layoutType, setLayoutType] = useState<LayoutType>("grouped")
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
@@ -327,6 +329,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }, [students, searchKeyword, sortType, matchStudentName])
 
   const groupedStudents = useMemo(() => {
+    if (layoutType === "squareGrid") {
+      return [{ key: "all", students: sortedStudents }]
+    }
+
     if (sortType === "score" || (sortType === "alphabet" && searchKeyword)) {
       return [{ key: "all", students: sortedStudents }]
     }
@@ -341,7 +347,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     return Object.entries(groups)
       .sort(([a], [b]) => a.localeCompare(b, "zh-CN"))
       .map(([key, students]) => ({ key, students }))
-  }, [sortedStudents, sortType, searchKeyword])
+  }, [sortedStudents, sortType, searchKeyword, layoutType])
 
   const groupedReasons = useMemo(() => {
     const groups: Record<string, reason[]> = {}
@@ -820,7 +826,190 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     )
   }
 
+  const renderStudentSquareCard = (student: student, index: number) => {
+    const avatarText = getDisplayText(student.name)
+    const avatarColor = getAvatarColor(student.name)
+    const isQuickActionMode = quickActionStudentId === student.id
+
+    let rankBadge: string | null = null
+    if (sortType === "score" && !searchKeyword) {
+      if (index === 0) rankBadge = "🥇"
+      else if (index === 1) rankBadge = "🥈"
+      else if (index === 2) rankBadge = "🥉"
+    }
+
+    return (
+      <div
+        key={student.id}
+        data-student-quick-card="true"
+        onClick={(e) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          openOperation(student)
+        }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return
+          startLongPress(student)
+        }}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={() => startLongPress(student)}
+        onTouchEnd={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          openQuickAction(student)
+        }}
+        style={{
+          cursor: "pointer",
+          position: "relative",
+          aspectRatio: "1 / 1",
+        }}
+      >
+        <Card
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "var(--ss-card-bg)",
+            transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
+            border: isQuickActionMode
+              ? "1px solid var(--ant-color-primary, #1677ff)"
+              : "1px solid var(--ss-border-color)",
+            overflow: "visible",
+            boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
+          }}
+          styles={{ body: { height: "100%", padding: "10px" } }}
+        >
+          {rankBadge && (
+            <div
+              style={{
+                position: "absolute",
+                top: "-10px",
+                left: "-10px",
+                fontSize: "24px",
+                zIndex: 1,
+              }}
+            >
+              {rankBadge}
+            </div>
+          )}
+          <div
+            style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              textAlign: "center",
+            }}
+          >
+            {student.avatarUrl ? (
+              <img
+                src={student.avatarUrl}
+                alt={student.name}
+                style={{
+                  width: "52px",
+                  height: "52px",
+                  borderRadius: "14px",
+                  objectFit: "cover",
+                  flexShrink: 0,
+                  boxShadow: `0 4px 10px ${avatarColor}40`,
+                  border: "1px solid var(--ss-border-color)",
+                  backgroundColor: "var(--ss-bg-color)",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "52px",
+                  height: "52px",
+                  borderRadius: "14px",
+                  backgroundColor: avatarColor,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: avatarText.length > 1 ? "16px" : "20px",
+                  flexShrink: 0,
+                  boxShadow: `0 4px 10px ${avatarColor}40`,
+                }}
+              >
+                {avatarText}
+              </div>
+            )}
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: "14px",
+                color: "var(--ss-text-main)",
+                maxWidth: "100%",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {student.name}
+            </div>
+            {isQuickActionMode ? (
+              <Space size={6}>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, 1)
+                  }}
+                  style={{ minWidth: "44px", height: "28px", borderRadius: "14px", paddingInline: "8px" }}
+                >
+                  +1
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, -1)
+                  }}
+                  style={{ minWidth: "44px", height: "28px", borderRadius: "14px", paddingInline: "8px" }}
+                >
+                  -1
+                </Button>
+              </Space>
+            ) : (
+              <Tag
+                color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+              >
+                {student.score > 0 ? `+${student.score}` : student.score}
+              </Tag>
+            )}
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
   const renderGroupedCards = () => {
+    if (layoutType === "squareGrid") {
+      return (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))",
+            gap: isPortraitMode ? "10px" : "14px",
+          }}
+        >
+          {sortedStudents.map((student, idx) => renderStudentSquareCard(student, idx))}
+        </div>
+      )
+    }
+
     return groupedStudents.map((group) => (
       <div
         key={group.key}
@@ -1064,6 +1253,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
   const shouldShowQuickNav =
     groupedStudents.length > 1 &&
+    layoutType !== "squareGrid" &&
     sortType !== "score" &&
     !(sortType === "alphabet" && searchKeyword)
 
@@ -1614,6 +1804,15 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               { value: "alphabet", label: t("home.sortBy.alphabet") },
               { value: "surname", label: t("home.sortBy.surname") },
               { value: "score", label: t("home.sortBy.score") },
+            ]}
+          />
+          <Select
+            value={layoutType}
+            onChange={(v) => setLayoutType(v as LayoutType)}
+            style={{ width: "140px" }}
+            options={[
+              { value: "grouped", label: t("home.layoutBy.grouped") },
+              { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
             ]}
           />
         </Space>

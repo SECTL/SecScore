@@ -335,6 +335,10 @@
       "surname": "Surname Group",
       "score": "Points Rank"
     },
+    "layoutBy": {
+      "grouped": "Grouped List",
+      "squareGrid": "Square Grid"
+    },
     "noStudents": "No student data, please add in Student Management",
     "noMatch": "No matching students found",
     "clearSearch": "Clear search",

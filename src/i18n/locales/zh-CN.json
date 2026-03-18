@@ -335,6 +335,10 @@
       "surname": "姓氏分组",
       "score": "积分排行"
     },
+    "layoutBy": {
+      "grouped": "分组列表",
+      "squareGrid": "正方形网格"
+    },
     "noStudents": "暂无学生数据，请前往学生管理添加",
     "noMatch": "未找到匹配的学生",
     "clearSearch": "清除搜索",
