@@ -329,10 +329,6 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }, [students, searchKeyword, sortType, matchStudentName])
 
   const groupedStudents = useMemo(() => {
-    if (layoutType === "squareGrid") {
-      return [{ key: "all", students: sortedStudents }]
-    }
-
     if (sortType === "score" || (sortType === "alphabet" && searchKeyword)) {
       return [{ key: "all", students: sortedStudents }]
     }
@@ -348,6 +344,16 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       .sort(([a], [b]) => a.localeCompare(b, "zh-CN"))
       .map(([key, students]) => ({ key, students }))
   }, [sortedStudents, sortType, searchKeyword, layoutType])
+
+  const firstStudentIdByGroup = useMemo(() => {
+    const result = new Map<string, number>()
+    groupedStudents.forEach((group) => {
+      if (group.key === "all") return
+      const first = group.students[0]
+      if (first) result.set(group.key, first.id)
+    })
+    return result
+  }, [groupedStudents])
 
   const groupedReasons = useMemo(() => {
     const groups: Record<string, reason[]> = {}
@@ -869,6 +875,14 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           position: "relative",
           aspectRatio: "1 / 1",
         }}
+        ref={(el) => {
+          groupedStudents.forEach((group) => {
+            if (group.key === "all") return
+            if (firstStudentIdByGroup.get(group.key) === student.id) {
+              groupRefs.current[group.key] = el
+            }
+          })
+        }}
       >
         <Card
           style={{
@@ -882,7 +896,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             overflow: "visible",
             boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
           }}
-          styles={{ body: { height: "100%", padding: "10px" } }}
+          styles={{ body: { height: "100%", padding: "8px" } }}
         >
           {rankBadge && (
             <div
@@ -913,9 +927,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 src={student.avatarUrl}
                 alt={student.name}
                 style={{
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "14px",
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "12px",
                   objectFit: "cover",
                   flexShrink: 0,
                   boxShadow: `0 4px 10px ${avatarColor}40`,
@@ -926,16 +940,16 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             ) : (
               <div
                 style={{
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "14px",
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "12px",
                   backgroundColor: avatarColor,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "white",
                   fontWeight: "bold",
-                  fontSize: avatarText.length > 1 ? "16px" : "20px",
+                  fontSize: avatarText.length > 1 ? "14px" : "18px",
                   flexShrink: 0,
                   boxShadow: `0 4px 10px ${avatarColor}40`,
                 }}
@@ -943,19 +957,6 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 {avatarText}
               </div>
             )}
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: "14px",
-                color: "var(--ss-text-main)",
-                maxWidth: "100%",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {student.name}
-            </div>
             {isQuickActionMode ? (
               <Space size={6}>
                 <Button
@@ -982,12 +983,36 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 </Button>
               </Space>
             ) : (
-              <Tag
-                color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
-                style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  width: "100%",
+                  minWidth: 0,
+                }}
               >
-                {student.score > 0 ? `+${student.score}` : student.score}
-              </Tag>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    color: "var(--ss-text-main)",
+                    maxWidth: "100%",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {student.name}
+                </div>
+                <Tag
+                  color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                  style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+                >
+                  {student.score > 0 ? `+${student.score}` : student.score}
+                </Tag>
+              </div>
             )}
           </div>
         </Card>
@@ -1001,8 +1026,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))",
-            gap: isPortraitMode ? "10px" : "14px",
+            gridTemplateColumns: "repeat(auto-fill, minmax(102px, 1fr))",
+            gap: isPortraitMode ? "8px" : "10px",
           }}
         >
           {sortedStudents.map((student, idx) => renderStudentSquareCard(student, idx))}
@@ -1253,7 +1278,6 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
   const shouldShowQuickNav =
     groupedStudents.length > 1 &&
-    layoutType !== "squareGrid" &&
     sortType !== "score" &&
     !(sortType === "alphabet" && searchKeyword)
 
