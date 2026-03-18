@@ -50,20 +50,20 @@
         "title": "Set Theme",
         "description": "Choose your preferred interface appearance",
         "mode": "Mode",
-        "password": {
-          "title": "Set Password",
-          "description": "Set login password to protect your data (optional)",
-          "adminPassword": "Admin Password",
-          "adminPasswordHint": "Full access to all features, 6 digits",
-          "pointsPassword": "Points Password",
-          "pointsPasswordHint": "Points operations only, 6 digits",
-          "passwordPlaceholder": "Enter 6 digits",
-          "hint": "Leave empty to skip, you can configure in settings later"
-        },
         "lightMode": "Light",
         "darkMode": "Dark",
         "primaryColor": "Primary Color",
         "backgroundGradient": "Background Gradient"
+      },
+      "password": {
+        "title": "Set Password",
+        "description": "Set login password to protect your data (optional)",
+        "adminPassword": "Admin Password",
+        "adminPasswordHint": "Full access to all features, 6 digits",
+        "pointsPassword": "Points Password",
+        "pointsPasswordHint": "Points operations only, 6 digits",
+        "passwordPlaceholder": "Enter 6 digits",
+        "hint": "Leave empty to skip, you can configure in settings later"
       },
       "students": {
         "title": "Import Student List",

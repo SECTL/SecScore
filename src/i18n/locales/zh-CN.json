@@ -50,20 +50,20 @@
         "title": "设置主题",
         "description": "选择您喜欢的界面外观",
         "mode": "模式",
-        "password": {
-          "title": "设置密码",
-          "description": "设置登录密码以保护您的数据（可选）",
-          "adminPassword": "管理密码",
-          "adminPasswordHint": "可管理所有功能，6位数字",
-          "pointsPassword": "积分密码",
-          "pointsPasswordHint": "仅可操作积分，6位数字",
-          "passwordPlaceholder": "请输入6位数字",
-          "hint": "留空则不设置密码，之后可在设置中配置"
-        },
         "lightMode": "浅色",
         "darkMode": "深色",
         "primaryColor": "主色",
         "backgroundGradient": "背景渐变"
+      },
+      "password": {
+        "title": "设置密码",
+        "description": "设置登录密码以保护您的数据（可选）",
+        "adminPassword": "管理密码",
+        "adminPasswordHint": "可管理所有功能，6位数字",
+        "pointsPassword": "积分密码",
+        "pointsPasswordHint": "仅可操作积分，6位数字",
+        "passwordPlaceholder": "请输入6位数字",
+        "hint": "留空则不设置密码，之后可在设置中配置"
       },
       "students": {
         "title": "导入名单",
