@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { Table, Button, Space, message, Modal, Form, Input, Tag, Pagination } from "antd"
 import type { ColumnsType } from "antd/es/table"
+import { UploadOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
+import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 
 const createXlsxWorker = () => {
   return new Worker(new URL("../workers/xlsxWorker.ts", import.meta.url), {
@@ -16,6 +18,8 @@ interface student {
   score: number
   tags?: string[]
   tagIds?: number[]
+  extra_json?: string | null
+  avatarUrl?: string | null
 }
 
 export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
@@ -29,6 +33,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [xlsxVisible, setXlsxVisible] = useState(false)
   const [tagEditVisible, setTagEditVisible] = useState(false)
   const [editingStudent, setEditingStudent] = useState<student | null>(null)
+  const [avatarVisible, setAvatarVisible] = useState(false)
+  const [avatarSaving, setAvatarSaving] = useState(false)
+  const [avatarStudent, setAvatarStudent] = useState<student | null>(null)
+  const [avatarValue, setAvatarValue] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
   const [xlsxLoading, setXlsxLoading] = useState(false)
   const [xlsxFileName, setXlsxFileName] = useState("")
   const [xlsxAoa, setXlsxAoa] = useState<any[][]>([])
@@ -75,6 +84,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 id: s.id,
                 name: s.name,
                 score: s.score,
+                extra_json: s.extra_json ?? null,
+                avatarUrl: getAvatarFromExtraJson(s.extra_json),
                 tags,
                 tagIds,
               }
@@ -173,6 +184,74 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
     setEditingStudent(student)
     setTagEditVisible(true)
+  }
+
+  const handleOpenAvatarEditor = (student: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setAvatarStudent(student)
+    setAvatarValue(student.avatarUrl || null)
+    setAvatarVisible(true)
+  }
+
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result === "string") resolve(result)
+        else reject(new Error("invalid-result"))
+      }
+      reader.onerror = () => reject(reader.error || new Error("read-failed"))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleAvatarFileChange = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      messageApi.error(t("students.avatarInvalidFile"))
+      return
+    }
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      messageApi.error(t("students.avatarTooLarge"))
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setAvatarValue(dataUrl)
+    } catch {
+      messageApi.error(t("students.avatarReadFailed"))
+    }
+  }
+
+  const handleSaveAvatar = async () => {
+    if (!(window as any).api || !avatarStudent) return
+
+    setAvatarSaving(true)
+    try {
+      const payload = setAvatarInExtraJson(avatarStudent.extra_json, avatarValue)
+      const res = await (window as any).api.updateStudent(avatarStudent.id, {
+        extra_json: payload,
+      })
+      if (res?.success) {
+        messageApi.success(t("students.avatarSaveSuccess"))
+        setAvatarVisible(false)
+        setAvatarStudent(null)
+        setAvatarValue(null)
+        fetchStudents()
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.avatarSaveFailed"))
+      }
+    } catch {
+      messageApi.error(t("students.avatarSaveFailed"))
+    } finally {
+      setAvatarSaving(false)
+    }
   }
 
   const handleSaveTags = async (tagIds: number[]) => {
@@ -353,6 +432,44 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const columns: ColumnsType<student> = [
+    {
+      title: t("students.avatar"),
+      key: "avatar",
+      width: 88,
+      align: "center",
+      render: (_, row) =>
+        row.avatarUrl ? (
+          <img
+            src={row.avatarUrl}
+            alt={row.name}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              objectFit: "cover",
+              border: "1px solid var(--ss-border-color)",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              margin: "0 auto",
+              backgroundColor: "var(--ss-bg-color)",
+              border: "1px dashed var(--ss-border-color)",
+              color: "var(--ss-text-secondary)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+            }}
+          >
+            -
+          </div>
+        ),
+    },
     { title: t("students.name"), dataIndex: "name", key: "name", width: 100 },
     {
       title: t("students.currentScore"),
@@ -399,11 +516,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     {
       title: t("common.operation"),
       key: "operation",
-      width: 150,
+      width: 220,
       render: (_, row) => (
         <Space>
           <Button type="link" disabled={!canEdit} onClick={() => handleOpenTagEditor(row)}>
             {t("students.editTags")}
+          </Button>
+          <Button type="link" disabled={!canEdit} onClick={() => handleOpenAvatarEditor(row)}>
+            {t("students.editAvatar")}
           </Button>
           <Button type="link" danger disabled={!canEdit} onClick={() => handleDelete(row.id)}>
             {t("common.delete")}
@@ -545,6 +665,81 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         initialTagIds={editingStudent?.tagIds || []}
         title={t("students.editTagTitle", { name: editingStudent?.name || "" })}
       />
+
+      <Modal
+        title={t("students.editAvatarTitle", { name: avatarStudent?.name || "" })}
+        open={avatarVisible}
+        onCancel={() => {
+          setAvatarVisible(false)
+          setAvatarStudent(null)
+          setAvatarValue(null)
+        }}
+        onOk={handleSaveAvatar}
+        okButtonProps={{ loading: avatarSaving, disabled: !avatarStudent }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+            {avatarValue ? (
+              <img
+                src={avatarValue}
+                alt={avatarStudent?.name || "avatar"}
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "1px solid var(--ss-border-color)",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  border: "1px dashed var(--ss-border-color)",
+                  backgroundColor: "var(--ss-bg-color)",
+                  color: "var(--ss-text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {t("students.noAvatar")}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={!canEdit}
+            >
+              {t("students.avatarUpload")}
+            </Button>
+            <Button onClick={() => setAvatarValue(null)} disabled={!canEdit}>
+              {t("students.avatarClear")}
+            </Button>
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              handleAvatarFileChange(file)
+              if (avatarInputRef.current) avatarInputRef.current.value = ""
+            }}
+          />
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.avatarTip")}
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

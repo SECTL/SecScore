@@ -3,11 +3,14 @@ import { Card, Space, Button, Tag, Input, Select, Modal, message, InputNumber, D
 import { SearchOutlined, DeleteOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
+import { getAvatarFromExtraJson } from "../utils/studentAvatar"
 
 interface student {
   id: number
   name: string
   score: number
+  extra_json?: string | null
+  avatarUrl?: string | null
   pinyinName?: string
   pinyinFirst?: string
 }
@@ -67,6 +70,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     if (stuRes.success) {
       const enrichedStudents = (stuRes.data as student[]).map((s) => ({
         ...s,
+        avatarUrl: getAvatarFromExtraJson(s.extra_json),
         pinyinName: pinyin(s.name, { toneType: "none" }).toLowerCase(),
         pinyinFirst: getFirstLetter(s.name),
       }))
@@ -313,24 +317,41 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             </div>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "12px",
-                backgroundColor: avatarColor,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                fontWeight: "bold",
-                fontSize: avatarText.length > 1 ? "14px" : "18px",
-                flexShrink: 0,
-                boxShadow: `0 4px 10px ${avatarColor}40`,
-              }}
-            >
-              {avatarText}
-            </div>
+            {student.avatarUrl ? (
+              <img
+                src={student.avatarUrl}
+                alt={student.name}
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  objectFit: "cover",
+                  flexShrink: 0,
+                  boxShadow: `0 4px 10px ${avatarColor}40`,
+                  border: "1px solid var(--ss-border-color)",
+                  backgroundColor: "var(--ss-bg-color)",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  backgroundColor: avatarColor,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: avatarText.length > 1 ? "14px" : "18px",
+                  flexShrink: 0,
+                  boxShadow: `0 4px 10px ${avatarColor}40`,
+                }}
+              >
+                {avatarText}
+              </div>
+            )}
             <div style={{ flex: 1, overflow: "hidden" }}>
               <div
                 style={{
@@ -621,22 +642,36 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    backgroundColor: getAvatarColor(selectedStudent.name),
-                    color: "white",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "14px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {getDisplayText(selectedStudent.name)}
-                </div>
+                {selectedStudent.avatarUrl ? (
+                  <img
+                    src={selectedStudent.avatarUrl}
+                    alt={selectedStudent.name}
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "1px solid var(--ss-border-color)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      backgroundColor: getAvatarColor(selectedStudent.name),
+                      color: "white",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "14px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {getDisplayText(selectedStudent.name)}
+                  </div>
+                )}
                 <span style={{ fontWeight: 600 }}>{selectedStudent.name}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
