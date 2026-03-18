@@ -1069,7 +1069,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
   const portraitListRightPadding =
     isPortraitMode && shouldShowQuickNav
-      ? quickNavLayout.itemSize + quickNavLayout.paddingX * 2 + 16
+      ? quickNavLayout.itemSize + quickNavLayout.paddingX * 2 + 6
       : 0
 
   const renderQuickNav = () => {
