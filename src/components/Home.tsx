@@ -593,7 +593,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           touchAction: "none",
         }}
       >
-        {navActiveKey && (
+        {isNavDraggingState && navActiveKey && (
           <div
             style={{
               position: "absolute",
@@ -620,16 +620,18 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <div
               style={{
                 position: "absolute",
-                right: "-4px",
+                right: "-8px",
                 top: "50%",
-                width: "10px",
-                height: "10px",
-                transform: "translateY(-50%) rotate(45deg)",
-                backgroundColor: isNavDraggingState
-                  ? "var(--ant-color-primary, #1890ff)"
-                  : "rgba(24, 144, 255, 0.16)",
-                borderTop: isNavDraggingState ? "none" : "1px solid rgba(24, 144, 255, 0.32)",
-                borderRight: isNavDraggingState ? "none" : "1px solid rgba(24, 144, 255, 0.32)",
+                width: 0,
+                height: 0,
+                transform: "translateY(-50%)",
+                borderTop: "6px solid transparent",
+                borderBottom: "6px solid transparent",
+                borderLeft: `8px solid ${
+                  isNavDraggingState
+                    ? "var(--ant-color-primary, #1890ff)"
+                    : "rgba(24, 144, 255, 0.16)"
+                }`,
               }}
             />
             <span
