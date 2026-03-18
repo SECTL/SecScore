@@ -64,3 +64,13 @@ textarea {
 .ss-table-center .ant-table td {
   text-align: center;
 }
+
+.ss-operation-drawer .ant-drawer-header {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.ss-operation-drawer .ant-drawer-header .ant-drawer-close,
+.ss-operation-drawer .ant-drawer-header button {
+  -webkit-app-region: no-drag;
+}

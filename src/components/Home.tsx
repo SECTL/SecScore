@@ -1181,18 +1181,28 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }
 
   const operationPanelContent = selectedStudent && (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "8px 0" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        padding: "8px 0",
+        overflowX: "hidden",
+      }}
+    >
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "8px",
           padding: "12px 16px",
           backgroundColor: "var(--ss-bg-color)",
           borderRadius: "8px",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1 }}>
           {selectedStudent.avatarUrl ? (
             <img
               src={selectedStudent.avatarUrl}
@@ -1223,9 +1233,19 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               {getDisplayText(selectedStudent.name)}
             </div>
           )}
-          <span style={{ fontWeight: 600 }}>{selectedStudent.name}</span>
+          <span
+            style={{
+              fontWeight: 600,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {selectedStudent.name}
+          </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
           <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
             {t("home.currentScore")}：
           </span>
@@ -1358,7 +1378,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             0
           </Button>
         </div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <InputNumber
             value={customScore}
             onChange={(v) => setCustomScore(v as number)}
@@ -1610,12 +1630,15 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       {isPortraitMode ? (
         <Drawer
           title={t("home.operationTitle", { name: selectedStudent?.name })}
+          className="ss-operation-drawer"
           placement="bottom"
           height="100%"
           open={operationVisible}
           onClose={() => setOperationVisible(false)}
           destroyOnClose
-          styles={{ body: { padding: "12px 16px 24px" } }}
+          styles={{
+            body: { padding: "12px 16px 24px", overflowX: "hidden" },
+          }}
           footer={
             <Space style={{ width: "100%", justifyContent: "flex-end" }}>
               <Button onClick={() => setOperationVisible(false)}>{t("common.cancel")}</Button>
