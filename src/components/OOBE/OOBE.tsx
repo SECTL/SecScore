@@ -98,6 +98,20 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const primaryColor = workingTheme?.config?.tdesign?.brandColor || "#1677FF"
   const isDark = workingTheme?.mode === "dark"
 
+  const showOobeMessage = (
+    type: "success" | "error" | "warning" | "info",
+    content: string
+  ) => {
+    messageApi.open({
+      type,
+      content,
+      style: {
+        marginTop: 8,
+        zIndex: 12000,
+      },
+    })
+  }
+
   useEffect(() => {
     if (!currentTheme) return
     const base = deepClone(currentTheme)
@@ -186,7 +200,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
     })
 
     if (newStudents.length === 0) {
-      messageApi.warning(t("oobe.steps.students.studentExists"))
+      showOobeMessage("warning", t("oobe.steps.students.studentExists"))
       return
     }
 
@@ -237,14 +251,15 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
             .map((name) => ({ name: name.trim() }))
           if (newStudents.length > 0) {
             setStudents([...students, ...newStudents])
-            messageApi.success(
+            showOobeMessage(
+              "success",
               t("oobe.steps.students.importSuccess", { count: newStudents.length })
             )
           } else {
-            messageApi.info(t("oobe.steps.students.noNewStudents"))
+            showOobeMessage("info", t("oobe.steps.students.noNewStudents"))
           }
         } catch {
-          messageApi.error(t("oobe.steps.students.parseFailed"))
+          showOobeMessage("error", t("oobe.steps.students.parseFailed"))
         }
       } else if (ext === "xlsx") {
         try {
@@ -266,17 +281,18 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
             .map((name) => ({ name }))
           if (newStudents.length > 0) {
             setStudents([...students, ...newStudents])
-            messageApi.success(
+            showOobeMessage(
+              "success",
               t("oobe.steps.students.importSuccess", { count: newStudents.length })
             )
           } else {
-            messageApi.info(t("oobe.steps.students.noNewStudents"))
+            showOobeMessage("info", t("oobe.steps.students.noNewStudents"))
           }
         } catch {
-          messageApi.error(t("oobe.steps.students.parseFailed"))
+          showOobeMessage("error", t("oobe.steps.students.parseFailed"))
         }
       } else {
-        messageApi.error(t("oobe.steps.students.unsupportedFormat"))
+        showOobeMessage("error", t("oobe.steps.students.unsupportedFormat"))
       }
     },
     [students, messageApi]
@@ -319,6 +335,12 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         }
       }
 
+      const syncRes = await (window as any).api.dbSync()
+      ensureSuccess(syncRes, t("common.error"))
+      if (!syncRes?.data?.success) {
+        throw new Error(syncRes?.data?.message || t("common.error"))
+      }
+
       if (workingTheme) {
         const exists = themes.some((t) => t.id === workingTheme.id)
         if (!exists) {
@@ -355,10 +377,10 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
       const res = await (window as any).api.setSetting("is_wizard_completed", true)
       ensureSuccess(res, "failed")
 
-      messageApi.success(t("common.success"))
+      showOobeMessage("success", t("common.success"))
       onComplete()
     } catch (e: any) {
-      messageApi.error(e?.message || t("common.error"))
+      showOobeMessage("error", e?.message || t("common.error"))
     } finally {
       setLoading(false)
     }

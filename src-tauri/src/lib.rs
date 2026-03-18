@@ -6,6 +6,8 @@ pub mod state;
 pub mod utils;
 
 use crate::db::connection::create_sqlite_connection;
+use crate::db::connection::DatabaseType;
+use crate::db::migration::run_migration;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -51,6 +53,10 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     tauri::async_runtime::spawn(async move {
         match create_sqlite_connection(&db_path_str).await {
             Ok(conn) => {
+                if let Err(e) = run_migration(&conn, DatabaseType::SQLite).await {
+                    eprintln!("Failed to run sqlite migration: {}", e);
+                    return;
+                }
                 let state = handle.state::<crate::state::SafeAppState>();
                 let state_guard = state.write();
                 let mut db_guard = state_guard.db.write();

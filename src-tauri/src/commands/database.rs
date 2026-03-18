@@ -4,6 +4,8 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
+use crate::db::connection::DatabaseType;
+use crate::db::migration::run_migration;
 use crate::services::permission::PermissionLevel;
 use crate::state::AppState;
 
@@ -119,6 +121,9 @@ pub async fn db_switch_connection(
         let conn = create_postgres_connection(&connection_string)
             .await
             .map_err(|e| e.to_string())?;
+        run_migration(&conn, DatabaseType::PostgreSQL)
+            .await
+            .map_err(|e| e.to_string())?;
 
         let state_guard = state.read();
         let mut db_guard = state_guard.db.write();
@@ -136,6 +141,9 @@ pub async fn db_switch_connection(
         };
 
         let conn = create_sqlite_connection(&path)
+            .await
+            .map_err(|e| e.to_string())?;
+        run_migration(&conn, DatabaseType::SQLite)
             .await
             .map_err(|e| e.to_string())?;
 
@@ -189,7 +197,24 @@ pub async fn db_sync(
     let state_guard = state.read();
     let db_guard = state_guard.db.read();
     if let Some(conn) = db_guard.as_ref() {
-        match conn.ping().await {
+        let settings = state_guard.settings.read();
+        let status_json = settings.get_value(crate::services::settings::SettingsKey::PgConnectionStatus);
+        let db_type = match status_json {
+            crate::services::settings::SettingsValue::Json(json) => json
+                .get("type")
+                .and_then(|t| t.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "sqlite".to_string()),
+            _ => "sqlite".to_string(),
+        };
+
+        let migration_result = if db_type == "postgresql" {
+            run_migration(conn, DatabaseType::PostgreSQL).await
+        } else {
+            run_migration(conn, DatabaseType::SQLite).await
+        };
+
+        match migration_result {
             Ok(_) => Ok(IpcResponse::success(SyncResult {
                 success: true,
                 message: Some("Database synchronized successfully".to_string()),
