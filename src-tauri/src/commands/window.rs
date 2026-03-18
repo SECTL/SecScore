@@ -1,6 +1,8 @@
 use parking_lot::RwLock;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(desktop)]
+use tauri::Manager;
 
 use crate::state::AppState;
 
@@ -9,6 +11,12 @@ pub async fn window_minimize(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+    }
+
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         window.minimize().map_err(|e| e.to_string())?;
     }
@@ -20,7 +28,15 @@ pub async fn window_maximize(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window("main") {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        return Ok(false);
+    }
+
+    #[cfg(desktop)]
+    {
+        if let Some(window) = app.get_webview_window("main") {
         let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
 
         if is_maximized {
@@ -30,8 +46,9 @@ pub async fn window_maximize(
             window.maximize().map_err(|e| e.to_string())?;
             Ok(true)
         }
-    } else {
-        Err("Window not found".to_string())
+        } else {
+            Err("Window not found".to_string())
+        }
     }
 }
 
@@ -40,6 +57,12 @@ pub async fn window_close(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+    }
+
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         window.hide().map_err(|e| e.to_string())?;
     }
@@ -51,10 +74,19 @@ pub async fn window_is_maximized(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<bool, String> {
-    if let Some(window) = app.get_webview_window("main") {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        return Ok(false);
+    }
+
+    #[cfg(desktop)]
+    {
+        if let Some(window) = app.get_webview_window("main") {
         window.is_maximized().map_err(|e| e.to_string())
-    } else {
-        Ok(false)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -63,6 +95,12 @@ pub async fn toggle_devtools(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+    }
+
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         if window.is_devtools_open() {
             window.close_devtools();
@@ -80,6 +118,12 @@ pub async fn window_resize(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = (width, height, app);
+    }
+
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         window
             .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
@@ -94,6 +138,12 @@ pub async fn window_set_resizable(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = (resizable, app);
+    }
+
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         window.set_resizable(resizable).map_err(|e| e.to_string())?;
     }

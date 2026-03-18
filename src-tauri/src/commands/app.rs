@@ -83,6 +83,6 @@ pub async fn register_url_protocol(
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         let _ = app;
-        Ok(IpcResponse::failure("URL protocol registration is not supported on this platform"))
+        Ok(IpcResponse::error("URL protocol registration is not supported on this platform"))
     }
 }

@@ -5,22 +5,111 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+use parking_lot::RwLock;
+use std::sync::Arc;
 use crate::db::connection::create_sqlite_connection;
 use crate::db::connection::DatabaseType;
 use crate::db::migration::run_migration;
+use crate::{commands::*, state::AppState};
+use tauri::{App, Manager};
+#[cfg(desktop)]
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    App, Manager, WindowEvent,
+    WindowEvent,
 };
 
-pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(desktop)]
-    {
-        let _ = app;
-    }
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let state = AppState::new(app.handle().clone());
+            app.manage(Arc::new(RwLock::new(state)));
+            setup_app(app)?;
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            student_query,
+            student_create,
+            student_update,
+            student_delete,
+            student_import_from_xlsx,
+            tags_get_all,
+            tags_get_by_student,
+            tags_create,
+            tags_delete,
+            tags_update_student_tags,
+            reason_query,
+            reason_create,
+            reason_update,
+            reason_delete,
+            event_query,
+            event_create,
+            event_delete,
+            event_query_by_student,
+            leaderboard_query,
+            db_settlement_query,
+            db_settlement_create,
+            db_settlement_leaderboard,
+            settings_get_all,
+            settings_get,
+            settings_set,
+            auth_get_status,
+            auth_login,
+            auth_logout,
+            auth_set_passwords,
+            auth_generate_recovery,
+            auth_reset_by_recovery,
+            auth_clear_all,
+            theme_list,
+            theme_current,
+            theme_set,
+            theme_save,
+            theme_delete,
+            auto_score_get_rules,
+            auto_score_add_rule,
+            auto_score_update_rule,
+            auto_score_delete_rule,
+            auto_score_toggle_rule,
+            auto_score_get_status,
+            auto_score_sort_rules,
+            log_query,
+            log_clear,
+            log_set_level,
+            log_write,
+            data_export_json,
+            data_import_json,
+            window_minimize,
+            window_maximize,
+            window_close,
+            window_is_maximized,
+            toggle_devtools,
+            window_resize,
+            window_set_resizable,
+            db_test_connection,
+            db_switch_connection,
+            db_get_status,
+            db_sync,
+            fs_get_config_structure,
+            fs_read_json,
+            fs_write_json,
+            fs_read_text,
+            fs_write_text,
+            fs_delete_file,
+            fs_list_files,
+            fs_file_exists,
+            http_server_start,
+            http_server_stop,
+            http_server_status,
+            register_url_protocol,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
 
+pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     setup_database(app)?;
 
     setup_tray(app)?;
@@ -81,6 +170,7 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(desktop)]
 fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let show_item = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
     let hide_item = MenuItem::with_id(app, "hide", "隐藏窗口", true, None::<&str>)?;
@@ -128,6 +218,12 @@ fn setup_tray(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(not(desktop))]
+fn setup_tray(_app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
+}
+
+#[cfg(desktop)]
 fn setup_window_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
         let window_clone = window.clone();
@@ -139,5 +235,10 @@ fn setup_window_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> 
         });
     }
 
+    Ok(())
+}
+
+#[cfg(not(desktop))]
+fn setup_window_events(_app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
