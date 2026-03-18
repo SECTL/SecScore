@@ -71,7 +71,7 @@
         "import": "导入名单",
         "manual": "手动添加",
         "importHint": "支持 Excel (.xlsx) 或 JSON 文件",
-        "manualHint": "逐个添加学生姓名",
+        "manualHint": "支持粘贴多行文本，一行一个姓名",
         "dragDrop": "拖拽文件到此处，或点击选择",
         "supportedFormats": "支持 .xlsx, .json 格式",
         "studentName": "学生姓名",

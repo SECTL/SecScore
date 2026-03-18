@@ -71,7 +71,7 @@
         "import": "Import List",
         "manual": "Add Manually",
         "importHint": "Supports Excel (.xlsx) or JSON files",
-        "manualHint": "Add student names one by one",
+        "manualHint": "You can paste multiple lines, one student name per line",
         "dragDrop": "Drag and drop files here, or click to select",
         "supportedFormats": "Supports .xlsx, .json formats",
         "studentName": "Student Name",

@@ -166,13 +166,31 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   }
 
   const addStudent = () => {
-    const name = newStudentName.trim()
-    if (!name) return
-    if (students.some((s) => s.name === name)) {
+    const input = newStudentName.trim()
+    if (!input) return
+
+    const lines = input
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (lines.length === 0) return
+
+    const existing = new Set(students.map((s) => s.name))
+    const added = new Set<string>()
+    const newStudents: studentItem[] = []
+
+    lines.forEach((name) => {
+      if (existing.has(name) || added.has(name)) return
+      newStudents.push({ name })
+      added.add(name)
+    })
+
+    if (newStudents.length === 0) {
       messageApi.warning(t("oobe.steps.students.studentExists"))
       return
     }
-    setStudents([...students, { name }])
+
+    setStudents([...students, ...newStudents])
     setNewStudentName("")
   }
 
@@ -530,17 +548,20 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
                 {t("oobe.steps.students.supportedFormats")}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Input
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <Input.TextArea
                 value={newStudentName}
                 onChange={(e) => setNewStudentName(e.target.value)}
                 placeholder={t("oobe.steps.students.studentName")}
-                onPressEnter={addStudent}
+                autoSize={{ minRows: 2, maxRows: 5 }}
               />
               <Button type="primary" icon={<PlusOutlined />} onClick={addStudent}>
                 {t("oobe.steps.students.addStudent")}
               </Button>
             </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t("oobe.steps.students.manualHint")}
+            </Typography.Text>
             <div
               style={{
                 maxHeight: 150,
