@@ -76,6 +76,9 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [reasonContent, setReasonContent] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
+  const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
+  const longPressTimerRef = useRef<number | null>(null)
+  const suppressClickRef = useRef(false)
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -190,9 +193,23 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       if (searchAreaRef.current && target && !searchAreaRef.current.contains(target)) {
         setShowPinyinKeyboard(false)
       }
+
+      const quickCard = (target as HTMLElement | null)?.closest?.('[data-student-quick-card="true"]')
+      if (!quickCard) {
+        setQuickActionStudentId(null)
+      }
     }
     document.addEventListener("mousedown", onDocumentClick)
     return () => document.removeEventListener("mousedown", onDocumentClick)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+    }
   }, [])
 
   const t9KeyRows = [
@@ -431,6 +448,42 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     performSubmit(selectedStudent, reason.delta, reason.content)
   }
 
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const startLongPress = (student: student) => {
+    cancelLongPress()
+    longPressTimerRef.current = window.setTimeout(() => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setQuickActionStudentId(student.id)
+      suppressClickRef.current = true
+      longPressTimerRef.current = null
+    }, 450)
+  }
+
+  const openQuickAction = (student: student) => {
+    cancelLongPress()
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setQuickActionStudentId(student.id)
+    suppressClickRef.current = true
+  }
+
+  const handleQuickAdjust = (student: student, delta: number) => {
+    const content = delta > 0 ? t("home.addPoints") : t("home.deductPoints")
+    performSubmit(student, delta, content)
+    setQuickActionStudentId(null)
+  }
+
   const renderStudentCard = (student: student, index: number) => {
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
@@ -442,10 +495,34 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       else if (index === 2) rankBadge = "🥉"
     }
 
+    const isQuickActionMode = quickActionStudentId === student.id
+
     return (
       <div
         key={student.id}
-        onClick={() => openOperation(student)}
+        data-student-quick-card="true"
+        onClick={(e) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          openOperation(student)
+        }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return
+          startLongPress(student)
+        }}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={() => startLongPress(student)}
+        onTouchEnd={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          openQuickAction(student)
+        }}
         style={{ cursor: "pointer", position: "relative" }}
       >
         <Card
@@ -507,26 +584,85 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               </div>
             )}
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: "15px",
-                  color: "var(--ss-text-main)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {student.name}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-                <Tag
-                  color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
-                  style={{ fontWeight: "bold" }}
-                >
-                  {student.score > 0 ? `+${student.score}` : student.score}
-                </Tag>
-              </div>
+              {isQuickActionMode ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleQuickAdjust(student, 1)
+                    }}
+                    style={{
+                      minWidth: "54px",
+                      height: "36px",
+                      borderRadius: "18px",
+                      fontWeight: 700,
+                      paddingInline: "12px",
+                    }}
+                  >
+                    +1
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleQuickAdjust(student, -1)
+                    }}
+                    style={{
+                      minWidth: "54px",
+                      height: "36px",
+                      borderRadius: "18px",
+                      fontWeight: 700,
+                      paddingInline: "12px",
+                    }}
+                  >
+                    -1
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setQuickActionStudentId(null)
+                    }}
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "18px",
+                      paddingInline: 0,
+                      fontWeight: 700,
+                    }}
+                  >
+                    ×
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "15px",
+                      color: "var(--ss-text-main)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
+                  >
+                    <Tag
+                      color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                      style={{ fontWeight: "bold" }}
+                    >
+                      {student.score > 0 ? `+${student.score}` : student.score}
+                    </Tag>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </Card>
