@@ -193,7 +193,11 @@ export function Sidebar({
 
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 
-  const renderSidebarBody = (isCollapsedView: boolean, isFloatingPanel = false) => (
+  const renderSidebarBody = (
+    isCollapsedView: boolean,
+    isFloatingPanel = false,
+    hideMenu = false
+  ) => (
     <>
       <div
         data-tauri-drag-region
@@ -270,27 +274,29 @@ export function Sidebar({
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
-        <Menu
-          mode="inline"
-          inlineCollapsed={isCollapsedView}
-          selectedKeys={[activeMenu]}
-          onClick={({ key }) => {
-            onMenuChange(key)
-            if (floatingExpand && collapsed) {
-              setFloatingExpanded(false)
-            }
-          }}
-          style={{
-            width: "100%",
-            border: "none",
-            backgroundColor: "transparent",
-          }}
-          items={menuItems}
-        />
-      </div>
+      {!hideMenu && (
+        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+          <Menu
+            mode="inline"
+            inlineCollapsed={isCollapsedView}
+            selectedKeys={[activeMenu]}
+            onClick={({ key }) => {
+              onMenuChange(key)
+              if (floatingExpand && collapsed) {
+                setFloatingExpanded(false)
+              }
+            }}
+            style={{
+              width: "100%",
+              border: "none",
+              backgroundColor: "transparent",
+            }}
+            items={menuItems}
+          />
+        </div>
+      )}
 
-      {!isCollapsedView && dbStatus.type === "postgresql" && (
+      {!isCollapsedView && !hideMenu && dbStatus.type === "postgresql" && (
         <Card
           size="small"
           style={{
@@ -370,7 +376,7 @@ export function Sidebar({
       theme="light"
     >
       {contextHolder}
-      {renderSidebarBody(collapsed)}
+      {renderSidebarBody(collapsed, false, showFloatingPanel)}
 
       {showFloatingPanel && (
         <div

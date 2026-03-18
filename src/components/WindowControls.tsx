@@ -4,7 +4,7 @@ import {
   BorderOutlined,
   CloseOutlined,
   FullscreenExitOutlined,
-  SwapOutlined,
+  RotateRightOutlined,
 } from "@ant-design/icons"
 import { useEffect, useState } from "react"
 
@@ -78,18 +78,18 @@ export function WindowControls({
     >
       <Button
         type="text"
-        onClick={minimize}
-        style={{ width: "46px", height: "32px", borderRadius: 0 }}
-      >
-        <MinusOutlined />
-      </Button>
-      <Button
-        type="text"
         onClick={onToggleOrientation}
         title={isPortraitMode ? "切换到横屏模式" : "切换到竖屏模式"}
         style={{ width: "46px", height: "32px", borderRadius: 0 }}
       >
-        <SwapOutlined style={{ transform: "rotate(90deg)" }} />
+        <RotateRightOutlined />
+      </Button>
+      <Button
+        type="text"
+        onClick={minimize}
+        style={{ width: "46px", height: "32px", borderRadius: 0 }}
+      >
+        <MinusOutlined />
       </Button>
       <Button
         type="text"
