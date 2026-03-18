@@ -11,11 +11,8 @@ fn check_admin_permission(
     permissions: &mut crate::services::PermissionService,
     sender_id: Option<u32>,
 ) -> bool {
-    if let Some(id) = sender_id {
-        permissions.require_permission(id, PermissionLevel::Admin)
-    } else {
-        false
-    }
+    let id = sender_id.unwrap_or(0);
+    permissions.require_permission(id, PermissionLevel::Admin)
 }
 
 #[tauri::command]

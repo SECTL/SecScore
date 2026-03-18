@@ -61,7 +61,7 @@ pub async fn auth_login(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<LoginResponse>, String> {
-    let sender = sender_id.ok_or("Invalid sender")?;
+    let sender = sender_id.unwrap_or(0);
 
     let iv_hex = get_iv_hex();
 
@@ -122,7 +122,7 @@ pub async fn auth_set_passwords(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
-    let sender = sender_id.ok_or("Invalid sender")?;
+    let sender = sender_id.unwrap_or(0);
 
     let iv_hex = get_iv_hex();
 
@@ -166,7 +166,7 @@ pub async fn auth_generate_recovery(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
-    let sender = sender_id.ok_or("Invalid sender")?;
+    let sender = sender_id.unwrap_or(0);
 
     let iv_hex = get_iv_hex();
 
@@ -199,7 +199,7 @@ pub async fn auth_reset_by_recovery(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
-    let sender = sender_id.ok_or("Invalid sender")?;
+    let sender = sender_id.unwrap_or(0);
 
     let iv_hex = get_iv_hex();
 
@@ -238,7 +238,7 @@ pub async fn auth_clear_all(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<()>, String> {
-    let sender = sender_id.ok_or("Invalid sender")?;
+    let sender = sender_id.unwrap_or(0);
 
     let result = {
         let state_guard = state.read();

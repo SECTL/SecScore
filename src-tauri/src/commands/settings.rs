@@ -38,18 +38,12 @@ fn check_write_permission(
     match requirement {
         PermissionRequirement::Any => true,
         PermissionRequirement::Admin => {
-            if let Some(id) = sender_id {
-                permissions.require_permission(id, PermissionLevel::Admin)
-            } else {
-                false
-            }
+            let id = sender_id.unwrap_or(0);
+            permissions.require_permission(id, PermissionLevel::Admin)
         }
         PermissionRequirement::Points => {
-            if let Some(id) = sender_id {
-                permissions.require_permission(id, PermissionLevel::Points)
-            } else {
-                false
-            }
+            let id = sender_id.unwrap_or(0);
+            permissions.require_permission(id, PermissionLevel::Points)
         }
         PermissionRequirement::View => true,
     }

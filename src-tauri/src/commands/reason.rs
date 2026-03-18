@@ -42,11 +42,8 @@ pub struct DeleteResult {
 fn check_admin_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) -> bool {
     let state_guard = state.read();
     let mut permissions = state_guard.permissions.write();
-    if let Some(id) = sender_id {
-        permissions.require_permission(id, PermissionLevel::Admin)
-    } else {
-        false
-    }
+    let id = sender_id.unwrap_or(0);
+    permissions.require_permission(id, PermissionLevel::Admin)
 }
 
 #[tauri::command]
