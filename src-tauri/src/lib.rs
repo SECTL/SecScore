@@ -121,7 +121,7 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
 fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
-    let db_path = if cfg!(debug_assertions) {
+    let db_path = if cfg!(all(debug_assertions, desktop)) {
         std::path::PathBuf::from("data.sql")
     } else {
         let app_data_dir = handle

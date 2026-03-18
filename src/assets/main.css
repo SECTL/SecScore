@@ -2,9 +2,11 @@
 
 :root {
   --ss-font-family:
-    "PingFang SC", "Hiragino Sans GB", "Heiti SC", "Noto Sans SC", "Noto Sans CJK SC",
-    "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    "PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans",
+    "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+    "Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    sans-serif;
 }
 
 html,
@@ -30,6 +32,16 @@ textarea {
 button,
 select {
   font-family: var(--ss-font-family);
+}
+
+.ant-typography,
+.ant-btn,
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select,
+.ant-select-selection-item,
+.ant-message-notice-content {
+  font-family: var(--ss-font-family) !important;
 }
 
 .ss-sidebar {
