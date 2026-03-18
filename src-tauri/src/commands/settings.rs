@@ -74,7 +74,10 @@ pub async fn settings_get_all(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SettingsSpec>, String> {
     let state_guard = state.read();
-    let settings = state_guard.settings.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await.map_err(|e| e.to_string())?;
     let all = settings.get_all();
     Ok(IpcResponse::success(all))
 }
@@ -88,7 +91,10 @@ pub async fn settings_get(
         SettingsKey::from_str(&key).ok_or_else(|| format!("Unknown setting key: {}", key))?;
 
     let state_guard = state.read();
-    let settings = state_guard.settings.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await.map_err(|e| e.to_string())?;
     let value = settings.get_value(settings_key);
     let json_value = settings_value_to_json(value);
 
@@ -126,7 +132,10 @@ pub async fn settings_set(
 
     {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await.map_err(|e| e.to_string())?;
         settings
             .set_value(settings_key, settings_value)
             .await

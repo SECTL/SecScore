@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,6 +134,8 @@ pub enum PermissionRequirement {
 pub struct SettingsService {
     cache: HashMap<String, String>,
     initialized: bool,
+    db_loaded: bool,
+    db_conn: Option<DatabaseConnection>,
 }
 
 impl Default for SettingsService {
@@ -146,16 +149,85 @@ impl SettingsService {
         Self {
             cache: HashMap::new(),
             initialized: false,
+            db_loaded: false,
+            db_conn: None,
+        }
+    }
+
+    pub fn attach_db(&mut self, conn: Option<DatabaseConnection>) {
+        if conn.is_some() {
+            self.db_conn = conn;
         }
     }
 
     pub async fn initialize(&mut self) -> Result<(), String> {
-        if self.initialized {
+        if self.initialized && (self.db_loaded || self.db_conn.is_none()) {
             return Ok(());
         }
 
-        self.ensure_defaults();
+        if let Some(conn) = self.db_conn.clone() {
+            if !self.db_loaded {
+                self.load_cache_from_db(&conn).await?;
+                self.ensure_defaults_in_db(&conn).await?;
+                self.db_loaded = true;
+            }
+        } else {
+            self.ensure_defaults();
+        }
         self.initialized = true;
+        Ok(())
+    }
+
+    fn escape_sql(value: &str) -> String {
+        value.replace('\'', "''")
+    }
+
+    async fn load_cache_from_db(&mut self, conn: &DatabaseConnection) -> Result<(), String> {
+        let sql = "SELECT key, value FROM settings".to_string();
+        let rows = conn
+            .query_all(Statement::from_string(conn.get_database_backend(), sql))
+            .await
+            .map_err(|e| e.to_string())?;
+
+        self.cache.clear();
+        for row in rows {
+            let key: String = row.try_get("", "key").map_err(|e| e.to_string())?;
+            let value: String = row.try_get("", "value").map_err(|e| e.to_string())?;
+            self.cache.insert(key, value);
+        }
+
+        Ok(())
+    }
+
+    async fn upsert_raw_db(
+        &self,
+        conn: &DatabaseConnection,
+        key: &str,
+        value: &str,
+    ) -> Result<(), String> {
+        let key_escaped = Self::escape_sql(key);
+        let value_escaped = Self::escape_sql(value);
+        let sql = format!(
+            "INSERT INTO settings (key, value) VALUES ('{}', '{}') ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value",
+            key_escaped, value_escaped
+        );
+
+        conn.execute(Statement::from_string(conn.get_database_backend(), sql))
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    async fn ensure_defaults_in_db(&mut self, conn: &DatabaseConnection) -> Result<(), String> {
+        let definitions = Self::get_definitions();
+        for (key, def) in definitions.iter() {
+            let key_str = key.as_str();
+            if !self.cache.contains_key(key_str) {
+                let raw = def.default_value.to_raw();
+                self.upsert_raw_db(conn, key_str, &raw).await?;
+                self.cache.insert(key_str.to_string(), raw);
+            }
+        }
         Ok(())
     }
 
@@ -279,6 +351,8 @@ impl SettingsService {
     }
 
     pub async fn set_raw(&mut self, key: &str, value: &str) -> Result<(), String> {
+        self.initialize().await?;
+
         if let Some(settings_key) = SettingsKey::from_str(key) {
             let definitions = Self::get_definitions();
             if let Some(def) = definitions.get(&settings_key) {
@@ -292,11 +366,17 @@ impl SettingsService {
                 } else {
                     parsed.to_raw()
                 };
-                self.cache.insert(key.to_string(), validated);
+                self.cache.insert(key.to_string(), validated.clone());
+                if let Some(conn) = self.db_conn.clone() {
+                    self.upsert_raw_db(&conn, key, &validated).await?;
+                }
                 return Ok(());
             }
         }
         self.cache.insert(key.to_string(), value.to_string());
+        if let Some(conn) = self.db_conn.clone() {
+            self.upsert_raw_db(&conn, key, value).await?;
+        }
         Ok(())
     }
 
@@ -322,6 +402,8 @@ impl SettingsService {
         key: SettingsKey,
         value: SettingsValue,
     ) -> Result<(), String> {
+        self.initialize().await?;
+
         let definitions = Self::get_definitions();
         if let Some(def) = definitions.get(&key) {
             if let Some(validate_fn) = def.validate {
@@ -329,7 +411,11 @@ impl SettingsService {
                     return Err(format!("Invalid value for setting: {:?}", key));
                 }
             }
-            self.cache.insert(key.as_str().to_string(), value.to_raw());
+            let raw = value.to_raw();
+            self.cache.insert(key.as_str().to_string(), raw.clone());
+            if let Some(conn) = self.db_conn.clone() {
+                self.upsert_raw_db(&conn, key.as_str(), &raw).await?;
+            }
         }
         Ok(())
     }

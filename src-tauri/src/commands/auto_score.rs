@@ -87,8 +87,11 @@ pub async fn auto_score_add_rule(
 
     let new_id = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut auto_score_service = state_guard.auto_score.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         let new_rule = AutoScoreRule {
             id: 0,
@@ -136,8 +139,11 @@ pub async fn auto_score_update_rule(
 
     let success = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut auto_score_service = state_guard.auto_score.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         let existing = auto_score_service.get_rule_by_id(rule.id);
         let last_executed = existing.and_then(|r| r.last_executed.clone());
@@ -191,8 +197,11 @@ pub async fn auto_score_delete_rule(
 
     let success = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut auto_score_service = state_guard.auto_score.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         let success = auto_score_service.delete_rule(rule_id);
 
@@ -233,8 +242,11 @@ pub async fn auto_score_toggle_rule(
 
     let success = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut auto_score_service = state_guard.auto_score.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         let success = auto_score_service.toggle_rule(params.rule_id, params.enabled);
 
@@ -294,8 +306,11 @@ pub async fn auto_score_sort_rules(
 
     {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut auto_score_service = state_guard.auto_score.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         auto_score_service.sort_rules(&rule_ids);
 

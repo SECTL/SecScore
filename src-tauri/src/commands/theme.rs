@@ -54,8 +54,11 @@ pub async fn theme_set(
 
     let current_theme = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut theme_service = state_guard.theme.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         if theme_service.set_current_theme(&theme_id) {
             let _ = settings
@@ -94,8 +97,11 @@ pub async fn theme_save(
 
     let current_theme = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut theme_service = state_guard.theme.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         match theme_service.save_theme(theme) {
             Ok(()) => {
@@ -136,8 +142,11 @@ pub async fn theme_delete(
 
     let current_theme = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut theme_service = state_guard.theme.write();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
 
         match theme_service.delete_theme(&theme_id) {
             Ok(()) => {

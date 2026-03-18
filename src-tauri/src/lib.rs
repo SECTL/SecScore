@@ -50,24 +50,33 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .ok_or("Invalid database path")?
         .to_string();
 
-    tauri::async_runtime::spawn(async move {
-        match create_sqlite_connection(&db_path_str).await {
-            Ok(conn) => {
-                if let Err(e) = run_migration(&conn, DatabaseType::SQLite).await {
-                    eprintln!("Failed to run sqlite migration: {}", e);
-                    return;
-                }
-                let state = handle.state::<crate::state::SafeAppState>();
-                let state_guard = state.write();
-                let mut db_guard = state_guard.db.write();
-                *db_guard = Some(conn);
-                eprintln!("Database connected to: {}", db_path_str);
-            }
-            Err(e) => {
-                eprintln!("Failed to connect to database: {}", e);
-            }
-        }
+    let db_result = tauri::async_runtime::block_on(async {
+        let conn = create_sqlite_connection(&db_path_str).await?;
+        run_migration(&conn, DatabaseType::SQLite).await?;
+        Ok::<_, Box<dyn std::error::Error>>(conn)
     });
+
+    match db_result {
+        Ok(conn) => {
+            let state = handle.state::<crate::state::SafeAppState>();
+            let state_guard = state.write();
+            {
+                let mut db_guard = state_guard.db.write();
+                *db_guard = Some(conn.clone());
+            }
+            {
+                let mut settings = state_guard.settings.write();
+                settings.attach_db(Some(conn));
+                if let Err(e) = tauri::async_runtime::block_on(settings.initialize()) {
+                    eprintln!("Failed to initialize settings from database: {}", e);
+                }
+            }
+            eprintln!("Database connected to: {}", db_path_str);
+        }
+        Err(e) => {
+            eprintln!("Failed to connect to database: {}", e);
+        }
+    }
 
     Ok(())
 }

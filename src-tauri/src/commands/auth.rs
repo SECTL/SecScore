@@ -40,7 +40,10 @@ pub async fn auth_get_status(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<AuthStatusResponse>, String> {
     let state_guard = state.read();
-    let settings = state_guard.settings.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await?;
     let mut permissions = state_guard.permissions.write();
 
     let status = AuthService::get_status(&settings, sender_id, &mut permissions);
@@ -67,7 +70,10 @@ pub async fn auth_login(
 
     let result = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
@@ -133,7 +139,10 @@ pub async fn auth_set_passwords(
 
     let result = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
@@ -172,7 +181,10 @@ pub async fn auth_generate_recovery(
 
     let result = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
@@ -205,7 +217,10 @@ pub async fn auth_reset_by_recovery(
 
     let result = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
@@ -242,7 +257,10 @@ pub async fn auth_clear_all(
 
     let result = {
         let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
         let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
         let mut permissions = state_guard.permissions.write();
 
         AuthService::clear_all(&mut settings, &mut permissions, sender).await
