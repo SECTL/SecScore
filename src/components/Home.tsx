@@ -691,6 +691,135 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     )
   }
 
+  const renderStudentRowCompact = (student: student, isLast: boolean) => {
+    const avatarText = getDisplayText(student.name)
+    const avatarColor = getAvatarColor(student.name)
+    const isQuickActionMode = quickActionStudentId === student.id
+
+    return (
+      <div
+        key={student.id}
+        data-student-quick-card="true"
+        onClick={(e) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          openOperation(student)
+        }}
+        onMouseDown={(e) => {
+          if (e.button !== 0) return
+          startLongPress(student)
+        }}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={() => startLongPress(student)}
+        onTouchEnd={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          openQuickAction(student)
+        }}
+        style={{
+          cursor: "pointer",
+          position: "relative",
+          padding: "8px 10px",
+          borderBottom: isLast ? "none" : "1px solid var(--ss-border-color)",
+          background: isQuickActionMode ? "rgba(22, 119, 255, 0.06)" : "transparent",
+          transition: "background-color 160ms ease",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", minHeight: "32px" }}>
+          {student.avatarUrl ? (
+            <img
+              src={student.avatarUrl}
+              alt={student.name}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "9px",
+                objectFit: "cover",
+                flexShrink: 0,
+                border: "1px solid var(--ss-border-color)",
+                backgroundColor: "var(--ss-bg-color)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "9px",
+                backgroundColor: avatarColor,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontWeight: "bold",
+                fontSize: avatarText.length > 1 ? "12px" : "14px",
+                flexShrink: 0,
+              }}
+            >
+              {avatarText}
+            </div>
+          )}
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: "14px",
+                color: "var(--ss-text-main)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                lineHeight: 1.25,
+              }}
+            >
+              {student.name}
+            </div>
+          </div>
+
+          {isQuickActionMode ? (
+            <Space size={6}>
+              <Button
+                type="primary"
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdjust(student, 1)
+                }}
+                style={{ minWidth: "44px", height: "26px", borderRadius: "13px", paddingInline: "8px" }}
+              >
+                +1
+              </Button>
+              <Button
+                danger
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleQuickAdjust(student, -1)
+                }}
+                style={{ minWidth: "44px", height: "26px", borderRadius: "13px", paddingInline: "8px" }}
+              >
+                -1
+              </Button>
+            </Space>
+          ) : (
+            <Tag
+              color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+              style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+            >
+              {student.score > 0 ? `+${student.score}` : student.score}
+            </Tag>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const renderGroupedCards = () => {
     return groupedStudents.map((group) => (
       <div
@@ -722,16 +851,30 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             </span>
           </div>
         )}
-        <div
-          style={{
-            display: isPortraitMode ? "flex" : "grid",
-            flexDirection: isPortraitMode ? "column" : undefined,
-            gridTemplateColumns: isPortraitMode ? undefined : "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: isPortraitMode ? "10px" : "16px",
-          }}
-        >
-          {group.students.map((student, idx) => renderStudentCard(student, idx))}
-        </div>
+        {isPortraitMode ? (
+          <div
+            style={{
+              backgroundColor: "var(--ss-card-bg)",
+              border: "1px solid var(--ss-border-color)",
+              borderRadius: "10px",
+              overflow: "hidden",
+            }}
+          >
+            {group.students.map((student, idx) =>
+              renderStudentRowCompact(student, idx === group.students.length - 1)
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+              gap: "16px",
+            }}
+          >
+            {group.students.map((student, idx) => renderStudentCard(student, idx))}
+          </div>
+        )}
       </div>
     ))
   }
@@ -920,12 +1063,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }, [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY])
 
   const renderQuickNav = () => {
-    if (
-      isPortraitMode ||
-      groupedStudents.length <= 1 ||
-      sortType === "score" ||
-      (sortType === "alphabet" && searchKeyword)
-    )
+    if (groupedStudents.length <= 1 || sortType === "score" || (sortType === "alphabet" && searchKeyword))
       return null
 
     return (
