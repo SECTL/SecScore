@@ -53,6 +53,7 @@ function MainContent(): React.JSX.Element {
   const [authLoading, setAuthLoading] = useState(false)
   const [isPortraitMode, setIsPortraitMode] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -143,16 +144,32 @@ function MainContent(): React.JSX.Element {
         await api.windowSetResizable(false)
         await api.windowResize(940, 1600)
         setSidebarCollapsed(true)
+        setFloatingSidebarExpanded(false)
       } else {
         await api.windowSetResizable(true)
         await api.windowResize(2560, 1440)
         setSidebarCollapsed(false)
+        setFloatingSidebarExpanded(false)
       }
       setIsPortraitMode(nextPortraitMode)
     } catch (error) {
       messageApi.error(t("common.error"))
       console.error("Failed to toggle orientation mode:", error)
     }
+  }
+
+  useEffect(() => {
+    if (!isPortraitMode || !sidebarCollapsed) {
+      setFloatingSidebarExpanded(false)
+    }
+  }, [isPortraitMode, sidebarCollapsed])
+
+  const toggleSidebar = () => {
+    if (isPortraitMode && sidebarCollapsed) {
+      setFloatingSidebarExpanded((prev) => !prev)
+      return
+    }
+    setSidebarCollapsed((prev) => !prev)
   }
 
   const isDark = currentTheme?.mode === "dark"
@@ -175,7 +192,8 @@ function MainContent(): React.JSX.Element {
           onMenuChange={onMenuChange}
           collapsed={sidebarCollapsed}
           floatingExpand={isPortraitMode}
-          onCollapsedChange={setSidebarCollapsed}
+          floatingExpanded={floatingSidebarExpanded}
+          onFloatingExpandedChange={setFloatingSidebarExpanded}
         />
         <ContentArea
           permission={permission}
@@ -183,6 +201,10 @@ function MainContent(): React.JSX.Element {
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
           isPortraitMode={isPortraitMode}
+          sidebarCollapsed={sidebarCollapsed}
+          floatingExpand={isPortraitMode}
+          floatingExpanded={floatingSidebarExpanded}
+          onToggleSidebar={toggleSidebar}
           onToggleOrientation={toggleOrientationMode}
         />
 

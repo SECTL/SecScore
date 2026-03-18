@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect } from "react"
 import { Layout, Space, Button, Tag, Spin } from "antd"
+import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
@@ -46,6 +47,10 @@ interface ContentAreaProps {
   onAuthClick: () => void
   onLogout: () => void
   isPortraitMode: boolean
+  sidebarCollapsed: boolean
+  floatingExpand: boolean
+  floatingExpanded: boolean
+  onToggleSidebar: () => void
   onToggleOrientation: () => void
 }
 
@@ -55,6 +60,10 @@ export function ContentArea({
   onAuthClick,
   onLogout,
   isPortraitMode,
+  sidebarCollapsed,
+  floatingExpand,
+  floatingExpanded,
+  onToggleSidebar,
   onToggleOrientation,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
@@ -115,6 +124,35 @@ export function ContentArea({
           } as React.CSSProperties
         }
       >
+        <div
+          style={
+            {
+              paddingLeft: "8px",
+              display: "flex",
+              alignItems: "center",
+              height: "100%",
+              WebkitAppRegion: "no-drag",
+              flexShrink: 0,
+            } as React.CSSProperties
+          }
+        >
+          <Button
+            type="text"
+            size="small"
+            onClick={onToggleSidebar}
+            icon={
+              floatingExpand && sidebarCollapsed
+                ? floatingExpanded
+                  ? <MenuFoldOutlined />
+                  : <MenuUnfoldOutlined />
+                : sidebarCollapsed
+                  ? <MenuUnfoldOutlined />
+                  : <MenuFoldOutlined />
+            }
+            title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
+            style={{ width: "32px", height: "32px" }}
+          />
+        </div>
         <div
           data-tauri-drag-region
           style={

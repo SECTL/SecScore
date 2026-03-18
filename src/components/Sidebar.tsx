@@ -9,8 +9,6 @@ import {
   FileTextOutlined,
   CloudOutlined,
   UploadOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -24,7 +22,8 @@ interface SidebarProps {
   onMenuChange: (value: string) => void
   collapsed: boolean
   floatingExpand: boolean
-  onCollapsedChange: (collapsed: boolean) => void
+  floatingExpanded: boolean
+  onFloatingExpandedChange: (expanded: boolean) => void
 }
 
 interface DbStatus {
@@ -39,10 +38,10 @@ export function Sidebar({
   onMenuChange,
   collapsed,
   floatingExpand,
-  onCollapsedChange,
+  floatingExpanded,
+  onFloatingExpandedChange,
 }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
-  const [floatingExpanded, setFloatingExpanded] = useState(false)
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -107,9 +106,9 @@ export function Sidebar({
 
   useEffect(() => {
     if (!floatingExpand || !collapsed) {
-      setFloatingExpanded(false)
+      onFloatingExpandedChange(false)
     }
-  }, [floatingExpand, collapsed])
+  }, [floatingExpand, collapsed, onFloatingExpandedChange])
 
   const handleForceSync = async () => {
     if (!(window as any).api) return
@@ -193,53 +192,20 @@ export function Sidebar({
 
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 
-  const renderSidebarBody = (
-    isCollapsedView: boolean,
-    isFloatingPanel = false,
-    hideMenu = false
-  ) => (
+  const renderSidebarBody = (isCollapsedView: boolean, hideMenu = false) => (
     <>
       <div
         data-tauri-drag-region
         style={
           {
-            padding: isCollapsedView ? "24px 8px 12px" : "32px 24px 16px",
+            padding: isCollapsedView ? "20px 8px 12px" : "24px 24px 16px",
             textAlign: "center",
             WebkitAppRegion: "drag",
             userSelect: "none",
             flexShrink: 0,
-            position: "relative",
           } as React.CSSProperties
         }
       >
-        <Button
-          type="text"
-          size="small"
-          onClick={() => {
-            if (floatingExpand && collapsed) {
-              setFloatingExpanded((prev) => !prev)
-              return
-            }
-            onCollapsedChange(!collapsed)
-          }}
-          icon={
-            floatingExpand && collapsed
-              ? isFloatingPanel
-                ? <MenuFoldOutlined />
-                : <MenuUnfoldOutlined />
-              : isCollapsedView
-                ? <MenuUnfoldOutlined />
-                : <MenuFoldOutlined />
-          }
-          style={
-            {
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              WebkitAppRegion: "no-drag",
-            } as React.CSSProperties
-          }
-        />
         <img
           src={appLogo}
           style={{
@@ -283,7 +249,7 @@ export function Sidebar({
             onClick={({ key }) => {
               onMenuChange(key)
               if (floatingExpand && collapsed) {
-                setFloatingExpanded(false)
+                onFloatingExpandedChange(false)
               }
             }}
             style={{
@@ -376,7 +342,7 @@ export function Sidebar({
       theme="light"
     >
       {contextHolder}
-      {renderSidebarBody(collapsed, false, showFloatingPanel)}
+      {renderSidebarBody(collapsed, showFloatingPanel)}
 
       {showFloatingPanel && (
         <div
@@ -394,7 +360,7 @@ export function Sidebar({
             flexDirection: "column",
           }}
         >
-          {renderSidebarBody(false, true)}
+          {renderSidebarBody(false)}
         </div>
       )}
     </Sider>
