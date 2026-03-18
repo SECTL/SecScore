@@ -24,6 +24,7 @@ interface reason {
 }
 
 type SortType = "alphabet" | "surname" | "score"
+type SearchKeyboardLayout = "t9" | "qwerty26"
 
 const T9_KEY_MAP: Record<string, string> = {
   a: "2",
@@ -62,6 +63,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [sortType, setSortType] = useState<SortType>("alphabet")
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
+  const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -126,6 +128,46 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }, [fetchData])
 
   useEffect(() => {
+    const api = (window as any).api
+    if (!api) return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .getSetting("search_keyboard_layout")
+      .then((res: any) => {
+        if (disposed) return
+        const value = res?.data
+        if (value === "t9" || value === "qwerty26") {
+          setSearchKeyboardLayout(value)
+        }
+      })
+      .catch(() => void 0)
+
+    api
+      .onSettingChanged((change: any) => {
+        if (change?.key !== "search_keyboard_layout") return
+        if (change?.value === "t9" || change?.value === "qwerty26") {
+          setSearchKeyboardLayout(change.value)
+        }
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
+  }, [])
+
+  useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
       const target = e.target as Node | null
       if (searchAreaRef.current && target && !searchAreaRef.current.contains(target)) {
@@ -136,7 +178,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return () => document.removeEventListener("mousedown", onDocumentClick)
   }, [])
 
-  const pinyinKeyRows = [
+  const t9KeyRows = [
     [
       { digit: "2", letters: "ABC" },
       { digit: "3", letters: "DEF" },
@@ -154,6 +196,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     ],
   ]
 
+  const qwertyKeyRows = [
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+    ["z", "x", "c", "v", "b", "n", "m", "⌫"],
+  ]
+
   const toT9Digits = (text: string) =>
     text
       .toLowerCase()
@@ -161,12 +209,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       .map((ch) => T9_KEY_MAP[ch] || "")
       .join("")
 
-  const handlePinyinKeyPress = (digit: string) => {
-    if (digit === "⌫") {
+  const handleSearchKeyPress = (keyValue: string) => {
+    if (keyValue === "⌫") {
       setSearchKeyword((prev) => prev.slice(0, -1))
       return
     }
-    setSearchKeyword((prev) => `${prev}${digit}`)
+    setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
 
   const getDisplayText = (name: string) => {
@@ -861,7 +909,7 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   position: "absolute",
                   top: "calc(100% + 8px)",
                   left: 0,
-                  width: "220px",
+                  width: searchKeyboardLayout === "qwerty26" ? "260px" : "220px",
                   padding: "8px",
                   borderRadius: "10px",
                   border: "1px solid var(--ss-border-color)",
@@ -871,23 +919,45 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {pinyinKeyRows.map((row, rowIndex) => (
-                    <div
-                      key={`pinyin-row-${rowIndex}`}
-                      style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}
-                    >
-                      {row.map((keyItem) => (
-                        <Button
-                          key={keyItem.digit}
-                          size="small"
-                          onClick={() => handlePinyinKeyPress(keyItem.digit)}
-                          style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                  {searchKeyboardLayout === "qwerty26"
+                    ? qwertyKeyRows.map((row, rowIndex) => (
+                        <div
+                          key={`qwerty-row-${rowIndex}`}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+                            gap: "6px",
+                          }}
                         >
-                          {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
-                        </Button>
+                          {row.map((keyItem) => (
+                            <Button
+                              key={keyItem}
+                              size="small"
+                              onClick={() => handleSearchKeyPress(keyItem)}
+                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                            >
+                              {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
+                            </Button>
+                          ))}
+                        </div>
+                      ))
+                    : t9KeyRows.map((row, rowIndex) => (
+                        <div
+                          key={`pinyin-row-${rowIndex}`}
+                          style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}
+                        >
+                          {row.map((keyItem) => (
+                            <Button
+                              key={keyItem.digit}
+                              size="small"
+                              onClick={() => handleSearchKeyPress(keyItem.digit)}
+                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                            >
+                              {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
+                            </Button>
+                          ))}
+                        </div>
                       ))}
-                    </div>
-                  ))}
                 </div>
               </div>
             )}

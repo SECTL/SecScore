@@ -9,6 +9,7 @@ type appSettings = {
   is_wizard_completed: boolean
   log_level: "debug" | "info" | "warn" | "error"
   window_zoom?: string
+  search_keyboard_layout?: "t9" | "qwerty26"
   auto_score_enabled?: boolean
 }
 
@@ -20,6 +21,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     is_wizard_completed: false,
     log_level: "info",
     window_zoom: "1.0",
+    search_keyboard_layout: "qwerty26",
   })
 
   const [securityStatus, setSecurityStatus] = useState<{
@@ -108,6 +110,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           if (change?.key === "is_wizard_completed")
             return { ...prev, is_wizard_completed: change.value }
           if (change?.key === "window_zoom") return { ...prev, window_zoom: change.value }
+          if (change?.key === "search_keyboard_layout")
+            return { ...prev, search_keyboard_layout: change.value }
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
           return prev
@@ -377,6 +381,34 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           <Divider />
 
           <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
+            <Form.Item label={t("settings.searchKeyboard.title")}>
+              <Select
+                value={settings.search_keyboard_layout || "qwerty26"}
+                onChange={async (v) => {
+                  if (!(window as any).api) return
+                  const next = String(v) as "t9" | "qwerty26"
+                  const res = await (window as any).api.setSetting("search_keyboard_layout", next)
+                  if (res.success) {
+                    setSettings((prev) => ({ ...prev, search_keyboard_layout: next }))
+                    messageApi.success(t("settings.general.saved"))
+                  } else {
+                    messageApi.error(res.message || t("settings.general.saveFailed"))
+                  }
+                }}
+                style={{ width: "320px" }}
+                disabled={!canAdmin}
+                options={[
+                  { value: "qwerty26", label: t("settings.searchKeyboard.options.qwerty26") },
+                  { value: "t9", label: t("settings.searchKeyboard.options.t9") },
+                ]}
+              />
+              <div
+                style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+              >
+                {t("settings.searchKeyboard.hint")}
+              </div>
+            </Form.Item>
+
             <Form.Item label={t("settings.interfaceZoom")}>
               <Select
                 value={settings.window_zoom || "1.0"}

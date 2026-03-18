@@ -21,6 +21,7 @@ export type settingsKey =
   | "is_wizard_completed"
   | "log_level"
   | "window_zoom"
+  | "search_keyboard_layout"
   | "themes_custom"
   | "auto_score_enabled"
   | "auto_score_rules"
@@ -32,6 +33,7 @@ export interface settingsSpec {
   is_wizard_completed: boolean
   log_level: string
   window_zoom: number
+  search_keyboard_layout: "t9" | "qwerty26"
   themes_custom: themeConfig[]
   auto_score_enabled: boolean
   auto_score_rules: any[]

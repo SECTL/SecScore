@@ -127,6 +127,14 @@
     "darkMode": "Dark",
     "primaryColor": "Primary Color",
     "backgroundGradient": "Background Gradient",
+    "searchKeyboard": {
+      "title": "Search Keyboard",
+      "hint": "Choose the pop-up keyboard layout under the search box",
+      "options": {
+        "qwerty26": "26-key (QWERTY)",
+        "t9": "9-key (T9)"
+      }
+    },
     "interfaceZoom": "Interface Zoom",
     "zoomHint": "Adjust the overall size of the application interface",
     "zoomUpdated": "Interface zoom updated",

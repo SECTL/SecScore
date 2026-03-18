@@ -127,6 +127,14 @@
     "darkMode": "深色",
     "primaryColor": "主色",
     "backgroundGradient": "背景渐变",
+    "searchKeyboard": {
+      "title": "搜索小键盘",
+      "hint": "选择搜索框下方弹出的小键盘布局",
+      "options": {
+        "qwerty26": "26 键（QWERTY）",
+        "t9": "9 键（T9）"
+      }
+    },
     "interfaceZoom": "界面缩放",
     "zoomHint": "调节应用界面的整体大小",
     "zoomUpdated": "界面缩放已更新",

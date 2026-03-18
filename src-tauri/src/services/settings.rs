@@ -8,6 +8,7 @@ pub struct SettingsSpec {
     pub is_wizard_completed: bool,
     pub log_level: String,
     pub window_zoom: f64,
+    pub search_keyboard_layout: String,
     pub themes_custom: JsonValue,
     pub auto_score_enabled: bool,
     pub auto_score_rules: JsonValue,
@@ -22,6 +23,7 @@ impl Default for SettingsSpec {
             is_wizard_completed: false,
             log_level: "info".to_string(),
             window_zoom: 1.0,
+            search_keyboard_layout: "qwerty26".to_string(),
             themes_custom: JsonValue::Array(vec![]),
             auto_score_enabled: false,
             auto_score_rules: JsonValue::Array(vec![]),
@@ -37,6 +39,7 @@ pub enum SettingsKey {
     IsWizardCompleted,
     LogLevel,
     WindowZoom,
+    SearchKeyboardLayout,
     ThemesCustom,
     AutoScoreEnabled,
     AutoScoreRules,
@@ -51,6 +54,7 @@ impl SettingsKey {
             SettingsKey::IsWizardCompleted => "is_wizard_completed",
             SettingsKey::LogLevel => "log_level",
             SettingsKey::WindowZoom => "window_zoom",
+            SettingsKey::SearchKeyboardLayout => "search_keyboard_layout",
             SettingsKey::ThemesCustom => "themes_custom",
             SettingsKey::AutoScoreEnabled => "auto_score_enabled",
             SettingsKey::AutoScoreRules => "auto_score_rules",
@@ -65,6 +69,7 @@ impl SettingsKey {
             "is_wizard_completed" => Some(SettingsKey::IsWizardCompleted),
             "log_level" => Some(SettingsKey::LogLevel),
             "window_zoom" => Some(SettingsKey::WindowZoom),
+            "search_keyboard_layout" => Some(SettingsKey::SearchKeyboardLayout),
             "themes_custom" => Some(SettingsKey::ThemesCustom),
             "auto_score_enabled" => Some(SettingsKey::AutoScoreEnabled),
             "auto_score_rules" => Some(SettingsKey::AutoScoreRules),
@@ -271,6 +276,22 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::SearchKeyboardLayout,
+            SettingDefinition {
+                kind: SettingValueKind::String,
+                default_value: SettingsValue::String("qwerty26".to_string()),
+                write_permission: PermissionRequirement::Admin,
+                validate: Some(|v| {
+                    if let SettingsValue::String(s) = v {
+                        matches!(s.as_str(), "t9" | "qwerty26")
+                    } else {
+                        false
+                    }
+                }),
+            },
+        );
+
+        defs.insert(
             SettingsKey::ThemesCustom,
             SettingDefinition {
                 kind: SettingValueKind::Json,
@@ -433,6 +454,10 @@ impl SettingsService {
             window_zoom: match self.get_value(SettingsKey::WindowZoom) {
                 SettingsValue::Number(n) => n,
                 _ => 1.0,
+            },
+            search_keyboard_layout: match self.get_value(SettingsKey::SearchKeyboardLayout) {
+                SettingsValue::String(s) => s,
+                _ => "qwerty26".to_string(),
             },
             themes_custom: match self.get_value(SettingsKey::ThemesCustom) {
                 SettingsValue::Json(j) => j,
