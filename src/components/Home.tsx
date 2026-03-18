@@ -24,6 +24,35 @@ interface reason {
 
 type SortType = "alphabet" | "surname" | "score"
 
+const T9_KEY_MAP: Record<string, string> = {
+  a: "2",
+  b: "2",
+  c: "2",
+  d: "3",
+  e: "3",
+  f: "3",
+  g: "4",
+  h: "4",
+  i: "4",
+  j: "5",
+  k: "5",
+  l: "5",
+  m: "6",
+  n: "6",
+  o: "6",
+  p: "7",
+  q: "7",
+  r: "7",
+  s: "7",
+  t: "8",
+  u: "8",
+  v: "8",
+  w: "9",
+  x: "9",
+  y: "9",
+  z: "9",
+}
+
 export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
@@ -106,17 +135,36 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }, [])
 
   const pinyinKeyRows = [
-    ["ABC", "DEF", "GHI"],
-    ["JKL", "MNO", "PQRS"],
-    ["TUV", "WXYZ", "⌫"],
+    [
+      { digit: "2", letters: "ABC" },
+      { digit: "3", letters: "DEF" },
+      { digit: "4", letters: "GHI" },
+    ],
+    [
+      { digit: "5", letters: "JKL" },
+      { digit: "6", letters: "MNO" },
+      { digit: "7", letters: "PQRS" },
+    ],
+    [
+      { digit: "8", letters: "TUV" },
+      { digit: "9", letters: "WXYZ" },
+      { digit: "⌫", letters: "" },
+    ],
   ]
 
-  const handlePinyinKeyPress = (value: string) => {
-    if (value === "⌫") {
+  const toT9Digits = (text: string) =>
+    text
+      .toLowerCase()
+      .split("")
+      .map((ch) => T9_KEY_MAP[ch] || "")
+      .join("")
+
+  const handlePinyinKeyPress = (digit: string) => {
+    if (digit === "⌫") {
       setSearchKeyword((prev) => prev.slice(0, -1))
       return
     }
-    setSearchKeyword((prev) => `${prev}${value.charAt(0).toLowerCase()}`)
+    setSearchKeyword((prev) => `${prev}${digit}`)
   }
 
   const getDisplayText = (name: string) => {
@@ -135,6 +183,12 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     if (pyLower.includes(q0)) return true
 
     const q1 = q0.replace(/\s+/g, "")
+    const isT9Query = /^[2-9]+$/.test(q1)
+    if (isT9Query) {
+      const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
+      if (pyDigits.includes(q1)) return true
+    }
+
     if (
       q1 &&
       (nameLower.replace(/\s+/g, "").includes(q1) || pyLower.replace(/\s+/g, "").includes(q1))
@@ -765,14 +819,14 @@ export const Home: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                       key={`pinyin-row-${rowIndex}`}
                       style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}
                     >
-                      {row.map((keyValue) => (
+                      {row.map((keyItem) => (
                         <Button
-                          key={keyValue}
+                          key={keyItem.digit}
                           size="small"
-                          onClick={() => handlePinyinKeyPress(keyValue)}
+                          onClick={() => handlePinyinKeyPress(keyItem.digit)}
                           style={{ height: "28px", fontSize: "11px", padding: 0 }}
                         >
-                          {keyValue}
+                          {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
                         </Button>
                       ))}
                     </div>
