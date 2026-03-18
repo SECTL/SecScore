@@ -313,11 +313,17 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
     setLoading(true)
     try {
       if (!(window as any).api) throw new Error("api not ready")
+      const ensureSuccess = (res: any, fallbackMessage: string) => {
+        if (!res?.success) {
+          throw new Error(res?.message || fallbackMessage)
+        }
+      }
 
       if (workingTheme) {
         const exists = themes.some((t) => t.id === workingTheme.id)
         if (!exists) {
-          await (window as any).api.saveTheme(workingTheme)
+          const saveRes = await (window as any).api.saveTheme(workingTheme)
+          ensureSuccess(saveRes, t("common.error"))
         }
         if (currentTheme?.id !== workingTheme.id) {
           await setTheme(workingTheme.id)
@@ -325,25 +331,29 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
       }
 
       for (const student of students) {
-        await (window as any).api.createStudent({ name: student.name })
+        const createStudentRes = await (window as any).api.createStudent({ name: student.name })
+        ensureSuccess(createStudentRes, t("common.error"))
       }
 
       for (const reason of reasons) {
-        await (window as any).api.createReason({
+        const createReasonRes = await (window as any).api.createReason({
           content: reason.content,
+          category: t("reasons.others"),
           delta: reason.delta,
         })
+        ensureSuccess(createReasonRes, t("common.error"))
       }
 
       if (adminPassword || pointsPassword) {
-        await (window as any).api.authSetPasswords({
+        const authRes = await (window as any).api.authSetPasswords({
           adminPassword: adminPassword || null,
           pointsPassword: pointsPassword || null,
         })
+        ensureSuccess(authRes, t("common.error"))
       }
 
       const res = await (window as any).api.setSetting("is_wizard_completed", true)
-      if (!res?.success) throw new Error(res?.message || "failed")
+      ensureSuccess(res, "failed")
 
       messageApi.success(t("common.success"))
       onComplete()
