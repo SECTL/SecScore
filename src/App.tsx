@@ -61,6 +61,7 @@ function MainContent(): React.JSX.Element {
   const [syncApplyLoading, setSyncApplyLoading] = useState(false)
   const syncCheckingRef = useRef(false)
   const syncApplyLoadingRef = useRef(false)
+  const lastLocalMutationAtRef = useRef(0)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -112,7 +113,9 @@ function MainContent(): React.JSX.Element {
         messageApi.success(
           res.data.message || `同步完成（同步 ${res.data.synced_records} 条，解决冲突 ${res.data.resolved_conflicts} 条）`
         )
-        window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+        window.dispatchEvent(
+          new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+        )
       } else {
         messageApi.error(res?.data?.message || res?.message || "同步失败")
       }
@@ -148,6 +151,20 @@ function MainContent(): React.JSX.Element {
 
         const conflicts = previewRes.data.conflicts || []
         if (conflicts.length > 0) {
+          const recentLocalMutation = Date.now() - lastLocalMutationAtRef.current < 15000
+          if (recentLocalMutation) {
+            const autoApplyRes = await api.dbSyncApply("keep_local")
+            if (
+              autoApplyRes?.success &&
+              autoApplyRes?.data?.success &&
+              autoApplyRes?.data?.synced_records > 0
+            ) {
+              window.dispatchEvent(
+                new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+              )
+            }
+            return
+          }
           setSyncConflicts(conflicts)
           setSyncConflictVisible(true)
           return
@@ -155,7 +172,9 @@ function MainContent(): React.JSX.Element {
 
         const applyRes = await api.dbSyncApply("keep_local")
         if (applyRes?.success && applyRes?.data?.success && applyRes?.data?.synced_records > 0) {
-          window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+          window.dispatchEvent(
+            new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+          )
         }
       } catch (error) {
         console.error("Auto sync failed:", error)
@@ -166,7 +185,11 @@ function MainContent(): React.JSX.Element {
 
     checkAndSync()
     const timer = window.setInterval(checkAndSync, 30000)
-    const onDataUpdated = () => {
+    const onDataUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ source?: string }>
+      if (customEvent?.detail?.source !== "sync") {
+        lastLocalMutationAtRef.current = Date.now()
+      }
       window.setTimeout(() => {
         checkAndSync().catch(() => void 0)
       }, 1200)
