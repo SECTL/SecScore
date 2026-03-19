@@ -135,6 +135,15 @@ if (isMacDesktop) {
   document.documentElement.classList.add("platform-macos")
 }
 
+const setAppHeightVar = () => {
+  const appHeight = Math.max(window.innerHeight, 0)
+  document.documentElement.style.setProperty("--ss-app-height", `${appHeight}px`)
+}
+setAppHeightVar()
+window.addEventListener("resize", setAppHeightVar)
+window.addEventListener("orientationchange", setAppHeightVar)
+window.addEventListener("pageshow", setAppHeightVar)
+
 window.addEventListener("error", (e: any) => {
   const error = e?.error
   safeWriteLog({
