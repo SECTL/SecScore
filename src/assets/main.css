@@ -1,6 +1,10 @@
 @import "antd/dist/reset.css";
 
 :root {
+  --ss-safe-area-top: env(safe-area-inset-top, 0px);
+  --ss-safe-area-right: env(safe-area-inset-right, 0px);
+  --ss-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --ss-safe-area-left: env(safe-area-inset-left, 0px);
   --ss-font-family:
     "PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans",
     "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
@@ -22,6 +26,18 @@ body,
   font-family: var(--ss-font-family);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  padding-top: var(--ss-safe-area-top);
+  padding-right: var(--ss-safe-area-right);
+  padding-bottom: var(--ss-safe-area-bottom);
+  padding-left: var(--ss-safe-area-left);
+  box-sizing: border-box;
 }
 
 input,

@@ -127,7 +127,10 @@ const disableTouchZoom = () => {
 disableTouchZoom()
 
 const platform = navigator.userAgent.toLowerCase()
-if (platform.includes("mac")) {
+const isIos = /iphone|ipad|ipod/.test(platform)
+const isMacDesktop = platform.includes("mac") && !isIos
+
+if (isMacDesktop) {
   document.documentElement.classList.add("platform-macos")
 }
 
