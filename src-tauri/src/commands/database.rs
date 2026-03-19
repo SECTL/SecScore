@@ -706,6 +706,14 @@ pub async fn db_switch_connection(
     };
 
     {
+        let settings_db_path = sqlite_db_path(&app_handle)?;
+        let settings_conn = create_sqlite_connection(&settings_db_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        run_migration(&settings_conn, DatabaseType::SQLite)
+            .await
+            .map_err(|e| e.to_string())?;
+
         let state_guard = state.read();
         {
             let mut db_guard = state_guard.db.write();
@@ -713,7 +721,7 @@ pub async fn db_switch_connection(
         }
 
         let mut settings = state_guard.settings.write();
-        settings.attach_db(Some(conn));
+        settings.attach_db(Some(settings_conn));
         settings.initialize().await.map_err(|e| e.to_string())?;
         settings
             .set_value(

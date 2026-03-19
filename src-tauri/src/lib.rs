@@ -7,9 +7,10 @@ pub mod utils;
 
 use parking_lot::RwLock;
 use std::sync::Arc;
-use crate::db::connection::create_sqlite_connection;
+use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
 use crate::db::migration::run_migration;
+use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::{commands::*, state::AppState};
 use tauri::{App, Manager};
 #[cfg(desktop)]
@@ -142,31 +143,98 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         .to_string();
 
     let db_result = tauri::async_runtime::block_on(async {
-        let conn = create_sqlite_connection(&db_path_str).await?;
-        run_migration(&conn, DatabaseType::SQLite).await?;
-        Ok::<_, Box<dyn std::error::Error>>(conn)
+        let sqlite_conn = create_sqlite_connection(&db_path_str).await?;
+        run_migration(&sqlite_conn, DatabaseType::SQLite).await?;
+
+        let state = handle.state::<crate::state::SafeAppState>();
+        let state_guard = state.write();
+        let mut active_conn = sqlite_conn.clone();
+
+        {
+            let mut settings = state_guard.settings.write();
+            settings.attach_db(Some(sqlite_conn.clone()));
+            settings
+                .initialize()
+                .await
+                .map_err(|e| format!("Failed to initialize settings from sqlite: {}", e))?;
+
+            let pg_connection_string = match settings.get_value(SettingsKey::PgConnectionString) {
+                SettingsValue::String(s) => s,
+                _ => String::new(),
+            };
+
+            if !pg_connection_string.trim().is_empty() {
+                match create_postgres_connection(&pg_connection_string).await {
+                    Ok(pg_conn) => {
+                        if let Err(e) = run_migration(&pg_conn, DatabaseType::PostgreSQL).await {
+                            eprintln!("PostgreSQL migration failed on startup, fallback to sqlite: {}", e);
+                            settings
+                                .set_value(
+                                    SettingsKey::PgConnectionStatus,
+                                    SettingsValue::Json(serde_json::json!({
+                                        "connected": false,
+                                        "type": "sqlite",
+                                        "error": e.to_string()
+                                    })),
+                                )
+                                .await
+                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                        } else {
+                            active_conn = pg_conn;
+                            settings
+                                .set_value(
+                                    SettingsKey::PgConnectionStatus,
+                                    SettingsValue::Json(serde_json::json!({
+                                        "connected": true,
+                                        "type": "postgresql"
+                                    })),
+                                )
+                                .await
+                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                            eprintln!("Auto connected to PostgreSQL from saved connection string");
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("PostgreSQL auto-connect failed, fallback to sqlite: {}", e);
+                        settings
+                            .set_value(
+                                SettingsKey::PgConnectionStatus,
+                                SettingsValue::Json(serde_json::json!({
+                                    "connected": false,
+                                    "type": "sqlite",
+                                    "error": e.to_string()
+                                })),
+                            )
+                            .await
+                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                    }
+                }
+            } else {
+                settings
+                    .set_value(
+                        SettingsKey::PgConnectionStatus,
+                        SettingsValue::Json(serde_json::json!({
+                            "connected": true,
+                            "type": "sqlite"
+                        })),
+                    )
+                    .await
+                    .map_err(|err| format!("Failed to save sqlite status: {}", err))?;
+            }
+        }
+
+        {
+            let mut db_guard = state_guard.db.write();
+            *db_guard = Some(active_conn);
+        }
+
+        Ok::<_, Box<dyn std::error::Error>>(())
     });
 
-    match db_result {
-        Ok(conn) => {
-            let state = handle.state::<crate::state::SafeAppState>();
-            let state_guard = state.write();
-            {
-                let mut db_guard = state_guard.db.write();
-                *db_guard = Some(conn.clone());
-            }
-            {
-                let mut settings = state_guard.settings.write();
-                settings.attach_db(Some(conn));
-                if let Err(e) = tauri::async_runtime::block_on(settings.initialize()) {
-                    eprintln!("Failed to initialize settings from database: {}", e);
-                }
-            }
-            eprintln!("Database connected to: {}", db_path_str);
-        }
-        Err(e) => {
-            eprintln!("Failed to connect to database: {}", e);
-        }
+    if let Err(e) = db_result {
+        eprintln!("Failed to connect to database: {}", e);
+    } else {
+        eprintln!("Database bootstrap completed, sqlite settings db: {}", db_path_str);
     }
 
     Ok(())
