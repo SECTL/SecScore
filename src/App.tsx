@@ -103,6 +103,35 @@ function MainContent(): React.JSX.Element {
     loadAuthAndSettings()
   }, [])
 
+  useEffect(() => {
+    const api = (window as any).api
+    if (!api || !isIosDevice) return
+
+    const fitIosWindow = async () => {
+      try {
+        await api.windowSetResizable(false)
+      } catch {
+        void 0
+      }
+
+      try {
+        // 传入远大于设备尺寸的物理像素，交由系统裁剪为可用全屏区域
+        await api.windowResize(10000, 10000)
+      } catch {
+        void 0
+      }
+    }
+
+    fitIosWindow().catch(() => void 0)
+    const timer = window.setTimeout(() => {
+      fitIosWindow().catch(() => void 0)
+    }, 300)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [isIosDevice])
+
   const applySyncStrategy = async (strategy: "keep_local" | "keep_remote") => {
     const api = (window as any).api
     if (!api) return
