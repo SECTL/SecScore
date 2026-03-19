@@ -15,8 +15,8 @@
     "windows": [
       {
         "title": "SecScore",
-        "width": 1180,
-        "height": 680,
+        "width": 10000,
+        "height": 10000,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
