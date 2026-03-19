@@ -8,6 +8,7 @@ use crate::db::entities::reasons;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
+use super::database::realtime_dual_write_sync;
 use super::response::IpcResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,11 +117,14 @@ pub async fn reason_create(
             updated_at: Set(now),
         };
 
-        match new_reason.insert(conn).await {
-            Ok(inserted) => Ok(IpcResponse::success(inserted.id)),
-            Err(e) => Ok(IpcResponse::error(&format!(
-                "Failed to create reason: {}",
-                e
+                match new_reason.insert(conn).await {
+                    Ok(inserted) => {
+                        realtime_dual_write_sync(state.inner()).await?;
+                        Ok(IpcResponse::success(inserted.id))
+                    }
+                    Err(e) => Ok(IpcResponse::error(&format!(
+                        "Failed to create reason: {}",
+                        e
             ))),
         }
     } else {
@@ -165,7 +169,10 @@ pub async fn reason_update(
                 }
 
                 match active.update(conn).await {
-                    Ok(_) => Ok(IpcResponse::success_empty()),
+                    Ok(_) => {
+                        realtime_dual_write_sync(state.inner()).await?;
+                        Ok(IpcResponse::success_empty())
+                    }
                     Err(e) => Ok(IpcResponse::error(&format!(
                         "Failed to update reason: {}",
                         e
@@ -205,6 +212,7 @@ pub async fn reason_delete(
                         if result.rows_affected == 0 {
                             Ok(IpcResponse::error("记录不存在"))
                         } else {
+                            realtime_dual_write_sync(state.inner()).await?;
                             Ok(IpcResponse::success(DeleteResult {
                                 changes: result.rows_affected as i32,
                             }))

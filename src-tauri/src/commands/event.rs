@@ -13,6 +13,7 @@ use crate::db::entities::{score_events, students};
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
+use super::database::realtime_dual_write_sync;
 use super::response::IpcResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,7 +173,7 @@ pub async fn event_create(
                 active.update(&txn).await.map_err(|e| e.to_string())?;
 
                 txn.commit().await.map_err(|e| e.to_string())?;
-
+                realtime_dual_write_sync(state.inner()).await?;
                 Ok(IpcResponse::success(inserted.id))
             }
             Ok(None) => Ok(IpcResponse::error("Student not found")),
@@ -233,7 +234,7 @@ pub async fn event_delete(
                     .map_err(|e| e.to_string())?;
 
                 txn.commit().await.map_err(|e| e.to_string())?;
-
+                realtime_dual_write_sync(state.inner()).await?;
                 Ok(IpcResponse::success_empty())
             }
             Ok(None) => Ok(IpcResponse::error("Event not found")),

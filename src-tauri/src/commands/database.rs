@@ -547,15 +547,15 @@ async fn ensure_student_tag_pair(
     Ok(true)
 }
 
-async fn current_remote_and_local(
+async fn current_remote_and_local_from_state(
     app_handle: &AppHandle,
-    state: &State<'_, Arc<RwLock<AppState>>>,
+    app_state: &Arc<RwLock<AppState>>,
 ) -> Result<
     Option<(sea_orm::DatabaseConnection, sea_orm::DatabaseConnection)>,
     String,
 > {
     let (current_conn, db_type) = {
-        let state_guard = state.read();
+        let state_guard = app_state.read();
         let db = state_guard.db.read().clone();
         let settings = state_guard.settings.read();
         let status_json = settings.get_value(SettingsKey::PgConnectionStatus);
@@ -586,6 +586,158 @@ async fn current_remote_and_local(
         .map_err(|e| e.to_string())?;
 
     Ok(Some((local_conn, remote_conn)))
+}
+
+pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Result<(), String> {
+    let app_handle = {
+        let state_guard = app_state.read();
+        state_guard.app_handle.clone()
+    };
+
+    let can_sync = current_remote_and_local_from_state(&app_handle, app_state)
+        .await?
+        .is_some();
+    if !can_sync {
+        return Ok(());
+    }
+
+    let result = db_sync_apply_internal(
+        ConflictStrategy::KeepRemote,
+        app_handle,
+        app_state.clone(),
+    )
+    .await?;
+    if !result.success {
+        return Err(result
+            .message
+            .unwrap_or_else(|| "实时双写同步失败".to_string()));
+    }
+    Ok(())
+}
+
+async fn db_sync_apply_internal(
+    strategy: ConflictStrategy,
+    app_handle: AppHandle,
+    app_state: Arc<RwLock<AppState>>,
+) -> Result<DbSyncApplyResult, String> {
+    let Some((local_conn, remote_conn)) =
+        current_remote_and_local_from_state(&app_handle, &app_state).await?
+    else {
+        return Ok(DbSyncApplyResult {
+            success: false,
+            synced_records: 0,
+            resolved_conflicts: 0,
+            message: Some("当前不在 PostgreSQL 远程模式，无法执行同步".to_string()),
+        });
+    };
+
+    let local_students = load_students(&local_conn).await?;
+    let remote_students = load_students(&remote_conn).await?;
+    let local_reasons = load_reasons(&local_conn).await?;
+    let remote_reasons = load_reasons(&remote_conn).await?;
+    let local_tags = load_tags(&local_conn).await?;
+    let remote_tags = load_tags(&remote_conn).await?;
+    let local_events = load_events(&local_conn).await?;
+    let remote_events = load_events(&remote_conn).await?;
+    let local_pairs = load_student_tag_pairs(&local_conn).await?;
+    let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
+
+    let (preferred, target) = if strategy == ConflictStrategy::KeepLocal {
+        (&local_conn, &remote_conn)
+    } else {
+        (&remote_conn, &local_conn)
+    };
+
+    let mut synced_records = 0usize;
+    let mut resolved_conflicts = 0usize;
+
+    for student in local_students.values() {
+        if upsert_student(&remote_conn, student).await? {
+            synced_records += 1;
+        }
+    }
+    for student in remote_students.values() {
+        if upsert_student(&local_conn, student).await? {
+            synced_records += 1;
+        }
+    }
+    for reason in local_reasons.values() {
+        if upsert_reason(&remote_conn, reason).await? {
+            synced_records += 1;
+        }
+    }
+    for reason in remote_reasons.values() {
+        if upsert_reason(&local_conn, reason).await? {
+            synced_records += 1;
+        }
+    }
+    for tag in local_tags.values() {
+        if upsert_tag(&remote_conn, tag).await? {
+            synced_records += 1;
+        }
+    }
+    for tag in remote_tags.values() {
+        if upsert_tag(&local_conn, tag).await? {
+            synced_records += 1;
+        }
+    }
+    for event in local_events.values() {
+        if upsert_event(&remote_conn, event).await? {
+            synced_records += 1;
+        }
+    }
+    for event in remote_events.values() {
+        if upsert_event(&local_conn, event).await? {
+            synced_records += 1;
+        }
+    }
+
+    for pair in local_pairs.union(&remote_pairs) {
+        if ensure_student_tag_pair(&local_conn, pair).await? {
+            synced_records += 1;
+        }
+        if ensure_student_tag_pair(&remote_conn, pair).await? {
+            synced_records += 1;
+        }
+    }
+
+    let preferred_students = load_students(preferred).await?;
+    for student in preferred_students.values() {
+        if upsert_student(target, student).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_reasons = load_reasons(preferred).await?;
+    for reason in preferred_reasons.values() {
+        if upsert_reason(target, reason).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_tags = load_tags(preferred).await?;
+    for tag in preferred_tags.values() {
+        if upsert_tag(target, tag).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_events = load_events(preferred).await?;
+    for event in preferred_events.values() {
+        if upsert_event(target, event).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_pairs = load_student_tag_pairs(preferred).await?;
+    for pair in &preferred_pairs {
+        if ensure_student_tag_pair(target, pair).await? {
+            resolved_conflicts += 1;
+        }
+    }
+
+    Ok(DbSyncApplyResult {
+        success: true,
+        synced_records,
+        resolved_conflicts,
+        message: Some("本地与远程同步完成".to_string()),
+    })
 }
 
 fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
@@ -795,7 +947,10 @@ pub async fn db_sync_preview(
 ) -> Result<IpcResponse<DbSyncPreviewResult>, String> {
     check_admin_permission(&state)?;
 
-    let Some((local_conn, remote_conn)) = current_remote_and_local(&app_handle, &state).await? else {
+    let app_state = state.inner().clone();
+    let Some((local_conn, remote_conn)) =
+        current_remote_and_local_from_state(&app_handle, &app_state).await?
+    else {
         return Ok(IpcResponse::success(DbSyncPreviewResult {
             can_sync: false,
             need_sync: false,
@@ -906,123 +1061,8 @@ pub async fn db_sync_apply(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<DbSyncApplyResult>, String> {
     check_admin_permission(&state)?;
-
-    let Some((local_conn, remote_conn)) = current_remote_and_local(&app_handle, &state).await? else {
-        return Ok(IpcResponse::success(DbSyncApplyResult {
-            success: false,
-            synced_records: 0,
-            resolved_conflicts: 0,
-            message: Some("当前不在 PostgreSQL 远程模式，无法执行同步".to_string()),
-        }));
-    };
-
-    let local_students = load_students(&local_conn).await?;
-    let remote_students = load_students(&remote_conn).await?;
-    let local_reasons = load_reasons(&local_conn).await?;
-    let remote_reasons = load_reasons(&remote_conn).await?;
-    let local_tags = load_tags(&local_conn).await?;
-    let remote_tags = load_tags(&remote_conn).await?;
-    let local_events = load_events(&local_conn).await?;
-    let remote_events = load_events(&remote_conn).await?;
-    let local_pairs = load_student_tag_pairs(&local_conn).await?;
-    let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
-
-    let (preferred, target) = if strategy == ConflictStrategy::KeepLocal {
-        (&local_conn, &remote_conn)
-    } else {
-        (&remote_conn, &local_conn)
-    };
-
-    let mut synced_records = 0usize;
-    let mut resolved_conflicts = 0usize;
-
-    for student in local_students.values() {
-        if upsert_student(&remote_conn, student).await? {
-            synced_records += 1;
-        }
-    }
-    for student in remote_students.values() {
-        if upsert_student(&local_conn, student).await? {
-            synced_records += 1;
-        }
-    }
-    for reason in local_reasons.values() {
-        if upsert_reason(&remote_conn, reason).await? {
-            synced_records += 1;
-        }
-    }
-    for reason in remote_reasons.values() {
-        if upsert_reason(&local_conn, reason).await? {
-            synced_records += 1;
-        }
-    }
-    for tag in local_tags.values() {
-        if upsert_tag(&remote_conn, tag).await? {
-            synced_records += 1;
-        }
-    }
-    for tag in remote_tags.values() {
-        if upsert_tag(&local_conn, tag).await? {
-            synced_records += 1;
-        }
-    }
-    for event in local_events.values() {
-        if upsert_event(&remote_conn, event).await? {
-            synced_records += 1;
-        }
-    }
-    for event in remote_events.values() {
-        if upsert_event(&local_conn, event).await? {
-            synced_records += 1;
-        }
-    }
-
-    for pair in local_pairs.union(&remote_pairs) {
-        if ensure_student_tag_pair(&local_conn, pair).await? {
-            synced_records += 1;
-        }
-        if ensure_student_tag_pair(&remote_conn, pair).await? {
-            synced_records += 1;
-        }
-    }
-
-    let preferred_students = load_students(preferred).await?;
-    for student in preferred_students.values() {
-        if upsert_student(target, student).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_reasons = load_reasons(preferred).await?;
-    for reason in preferred_reasons.values() {
-        if upsert_reason(target, reason).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_tags = load_tags(preferred).await?;
-    for tag in preferred_tags.values() {
-        if upsert_tag(target, tag).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_events = load_events(preferred).await?;
-    for event in preferred_events.values() {
-        if upsert_event(target, event).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_pairs = load_student_tag_pairs(preferred).await?;
-    for pair in &preferred_pairs {
-        if ensure_student_tag_pair(target, pair).await? {
-            resolved_conflicts += 1;
-        }
-    }
-
-    Ok(IpcResponse::success(DbSyncApplyResult {
-        success: true,
-        synced_records,
-        resolved_conflicts,
-        message: Some("本地与远程同步完成".to_string()),
-    }))
+    let result = db_sync_apply_internal(strategy, app_handle, state.inner().clone()).await?;
+    Ok(IpcResponse::success(result))
 }
 
 #[tauri::command]

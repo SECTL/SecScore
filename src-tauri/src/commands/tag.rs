@@ -9,6 +9,7 @@ use crate::db::entities::{student_tags, tags};
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
+use super::database::realtime_dual_write_sync;
 use super::response::{IpcResponse, TagResponse};
 
 fn check_admin_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) -> bool {
@@ -159,10 +160,13 @@ pub async fn tags_create(
                 };
 
                 match new_tag.insert(conn).await {
-                    Ok(inserted) => Ok(IpcResponse::success(TagResponse {
-                        id: inserted.id,
-                        name: inserted.name,
-                    })),
+                    Ok(inserted) => {
+                        realtime_dual_write_sync(state.inner()).await?;
+                        Ok(IpcResponse::success(TagResponse {
+                            id: inserted.id,
+                            name: inserted.name,
+                        }))
+                    }
                     Err(e) => Ok(IpcResponse::error(&format!("Failed to create tag: {}", e))),
                 }
             }
@@ -210,7 +214,7 @@ pub async fn tags_delete(
                 .map_err(|e| e.to_string())?;
 
                 txn.commit().await.map_err(|e| e.to_string())?;
-
+                realtime_dual_write_sync(state.inner()).await?;
                 Ok(IpcResponse::success_empty())
             }
             Ok(None) => Ok(IpcResponse::error("Tag not found")),
@@ -264,7 +268,7 @@ pub async fn tags_update_student_tags(
         }
 
         txn.commit().await.map_err(|e| e.to_string())?;
-
+        realtime_dual_write_sync(state.inner()).await?;
         Ok(IpcResponse::success_empty())
     } else {
         Ok(IpcResponse::error("Database not connected"))
