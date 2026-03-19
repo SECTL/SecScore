@@ -296,7 +296,7 @@ function MainContent(): React.JSX.Element {
       }}
     >
       {contextHolder}
-      <Layout style={{ height: "100vh", flexDirection: "row", overflow: "hidden" }}>
+      <Layout style={{ height: "100%", minHeight: "100dvh", flexDirection: "row", overflow: "hidden" }}>
         <Sidebar
           activeMenu={activeMenu}
           permission={permission}
