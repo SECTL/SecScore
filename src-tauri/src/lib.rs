@@ -298,9 +298,9 @@ fn setup_tray(_app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(desktop)]
 fn setup_window_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-            width: 1180,
-            height: 680,
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: 1180.0,
+            height: 680.0,
         }));
         let _ = window.center();
 

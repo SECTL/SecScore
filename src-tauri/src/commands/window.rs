@@ -126,7 +126,10 @@ pub async fn window_resize(
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         window
-            .set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }))
+            .set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: width as f64,
+                height: height as f64,
+            }))
             .map_err(|e| e.to_string())?;
     }
     Ok(())
