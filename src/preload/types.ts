@@ -304,6 +304,8 @@ const api = {
     data?: { registered: boolean }
     message?: string
   }> => invoke("register_url_protocol"),
+  appQuit: (): Promise<void> => invoke("app_quit"),
+  appRestart: (): Promise<void> => invoke("app_restart"),
 
   // Auto Score
   autoScoreGetRules: (): Promise<{ success: boolean; data: any[] }> =>

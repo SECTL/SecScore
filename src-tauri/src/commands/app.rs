@@ -86,3 +86,20 @@ pub async fn register_url_protocol(
         Ok(IpcResponse::error("URL protocol registration is not supported on this platform"))
     }
 }
+
+#[tauri::command]
+pub async fn app_quit(
+    app: AppHandle,
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn app_restart(
+    app: AppHandle,
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<(), String> {
+    app.restart();
+}

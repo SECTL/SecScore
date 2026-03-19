@@ -68,6 +68,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   const [settleDialogVisible, setSettleDialogVisible] = useState(false)
 
   const [urlRegisterLoading, setUrlRegisterLoading] = useState(false)
+  const [appQuitLoading, setAppQuitLoading] = useState(false)
+  const [appRestartLoading, setAppRestartLoading] = useState(false)
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -417,6 +419,45 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   }
 
   const currentYear = new Date().getFullYear()
+
+  const confirmQuitApp = () => {
+    Modal.confirm({
+      title: t("settings.app.confirmQuitTitle"),
+      content: t("settings.app.confirmQuitContent"),
+      okText: t("settings.app.quit"),
+      okButtonProps: { danger: true },
+      cancelText: t("common.cancel"),
+      onOk: async () => {
+        if (!(window as any).api) return
+        setAppQuitLoading(true)
+        try {
+          await (window as any).api.appQuit()
+        } catch (e: any) {
+          setAppQuitLoading(false)
+          messageApi.error(e?.message || t("settings.app.quitFailed"))
+        }
+      },
+    })
+  }
+
+  const confirmRestartApp = () => {
+    Modal.confirm({
+      title: t("settings.app.confirmRestartTitle"),
+      content: t("settings.app.confirmRestartContent"),
+      okText: t("settings.app.restart"),
+      cancelText: t("common.cancel"),
+      onOk: async () => {
+        if (!(window as any).api) return
+        setAppRestartLoading(true)
+        try {
+          await (window as any).api.appRestart()
+        } catch (e: any) {
+          setAppRestartLoading(false)
+          messageApi.error(e?.message || t("settings.app.restartFailed"))
+        }
+      },
+    })
+  }
 
   const tabItems = [
     {
@@ -967,13 +1008,32 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           </div>
           <Divider />
           <div style={{ marginTop: "16px" }}>
-            <Button
-              onClick={() => {
-                ;(window as any).api?.toggleDevTools()
-              }}
-            >
-              {t("settings.about.toggleDevTools")}
-            </Button>
+            <Space>
+              <Button
+                onClick={() => {
+                  ;(window as any).api?.toggleDevTools()
+                }}
+              >
+                {t("settings.about.toggleDevTools")}
+              </Button>
+            </Space>
+          </div>
+          <Divider />
+          <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
+            {t("settings.app.title")}
+          </div>
+          <div style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}>
+            {t("settings.app.description")}
+          </div>
+          <div style={{ marginTop: "8px" }}>
+            <Space>
+              <Button onClick={confirmRestartApp} loading={appRestartLoading}>
+                {t("settings.app.restart")}
+              </Button>
+              <Button danger onClick={confirmQuitApp} loading={appQuitLoading}>
+                {t("settings.app.quit")}
+              </Button>
+            </Space>
           </div>
         </Card>
       ),

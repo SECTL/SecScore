@@ -263,6 +263,18 @@
       "registerFailed": "Registration failed",
       "installerRequired": "Requires installed SecScore, may not work in development mode."
     },
+    "app": {
+      "title": "App Controls",
+      "description": "Quickly restart or quit the app.",
+      "restart": "Restart App",
+      "quit": "Quit App",
+      "confirmRestartTitle": "Restart the app now?",
+      "confirmRestartContent": "The app will close and start again immediately.",
+      "confirmQuitTitle": "Quit the app now?",
+      "confirmQuitContent": "The app will exit immediately.",
+      "restartFailed": "Restart failed",
+      "quitFailed": "Quit failed"
+    },
     "about": {
       "title": "About",
       "appName": "Education Points Management",

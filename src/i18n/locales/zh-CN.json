@@ -263,6 +263,18 @@
       "registerFailed": "注册失败",
       "installerRequired": "需要安装版 SecScore，开发模式下可能无效。"
     },
+    "app": {
+      "title": "应用控制",
+      "description": "快速重启或退出应用。",
+      "restart": "重启应用",
+      "quit": "退出应用",
+      "confirmRestartTitle": "确认重启应用？",
+      "confirmRestartContent": "应用将立即关闭并重新启动。",
+      "confirmQuitTitle": "确认退出应用？",
+      "confirmQuitContent": "应用将立即退出。",
+      "restartFailed": "重启失败",
+      "quitFailed": "退出失败"
+    },
     "about": {
       "title": "关于",
       "appName": "教育积分管理",

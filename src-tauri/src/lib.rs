@@ -107,6 +107,8 @@ pub fn run() {
             http_server_stop,
             http_server_status,
             register_url_protocol,
+            app_quit,
+            app_restart,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
