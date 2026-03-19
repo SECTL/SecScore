@@ -77,6 +77,23 @@ const patchConsole = () => {
 }
 patchConsole()
 
+const syncAppViewportHeight = () => {
+  const rootStyle = document.documentElement.style
+
+  const applyHeight = () => {
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+    rootStyle.setProperty("--ss-app-height", `${Math.round(viewportHeight)}px`)
+  }
+
+  applyHeight()
+  window.addEventListener("resize", applyHeight)
+  window.addEventListener("orientationchange", applyHeight)
+  window.visualViewport?.addEventListener("resize", applyHeight)
+  window.visualViewport?.addEventListener("scroll", applyHeight)
+}
+
+syncAppViewportHeight()
+
 const disableTouchZoom = () => {
   let lastTouchEnd = 0
 
