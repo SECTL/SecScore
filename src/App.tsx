@@ -1,5 +1,5 @@
 import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme } from "antd"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Sidebar } from "./components/Sidebar"
@@ -54,6 +54,13 @@ function MainContent(): React.JSX.Element {
   const [isPortraitMode, setIsPortraitMode] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
+  const [syncConflictVisible, setSyncConflictVisible] = useState(false)
+  const [syncConflicts, setSyncConflicts] = useState<
+    Array<{ table: string; key: string; local_summary: string; remote_summary: string }>
+  >([])
+  const [syncApplyLoading, setSyncApplyLoading] = useState(false)
+  const syncCheckingRef = useRef(false)
+  const syncApplyLoadingRef = useRef(false)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -93,6 +100,85 @@ function MainContent(): React.JSX.Element {
 
     loadAuthAndSettings()
   }, [])
+
+  const applySyncStrategy = async (strategy: "keep_local" | "keep_remote") => {
+    const api = (window as any).api
+    if (!api) return
+    setSyncApplyLoading(true)
+    syncApplyLoadingRef.current = true
+    try {
+      const res = await api.dbSyncApply(strategy)
+      if (res?.success && res?.data?.success) {
+        messageApi.success(
+          res.data.message || `同步完成（同步 ${res.data.synced_records} 条，解决冲突 ${res.data.resolved_conflicts} 条）`
+        )
+        window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+      } else {
+        messageApi.error(res?.data?.message || res?.message || "同步失败")
+      }
+    } catch (error: any) {
+      messageApi.error(error?.message || "同步失败")
+    } finally {
+      setSyncApplyLoading(false)
+      syncApplyLoadingRef.current = false
+      setSyncConflictVisible(false)
+      setSyncConflicts([])
+    }
+  }
+
+  useEffect(() => {
+    const api = (window as any).api
+    if (!api) return
+    let disposed = false
+
+    const checkAndSync = async () => {
+      if (disposed || syncCheckingRef.current || syncApplyLoadingRef.current) return
+      if (permission !== "admin") return
+      try {
+        syncCheckingRef.current = true
+        const statusRes = await api.dbGetStatus()
+        if (!statusRes?.success || statusRes?.data?.type !== "postgresql" || !statusRes?.data?.connected) {
+          return
+        }
+
+        const previewRes = await api.dbSyncPreview()
+        if (!previewRes?.success || !previewRes?.data?.can_sync || !previewRes?.data?.need_sync) {
+          return
+        }
+
+        const conflicts = previewRes.data.conflicts || []
+        if (conflicts.length > 0) {
+          setSyncConflicts(conflicts)
+          setSyncConflictVisible(true)
+          return
+        }
+
+        const applyRes = await api.dbSyncApply("keep_local")
+        if (applyRes?.success && applyRes?.data?.success && applyRes?.data?.synced_records > 0) {
+          window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+        }
+      } catch (error) {
+        console.error("Auto sync failed:", error)
+      } finally {
+        syncCheckingRef.current = false
+      }
+    }
+
+    checkAndSync()
+    const timer = window.setInterval(checkAndSync, 30000)
+    const onDataUpdated = () => {
+      window.setTimeout(() => {
+        checkAndSync().catch(() => void 0)
+      }, 1200)
+    }
+    window.addEventListener("ss:data-updated", onDataUpdated)
+
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+      window.removeEventListener("ss:data-updated", onDataUpdated)
+    }
+  }, [permission])
 
   const login = async () => {
     if (!(window as any).api) return
@@ -231,6 +317,61 @@ function MainContent(): React.JSX.Element {
               placeholder={t("auth.passwordPlaceholder")}
               maxLength={6}
             />
+          </div>
+        </Modal>
+
+        <Modal
+          title="检测到本地与远程数据冲突"
+          open={syncConflictVisible}
+          onCancel={() => {
+            if (syncApplyLoading) return
+            setSyncConflictVisible(false)
+          }}
+          footer={null}
+          closable={!syncApplyLoading}
+          maskClosable={false}
+          destroyOnClose
+        >
+          <div style={{ marginBottom: "10px", color: "var(--ss-text-secondary)", fontSize: "12px" }}>
+            自动同步发现冲突，请选择冲突时优先保留哪一侧的数据。
+          </div>
+          <div
+            style={{
+              maxHeight: "280px",
+              overflow: "auto",
+              border: "1px solid var(--ss-border-color)",
+              borderRadius: "6px",
+              padding: "8px",
+              marginBottom: "12px",
+              fontSize: "12px",
+            }}
+          >
+            {syncConflicts.slice(0, 30).map((item) => (
+              <div key={`${item.table}-${item.key}`} style={{ marginBottom: "8px" }}>
+                <div>
+                  <b>{item.table}</b> / <b>{item.key}</b>
+                </div>
+                <div>本地: {item.local_summary}</div>
+                <div>远程: {item.remote_summary}</div>
+              </div>
+            ))}
+            {syncConflicts.length > 30 && <div>仅显示前 30 条冲突...</div>}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <button
+              style={{ padding: "6px 10px", cursor: syncApplyLoading ? "not-allowed" : "pointer" }}
+              disabled={syncApplyLoading}
+              onClick={() => applySyncStrategy("keep_remote")}
+            >
+              保留远程
+            </button>
+            <button
+              style={{ padding: "6px 10px", cursor: syncApplyLoading ? "not-allowed" : "pointer" }}
+              disabled={syncApplyLoading}
+              onClick={() => applySyncStrategy("keep_local")}
+            >
+              保留本地
+            </button>
           </div>
         </Modal>
 

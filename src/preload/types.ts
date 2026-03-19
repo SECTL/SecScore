@@ -228,6 +228,26 @@ const api = {
   }> => invoke("db_get_status"),
   dbSync: (): Promise<{ success: boolean; data: { success: boolean; message?: string } }> =>
     invoke("db_sync"),
+  dbSyncPreview: (): Promise<{
+    success: boolean
+    data: {
+      can_sync: boolean
+      need_sync: boolean
+      local_only: number
+      remote_only: number
+      conflicts: Array<{
+        table: string
+        key: string
+        local_summary: string
+        remote_summary: string
+      }>
+      message?: string
+    }
+  }> => invoke("db_sync_preview"),
+  dbSyncApply: (strategy: "keep_local" | "keep_remote"): Promise<{
+    success: boolean
+    data: { success: boolean; synced_records: number; resolved_conflicts: number; message?: string }
+  }> => invoke("db_sync_apply", { strategy }),
 
   // HTTP Server
   httpServerStart: (config?: {

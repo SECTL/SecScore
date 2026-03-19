@@ -92,6 +92,8 @@ pub fn run() {
             db_switch_connection,
             db_get_status,
             db_sync,
+            db_sync_preview,
+            db_sync_apply,
             fs_get_config_structure,
             fs_read_json,
             fs_write_json,
