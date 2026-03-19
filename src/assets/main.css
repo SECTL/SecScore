@@ -20,6 +20,18 @@
   }
 }
 
+/* iOS WebView 首帧偶发 vh/dvh 计算偏小，优先使用 fill-available 防止底部白边 */
+html.platform-ios {
+  --ss-app-height: -webkit-fill-available;
+}
+
+html.platform-ios,
+html.platform-ios body,
+html.platform-ios #root {
+  height: -webkit-fill-available;
+  min-height: -webkit-fill-available;
+}
+
 html,
 body,
 #root {

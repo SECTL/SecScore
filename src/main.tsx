@@ -135,6 +135,10 @@ if (isMacDesktop) {
   document.documentElement.classList.add("platform-macos")
 }
 
+if (isIos) {
+  document.documentElement.classList.add("platform-ios")
+}
+
 window.addEventListener("error", (e: any) => {
   const error = e?.error
   safeWriteLog({
