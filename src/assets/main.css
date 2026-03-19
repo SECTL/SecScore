@@ -1,6 +1,7 @@
 @import "antd/dist/reset.css";
 
 :root {
+  --ss-app-height: 100vh;
   --ss-safe-area-top: env(safe-area-inset-top, 0px);
   --ss-safe-area-right: env(safe-area-inset-right, 0px);
   --ss-safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -13,10 +14,17 @@
     sans-serif;
 }
 
+@supports (height: 100dvh) {
+  :root {
+    --ss-app-height: 100dvh;
+  }
+}
+
 html,
 body,
 #root {
-  height: 100%;
+  height: var(--ss-app-height);
+  min-height: var(--ss-app-height);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -29,7 +37,6 @@ body,
 
 #root {
   width: 100%;
-  min-height: 100%;
   padding-top: var(--ss-safe-area-top);
   padding-right: var(--ss-safe-area-right);
   padding-bottom: var(--ss-safe-area-bottom);
