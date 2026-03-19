@@ -20,7 +20,7 @@
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "transparent": true,
+        "transparent": false,
         "center": true,
         "minWidth": 800,
         "minHeight": 600
