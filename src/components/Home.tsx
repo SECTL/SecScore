@@ -1740,8 +1740,23 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           </p>
         </div>
 
-        <Space size="middle" align="start">
-          <div ref={searchAreaRef} style={{ position: "relative", width: "220px" }}>
+        <Space
+          size="middle"
+          align="start"
+          wrap={isPortraitMode}
+          style={{
+            width: isPortraitMode ? "100%" : undefined,
+            justifyContent: isPortraitMode ? "flex-start" : undefined,
+          }}
+        >
+          <div
+            ref={searchAreaRef}
+            style={{
+              position: "relative",
+              width: isPortraitMode ? "100%" : "220px",
+              minWidth: isPortraitMode ? "100%" : undefined,
+            }}
+          >
             <Input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
@@ -1757,16 +1772,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               placeholder={t("home.searchPlaceholder")}
               prefix={<SearchOutlined />}
               allowClear
-              style={{ width: "220px" }}
+              style={{ width: "100%" }}
             />
             {!disableSearchKeyboard && showPinyinKeyboard && (
               <div
                 style={{
                   position: "absolute",
                   top: "calc(100% + 8px)",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  width: searchKeyboardLayout === "qwerty26" ? "288px" : "220px",
+                  left: isPortraitMode ? "0" : "50%",
+                  transform: isPortraitMode ? "none" : "translateX(-50%)",
+                  width: isPortraitMode
+                    ? `min(calc(100vw - 32px), ${searchKeyboardLayout === "qwerty26" ? "288px" : "220px"})`
+                    : searchKeyboardLayout === "qwerty26"
+                      ? "288px"
+                      : "220px",
                   padding: "8px",
                   borderRadius: "10px",
                   border: "1px solid var(--ss-border-color)",
@@ -1823,7 +1842,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           <Select
             value={sortType}
             onChange={(v) => setSortType(v as SortType)}
-            style={{ width: "140px" }}
+            style={{ width: isPortraitMode ? "calc(50% - 8px)" : "140px", minWidth: "120px" }}
             options={[
               { value: "alphabet", label: t("home.sortBy.alphabet") },
               { value: "surname", label: t("home.sortBy.surname") },
@@ -1833,7 +1852,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           <Select
             value={layoutType}
             onChange={(v) => setLayoutType(v as LayoutType)}
-            style={{ width: "140px" }}
+            style={{ width: isPortraitMode ? "calc(50% - 8px)" : "140px", minWidth: "120px" }}
             options={[
               { value: "grouped", label: t("home.layoutBy.grouped") },
               { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
