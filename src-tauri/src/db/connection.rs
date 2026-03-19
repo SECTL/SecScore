@@ -1,8 +1,25 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
+use std::time::Duration;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
+
+const DB_MAX_CONNECTIONS: u32 = 20;
+const DB_MIN_CONNECTIONS: u32 = 1;
+const DB_CONNECT_TIMEOUT_SECS: u64 = 12;
+const DB_ACQUIRE_TIMEOUT_SECS: u64 = 12;
+const DB_IDLE_TIMEOUT_SECS: u64 = 30;
+
+fn apply_default_connect_options(opt: &mut ConnectOptions) {
+    opt.max_connections(DB_MAX_CONNECTIONS)
+        .min_connections(DB_MIN_CONNECTIONS)
+        .connect_timeout(Duration::from_secs(DB_CONNECT_TIMEOUT_SECS))
+        .acquire_timeout(Duration::from_secs(DB_ACQUIRE_TIMEOUT_SECS))
+        .idle_timeout(Duration::from_secs(DB_IDLE_TIMEOUT_SECS))
+        .sqlx_logging(true)
+        .sqlx_logging_level(tracing::log::LevelFilter::Info);
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DatabaseType {
@@ -106,10 +123,7 @@ impl ConnectionManager {
         );
 
         let mut opt = ConnectOptions::new(&url);
-        opt.max_connections(100)
-            .min_connections(5)
-            .sqlx_logging(true)
-            .sqlx_logging_level(tracing::log::LevelFilter::Info);
+        apply_default_connect_options(&mut opt);
 
         let conn = Database::connect(opt).await?;
 
@@ -195,20 +209,14 @@ impl ConnectionManager {
 pub async fn create_sqlite_connection(path: &str) -> Result<DatabaseConnection, DbErr> {
     let url = format!("sqlite://{}?mode=rwc", path);
     let mut opt = ConnectOptions::new(&url);
-    opt.max_connections(100)
-        .min_connections(5)
-        .sqlx_logging(true)
-        .sqlx_logging_level(tracing::log::LevelFilter::Info);
+    apply_default_connect_options(&mut opt);
 
     Database::connect(opt).await
 }
 
 pub async fn create_postgres_connection(url: &str) -> Result<DatabaseConnection, DbErr> {
     let mut opt = ConnectOptions::new(url);
-    opt.max_connections(100)
-        .min_connections(5)
-        .sqlx_logging(true)
-        .sqlx_logging_level(tracing::log::LevelFilter::Info);
+    apply_default_connect_options(&mut opt);
 
     Database::connect(opt).await
 }

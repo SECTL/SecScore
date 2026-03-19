@@ -13,6 +13,7 @@ use crate::db::migration::run_migration;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::{commands::*, state::AppState};
 use tauri::{App, Manager};
+use tokio::time::{timeout, Duration};
 #[cfg(desktop)]
 use tauri::{
     image::Image,
@@ -125,6 +126,9 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    const DB_CONNECT_TIMEOUT_SECS: u64 = 15;
+    const DB_MIGRATION_TIMEOUT_SECS: u64 = 20;
+
     let handle = app.handle().clone();
     let db_path = if cfg!(all(debug_assertions, desktop)) {
         std::path::PathBuf::from("data.sql")
@@ -166,9 +170,67 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             };
 
             if !pg_connection_string.trim().is_empty() {
-                match create_postgres_connection(&pg_connection_string).await {
-                    Ok(pg_conn) => {
-                        if let Err(e) = run_migration(&pg_conn, DatabaseType::PostgreSQL).await {
+                match timeout(
+                    Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
+                    create_postgres_connection(&pg_connection_string),
+                )
+                .await
+                {
+                    Err(_) => {
+                        let timeout_message = "PostgreSQL auto-connect timeout".to_string();
+                        eprintln!(
+                            "PostgreSQL auto-connect timed out on startup, fallback to sqlite"
+                        );
+                        settings
+                            .set_value(
+                                SettingsKey::PgConnectionStatus,
+                                SettingsValue::Json(serde_json::json!({
+                                    "connected": false,
+                                    "type": "sqlite",
+                                    "error": timeout_message
+                                })),
+                            )
+                            .await
+                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                    }
+                    Ok(Err(e)) => {
+                        eprintln!("PostgreSQL auto-connect failed, fallback to sqlite: {}", e);
+                        settings
+                            .set_value(
+                                SettingsKey::PgConnectionStatus,
+                                SettingsValue::Json(serde_json::json!({
+                                    "connected": false,
+                                    "type": "sqlite",
+                                    "error": e.to_string()
+                                })),
+                            )
+                            .await
+                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                    }
+                    Ok(Ok(pg_conn)) => {
+                        let migration_result = timeout(
+                            Duration::from_secs(DB_MIGRATION_TIMEOUT_SECS),
+                            run_migration(&pg_conn, DatabaseType::PostgreSQL),
+                        )
+                        .await;
+
+                        if let Err(_) = migration_result {
+                            let timeout_message = "PostgreSQL migration timeout".to_string();
+                            eprintln!(
+                                "PostgreSQL migration timed out on startup, fallback to sqlite"
+                            );
+                            settings
+                                .set_value(
+                                    SettingsKey::PgConnectionStatus,
+                                    SettingsValue::Json(serde_json::json!({
+                                        "connected": false,
+                                        "type": "sqlite",
+                                        "error": timeout_message
+                                    })),
+                                )
+                                .await
+                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
+                        } else if let Ok(Err(e)) = migration_result {
                             eprintln!("PostgreSQL migration failed on startup, fallback to sqlite: {}", e);
                             settings
                                 .set_value(
@@ -195,20 +257,6 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                 .map_err(|err| format!("Failed to save pg status: {}", err))?;
                             eprintln!("Auto connected to PostgreSQL from saved connection string");
                         }
-                    }
-                    Err(e) => {
-                        eprintln!("PostgreSQL auto-connect failed, fallback to sqlite: {}", e);
-                        settings
-                            .set_value(
-                                SettingsKey::PgConnectionStatus,
-                                SettingsValue::Json(serde_json::json!({
-                                    "connected": false,
-                                    "type": "sqlite",
-                                    "error": e.to_string()
-                                })),
-                            )
-                            .await
-                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
                     }
                 }
             } else {

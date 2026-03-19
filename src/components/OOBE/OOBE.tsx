@@ -34,6 +34,20 @@ interface reasonItem {
 
 const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 
+const withTimeout = async (promise: Promise<any>, ms: number, timeoutMessage: string): Promise<any> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race<any>([
+      promise,
+      new Promise<any>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 const presetPrimaryColors = [
   "#1677FF",
   "#2F54EB",
@@ -363,18 +377,30 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
     setPgAutoLoading(true)
     try {
       if (!(window as any).api) throw new Error("api not ready")
-      const switchRes = await (window as any).api.dbSwitchConnection(connectionString)
+      const switchRes = await withTimeout(
+        (window as any).api.dbSwitchConnection(connectionString),
+        25_000,
+        "连接 PostgreSQL 超时，请检查网络或连接字符串"
+      )
       if (!switchRes?.success || switchRes?.data?.type !== "postgresql") {
         throw new Error(switchRes?.message || t("settings.database.switchFailed"))
       }
 
-      const previewRes = await (window as any).api.dbSyncPreview()
+      const previewRes = await withTimeout(
+        (window as any).api.dbSyncPreview(),
+        25_000,
+        "同步预检查超时，请稍后重试"
+      )
       if (!previewRes?.success || !previewRes?.data?.can_sync) {
         throw new Error(previewRes?.message || previewRes?.data?.message || t("settings.database.uploadFailed"))
       }
 
       if (previewRes?.data?.need_sync) {
-        const syncApplyRes = await (window as any).api.dbSyncApply("keep_local")
+        const syncApplyRes = await withTimeout(
+          (window as any).api.dbSyncApply("keep_local"),
+          45_000,
+          "执行同步超时，请稍后重试"
+        )
         if (!syncApplyRes?.success || !syncApplyRes?.data?.success) {
           throw new Error(
             syncApplyRes?.data?.message || syncApplyRes?.message || t("settings.database.uploadFailed")

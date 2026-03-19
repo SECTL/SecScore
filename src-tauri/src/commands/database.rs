@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
+use tokio::time::{timeout, Duration};
 
 use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
@@ -14,6 +15,9 @@ use crate::state::AppState;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use super::response::IpcResponse;
+
+const DB_CONNECT_TIMEOUT_SECS: u64 = 15;
+const DB_MIGRATION_TIMEOUT_SECS: u64 = 20;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestConnectionResult {
@@ -775,18 +779,28 @@ pub async fn db_test_connection(
     } else if connection_string.starts_with("postgres://")
         || connection_string.starts_with("postgresql://")
     {
-        match create_postgres_connection(&connection_string).await {
-            Ok(conn) => {
+        let connection_result = timeout(
+            Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
+            create_postgres_connection(&connection_string),
+        )
+        .await;
+
+        match connection_result {
+            Err(_) => TestConnectionResult {
+                success: false,
+                error: Some("PostgreSQL 连接超时，请检查网络或连接字符串".to_string()),
+            },
+            Ok(Err(e)) => TestConnectionResult {
+                success: false,
+                error: Some(e.to_string()),
+            },
+            Ok(Ok(conn)) => {
                 let _ = conn.close().await;
                 TestConnectionResult {
                     success: true,
                     error: None,
                 }
             }
-            Err(e) => TestConnectionResult {
-                success: false,
-                error: Some(e.to_string()),
-            },
         }
     } else {
         let path = connection_string.as_str();
@@ -819,12 +833,20 @@ pub async fn db_switch_connection(
     let (db_type, saved_connection_string, saved_status, conn) = if connection_string.starts_with("postgres://")
         || connection_string.starts_with("postgresql://")
     {
-        let conn = create_postgres_connection(&connection_string)
-            .await
-            .map_err(|e| e.to_string())?;
-        run_migration(&conn, DatabaseType::PostgreSQL)
-            .await
-            .map_err(|e| e.to_string())?;
+        let conn = timeout(
+            Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
+            create_postgres_connection(&connection_string),
+        )
+        .await
+        .map_err(|_| "PostgreSQL 连接超时，请检查网络或连接字符串".to_string())?
+        .map_err(|e| e.to_string())?;
+        timeout(
+            Duration::from_secs(DB_MIGRATION_TIMEOUT_SECS),
+            run_migration(&conn, DatabaseType::PostgreSQL),
+        )
+        .await
+        .map_err(|_| "PostgreSQL 初始化超时，请稍后重试".to_string())?
+        .map_err(|e| e.to_string())?;
 
         (
             "postgresql".to_string(),

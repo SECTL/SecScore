@@ -27,6 +27,20 @@ type appSettings = {
   auto_score_enabled?: boolean
 }
 
+const withTimeout = async (promise: Promise<any>, ms: number, timeoutMessage: string): Promise<any> => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race<any>([
+      promise,
+      new Promise<any>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
   const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState("appearance")
@@ -307,7 +321,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     }
     setPgTestLoading(true)
     try {
-      const res = await (window as any).api.dbTestConnection(pgConnectionString)
+      const res = await withTimeout(
+        (window as any).api.dbTestConnection(pgConnectionString),
+        20_000,
+        "测试连接超时，请检查网络或连接字符串"
+      )
       if (res.success && res.data?.success) {
         messageApi.success(t("settings.database.connectionTestSuccess"))
       } else {
@@ -324,9 +342,17 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
 
   const switchToPg = async () => {
     if (!(window as any).api) return
+    if (!pgConnectionString.trim()) {
+      messageApi.warning(t("settings.database.enterConnectionString"))
+      return
+    }
     setPgSwitchLoading(true)
     try {
-      const res = await (window as any).api.dbSwitchConnection(pgConnectionString)
+      const res = await withTimeout(
+        (window as any).api.dbSwitchConnection(pgConnectionString.trim()),
+        25_000,
+        "切换 PostgreSQL 超时，请检查网络或连接字符串"
+      )
       if (res.success) {
         messageApi.success(
           t("settings.database.switchedTo", {
@@ -348,7 +374,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     if (!(window as any).api) return
     setPgSwitchLoading(true)
     try {
-      const res = await (window as any).api.dbSwitchConnection("")
+      const res = await withTimeout(
+        (window as any).api.dbSwitchConnection(""),
+        15_000,
+        "切换 SQLite 超时，请稍后重试"
+      )
       if (res.success) {
         messageApi.success(t("settings.database.switchedToSQLite"))
         setPgConnectionString("")
@@ -372,7 +402,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         return
       }
 
-      const previewRes = await (window as any).api.dbSyncPreview()
+      const previewRes = await withTimeout(
+        (window as any).api.dbSyncPreview(),
+        25_000,
+        "同步预检查超时，请稍后重试"
+      )
       if (!previewRes.success || !previewRes.data?.can_sync) {
         messageApi.error(previewRes.message || previewRes.data?.message || t("settings.database.uploadFailed"))
         return
@@ -394,7 +428,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         onOk: async () => {
           setPgUploadLoading(true)
           try {
-            const applyRes = await (window as any).api.dbSyncApply("keep_local")
+            const applyRes = await withTimeout(
+              (window as any).api.dbSyncApply("keep_local"),
+              45_000,
+              "执行同步超时，请稍后重试"
+            )
             if (applyRes.success && applyRes.data?.success) {
               messageApi.success(
                 applyRes.data?.message || t("settings.database.uploadSuccess")
