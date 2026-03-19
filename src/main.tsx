@@ -80,16 +80,36 @@ patchConsole()
 const syncAppViewportHeight = () => {
   const rootStyle = document.documentElement.style
 
+  const readViewportHeight = () => {
+    const innerHeight = Number.isFinite(window.innerHeight) ? Math.round(window.innerHeight) : 0
+    const visualViewport = window.visualViewport
+    const visualHeight =
+      visualViewport && Number.isFinite(visualViewport.height) ? Math.round(visualViewport.height) : 0
+
+    return Math.max(innerHeight, visualHeight)
+  }
+
   const applyHeight = () => {
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
-    rootStyle.setProperty("--ss-app-height", `${Math.round(viewportHeight)}px`)
+    try {
+      const viewportHeight = readViewportHeight()
+      // 避免 iOS 首帧偶发 0 高度把根节点压扁导致白屏
+      if (viewportHeight < 320) return
+      rootStyle.setProperty("--ss-app-height", `${viewportHeight}px`)
+    } catch {
+      void 0
+    }
   }
 
   applyHeight()
+  window.setTimeout(applyHeight, 50)
+  window.setTimeout(applyHeight, 300)
   window.addEventListener("resize", applyHeight)
   window.addEventListener("orientationchange", applyHeight)
-  window.visualViewport?.addEventListener("resize", applyHeight)
-  window.visualViewport?.addEventListener("scroll", applyHeight)
+  const visualViewport = window.visualViewport
+  if (visualViewport && typeof visualViewport.addEventListener === "function") {
+    visualViewport.addEventListener("resize", applyHeight)
+    visualViewport.addEventListener("scroll", applyHeight)
+  }
 }
 
 syncAppViewportHeight()
