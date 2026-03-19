@@ -46,6 +46,7 @@ interface ContentAreaProps {
   hasAnyPassword: boolean
   onAuthClick: () => void
   onLogout: () => void
+  showWindowControls: boolean
   isPortraitMode: boolean
   sidebarCollapsed: boolean
   floatingExpand: boolean
@@ -59,6 +60,7 @@ export function ContentArea({
   hasAnyPassword,
   onAuthClick,
   onLogout,
+  showWindowControls,
   isPortraitMode,
   sidebarCollapsed,
   floatingExpand,
@@ -189,10 +191,12 @@ export function ContentArea({
             )}
           </Space>
         </div>
-        <WindowControls
-          isPortraitMode={isPortraitMode}
-          onToggleOrientation={onToggleOrientation}
-        />
+        {showWindowControls && (
+          <WindowControls
+            isPortraitMode={isPortraitMode}
+            onToggleOrientation={onToggleOrientation}
+          />
+        )}
       </div>
 
       <Content style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>

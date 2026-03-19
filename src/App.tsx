@@ -13,6 +13,7 @@ function MainContent(): React.JSX.Element {
   const location = useLocation()
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
+  const { isIosDevice, isIosPhone } = useMemo(getIosDeviceInfo, [])
 
   useEffect(() => {
     const api = (window as any).api
@@ -51,8 +52,8 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
-  const [isPortraitMode, setIsPortraitMode] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isPortraitMode, setIsPortraitMode] = useState(isIosPhone)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(isIosPhone)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
   const [syncConflictVisible, setSyncConflictVisible] = useState(false)
   const [syncConflicts, setSyncConflicts] = useState<
@@ -311,6 +312,7 @@ function MainContent(): React.JSX.Element {
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
+          showWindowControls={!isIosDevice}
           isPortraitMode={isPortraitMode}
           sidebarCollapsed={sidebarCollapsed}
           floatingExpand={isPortraitMode}
@@ -453,6 +455,13 @@ function getArchitecture(): string {
 
 function getPlatform(): string {
   const userAgent = navigator.userAgent.toLowerCase()
+  const isAppleTouchDevice = userAgent.includes("macintosh") && navigator.maxTouchPoints > 1
+
+  if (userAgent.includes("iphone") || userAgent.includes("ipad") || userAgent.includes("ipod") || isAppleTouchDevice) {
+    return "iOS"
+  } else if (userAgent.includes("android")) {
+    return "Android"
+  }
 
   if (userAgent.includes("windows")) {
     return "Windows"
@@ -463,6 +472,17 @@ function getPlatform(): string {
   }
 
   return "Unknown"
+}
+
+function getIosDeviceInfo(): { isIosDevice: boolean; isIosPhone: boolean } {
+  const userAgent = navigator.userAgent.toLowerCase()
+  const isAppleTouchDevice = userAgent.includes("macintosh") && navigator.maxTouchPoints > 1
+  const isIosDevice = /iphone|ipad|ipod/.test(userAgent) || isAppleTouchDevice
+  const isIosTablet = userAgent.includes("ipad") || isAppleTouchDevice
+  return {
+    isIosDevice,
+    isIosPhone: isIosDevice && !isIosTablet,
+  }
 }
 function App(): React.JSX.Element {
   return (
