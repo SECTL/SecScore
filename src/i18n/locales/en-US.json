@@ -205,7 +205,15 @@
       "syncPoint3": "Application restart required after switching database.",
       "syncPoint4": "Recommended cloud database services: Neon, Supabase, AWS RDS, etc.",
       "enterConnectionString": "Please enter PostgreSQL connection string",
-      "connectionExample": "Example: postgresql://xxxxxx_xxxxx:xxxxxxxx@xx-xxx.xxx.neon.xxxx/xxxxdxx?sslmode=require"
+      "connectionExample": "Example: postgresql://xxxxxx_xxxxx:xxxxxxxx@xx-xxx.xxx.neon.xxxx/xxxxdxx?sslmode=require",
+      "uploadButton": "Upload Local Data to Remote",
+      "uploadHint": "After connecting remote database, upload and merge local SQLite history into remote.",
+      "uploadNeedRemote": "Please connect to PostgreSQL remote database first",
+      "noNeedUpload": "Local and remote data are already consistent",
+      "uploadConfirmTitle": "Upload local data to remote?",
+      "uploadConfirmContent": "Sync will prefer local data. Detected local-only {{localOnly}}, remote-only {{remoteOnly}}, conflicts {{conflicts}}.",
+      "uploadSuccess": "Local data uploaded to remote",
+      "uploadFailed": "Upload failed"
     },
     "data": {
       "title": "Data Management",

@@ -79,6 +79,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   }>({ connected: true, type: "sqlite" })
   const [pgTestLoading, setPgTestLoading] = useState(false)
   const [pgSwitchLoading, setPgSwitchLoading] = useState(false)
+  const [pgUploadLoading, setPgUploadLoading] = useState(false)
 
   const permissionTag = useMemo(() => {
     return (
@@ -357,6 +358,61 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       messageApi.error(e?.message || t("settings.database.switchFailed"))
     } finally {
       setPgSwitchLoading(false)
+    }
+  }
+
+  const uploadLocalToRemote = async () => {
+    if (!(window as any).api) return
+    try {
+      const statusRes = await (window as any).api.dbGetStatus()
+      if (!statusRes.success || !statusRes.data?.connected || statusRes.data?.type !== "postgresql") {
+        messageApi.warning(t("settings.database.uploadNeedRemote"))
+        return
+      }
+
+      const previewRes = await (window as any).api.dbSyncPreview()
+      if (!previewRes.success || !previewRes.data?.can_sync) {
+        messageApi.error(previewRes.message || previewRes.data?.message || t("settings.database.uploadFailed"))
+        return
+      }
+      if (!previewRes.data.need_sync) {
+        messageApi.info(t("settings.database.noNeedUpload"))
+        return
+      }
+
+      Modal.confirm({
+        title: t("settings.database.uploadConfirmTitle"),
+        content: t("settings.database.uploadConfirmContent", {
+          localOnly: previewRes.data.local_only || 0,
+          remoteOnly: previewRes.data.remote_only || 0,
+          conflicts: previewRes.data.conflicts?.length || 0,
+        }),
+        okText: t("settings.database.uploadButton"),
+        cancelText: t("common.cancel"),
+        onOk: async () => {
+          setPgUploadLoading(true)
+          try {
+            const applyRes = await (window as any).api.dbSyncApply("keep_local")
+            if (applyRes.success && applyRes.data?.success) {
+              messageApi.success(
+                applyRes.data?.message || t("settings.database.uploadSuccess")
+              )
+              emitDataUpdated("all")
+              await loadAll()
+            } else {
+              messageApi.error(
+                applyRes.data?.message || applyRes.message || t("settings.database.uploadFailed")
+              )
+            }
+          } catch (e: any) {
+            messageApi.error(e?.message || t("settings.database.uploadFailed"))
+          } finally {
+            setPgUploadLoading(false)
+          }
+        },
+      })
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.database.uploadFailed"))
     }
   }
 
@@ -678,7 +734,17 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
               >
                 {t("settings.database.switchToSQLite")}
               </Button>
+              <Button
+                onClick={uploadLocalToRemote}
+                loading={pgUploadLoading}
+                disabled={!canAdmin || pgConnectionStatus.type !== "postgresql"}
+              >
+                {t("settings.database.uploadButton")}
+              </Button>
             </Space>
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+              {t("settings.database.uploadHint")}
+            </div>
           </Card>
 
           <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>

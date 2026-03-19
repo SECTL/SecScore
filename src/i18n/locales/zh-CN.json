@@ -205,7 +205,15 @@
       "syncPoint3": "切换数据库后需要重启应用以生效。",
       "syncPoint4": "建议使用云数据库服务（如 Neon、Supabase、AWS RDS 等）。",
       "enterConnectionString": "请输入 PostgreSQL 连接字符串",
-      "connectionExample": "示例：postgresql://xxxxxx_xxxxx:xxxxxxxx@xx-xxx.xxx.neon.xxxx/xxxxdxx?sslmode=require"
+      "connectionExample": "示例：postgresql://xxxxxx_xxxxx:xxxxxxxx@xx-xxx.xxx.neon.xxxx/xxxxdxx?sslmode=require",
+      "uploadButton": "上传本地数据到远程",
+      "uploadHint": "连接远程数据库后，可将本地 SQLite 历史数据上传并合并到远程。",
+      "uploadNeedRemote": "请先切换并连接到 PostgreSQL 远程数据库",
+      "noNeedUpload": "本地与远程数据已一致，无需上传",
+      "uploadConfirmTitle": "确认上传本地数据到远程？",
+      "uploadConfirmContent": "将以本地数据为优先进行同步。检测到本地新增 {{localOnly}} 条、远程新增 {{remoteOnly}} 条、冲突 {{conflicts}} 条。",
+      "uploadSuccess": "本地数据已上传到远程",
+      "uploadFailed": "上传失败"
     },
     "data": {
       "title": "数据管理",
