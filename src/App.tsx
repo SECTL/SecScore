@@ -13,7 +13,7 @@ function MainContent(): React.JSX.Element {
   const location = useLocation()
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
-  const { isIosDevice, isIosPhone } = useMemo(getIosDeviceInfo, [])
+  const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
 
   useEffect(() => {
     const api = (window as any).api
@@ -52,8 +52,8 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
-  const [isPortraitMode, setIsPortraitMode] = useState(isIosPhone)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(isIosPhone)
+  const [isPortraitMode, setIsPortraitMode] = useState(defaultPortraitMode)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
   const [syncConflictVisible, setSyncConflictVisible] = useState(false)
   const [syncConflicts, setSyncConflicts] = useState<
@@ -347,7 +347,7 @@ function MainContent(): React.JSX.Element {
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
-          showWindowControls={!isIosDevice}
+          showWindowControls={!isIosDevice && !isAndroidDevice}
           isPortraitMode={isPortraitMode}
           sidebarCollapsed={sidebarCollapsed}
           floatingExpand={isPortraitMode}
@@ -517,6 +517,20 @@ function getIosDeviceInfo(): { isIosDevice: boolean; isIosPhone: boolean } {
   return {
     isIosDevice,
     isIosPhone: isIosDevice && !isIosTablet,
+  }
+}
+
+function getMobileDeviceInfo(): {
+  isIosDevice: boolean
+  isAndroidDevice: boolean
+  defaultPortraitMode: boolean
+} {
+  const { isIosDevice, isIosPhone } = getIosDeviceInfo()
+  const isAndroidDevice = navigator.userAgent.toLowerCase().includes("android")
+  return {
+    isIosDevice,
+    isAndroidDevice,
+    defaultPortraitMode: isIosPhone || isAndroidDevice,
   }
 }
 function App(): React.JSX.Element {

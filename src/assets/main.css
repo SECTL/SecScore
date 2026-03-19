@@ -58,6 +58,10 @@ html.platform-ios #root {
   min-height: 0;
 }
 
+html.platform-android {
+  --ss-safe-area-top: max(env(safe-area-inset-top, 0px), 24px);
+}
+
 input,
 textarea {
   user-select: text;
