@@ -109,6 +109,12 @@ function MainContent(): React.JSX.Element {
 
     const fitIosWindow = async () => {
       try {
+        await api.windowMaximize()
+      } catch {
+        void 0
+      }
+
+      try {
         await api.windowSetResizable(false)
       } catch {
         void 0
