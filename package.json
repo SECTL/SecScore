@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "ios:sim": "node scripts/ios-sim.js",
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "lint:fix": "eslint --cache . --fix",
