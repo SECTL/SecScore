@@ -127,8 +127,7 @@ const disableTouchZoom = () => {
 disableTouchZoom()
 
 const platform = navigator.userAgent.toLowerCase()
-const isAppleTouchDevice = platform.includes("macintosh") && navigator.maxTouchPoints > 1
-const isIos = /iphone|ipad|ipod/.test(platform) || isAppleTouchDevice
+const isIos = /iphone|ipad|ipod/.test(platform)
 const isAndroid = platform.includes("android")
 const isMacDesktop = platform.includes("mac") && !isIos
 

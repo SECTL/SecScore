@@ -490,9 +490,8 @@ function getArchitecture(): string {
 
 function getPlatform(): string {
   const userAgent = navigator.userAgent.toLowerCase()
-  const isAppleTouchDevice = userAgent.includes("macintosh") && navigator.maxTouchPoints > 1
 
-  if (userAgent.includes("iphone") || userAgent.includes("ipad") || userAgent.includes("ipod") || isAppleTouchDevice) {
+  if (userAgent.includes("iphone") || userAgent.includes("ipad") || userAgent.includes("ipod")) {
     return "iOS"
   } else if (userAgent.includes("android")) {
     return "Android"
@@ -511,9 +510,8 @@ function getPlatform(): string {
 
 function getIosDeviceInfo(): { isIosDevice: boolean; isIosPhone: boolean } {
   const userAgent = navigator.userAgent.toLowerCase()
-  const isAppleTouchDevice = userAgent.includes("macintosh") && navigator.maxTouchPoints > 1
-  const isIosDevice = /iphone|ipad|ipod/.test(userAgent) || isAppleTouchDevice
-  const isIosTablet = userAgent.includes("ipad") || isAppleTouchDevice
+  const isIosDevice = /iphone|ipad|ipod/.test(userAgent)
+  const isIosTablet = userAgent.includes("ipad")
   return {
     isIosDevice,
     isIosPhone: isIosDevice && !isIosTablet,
