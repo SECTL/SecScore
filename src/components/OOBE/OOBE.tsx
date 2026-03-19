@@ -13,7 +13,15 @@ interface oobeProps {
   onComplete: () => void
 }
 
-type oobeStep = "language" | "theme" | "password" | "students" | "reasons" | "start"
+type oobeStep =
+  | "entry"
+  | "postgresql"
+  | "language"
+  | "theme"
+  | "password"
+  | "students"
+  | "reasons"
+  | "start"
 
 interface studentItem {
   name: string
@@ -75,8 +83,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const { currentTheme, setTheme, themes, applyTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
 
-  const [currentStep, setCurrentStep] = useState<oobeStep>("language")
+  const [currentStep, setCurrentStep] = useState<oobeStep>("entry")
   const [loading, setLoading] = useState(false)
+  const [pgAutoLoading, setPgAutoLoading] = useState(false)
 
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>("zh-CN")
   const [workingTheme, setWorkingTheme] = useState<themeConfig | null>(null)
@@ -88,10 +97,11 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const [newReasonDelta, setNewReasonDelta] = useState(1)
   const [adminPassword, setAdminPassword] = useState("")
   const [pointsPassword, setPointsPassword] = useState("")
+  const [pgConnectionString, setPgConnectionString] = useState("")
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const steps: oobeStep[] = ["language", "theme", "password", "students", "reasons", "start"]
+  const steps: oobeStep[] = ["entry", "language", "theme", "password", "students", "reasons", "start"]
   const stepIndex = steps.indexOf(currentStep) + 1
   const totalSteps = steps.length
 
@@ -325,6 +335,63 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
     handleNext()
   }
 
+  const markWizardCompleted = async () => {
+    if (!(window as any).api) throw new Error("api not ready")
+    const res = await (window as any).api.setSetting("is_wizard_completed", true)
+    if (!res?.success) throw new Error("failed")
+  }
+
+  const handleSkipToApp = async () => {
+    setLoading(true)
+    try {
+      await markWizardCompleted()
+      showOobeMessage("success", t("common.success"))
+      onComplete()
+    } catch (e: any) {
+      showOobeMessage("error", e?.message || t("common.error"))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConnectPgAndSync = async () => {
+    const connectionString = pgConnectionString.trim()
+    if (!connectionString) {
+      showOobeMessage("warning", t("settings.database.enterConnectionString"))
+      return
+    }
+    setPgAutoLoading(true)
+    try {
+      if (!(window as any).api) throw new Error("api not ready")
+      const switchRes = await (window as any).api.dbSwitchConnection(connectionString)
+      if (!switchRes?.success || switchRes?.data?.type !== "postgresql") {
+        throw new Error(switchRes?.message || t("settings.database.switchFailed"))
+      }
+
+      const previewRes = await (window as any).api.dbSyncPreview()
+      if (!previewRes?.success || !previewRes?.data?.can_sync) {
+        throw new Error(previewRes?.message || previewRes?.data?.message || t("settings.database.uploadFailed"))
+      }
+
+      if (previewRes?.data?.need_sync) {
+        const syncApplyRes = await (window as any).api.dbSyncApply("keep_local")
+        if (!syncApplyRes?.success || !syncApplyRes?.data?.success) {
+          throw new Error(
+            syncApplyRes?.data?.message || syncApplyRes?.message || t("settings.database.uploadFailed")
+          )
+        }
+      }
+
+      await markWizardCompleted()
+      showOobeMessage("success", t("settings.database.uploadSuccess"))
+      onComplete()
+    } catch (e: any) {
+      showOobeMessage("error", e?.message || t("settings.database.uploadFailed"))
+    } finally {
+      setPgAutoLoading(false)
+    }
+  }
+
   const handleFinish = async () => {
     setLoading(true)
     try {
@@ -374,8 +441,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         ensureSuccess(authRes, t("common.error"))
       }
 
-      const res = await (window as any).api.setSetting("is_wizard_completed", true)
-      ensureSuccess(res, "failed")
+      await markWizardCompleted()
 
       showOobeMessage("success", t("common.success"))
       onComplete()
@@ -392,6 +458,45 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
 
   const renderStepContent = () => {
     switch (currentStep) {
+      case "entry":
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Typography.Text type="secondary">{t("oobe.steps.entry.description")}</Typography.Text>
+            <Button type="primary" size="large" onClick={() => setCurrentStep("language")}>
+              {t("oobe.steps.entry.enterOobe")}
+            </Button>
+            <Button size="large" onClick={() => setCurrentStep("postgresql")}>
+              {t("oobe.steps.entry.connectPostgresAutoSync")}
+            </Button>
+            <Button size="large" onClick={handleSkipToApp} loading={loading}>
+              {t("oobe.steps.entry.skipDirect")}
+            </Button>
+          </div>
+        )
+
+      case "postgresql":
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Typography.Text type="secondary">
+              {t("oobe.steps.postgresql.description")}
+            </Typography.Text>
+            <Input
+              value={pgConnectionString}
+              onChange={(e) => setPgConnectionString(e.target.value)}
+              placeholder={t("oobe.steps.postgresql.connectionPlaceholder")}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {t("settings.database.connectionExample")}
+            </Typography.Text>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button onClick={() => setCurrentStep("entry")}>{t("common.prev")}</Button>
+              <Button type="primary" loading={pgAutoLoading} onClick={handleConnectPgAndSync}>
+                {t("oobe.steps.postgresql.autoSyncAndEnter")}
+              </Button>
+            </div>
+          </div>
+        )
+
       case "language":
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -802,78 +907,80 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
 
         <div style={{ minHeight: 200, marginBottom: 24 }}>{renderStepContent()}</div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ display: "flex", gap: 8 }}>
-            {currentStep !== "language" && <Button onClick={handlePrev}>{t("common.prev")}</Button>}
-            {currentStep !== "start" && <Button onClick={handleSkip}>{t("oobe.skip")}</Button>}
-          </div>
-
+        {currentStep !== "entry" && currentStep !== "postgresql" && (
           <div
             style={{
               display: "flex",
+              justifyContent: "space-between",
               alignItems: "center",
-              gap: 8,
-              color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)",
-              fontSize: 12,
             }}
           >
+            <div style={{ display: "flex", gap: 8 }}>
+              {currentStep !== "language" && <Button onClick={handlePrev}>{t("common.prev")}</Button>}
+              {currentStep !== "start" && <Button onClick={handleSkip}>{t("oobe.skip")}</Button>}
+            </div>
+
             <div
               style={{
-                width: 60,
-                height: 4,
-                background: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
-                borderRadius: 2,
-                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)",
+                fontSize: 12,
               }}
             >
               <div
                 style={{
-                  width: `${(stepIndex / totalSteps) * 100}%`,
-                  height: "100%",
-                  background: primaryColor,
-                  transition: "width 0.3s",
-                }}
-              />
-            </div>
-            <span>{t("oobe.step", { current: stepIndex, total: totalSteps })}</span>
-          </div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            {currentStep !== "start" ? (
-              <Button type="primary" onClick={handleNext}>
-                {t("common.next")}
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                loading={loading}
-                onClick={handleFinish}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
+                  width: 60,
+                  height: 4,
+                  background: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
+                  borderRadius: 2,
+                  overflow: "hidden",
                 }}
               >
-                <img
-                  src={logoSvg}
-                  alt="SecScore"
+                <div
                   style={{
-                    width: 16,
-                    height: 16,
-                    filter: isDark ? "brightness(0) invert(1)" : "none",
+                    width: `${(stepIndex / totalSteps) * 100}%`,
+                    height: "100%",
+                    background: primaryColor,
+                    transition: "width 0.3s",
                   }}
                 />
-                {t("oobe.steps.start.startButton")}
-              </Button>
-            )}
+              </div>
+              <span>{t("oobe.step", { current: stepIndex, total: totalSteps })}</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              {currentStep !== "start" ? (
+                <Button type="primary" onClick={handleNext}>
+                  {t("common.next")}
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  loading={loading}
+                  onClick={handleFinish}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <img
+                    src={logoSvg}
+                    alt="SecScore"
+                    style={{
+                      width: 16,
+                      height: 16,
+                      filter: isDark ? "brightness(0) invert(1)" : "none",
+                    }}
+                  />
+                  {t("oobe.steps.start.startButton")}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

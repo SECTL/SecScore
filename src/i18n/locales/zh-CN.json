@@ -42,6 +42,19 @@
     "step": "第 {{current}}/{{total}} 步",
     "skip": "跳过",
     "steps": {
+      "entry": {
+        "title": "开始配置",
+        "description": "请选择接下来要进行的操作",
+        "enterOobe": "进入OOBE",
+        "connectPostgresAutoSync": "连接PostgreSQL自动同步",
+        "skipDirect": "跳过OOBE，直接进入"
+      },
+      "postgresql": {
+        "title": "连接 PostgreSQL",
+        "description": "输入 PostgreSQL 连接字符串，系统将自动连接并同步后进入应用",
+        "connectionPlaceholder": "postgresql://user:password@host:port/database?sslmode=require",
+        "autoSyncAndEnter": "连接并自动同步后进入"
+      },
       "language": {
         "title": "选择语言",
         "description": "请选择您偏好的界面语言"

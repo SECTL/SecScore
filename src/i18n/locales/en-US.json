@@ -42,6 +42,19 @@
     "step": "Step {{current}}/{{total}}",
     "skip": "Skip",
     "steps": {
+      "entry": {
+        "title": "Get Started",
+        "description": "Choose how you want to proceed",
+        "enterOobe": "Enter OOBE",
+        "connectPostgresAutoSync": "Connect PostgreSQL with Auto Sync",
+        "skipDirect": "Skip OOBE and Enter"
+      },
+      "postgresql": {
+        "title": "Connect PostgreSQL",
+        "description": "Enter a PostgreSQL connection string. The app will connect and auto-sync before entering.",
+        "connectionPlaceholder": "postgresql://user:password@host:port/database?sslmode=require",
+        "autoSyncAndEnter": "Connect, Auto Sync, and Enter"
+      },
       "language": {
         "title": "Select Language",
         "description": "Choose your preferred interface language"
