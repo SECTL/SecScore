@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { execSync, spawn } = require('node:child_process');
+const net = require('node:net');
 const readline = require('node:readline');
 
 function getAvailableDevices() {
@@ -49,6 +50,35 @@ function promptChoice(max) {
   });
 }
 
+function isPortListening(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const finalize = (result) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    socket.setTimeout(500);
+    socket.once('connect', () => finalize(true));
+    socket.once('timeout', () => finalize(false));
+    socket.once('error', () => finalize(false));
+    socket.connect(port, host);
+  });
+}
+
+async function hasListeningDevServer(port) {
+  const checks = await Promise.all([
+    isPortListening(port, '127.0.0.1'),
+    isPortListening(port, '::1'),
+    isPortListening(port, 'localhost'),
+  ]);
+  return checks.some(Boolean);
+}
+
 async function main() {
   const devices = getAvailableDevices();
 
@@ -66,7 +96,22 @@ async function main() {
   const picked = devices[pickedIndex];
   console.log(`\n已选择: ${picked.name} (${picked.runtime})`);
 
-  const child = spawn('pnpm', ['tauri', 'ios', 'dev', picked.name], {
+  const args = ['tauri', 'ios', 'dev', picked.name];
+  const tauriDevPort = Number(process.env.TAURI_DEV_PORT || 1420);
+  const hasExistingDevServer = await hasListeningDevServer(tauriDevPort);
+  if (hasExistingDevServer) {
+    console.log(`检测到 ${tauriDevPort} 端口已有 dev server，复用现有服务并跳过 beforeDevCommand。`);
+    args.push(
+      '--config',
+      JSON.stringify({
+        build: {
+          beforeDevCommand: `echo using-existing-dev-server-on-${tauriDevPort}`,
+        },
+      })
+    );
+  }
+
+  const child = spawn('pnpm', args, {
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
