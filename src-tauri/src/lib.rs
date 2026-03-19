@@ -298,6 +298,11 @@ fn setup_tray(_app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(desktop)]
 fn setup_window_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        {
+            let _ = window.set_shadow(true);
+        }
+
         let window_clone = window.clone();
         window.on_window_event(move |event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

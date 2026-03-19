@@ -102,3 +102,13 @@ select {
 .ss-operation-drawer .ant-drawer-header button {
   -webkit-app-region: no-drag;
 }
+
+html.platform-macos,
+html.platform-macos body {
+  background: transparent;
+}
+
+html.platform-macos #root {
+  border-radius: 12px;
+  overflow: hidden;
+}

@@ -126,6 +126,11 @@ const disableTouchZoom = () => {
 }
 disableTouchZoom()
 
+const platform = navigator.userAgent.toLowerCase()
+if (platform.includes("mac")) {
+  document.documentElement.classList.add("platform-macos")
+}
+
 window.addEventListener("error", (e: any) => {
   const error = e?.error
   safeWriteLog({
