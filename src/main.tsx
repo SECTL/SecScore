@@ -77,6 +77,55 @@ const patchConsole = () => {
 }
 patchConsole()
 
+const disableTouchZoom = () => {
+  let lastTouchEnd = 0
+
+  // iOS Safari/WebView 手势事件，直接阻止页面缩放
+  for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+    document.addEventListener(
+      type,
+      (event) => {
+        event.preventDefault()
+      },
+      { passive: false }
+    )
+  }
+
+  // 双指触摸移动时阻止缩放
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length > 1) {
+        event.preventDefault()
+      }
+    },
+    { passive: false }
+  )
+
+  // 连续快速双击时阻止浏览器放大
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      const now = Date.now()
+      if (now - lastTouchEnd <= 300) {
+        event.preventDefault()
+      }
+      lastTouchEnd = now
+    },
+    { passive: false }
+  )
+
+  // 部分环境下双击会触发 dblclick，补充阻止
+  document.addEventListener(
+    "dblclick",
+    (event) => {
+      event.preventDefault()
+    },
+    { passive: false }
+  )
+}
+disableTouchZoom()
+
 window.addEventListener("error", (e: any) => {
   const error = e?.error
   safeWriteLog({
