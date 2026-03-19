@@ -1,12 +1,14 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
 use crate::db::migration::run_migration;
 use crate::services::permission::PermissionLevel;
+use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::state::AppState;
 
 use super::response::IpcResponse;
@@ -38,6 +40,12 @@ pub struct SyncResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SettingChange {
+    pub key: String,
+    pub value: serde_json::Value,
 }
 
 fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
@@ -111,11 +119,12 @@ pub async fn db_test_connection(
 #[tauri::command]
 pub async fn db_switch_connection(
     connection_string: String,
+    app_handle: AppHandle,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SwitchConnectionResult>, String> {
     check_admin_permission(&state)?;
 
-    let db_type = if connection_string.starts_with("postgres://")
+    let (db_type, saved_connection_string, saved_status, conn) = if connection_string.starts_with("postgres://")
         || connection_string.starts_with("postgresql://")
     {
         let conn = create_postgres_connection(&connection_string)
@@ -125,11 +134,12 @@ pub async fn db_switch_connection(
             .await
             .map_err(|e| e.to_string())?;
 
-        let state_guard = state.read();
-        let mut db_guard = state_guard.db.write();
-        *db_guard = Some(conn);
-
-        "postgresql".to_string()
+        (
+            "postgresql".to_string(),
+            connection_string.clone(),
+            json!({ "connected": true, "type": "postgresql" }),
+            conn,
+        )
     } else {
         let path = if connection_string.starts_with("sqlite://") {
             connection_string
@@ -147,12 +157,54 @@ pub async fn db_switch_connection(
             .await
             .map_err(|e| e.to_string())?;
 
-        let state_guard = state.read();
-        let mut db_guard = state_guard.db.write();
-        *db_guard = Some(conn);
-
-        "sqlite".to_string()
+        (
+            "sqlite".to_string(),
+            String::new(),
+            json!({ "connected": true, "type": "sqlite" }),
+            conn,
+        )
     };
+
+    {
+        let state_guard = state.read();
+        {
+            let mut db_guard = state_guard.db.write();
+            *db_guard = Some(conn.clone());
+        }
+
+        let mut settings = state_guard.settings.write();
+        settings.attach_db(Some(conn));
+        settings.initialize().await.map_err(|e| e.to_string())?;
+        settings
+            .set_value(
+                SettingsKey::PgConnectionString,
+                SettingsValue::String(saved_connection_string.clone()),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        settings
+            .set_value(
+                SettingsKey::PgConnectionStatus,
+                SettingsValue::Json(saved_status.clone()),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    let _ = app_handle.emit(
+        "settings:changed",
+        &SettingChange {
+            key: "pg_connection_string".to_string(),
+            value: serde_json::Value::String(saved_connection_string),
+        },
+    );
+    let _ = app_handle.emit(
+        "settings:changed",
+        &SettingChange {
+            key: "pg_connection_status".to_string(),
+            value: saved_status,
+        },
+    );
 
     Ok(IpcResponse::success(SwitchConnectionResult { db_type }))
 }
