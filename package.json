@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "node scripts/tauri-dev.cjs",
     "tauri:build": "tauri build",
     "ios:sim": "node scripts/ios-sim.js",
     "format": "prettier --write .",
