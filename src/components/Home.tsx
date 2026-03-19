@@ -1934,6 +1934,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           okText={t("home.submitOperation")}
           cancelText={t("common.cancel")}
           width={560}
+          centered
+          styles={{
+            body: {
+              maxHeight: "calc(100vh - 220px)",
+              overflowY: "auto",
+            },
+          }}
           destroyOnHidden
         >
           {operationPanelContent}
