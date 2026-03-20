@@ -955,7 +955,7 @@ ORDER BY reward_points DESC, score DESC`,
         }
       >
         {errorMap[list.id] && <Alert style={{ marginBottom: 12 }} type="error" message={errorMap[list.id]} showIcon />}
-        <div style={{ flex: 1, overflow: "auto" }}>{renderStudentView(list)}</div>
+        <div style={{ flex: 1, overflow: "hidden" }}>{renderStudentView(list)}</div>
       </Card>
     )
   }
@@ -1026,18 +1026,27 @@ ORDER BY reward_points DESC, score DESC`,
     if (!activeBoard) return <Empty description={t("common.noData")} />
 
     return (
-      <div style={{ height: "calc(100vh - 280px)", minHeight: 480 }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {renderLayoutNode(activeBoard, activeBoard.layout)}
       </div>
     )
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div
+      style={{
+        padding: 24,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
       {contextHolder}
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <Space style={{ width: "100%", justifyContent: "space-between" }}>
-          <Space align="center">
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", minHeight: 0, flex: 1 }}>
+        <div style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+          <Space align="center" size={8}>
             <Typography.Title level={2} style={{ margin: 0, color: "var(--ss-text-main)" }}>
               {t("board.title")}
             </Typography.Title>
@@ -1077,27 +1086,31 @@ ORDER BY reward_points DESC, score DESC`,
               {t("board.addBoard")}
             </Button>
           </Space>
-        </Space>
+        </div>
 
         <Tabs
           type="card"
           activeKey={activeBoardId}
           onChange={setActiveBoardId}
           items={boards.map((board) => ({ key: board.id, label: board.name }))}
+          style={{ marginBottom: 0 }}
         />
 
         {activeBoard ? (
-          <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            {saving && <Typography.Text type="secondary">{t("board.saving")}</Typography.Text>}
-
+          <div style={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            {saving && (
+              <Typography.Text type="secondary" style={{ flexShrink: 0 }}>
+                {t("board.saving")}
+              </Typography.Text>
+            )}
             {renderBoardWorkspace()}
-          </Space>
+          </div>
         ) : (
-          <Card>
+          <Card style={{ flex: 1 }}>
             <Empty description={t("common.noData")} />
           </Card>
         )}
-      </Space>
+      </div>
 
       <Modal
         title={t("board.renameBoard")}
