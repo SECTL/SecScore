@@ -1,6 +1,6 @@
 use parking_lot::RwLock;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::db::connection::{create_sqlite_connection, DatabaseType};
 use crate::db::migration::Migration;
@@ -34,10 +34,10 @@ fn sqlite_db_path(app_handle: &AppHandle) -> Result<String, String> {
     std::fs::create_dir_all(&data_dir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
     let db_path = data_dir.join("data.sql");
-    db_path
-        .to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Invalid sqlite database path".to_string())
+    match db_path.to_str() {
+        Some(path) => Ok(path.to_owned()),
+        None => Err("Invalid sqlite database path".to_string()),
+    }
 }
 
 #[tauri::command]

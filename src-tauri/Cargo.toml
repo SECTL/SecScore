@@ -7,7 +7,7 @@ edition = "2021"
 rust-version = "1.70"
 
 [lib]
-name = "secscore"
+name = "secscore_lib"
 crate-type = ["staticlib", "cdylib", "lib"]
 
 [build-dependencies]
