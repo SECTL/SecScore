@@ -578,6 +578,18 @@
     "applyPreset": "套用预设",
     "run": "运行 SQL",
     "runAll": "运行全部",
+    "viewModes": {
+      "list": "列表视图",
+      "card": "卡片视图",
+      "grid": "网格视图"
+    },
+    "metrics": {
+      "totalScore": "总分",
+      "rewardPoints": "奖励分",
+      "weekChange": "近7天",
+      "weekDeducted": "近7天扣分",
+      "todayAnswered": "今日回答"
+    },
     "sqlPlaceholder": "输入 SQL（仅支持单条 SELECT / WITH 查询）",
     "templateHint": "支持时间模板变量：{{today_start}}、{{since_7d}}、{{since_30d}}、{{now}}",
     "templateDescription": "可直接在 SQL 中使用模板变量，运行时会自动替换为 ISO 时间，兼容 SQLite 与 PostgreSQL。",

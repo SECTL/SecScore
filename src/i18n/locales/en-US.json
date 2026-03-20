@@ -578,6 +578,18 @@
     "applyPreset": "Apply Preset",
     "run": "Run SQL",
     "runAll": "Run All",
+    "viewModes": {
+      "list": "List View",
+      "card": "Card View",
+      "grid": "Grid View"
+    },
+    "metrics": {
+      "totalScore": "Score",
+      "rewardPoints": "Reward",
+      "weekChange": "7d",
+      "weekDeducted": "7d Deduct",
+      "todayAnswered": "Today"
+    },
     "sqlPlaceholder": "Enter SQL (single SELECT / WITH query only)",
     "templateHint": "Template variables: {{today_start}}, {{since_7d}}, {{since_30d}}, {{now}}",
     "templateDescription": "Use template variables directly in SQL. They will be replaced with ISO timestamps at runtime for both SQLite and PostgreSQL.",

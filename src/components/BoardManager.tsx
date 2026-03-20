@@ -21,6 +21,7 @@ interface StudentListConfig {
   id: string
   name: string
   sql: string
+  viewMode: BoardStudentViewMode
 }
 
 interface BoardConfig {
@@ -39,6 +40,8 @@ interface BoardPreset {
 interface BoardManagerProps {
   canManage: boolean
 }
+
+type BoardStudentViewMode = "list" | "card" | "grid"
 
 interface BoardStudentCardData {
   key: string
@@ -66,6 +69,7 @@ const createDefaultList = (): StudentListConfig => ({
   id: makeId(),
   name: "学生积分榜",
   sql: getDefaultSql(),
+  viewMode: "card",
 })
 
 const createDefaultBoard = (): BoardConfig => ({
@@ -86,6 +90,10 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
               name:
                 typeof list?.name === "string" && list.name.trim() ? list.name.trim() : "学生列表",
               sql: typeof list?.sql === "string" && list.sql.trim() ? list.sql : getDefaultSql(),
+              viewMode:
+                list?.viewMode === "list" || list?.viewMode === "card" || list?.viewMode === "grid"
+                  ? list.viewMode
+                  : "card",
             }))
             .filter((list: StudentListConfig) => list.sql.trim())
         : []
@@ -421,7 +429,8 @@ ORDER BY reward_points DESC, score DESC`,
                 {
                   id: makeId(),
                   name: t("board.newList"),
-                  sql: getDefaultSql(),
+                    sql: getDefaultSql(),
+                  viewMode: "card",
                 },
               ],
             }
@@ -594,6 +603,19 @@ ORDER BY reward_points DESC, score DESC`,
                         onChange={(presetId) => applyPreset(activeBoard.id, list.id, presetId)}
                         disabled={!canManage}
                       />
+                      <Select
+                        style={{ width: 140 }}
+                        value={list.viewMode}
+                        onChange={(viewMode: BoardStudentViewMode) =>
+                          updateList(activeBoard.id, list.id, { viewMode })
+                        }
+                        options={[
+                          { value: "list", label: t("board.viewModes.list") },
+                          { value: "card", label: t("board.viewModes.card") },
+                          { value: "grid", label: t("board.viewModes.grid") },
+                        ]}
+                        disabled={!canManage}
+                      />
                       <Button
                         type="primary"
                         icon={<PlayCircleOutlined />}
@@ -643,7 +665,12 @@ ORDER BY reward_points DESC, score DESC`,
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                          gridTemplateColumns:
+                            list.viewMode === "grid"
+                              ? "repeat(auto-fill, minmax(180px, 1fr))"
+                              : list.viewMode === "list"
+                                ? "1fr"
+                                : "repeat(auto-fill, minmax(220px, 1fr))",
                           gap: 12,
                         }}
                       >
@@ -660,7 +687,12 @@ ORDER BY reward_points DESC, score DESC`,
                                 boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
                                 position: "relative",
                               }}
-                              styles={{ body: { padding: "12px 14px" } }}
+                              styles={{
+                                body: {
+                                  padding:
+                                    list.viewMode === "grid" ? "12px" : list.viewMode === "list" ? "10px 12px" : "12px 14px",
+                                },
+                              }}
                             >
                               {rankBadge && (
                                 <div
@@ -674,11 +706,18 @@ ORDER BY reward_points DESC, score DESC`,
                                   {rankBadge}
                                 </div>
                               )}
-                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: list.viewMode === "grid" ? "flex-start" : "center",
+                                  flexDirection: list.viewMode === "grid" ? "column" : "row",
+                                  gap: 10,
+                                }}
+                              >
                                 <div
                                   style={{
-                                    width: 42,
-                                    height: 42,
+                                    width: list.viewMode === "grid" ? 56 : 42,
+                                    height: list.viewMode === "grid" ? 56 : 42,
                                     borderRadius: 12,
                                     backgroundColor: avatarColor,
                                     color: "#fff",
@@ -692,43 +731,52 @@ ORDER BY reward_points DESC, score DESC`,
                                 >
                                   {avatarText}
                                 </div>
-                                <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ minWidth: 0, flex: 1, width: "100%" }}>
                                   <div
                                     style={{
-                                      fontSize: 15,
+                                      fontSize: list.viewMode === "grid" ? 16 : 15,
                                       fontWeight: 600,
                                       color: "var(--ss-text-main)",
                                       overflow: "hidden",
                                       textOverflow: "ellipsis",
                                       whiteSpace: "nowrap",
+                                      textAlign: list.viewMode === "grid" ? "center" : "left",
                                     }}
                                   >
                                     {item.name}
                                   </div>
-                                  <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  <div
+                                    style={{
+                                      marginTop: 4,
+                                      display: "flex",
+                                      flexWrap: "wrap",
+                                      gap: 6,
+                                      justifyContent: list.viewMode === "grid" ? "center" : "flex-start",
+                                    }}
+                                  >
                                     {item.score !== undefined && (
                                       <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                        总分: {item.score > 0 ? `+${item.score}` : item.score}
+                                        {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
                                       </Tag>
                                     )}
                                     {item.rewardPoints !== undefined && (
                                       <Tag color="processing" style={{ margin: 0 }}>
-                                        奖励分: {item.rewardPoints}
+                                        {t("board.metrics.rewardPoints")}: {item.rewardPoints}
                                       </Tag>
                                     )}
                                     {item.weekChange !== undefined && (
                                       <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                        近7天: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
+                                        {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
                                       </Tag>
                                     )}
                                     {item.weekDeducted !== undefined && (
                                       <Tag color="gold" style={{ margin: 0 }}>
-                                        近7天扣分: {item.weekDeducted}
+                                        {t("board.metrics.weekDeducted")}: {item.weekDeducted}
                                       </Tag>
                                     )}
                                     {item.answeredCount !== undefined && (
                                       <Tag color="cyan" style={{ margin: 0 }}>
-                                        今日回答: {item.answeredCount}
+                                        {t("board.metrics.todayAnswered")}: {item.answeredCount}
                                       </Tag>
                                     )}
                                   </div>
