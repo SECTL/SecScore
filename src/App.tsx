@@ -63,6 +63,7 @@ function MainContent(): React.JSX.Element {
   const syncCheckingRef = useRef(false)
   const syncApplyLoadingRef = useRef(false)
   const lastLocalMutationAtRef = useRef(0)
+  const lastLandscapeSizeRef = useRef<{ width: number; height: number } | null>(null)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -284,6 +285,93 @@ function MainContent(): React.JSX.Element {
     if (key === "settings") navigate("/settings")
   }
 
+<<<<<<< HEAD
+=======
+  const getMaxWindowSize = () => {
+    const availableWidth = window.screen?.availWidth || window.innerWidth || 1200
+    const availableHeight = window.screen?.availHeight || window.innerHeight || 800
+    return {
+      maxWidth: Math.max(360, Math.round(availableWidth - 64)),
+      maxHeight: Math.max(640, Math.round(availableHeight - 64)),
+    }
+  }
+
+  const getFixedPortraitSize = () => {
+    const { maxWidth, maxHeight } = getMaxWindowSize()
+    const phonePortraitBase = { width: 430, height: 932 }
+    let width = Math.max(360, Math.min(phonePortraitBase.width, maxWidth))
+    let height = Math.max(640, Math.min(phonePortraitBase.height, maxHeight))
+
+    // 保证竖屏高于宽，维持手机风格比例。
+    if (height <= width) {
+      height = Math.min(maxHeight, Math.max(640, Math.round(width * 2.0)))
+    }
+    if (height <= width) {
+      width = Math.max(360, Math.min(maxWidth, Math.round(height * 0.5)))
+    }
+
+    return { width, height }
+  }
+
+  const getLandscapeRestoreSize = () => {
+    const { maxWidth, maxHeight } = getMaxWindowSize()
+    const fallback = { width: 1180, height: 680 }
+    const source = lastLandscapeSizeRef.current || fallback
+
+    let width = Math.max(800, Math.min(maxWidth, Math.round(source.width)))
+    let height = Math.max(600, Math.min(maxHeight, Math.round(source.height)))
+    if (width < height) {
+      const swappedWidth = Math.max(800, Math.min(maxWidth, height))
+      const swappedHeight = Math.max(600, Math.min(maxHeight, width))
+      width = swappedWidth
+      height = swappedHeight
+    }
+
+    return { width, height }
+  }
+
+  const toggleOrientationMode = async () => {
+    const api = (window as any).api
+    if (!api) return
+
+    const nextPortraitMode = !isPortraitMode
+    try {
+      const maximized = await api.windowIsMaximized()
+      if (maximized) {
+        await api.windowMaximize()
+      }
+
+      if (nextPortraitMode) {
+        lastLandscapeSizeRef.current = {
+          width: Math.max(1, Math.round(window.innerWidth || 0)),
+          height: Math.max(1, Math.round(window.innerHeight || 0)),
+        }
+        const targetSize = getFixedPortraitSize()
+        await api.windowSetResizable(false)
+        await api.windowResize(targetSize.width, targetSize.height)
+        setSidebarCollapsed(true)
+        setFloatingSidebarExpanded(false)
+      } else {
+        const targetSize = getLandscapeRestoreSize()
+        await api.windowSetResizable(true)
+        await api.windowResize(targetSize.width, targetSize.height)
+        setSidebarCollapsed(false)
+        setFloatingSidebarExpanded(false)
+      }
+      setIsPortraitMode(nextPortraitMode)
+    } catch (error) {
+      messageApi.error(t("common.error"))
+      console.error("Failed to toggle orientation mode:", error)
+    }
+  }
+
+  useEffect(() => {
+    if (!isPortraitMode || !sidebarCollapsed) {
+      setFloatingSidebarExpanded(false)
+    }
+  }, [isPortraitMode, sidebarCollapsed])
+
+>>>>>>> 1fe9dbe66a8a3df649fd86fb5ba64f3178057ec1
   const toggleSidebar = () => {
     if (isPortraitMode && sidebarCollapsed) {
       setFloatingSidebarExpanded((prev) => !prev)

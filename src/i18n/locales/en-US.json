@@ -276,6 +276,27 @@
       "registerFailed": "Registration failed",
       "installerRequired": "Requires installed SecScore, may not work in development mode."
     },
+    "mcp": {
+      "title": "MCP Service",
+      "description": "Manage the built-in MCP HTTP service for external MCP clients.",
+      "running": "Running",
+      "stopped": "Stopped",
+      "noUrl": "No URL",
+      "host": "Host",
+      "port": "Port",
+      "start": "Start",
+      "stop": "Stop",
+      "refresh": "Refresh Status",
+      "hint": "Recommended to bind only to 127.0.0.1; after start, endpoint is http://host:port/mcp",
+      "hostRequired": "Please enter MCP host",
+      "portInvalid": "Please enter a valid port (1-65535)",
+      "startSuccess": "MCP server started",
+      "startFailed": "Failed to start MCP server",
+      "stopSuccess": "MCP server stopped",
+      "stopFailed": "Failed to stop MCP server",
+      "startTimeout": "MCP server start timed out, please try again",
+      "stopTimeout": "MCP server stop timed out, please try again"
+    },
     "app": {
       "title": "App Controls",
       "description": "Quickly restart or quit the app.",

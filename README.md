@@ -102,6 +102,10 @@ SecScore 是一款教育积分管理软件，基于 Electron + React + TypeScrip
 
 ## 开发与运行（面向贡献者）
 
+## MCP 文档
+
+- [MCP-使用说明](./MCP-使用说明.md)
+
 ### 环境要求
 
 - Node.js（建议使用 LTS 版本）

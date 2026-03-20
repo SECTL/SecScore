@@ -295,6 +295,22 @@ const api = {
     data: { isRunning: boolean; config?: any; url?: string }
   }> => invoke("http_server_status"),
 
+  // MCP Server
+  mcpServerStart: (config?: {
+    port?: number
+    host?: string
+  }): Promise<{ success: boolean; data?: { url: string; config: { port: number; host: string } } }> =>
+    invoke("mcp_server_start", { config }),
+  mcpServerStop: (): Promise<{ success: boolean }> => invoke("mcp_server_stop"),
+  mcpServerStatus: (): Promise<{
+    success: boolean
+    data?: {
+      is_running: boolean
+      config: { port: number; host: string }
+      url?: string | null
+    }
+  }> => invoke("mcp_server_status"),
+
   // File System
   fsGetConfigStructure: (): Promise<{
     success: boolean
