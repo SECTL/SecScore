@@ -123,24 +123,26 @@ impl Migration {
         sqlite: bool,
     ) -> Result<(), DbErr> {
         let db_backend = Self::get_db_backend(sqlite);
-        let exists_sql = if sqlite {
-            "SELECT 1 AS exists FROM pragma_table_info('students') WHERE name = 'reward_points' LIMIT 1"
-                .to_string()
-        } else {
-            "SELECT 1 AS exists FROM information_schema.columns WHERE table_name = 'students' AND column_name = 'reward_points' LIMIT 1"
-                .to_string()
-        };
+        let alter_sql = "ALTER TABLE students ADD COLUMN reward_points INTEGER DEFAULT 0";
+        let result = conn
+            .execute(Statement::from_string(db_backend.clone(), alter_sql.to_string()))
+            .await;
 
-        let exists = conn
-            .query_one(Statement::from_string(db_backend.clone(), exists_sql))
-            .await?
-            .is_some();
-
-        if !exists {
-            let alter_sql = "ALTER TABLE students ADD COLUMN reward_points INTEGER DEFAULT 0";
-            conn.execute(Statement::from_string(db_backend.clone(), alter_sql.to_string()))
-                .await?;
-            info!("Added students.reward_points column");
+        match result {
+            Ok(_) => {
+                info!("Added students.reward_points column");
+            }
+            Err(e) => {
+                let msg = e.to_string().to_lowercase();
+                let already_exists = msg.contains("duplicate column")
+                    || msg.contains("already exists")
+                    || msg.contains("duplicate");
+                if already_exists {
+                    info!("students.reward_points already exists, skip alter");
+                } else {
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
