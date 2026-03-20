@@ -636,13 +636,9 @@ async fn db_sync_apply_internal(
     };
 
     let local_students = load_students(&local_conn).await?;
-    let remote_students = load_students(&remote_conn).await?;
     let local_reasons = load_reasons(&local_conn).await?;
-    let remote_reasons = load_reasons(&remote_conn).await?;
     let local_tags = load_tags(&local_conn).await?;
-    let remote_tags = load_tags(&remote_conn).await?;
     let local_events = load_events(&local_conn).await?;
-    let remote_events = load_events(&remote_conn).await?;
     let local_pairs = load_student_tag_pairs(&local_conn).await?;
     let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
 
@@ -660,7 +656,8 @@ async fn db_sync_apply_internal(
             synced_records += 1;
         }
     }
-    for student in remote_students.values() {
+    let remote_students_after = load_students(&remote_conn).await?;
+    for student in remote_students_after.values() {
         if upsert_student(&local_conn, student).await? {
             synced_records += 1;
         }
@@ -670,7 +667,8 @@ async fn db_sync_apply_internal(
             synced_records += 1;
         }
     }
-    for reason in remote_reasons.values() {
+    let remote_reasons_after = load_reasons(&remote_conn).await?;
+    for reason in remote_reasons_after.values() {
         if upsert_reason(&local_conn, reason).await? {
             synced_records += 1;
         }
@@ -680,7 +678,8 @@ async fn db_sync_apply_internal(
             synced_records += 1;
         }
     }
-    for tag in remote_tags.values() {
+    let remote_tags_after = load_tags(&remote_conn).await?;
+    for tag in remote_tags_after.values() {
         if upsert_tag(&local_conn, tag).await? {
             synced_records += 1;
         }
@@ -690,7 +689,8 @@ async fn db_sync_apply_internal(
             synced_records += 1;
         }
     }
-    for event in remote_events.values() {
+    let remote_events_after = load_events(&remote_conn).await?;
+    for event in remote_events_after.values() {
         if upsert_event(&local_conn, event).await? {
             synced_records += 1;
         }
