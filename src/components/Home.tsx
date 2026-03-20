@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { Card, Space, Button, Tag, Input, Select, Modal, Drawer, message, InputNumber, Divider } from "antd"
-import { SearchOutlined, DeleteOutlined } from "@ant-design/icons"
+import { SearchOutlined, DeleteOutlined, UndoOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
 import { getAvatarFromExtraJson } from "../utils/studentAvatar"
@@ -21,6 +21,17 @@ interface reason {
   content: string
   delta: number
   category: string
+}
+
+interface scoreEvent {
+  id: number
+  uuid: string
+  student_name: string
+  reason_content: string
+  delta: number
+  val_prev: number
+  val_curr: number
+  event_time: string
 }
 
 type SortType = "alphabet" | "surname" | "score"
@@ -82,6 +93,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
+  const [undoLoading, setUndoLoading] = useState(false)
+  const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
   const longPressTimerRef = useRef<number | null>(null)
@@ -126,17 +139,33 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     if (!silent) setLoading(false)
   }, [])
 
+  const fetchLatestEvent = useCallback(async () => {
+    if (!(window as any).api) return
+    const res = await (window as any).api.queryEvents({ limit: 1 })
+    if (res.success) {
+      const latest = Array.isArray(res.data) && res.data.length > 0 ? (res.data[0] as scoreEvent) : null
+      setLatestEvent(latest)
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
+    fetchLatestEvent()
     const onDataUpdated = (e: any) => {
       const category = e?.detail?.category
-      if (category === "students" || category === "reasons" || category === "all") {
+      if (
+        category === "events" ||
+        category === "students" ||
+        category === "reasons" ||
+        category === "all"
+      ) {
         fetchData(true)
+        fetchLatestEvent()
       }
     }
     window.addEventListener("ss:data-updated", onDataUpdated as any)
     return () => window.removeEventListener("ss:data-updated", onDataUpdated as any)
-  }, [fetchData])
+  }, [fetchData, fetchLatestEvent])
 
   useEffect(() => {
     const api = (window as any).api
@@ -434,11 +463,36 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         prev.map((s) => (s.id === student.id ? { ...s, score: s.score + delta } : s))
       )
 
+      fetchLatestEvent()
       emitDataUpdated("events")
     } else {
       messageApi.error(res.message || t("home.submitFailed"))
     }
     setSubmitLoading(false)
+  }
+
+  const handleUndoLastEvent = async () => {
+    if (!(window as any).api) return
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    if (!latestEvent) {
+      messageApi.warning(t("home.undoUnavailable"))
+      return
+    }
+
+    setUndoLoading(true)
+    const res = await (window as any).api.deleteEvent(latestEvent.uuid)
+    if (res.success) {
+      messageApi.success(t("home.undoLastSuccess"))
+      fetchData(true)
+      fetchLatestEvent()
+      emitDataUpdated("events")
+    } else {
+      messageApi.error((res as any).message || t("score.undoFailed"))
+    }
+    setUndoLoading(false)
   }
 
   const handleSubmit = async () => {
@@ -1858,6 +1912,22 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
             ]}
           />
+          <Button
+            icon={<UndoOutlined />}
+            onClick={handleUndoLastEvent}
+            loading={undoLoading}
+            disabled={!canEdit || !latestEvent}
+            title={
+              latestEvent
+                ? t("home.undoLastHint", {
+                    name: latestEvent.student_name,
+                    delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+                  })
+                : t("home.undoUnavailable")
+            }
+          >
+            {t("home.undoLastAction")}
+          </Button>
         </Space>
       </div>
 
