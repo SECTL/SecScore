@@ -88,6 +88,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [submitLoading, setSubmitLoading] = useState(false)
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
+  const selectedStudentNames = Form.useWatch("student_name", form) as string[] | undefined
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -202,6 +203,17 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
+  const handleSelectAllStudents = () => {
+    form.setFieldValue(
+      "student_name",
+      students.map((s) => s.name)
+    )
+  }
+
+  const handleClearSelectedStudents = () => {
+    form.setFieldValue("student_name", [])
+  }
+
   const handleUndo = async (uuid: string) => {
     if (!(window as any).api) return
     if (!canEdit) {
@@ -265,13 +277,37 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         <Form form={form} layout="vertical" initialValues={{ type: "add" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
             <Form.Item label={t("score.student")} name="student_name">
-              <Select
-                mode="multiple"
-                showSearch
-                placeholder={t("score.pleaseSelectStudent")}
-                filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
-                options={students.map((s) => ({ label: s.name, value: s.name }))}
-              />
+              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                <Select
+                  mode="multiple"
+                  showSearch
+                  placeholder={t("score.pleaseSelectStudent")}
+                  filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
+                  options={students.map((s) => ({ label: s.name, value: s.name }))}
+                />
+                <Space size={8} wrap>
+                  <Button
+                    size="small"
+                    onClick={handleSelectAllStudents}
+                    disabled={students.length === 0 || !canEdit}
+                  >
+                    {t("score.selectAllStudents")}
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={handleClearSelectedStudents}
+                    disabled={!selectedStudentNames || selectedStudentNames.length === 0 || !canEdit}
+                  >
+                    {t("score.clearSelectedStudents")}
+                  </Button>
+                  <span style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                    {t("score.selectedCount", {
+                      selected: selectedStudentNames?.length ?? 0,
+                      total: students.length,
+                    })}
+                  </span>
+                </Space>
+              </Space>
             </Form.Item>
 
             <Form.Item label={t("score.points")}>
