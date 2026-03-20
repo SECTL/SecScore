@@ -5,15 +5,13 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
-use parking_lot::RwLock;
-use std::sync::Arc;
-use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
+use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::migration::run_migration;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::{commands::*, state::AppState};
-use tauri::{App, Manager};
-use tokio::time::{timeout, Duration};
+use parking_lot::RwLock;
+use std::sync::Arc;
 #[cfg(desktop)]
 use tauri::{
     image::Image,
@@ -21,6 +19,8 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     WindowEvent,
 };
+use tauri::{App, Manager};
+use tokio::time::{timeout, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -83,6 +83,7 @@ pub fn run() {
             auto_score_toggle_rule,
             auto_score_get_status,
             auto_score_sort_rules,
+            board_query_sql,
             log_query,
             log_clear,
             log_set_level,
@@ -149,10 +150,7 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         data_dir.join("data.sql")
     };
 
-    let db_path_str = db_path
-        .to_str()
-        .ok_or("Invalid database path")?
-        .to_string();
+    let db_path_str = db_path.to_str().ok_or("Invalid database path")?.to_string();
 
     let db_result = tauri::async_runtime::block_on(async {
         let sqlite_conn = create_sqlite_connection(&db_path_str).await?;
@@ -237,7 +235,10 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                                 .await
                                 .map_err(|err| format!("Failed to save pg status: {}", err))?;
                         } else if let Ok(Err(e)) = migration_result {
-                            eprintln!("PostgreSQL migration failed on startup, fallback to sqlite: {}", e);
+                            eprintln!(
+                                "PostgreSQL migration failed on startup, fallback to sqlite: {}",
+                                e
+                            );
                             settings
                                 .set_value(
                                     SettingsKey::PgConnectionStatus,
@@ -290,7 +291,10 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = db_result {
         eprintln!("Failed to connect to database: {}", e);
     } else {
-        eprintln!("Database bootstrap completed, sqlite settings db: {}", db_path_str);
+        eprintln!(
+            "Database bootstrap completed, sqlite settings db: {}",
+            db_path_str
+        );
     }
 
     Ok(())

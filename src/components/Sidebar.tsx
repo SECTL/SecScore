@@ -10,6 +10,7 @@ import {
   CloudOutlined,
   UploadOutlined,
   AppstoreAddOutlined,
+  ApartmentOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -172,6 +173,11 @@ export function Sidebar({
       icon: <AppstoreAddOutlined />,
       label: t("sidebar.rewardSettings"),
       disabled: permission !== "admin",
+    },
+    {
+      key: "boards",
+      icon: <ApartmentOutlined />,
+      label: t("sidebar.boards"),
     },
     {
       key: "leaderboard",

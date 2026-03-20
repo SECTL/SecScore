@@ -14,6 +14,7 @@ const loadLeaderboard = () => import("./Leaderboard")
 const loadSettlementHistory = () => import("./SettlementHistory")
 const loadAutoScoreManager = () => import("./AutoScoreManager")
 const loadRewardSettings = () => import("./RewardSettings")
+const loadBoardManager = () => import("./BoardManager")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
@@ -30,6 +31,7 @@ const AutoScoreManager = lazy(() =>
 const RewardSettings = lazy(() =>
   loadRewardSettings().then((m) => ({ default: m.RewardSettings }))
 )
+const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
 
 const warmupRouteChunks = () =>
   Promise.allSettled([
@@ -42,6 +44,7 @@ const warmupRouteChunks = () =>
     loadSettlementHistory(),
     loadAutoScoreManager(),
     loadRewardSettings(),
+    loadBoardManager(),
   ])
 
 const { Content } = Layout
@@ -236,6 +239,7 @@ export function ContentArea({
               path="/score"
               element={<ScoreManager canEdit={permission === "admin" || permission === "points"} />}
             />
+            <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/settlements" element={<SettlementHistory />} />
             <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />

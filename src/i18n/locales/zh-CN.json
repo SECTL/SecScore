@@ -306,6 +306,7 @@
     "home": "首页",
     "students": "学生管理",
     "score": "积分操作",
+    "boards": "看板",
     "leaderboard": "排行榜",
     "settlements": "结算历史",
     "reasons": "理由管理",
@@ -557,6 +558,48 @@
     "deleteSuccess": "奖励删除成功",
     "deleteFailed": "奖励删除失败",
     "deleteConfirm": "确认删除奖励「{{name}}」？"
+  },
+  "board": {
+    "title": "看板",
+    "editable": "可编辑",
+    "readonly": "只读",
+    "addBoard": "新增看板",
+    "removeBoard": "删除看板",
+    "removeBoardConfirm": "确认删除当前看板？",
+    "boardConfig": "看板配置",
+    "boardNamePlaceholder": "输入看板名称",
+    "newBoard": "新看板",
+    "untitledBoard": "未命名看板",
+    "addList": "新增学生列表",
+    "removeList": "删除列表",
+    "removeListConfirm": "确认删除当前学生列表？",
+    "listNamePlaceholder": "输入列表名称",
+    "newList": "新列表",
+    "applyPreset": "套用预设",
+    "run": "运行 SQL",
+    "runAll": "运行全部",
+    "sqlPlaceholder": "输入 SQL（仅支持单条 SELECT / WITH 查询）",
+    "templateHint": "支持时间模板变量：{{today_start}}、{{since_7d}}、{{since_30d}}、{{now}}",
+    "templateDescription": "可直接在 SQL 中使用模板变量，运行时会自动替换为 ISO 时间，兼容 SQLite 与 PostgreSQL。",
+    "saving": "保存中...",
+    "saveFailed": "保存看板失败",
+    "runFailed": "查询执行失败",
+    "keepAtLeastOneBoard": "至少保留一个看板",
+    "keepAtLeastOneList": "至少保留一个学生列表",
+    "presets": {
+      "weekLowDeduct": {
+        "name": "上周低扣分排行",
+        "description": "上一周扣分 < 3 的学生积分榜"
+      },
+      "todayActive": {
+        "name": "今日活跃榜",
+        "description": "按今日回答次数与积分变化排序"
+      },
+      "rewardRanking": {
+        "name": "奖励积分榜",
+        "description": "按奖励积分和总积分排序"
+      }
+    }
   },
   "leaderboard": {
     "title": "积分排行榜",

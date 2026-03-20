@@ -306,6 +306,7 @@
     "home": "Home",
     "students": "Students",
     "score": "Score",
+    "boards": "Boards",
     "leaderboard": "Leaderboard",
     "settlements": "Settlements",
     "reasons": "Reasons",
@@ -557,6 +558,48 @@
     "deleteSuccess": "Reward deleted",
     "deleteFailed": "Delete reward failed",
     "deleteConfirm": "Delete reward \"{{name}}\"?"
+  },
+  "board": {
+    "title": "Boards",
+    "editable": "Editable",
+    "readonly": "Read-only",
+    "addBoard": "Add Board",
+    "removeBoard": "Delete Board",
+    "removeBoardConfirm": "Delete current board?",
+    "boardConfig": "Board Config",
+    "boardNamePlaceholder": "Enter board name",
+    "newBoard": "New Board",
+    "untitledBoard": "Untitled Board",
+    "addList": "Add Student List",
+    "removeList": "Delete List",
+    "removeListConfirm": "Delete current student list?",
+    "listNamePlaceholder": "Enter list name",
+    "newList": "New List",
+    "applyPreset": "Apply Preset",
+    "run": "Run SQL",
+    "runAll": "Run All",
+    "sqlPlaceholder": "Enter SQL (single SELECT / WITH query only)",
+    "templateHint": "Template variables: {{today_start}}, {{since_7d}}, {{since_30d}}, {{now}}",
+    "templateDescription": "Use template variables directly in SQL. They will be replaced with ISO timestamps at runtime for both SQLite and PostgreSQL.",
+    "saving": "Saving...",
+    "saveFailed": "Failed to save boards",
+    "runFailed": "Failed to run query",
+    "keepAtLeastOneBoard": "Keep at least one board",
+    "keepAtLeastOneList": "Keep at least one student list",
+    "presets": {
+      "weekLowDeduct": {
+        "name": "Low Deduction (7d)",
+        "description": "Rank students with weekly deduction < 3"
+      },
+      "todayActive": {
+        "name": "Today's Activity",
+        "description": "Sort by today's answer count and score change"
+      },
+      "rewardRanking": {
+        "name": "Reward Ranking",
+        "description": "Sort by reward points and total score"
+      }
+    }
   },
   "leaderboard": {
     "title": "Points Leaderboard",

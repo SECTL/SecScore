@@ -1,6 +1,6 @@
+use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,6 +14,7 @@ pub struct SettingsSpec {
     pub auto_score_enabled: bool,
     pub auto_score_rules: JsonValue,
     pub current_theme_id: String,
+    pub dashboards_config: JsonValue,
     pub pg_connection_string: String,
     pub pg_connection_status: JsonValue,
 }
@@ -30,6 +31,7 @@ impl Default for SettingsSpec {
             auto_score_enabled: false,
             auto_score_rules: JsonValue::Array(vec![]),
             current_theme_id: "light-default".to_string(),
+            dashboards_config: JsonValue::Array(vec![]),
             pg_connection_string: String::new(),
             pg_connection_status: serde_json::json!({"connected": false, "type": "sqlite"}),
         }
@@ -47,6 +49,7 @@ pub enum SettingsKey {
     AutoScoreEnabled,
     AutoScoreRules,
     CurrentThemeId,
+    DashboardsConfig,
     PgConnectionString,
     PgConnectionStatus,
 }
@@ -63,6 +66,7 @@ impl SettingsKey {
             SettingsKey::AutoScoreEnabled => "auto_score_enabled",
             SettingsKey::AutoScoreRules => "auto_score_rules",
             SettingsKey::CurrentThemeId => "current_theme_id",
+            SettingsKey::DashboardsConfig => "dashboards_config",
             SettingsKey::PgConnectionString => "pg_connection_string",
             SettingsKey::PgConnectionStatus => "pg_connection_status",
         }
@@ -79,6 +83,7 @@ impl SettingsKey {
             "auto_score_enabled" => Some(SettingsKey::AutoScoreEnabled),
             "auto_score_rules" => Some(SettingsKey::AutoScoreRules),
             "current_theme_id" => Some(SettingsKey::CurrentThemeId),
+            "dashboards_config" => Some(SettingsKey::DashboardsConfig),
             "pg_connection_string" => Some(SettingsKey::PgConnectionString),
             "pg_connection_status" => Some(SettingsKey::PgConnectionStatus),
             _ => None,
@@ -347,6 +352,16 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::DashboardsConfig,
+            SettingDefinition {
+                kind: SettingValueKind::Json,
+                default_value: SettingsValue::Json(JsonValue::Array(vec![])),
+                write_permission: PermissionRequirement::Admin,
+                validate: None,
+            },
+        );
+
+        defs.insert(
             SettingsKey::PgConnectionString,
             SettingDefinition {
                 kind: SettingValueKind::String,
@@ -493,6 +508,10 @@ impl SettingsService {
             current_theme_id: match self.get_value(SettingsKey::CurrentThemeId) {
                 SettingsValue::String(s) => s,
                 _ => "light-default".to_string(),
+            },
+            dashboards_config: match self.get_value(SettingsKey::DashboardsConfig) {
+                SettingsValue::Json(j) => j,
+                _ => JsonValue::Array(vec![]),
             },
             pg_connection_string: match self.get_value(SettingsKey::PgConnectionString) {
                 SettingsValue::String(s) => s,

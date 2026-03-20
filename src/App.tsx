@@ -69,6 +69,7 @@ function MainContent(): React.JSX.Element {
     if (p === "/" || p.startsWith("/home")) return "home"
     if (p.startsWith("/students")) return "students"
     if (p.startsWith("/score")) return "score"
+    if (p.startsWith("/boards")) return "boards"
     if (p.startsWith("/leaderboard")) return "leaderboard"
     if (p.startsWith("/settlements")) return "settlements"
     if (p.startsWith("/reasons")) return "reasons"
@@ -269,6 +270,7 @@ function MainContent(): React.JSX.Element {
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
     if (key === "score") navigate("/score")
+    if (key === "boards") navigate("/boards")
     if (key === "leaderboard") navigate("/leaderboard")
     if (key === "settlements") navigate("/settlements")
     if (key === "reasons") navigate("/reasons")

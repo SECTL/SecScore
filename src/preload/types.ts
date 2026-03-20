@@ -27,6 +27,7 @@ export type settingsKey =
   | "auto_score_enabled"
   | "auto_score_rules"
   | "current_theme_id"
+  | "dashboards_config"
   | "pg_connection_string"
   | "pg_connection_status"
 
@@ -40,6 +41,7 @@ export interface settingsSpec {
   auto_score_enabled: boolean
   auto_score_rules: any[]
   current_theme_id: string
+  dashboards_config: any[]
   pg_connection_string: string
   pg_connection_status: {
     connected: boolean
@@ -141,6 +143,11 @@ const api = {
     range: "today" | "week" | "month"
   }): Promise<{ success: boolean; data: { startTime: string; rows: any[] } }> =>
     invoke("leaderboard_query", { params }),
+  boardQuerySql: (params: {
+    sql: string
+    limit?: number
+  }): Promise<{ success: boolean; data: any[]; message?: string }> =>
+    invoke("board_query_sql", { params }),
 
   // Settlement
   querySettlements: (): Promise<{ success: boolean; data: any[] }> => invoke("db_settlement_query"),
