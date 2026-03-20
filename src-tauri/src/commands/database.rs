@@ -598,24 +598,38 @@ pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Resu
         state_guard.app_handle.clone()
     };
 
-    let can_sync = current_remote_and_local_from_state(&app_handle, app_state)
-        .await?
-        .is_some();
-    if !can_sync {
+    let Some((local_conn, remote_conn)) =
+        current_remote_and_local_from_state(&app_handle, app_state).await?
+    else {
         return Ok(());
+    };
+
+    // PostgreSQL 远端为主库，实时同步只做远端 -> 本地镜像，避免本地旧快照反向覆盖远端新值。
+    let remote_students = load_students(&remote_conn).await?;
+    for student in remote_students.values() {
+        let _ = upsert_student(&local_conn, student).await?;
     }
 
-    let result = db_sync_apply_internal(
-        ConflictStrategy::KeepRemote,
-        app_handle,
-        app_state.clone(),
-    )
-    .await?;
-    if !result.success {
-        return Err(result
-            .message
-            .unwrap_or_else(|| "实时双写同步失败".to_string()));
+    let remote_reasons = load_reasons(&remote_conn).await?;
+    for reason in remote_reasons.values() {
+        let _ = upsert_reason(&local_conn, reason).await?;
     }
+
+    let remote_tags = load_tags(&remote_conn).await?;
+    for tag in remote_tags.values() {
+        let _ = upsert_tag(&local_conn, tag).await?;
+    }
+
+    let remote_events = load_events(&remote_conn).await?;
+    for event in remote_events.values() {
+        let _ = upsert_event(&local_conn, event).await?;
+    }
+
+    let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
+    for pair in &remote_pairs {
+        let _ = ensure_student_tag_pair(&local_conn, pair).await?;
+    }
+
     Ok(())
 }
 

@@ -189,7 +189,7 @@ function MainContent(): React.JSX.Element {
         if (conflicts.length > 0) {
           const recentLocalMutation = Date.now() - lastLocalMutationAtRef.current < 15000
           if (recentLocalMutation) {
-            const autoApplyRes = await api.dbSyncApply("keep_local")
+            const autoApplyRes = await api.dbSyncApply("keep_remote")
             if (
               autoApplyRes?.success &&
               autoApplyRes?.data?.success &&
@@ -206,7 +206,7 @@ function MainContent(): React.JSX.Element {
           return
         }
 
-        const applyRes = await api.dbSyncApply("keep_local")
+        const applyRes = await api.dbSyncApply("keep_remote")
         if (applyRes?.success && applyRes?.data?.success && applyRes?.data?.synced_records > 0) {
           window.dispatchEvent(
             new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
