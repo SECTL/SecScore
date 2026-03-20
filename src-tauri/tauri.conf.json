@@ -22,8 +22,8 @@
         "decorations": false,
         "transparent": false,
         "center": true,
-        "minWidth": 800,
-        "minHeight": 600
+        "minWidth": 360,
+        "minHeight": 640
       }
     ],
     "security": {

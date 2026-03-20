@@ -284,24 +284,26 @@ function MainContent(): React.JSX.Element {
     const availableWidth = window.screen?.availWidth || window.innerWidth || 1200
     const availableHeight = window.screen?.availHeight || window.innerHeight || 800
     return {
-      maxWidth: Math.max(800, Math.round(availableWidth - 64)),
-      maxHeight: Math.max(600, Math.round(availableHeight - 64)),
+      maxWidth: Math.max(360, Math.round(availableWidth - 64)),
+      maxHeight: Math.max(640, Math.round(availableHeight - 64)),
     }
   }
 
   const getFixedPortraitSize = () => {
     const { maxWidth, maxHeight } = getMaxWindowSize()
-    const width = Math.min(940, maxWidth)
-    const height = Math.max(600, Math.min(1600, maxHeight))
+    const phonePortraitBase = { width: 430, height: 932 }
+    let width = Math.max(360, Math.min(phonePortraitBase.width, maxWidth))
+    let height = Math.max(640, Math.min(phonePortraitBase.height, maxHeight))
 
-    if (height > width) {
-      return { width, height }
+    // 保证竖屏高于宽，维持手机风格比例。
+    if (height <= width) {
+      height = Math.min(maxHeight, Math.max(640, Math.round(width * 2.0)))
+    }
+    if (height <= width) {
+      width = Math.max(360, Math.min(maxWidth, Math.round(height * 0.5)))
     }
 
-    return {
-      width: Math.min(maxWidth, Math.max(800, width - 120)),
-      height: Math.min(maxHeight, Math.max(600, height + 120)),
-    }
+    return { width, height }
   }
 
   const getLandscapeRestoreSize = () => {
