@@ -1,9 +1,22 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
-import { Card, Space, Button, Tag, Input, Select, Modal, Drawer, message, InputNumber, Divider } from "antd"
+import {
+  Card,
+  Space,
+  Button,
+  Tag,
+  Input,
+  Select,
+  Modal,
+  Drawer,
+  message,
+  InputNumber,
+  Divider,
+} from "antd"
 import { SearchOutlined, DeleteOutlined, UndoOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
 import { getAvatarFromExtraJson } from "../utils/studentAvatar"
+import { useResponsive } from "../hooks/useResponsive"
 
 interface student {
   id: number
@@ -81,6 +94,9 @@ interface HomeProps {
 
 export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) => {
   const { t } = useTranslation()
+  const breakpoint = useResponsive()
+  const isMobile = breakpoint === "xs" || breakpoint === "sm"
+  const isTablet = breakpoint === "md"
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [rewards, setRewards] = useState<rewardSetting[]>([])
@@ -184,7 +200,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     if (!(window as any).api) return
     const res = await (window as any).api.queryEvents({ limit: 1 })
     if (res.success) {
-      const latest = Array.isArray(res.data) && res.data.length > 0 ? (res.data[0] as scoreEvent) : null
+      const latest =
+        Array.isArray(res.data) && res.data.length > 0 ? (res.data[0] as scoreEvent) : null
       setLatestEvent(latest)
       logHome("fetchLatestEvent:response", {
         hasLatest: Boolean(latest),
@@ -243,7 +260,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
     api
       .onSettingChanged((change: any) => {
-        if (change?.key === "search_keyboard_layout" && (change?.value === "t9" || change?.value === "qwerty26")) {
+        if (
+          change?.key === "search_keyboard_layout" &&
+          (change?.value === "t9" || change?.value === "qwerty26")
+        ) {
           setSearchKeyboardLayout(change.value)
         }
         if (change?.key === "disable_search_keyboard") {
@@ -278,7 +298,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         setShowPinyinKeyboard(false)
       }
 
-      const quickCard = (target as HTMLElement | null)?.closest?.('[data-student-quick-card="true"]')
+      const quickCard = (target as HTMLElement | null)?.closest?.(
+        '[data-student-quick-card="true"]'
+      )
       if (!quickCard) {
         setQuickActionStudentId(null)
       }
@@ -413,7 +435,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         })
       case "score":
         return filtered.sort(
-          (a, b) => getDisplayPoints(b) - getDisplayPoints(a) || a.name.localeCompare(b.name, "zh-CN")
+          (a, b) =>
+            getDisplayPoints(b) - getDisplayPoints(a) || a.name.localeCompare(b.name, "zh-CN")
         )
       default:
         return filtered
@@ -630,7 +653,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       fetchData(true)
       fetchLatestEvent()
       emitDataUpdated("events")
-      logHome("performSubmit:afterSuccessRefreshDispatched", { studentCount: targetStudents.length, delta })
+      logHome("performSubmit:afterSuccessRefreshDispatched", {
+        studentCount: targetStudents.length,
+        delta,
+      })
     } else {
       messageApi.warning(
         t("home.batchPartial", { success: successCount, total: targetStudents.length })
@@ -848,7 +874,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               {rankBadge}
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "center", gap: isPortraitMode ? "10px" : "12px" }}>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: isPortraitMode ? "10px" : "12px" }}
+          >
             {student.avatarUrl ? (
               <img
                 src={student.avatarUrl}
@@ -911,40 +939,40 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   pointerEvents: isQuickActionMode ? "auto" : "none",
                 }}
               >
-                  <Button
-                    type="primary"
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleQuickAdjust(student, 1)
-                    }}
-                    style={{
-                      minWidth: "54px",
-                      height: "36px",
-                      borderRadius: "18px",
-                      fontWeight: 700,
-                      paddingInline: "12px",
-                    }}
-                  >
-                    +1
-                  </Button>
-                  <Button
-                    danger
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleQuickAdjust(student, -1)
-                    }}
-                    style={{
-                      minWidth: "54px",
-                      height: "36px",
-                      borderRadius: "18px",
-                      fontWeight: 700,
-                      paddingInline: "12px",
-                    }}
-                  >
-                    -1
-                  </Button>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, 1)
+                  }}
+                  style={{
+                    minWidth: "54px",
+                    height: "36px",
+                    borderRadius: "18px",
+                    fontWeight: 700,
+                    paddingInline: "12px",
+                  }}
+                >
+                  +1
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, -1)
+                  }}
+                  style={{
+                    minWidth: "54px",
+                    height: "36px",
+                    borderRadius: "18px",
+                    fontWeight: 700,
+                    paddingInline: "12px",
+                  }}
+                >
+                  -1
+                </Button>
               </div>
               <div
                 style={{
@@ -984,7 +1012,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                     }
                     style={{ fontWeight: "bold" }}
                   >
-                    {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
+                    {getDisplayPoints(student) > 0
+                      ? `+${getDisplayPoints(student)}`
+                      : getDisplayPoints(student)}
                   </Tag>
                 </div>
               </div>
@@ -1037,8 +1067,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           position: "relative",
           padding: "8px 10px",
           borderBottom: isLast ? "none" : "1px solid var(--ss-border-color)",
-          background:
-            isQuickActionMode || isSelected ? "rgba(22, 119, 255, 0.06)" : "transparent",
+          background: isQuickActionMode || isSelected ? "rgba(22, 119, 255, 0.06)" : "transparent",
           transition: "background-color 160ms ease",
         }}
       >
@@ -1102,7 +1131,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   e.stopPropagation()
                   handleQuickAdjust(student, 1)
                 }}
-                style={{ minWidth: "44px", height: "26px", borderRadius: "13px", paddingInline: "8px" }}
+                style={{
+                  minWidth: "44px",
+                  height: "26px",
+                  borderRadius: "13px",
+                  paddingInline: "8px",
+                }}
               >
                 +1
               </Button>
@@ -1113,7 +1147,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   e.stopPropagation()
                   handleQuickAdjust(student, -1)
                 }}
-                style={{ minWidth: "44px", height: "26px", borderRadius: "13px", paddingInline: "8px" }}
+                style={{
+                  minWidth: "44px",
+                  height: "26px",
+                  borderRadius: "13px",
+                  paddingInline: "8px",
+                }}
               >
                 -1
               </Button>
@@ -1127,11 +1166,17 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               )}
               <Tag
                 color={
-                  getDisplayPoints(student) > 0 ? "success" : getDisplayPoints(student) < 0 ? "error" : "default"
+                  getDisplayPoints(student) > 0
+                    ? "success"
+                    : getDisplayPoints(student) < 0
+                      ? "error"
+                      : "default"
                 }
                 style={{ fontWeight: "bold", marginInlineEnd: 0 }}
               >
-                {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
+                {getDisplayPoints(student) > 0
+                  ? `+${getDisplayPoints(student)}`
+                  : getDisplayPoints(student)}
               </Tag>
             </Space>
           )}
@@ -1283,7 +1328,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                     e.stopPropagation()
                     handleQuickAdjust(student, 1)
                   }}
-                  style={{ minWidth: "44px", height: "28px", borderRadius: "14px", paddingInline: "8px" }}
+                  style={{
+                    minWidth: "44px",
+                    height: "28px",
+                    borderRadius: "14px",
+                    paddingInline: "8px",
+                  }}
                 >
                   +1
                 </Button>
@@ -1294,7 +1344,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                     e.stopPropagation()
                     handleQuickAdjust(student, -1)
                   }}
-                  style={{ minWidth: "44px", height: "28px", borderRadius: "14px", paddingInline: "8px" }}
+                  style={{
+                    minWidth: "44px",
+                    height: "28px",
+                    borderRadius: "14px",
+                    paddingInline: "8px",
+                  }}
                 >
                   -1
                 </Button>
@@ -1333,7 +1388,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   }
                   style={{ fontWeight: "bold", marginInlineEnd: 0 }}
                 >
-                  {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
+                  {getDisplayPoints(student) > 0
+                    ? `+${getDisplayPoints(student)}`
+                    : getDisplayPoints(student)}
                 </Tag>
                 {isSelected && (
                   <Tag color="processing" style={{ marginInlineEnd: 0 }}>
@@ -2051,35 +2108,31 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     })
   }, [])
 
-  const batchToolbar = rewardMode
-    ? null
-    : !batchMode
-      ? (
-          <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
-            {t("home.multiSelect")}
-          </Button>
-        )
-      : (
-          <Space size={8} wrap>
-            <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
-              {t("home.selectAll")}
-            </Button>
-            <Button
-              onClick={handleClearSelectedStudents}
-              disabled={!canEdit || selectedStudentIds.length === 0}
-            >
-              {t("home.clearSelected")}
-            </Button>
-            <Button
-              type="primary"
-              onClick={handleOpenBatchOperation}
-              disabled={!canEdit || selectedStudentIds.length === 0}
-            >
-              {t("home.batchOperate")}
-            </Button>
-            <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
-          </Space>
-        )
+  const batchToolbar = rewardMode ? null : !batchMode ? (
+    <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
+      {t("home.multiSelect")}
+    </Button>
+  ) : (
+    <Space size={8} wrap>
+      <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
+        {t("home.selectAll")}
+      </Button>
+      <Button
+        onClick={handleClearSelectedStudents}
+        disabled={!canEdit || selectedStudentIds.length === 0}
+      >
+        {t("home.clearSelected")}
+      </Button>
+      <Button
+        type="primary"
+        onClick={handleOpenBatchOperation}
+        disabled={!canEdit || selectedStudentIds.length === 0}
+      >
+        {t("home.batchOperate")}
+      </Button>
+      <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
+    </Space>
+  )
 
   return (
     <div
@@ -2116,7 +2169,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         <Space
           size="middle"
           align="start"
-          wrap={isPortraitMode}
+          wrap
           style={{
             width: isPortraitMode ? "100%" : undefined,
             justifyContent: isPortraitMode ? "flex-start" : undefined,
@@ -2126,8 +2179,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             ref={searchAreaRef}
             style={{
               position: "relative",
-              width: isPortraitMode ? "100%" : "220px",
-              minWidth: isPortraitMode ? "100%" : undefined,
+              width: isMobile ? "100%" : isTablet ? "180px" : "220px",
+              minWidth: isMobile ? "100%" : isTablet ? "150px" : "180px",
+              flexShrink: isMobile ? 0 : 1,
             }}
           >
             <Input
@@ -2193,7 +2247,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                     : t9KeyRows.map((row, rowIndex) => (
                         <div
                           key={`pinyin-row-${rowIndex}`}
-                          style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "6px" }}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, 1fr)",
+                            gap: "6px",
+                          }}
                         >
                           {row.map((keyItem) => (
                             <Button
@@ -2215,7 +2273,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           <Select
             value={sortType}
             onChange={(v) => setSortType(v as SortType)}
-            style={{ width: isPortraitMode ? "calc(50% - 8px)" : "140px", minWidth: "120px" }}
+            style={{
+              width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
+              minWidth: isMobile ? "100px" : "120px",
+              flexShrink: isMobile ? 1 : 0,
+            }}
             options={[
               { value: "alphabet", label: t("home.sortBy.alphabet") },
               { value: "surname", label: t("home.sortBy.surname") },
@@ -2225,7 +2287,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           <Select
             value={layoutType}
             onChange={(v) => setLayoutType(v as LayoutType)}
-            style={{ width: isPortraitMode ? "calc(50% - 8px)" : "140px", minWidth: "120px" }}
+            style={{
+              width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
+              minWidth: isMobile ? "100px" : "120px",
+              flexShrink: isMobile ? 1 : 0,
+            }}
             options={[
               { value: "grouped", label: t("home.layoutBy.grouped") },
               { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
@@ -2244,10 +2310,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   })
                 : t("home.undoUnavailable")
             }
+            style={{
+              flexShrink: isMobile ? 1 : 0,
+            }}
           >
             {t("home.undoLastAction")}
           </Button>
-          <Button type={rewardMode ? "default" : "primary"} onClick={handleToggleRewardMode} disabled={!canEdit}>
+          <Button
+            type={rewardMode ? "default" : "primary"}
+            onClick={handleToggleRewardMode}
+            disabled={!canEdit}
+            style={{
+              flexShrink: isMobile ? 1 : 0,
+            }}
+          >
             {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
           </Button>
           {batchToolbar}
@@ -2307,7 +2383,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               {t("rewardExchange.currentRewardPoints", { points: rewardStudent.reward_points })}
             </div>
             {affordableRewards.length === 0 ? (
-              <div style={{ color: "var(--ss-text-secondary)" }}>{t("rewardExchange.noAffordableRewards")}</div>
+              <div style={{ color: "var(--ss-text-secondary)" }}>
+                {t("rewardExchange.noAffordableRewards")}
+              </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {affordableRewards.map((reward) => (
@@ -2328,7 +2406,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                         {t("rewardExchange.costLabel", { points: reward.cost_points })}
                       </div>
                     </div>
-                    <Button type="primary" loading={redeemLoading} onClick={() => handleRedeemReward(reward)}>
+                    <Button
+                      type="primary"
+                      loading={redeemLoading}
+                      onClick={() => handleRedeemReward(reward)}
+                    >
                       {t("rewardExchange.redeemNow")}
                     </Button>
                   </div>
