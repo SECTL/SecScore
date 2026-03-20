@@ -75,6 +75,8 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
 
   const [clearDialogVisible, setClearDialogVisible] = useState(false)
   const [clearLoading, setClearLoading] = useState(false)
+  const [resetDialogVisible, setResetDialogVisible] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
 
   const importInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -336,6 +338,30 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       setClearDialogVisible(false)
     } else {
       messageApi.error(res.message || t("settings.security.clearFailed"))
+    }
+  }
+
+  const openResetDialog = () => {
+    setResetDialogVisible(true)
+  }
+
+  const handleConfirmResetAll = async () => {
+    if (!(window as any).api?.dataResetAll) return
+    setResetLoading(true)
+    try {
+      const res = await (window as any).api.dataResetAll()
+      if (res.success) {
+        messageApi.success(t("settings.data.resetSuccess"))
+        window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+        window.setTimeout(() => window.location.reload(), 300)
+      } else {
+        messageApi.error(res.message || t("settings.data.resetFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.data.resetFailed"))
+    } finally {
+      setResetLoading(false)
+      setResetDialogVisible(false)
     }
   }
 
@@ -954,6 +980,24 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           </Card>
 
           <Card
+            title={t("settings.data.quickSetupReset")}
+            style={{
+              backgroundColor: "var(--ss-card-bg)",
+              color: "var(--ss-text-main)",
+              marginBottom: "16px",
+            }}
+          >
+            <Space align="center">
+              <Button danger disabled={!canAdmin} loading={resetLoading} onClick={openResetDialog}>
+                {t("settings.data.resetAllAndReenter")}
+              </Button>
+              <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+                {t("settings.data.resetHint")}
+              </div>
+            </Space>
+          </Card>
+
+          <Card
             style={{
               backgroundColor: "var(--ss-card-bg)",
               color: "var(--ss-text-main)",
@@ -1360,6 +1404,24 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         okButtonProps={{ danger: true }}
       >
         清空后将关闭保护（无密码时默认视为管理权限）。
+      </Modal>
+
+      <Modal
+        title={t("settings.data.confirmResetAll")}
+        open={resetDialogVisible}
+        onCancel={() => !resetLoading && setResetDialogVisible(false)}
+        onOk={handleConfirmResetAll}
+        confirmLoading={resetLoading}
+        okText={t("settings.data.resetAllAndReenter")}
+        okButtonProps={{ danger: true }}
+        cancelText={t("common.cancel")}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div>{t("settings.data.resetConfirm1")}</div>
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: "12px" }}>
+            {t("settings.data.resetConfirm2")}
+          </div>
+        </div>
       </Modal>
     </div>
   )

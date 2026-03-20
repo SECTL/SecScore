@@ -90,6 +90,7 @@ pub fn run() {
             log_write,
             data_export_json,
             data_import_json,
+            data_reset_all,
             window_minimize,
             window_maximize,
             window_close,

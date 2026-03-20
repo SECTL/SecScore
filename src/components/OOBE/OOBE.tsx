@@ -32,6 +32,27 @@ interface reasonItem {
   delta: number
 }
 
+const mergeStudents = (prev: studentItem[], names: string[]): studentItem[] => {
+  const existing = new Set(prev.map((item) => item.name))
+  const next = [...prev]
+
+  names.forEach((rawName) => {
+    const name = rawName.trim()
+    if (!name || existing.has(name)) return
+    next.push({ name })
+    existing.add(name)
+  })
+
+  return next
+}
+
+const mergeReasons = (prev: reasonItem[], nextReason: reasonItem): reasonItem[] => {
+  if (prev.some((item) => item.content === nextReason.content)) {
+    return prev
+  }
+  return [...prev, nextReason]
+}
+
 const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 
 const withTimeout = async (promise: Promise<any>, ms: number, timeoutMessage: string): Promise<any> => {
@@ -215,25 +236,25 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
 
     const existing = new Set(students.map((s) => s.name))
     const added = new Set<string>()
-    const newStudents: studentItem[] = []
+    const newStudentNames: string[] = []
 
     lines.forEach((name) => {
       if (existing.has(name) || added.has(name)) return
-      newStudents.push({ name })
+      newStudentNames.push(name)
       added.add(name)
     })
 
-    if (newStudents.length === 0) {
+    if (newStudentNames.length === 0) {
       showOobeMessage("warning", t("oobe.steps.students.studentExists"))
       return
     }
 
-    setStudents([...students, ...newStudents])
+    setStudents((prev) => mergeStudents(prev, newStudentNames))
     setNewStudentName("")
   }
 
   const removeStudent = (name: string) => {
-    setStudents(students.filter((s) => s.name !== name))
+    setStudents((prev) => prev.filter((s) => s.name !== name))
   }
 
   const addReason = () => {
@@ -243,13 +264,13 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
       messageApi.warning(t("oobe.steps.reasons.reasonExists"))
       return
     }
-    setReasons([...reasons, { content, delta: newReasonDelta }])
+    setReasons((prev) => mergeReasons(prev, { content, delta: newReasonDelta }))
     setNewReasonContent("")
     setNewReasonDelta(1)
   }
 
   const removeReason = (content: string) => {
-    setReasons(reasons.filter((r) => r.content !== content))
+    setReasons((prev) => prev.filter((r) => r.content !== content))
   }
 
   const handleFileImport = useCallback(
@@ -269,15 +290,17 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
               typeof item === "string" ? item : item.name || item.student_name
             )
           }
-          const newStudents = studentList
+          const newStudentNames = studentList
             .filter((name) => name && typeof name === "string")
-            .filter((name) => !students.some((s) => s.name === name))
-            .map((name) => ({ name: name.trim() }))
-          if (newStudents.length > 0) {
-            setStudents([...students, ...newStudents])
+            .map((name) => name.trim())
+            .filter(Boolean)
+          const mergedStudents = mergeStudents(students, newStudentNames)
+          const importedCount = mergedStudents.length - students.length
+          if (importedCount > 0) {
+            setStudents((prev) => mergeStudents(prev, newStudentNames))
             showOobeMessage(
               "success",
-              t("oobe.steps.students.importSuccess", { count: newStudents.length })
+              t("oobe.steps.students.importSuccess", { count: importedCount })
             )
           } else {
             showOobeMessage("info", t("oobe.steps.students.noNewStudents"))
@@ -300,14 +323,13 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
               names.push(name.trim())
             }
           })
-          const newStudents = names
-            .filter((name) => !students.some((s) => s.name === name))
-            .map((name) => ({ name }))
-          if (newStudents.length > 0) {
-            setStudents([...students, ...newStudents])
+          const mergedStudents = mergeStudents(students, names)
+          const importedCount = mergedStudents.length - students.length
+          if (importedCount > 0) {
+            setStudents((prev) => mergeStudents(prev, names))
             showOobeMessage(
               "success",
-              t("oobe.steps.students.importSuccess", { count: newStudents.length })
+              t("oobe.steps.students.importSuccess", { count: importedCount })
             )
           } else {
             showOobeMessage("info", t("oobe.steps.students.noNewStudents"))

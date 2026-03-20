@@ -37,17 +37,17 @@
     "none": "无"
   },
   "oobe": {
-    "title": "欢迎使用 SecScore",
-    "subtitle": "教育积分管理专家",
+    "title": "SecScore 快速设置",
+    "subtitle": "几步完成基础配置，马上开始使用",
     "step": "第 {{current}}/{{total}} 步",
     "skip": "跳过",
     "steps": {
       "entry": {
         "title": "开始配置",
         "description": "请选择接下来要进行的操作",
-        "enterOobe": "进入OOBE",
+        "enterOobe": "进入快速设置",
         "connectPostgresAutoSync": "连接PostgreSQL自动同步",
-        "skipDirect": "跳过OOBE，直接进入"
+        "skipDirect": "跳过快速设置，直接进入"
       },
       "postgresql": {
         "title": "连接 PostgreSQL",
@@ -233,6 +233,9 @@
       "settlement": "结算",
       "settlementAndRestart": "结算并重新开始",
       "settlementHint": "将当前未结算记录划分为一个阶段，并将所有学生积分清零。",
+      "quickSetupReset": "快速设置重置",
+      "resetAllAndReenter": "删除所有数据并重新进入快速设置",
+      "resetHint": "删除学生、理由、记录、奖励、标签和全部设置，然后重新进入快速设置。",
       "importExport": "导入 / 导出",
       "exportJson": "导出 JSON",
       "importJson": "导入 JSON",
@@ -253,10 +256,15 @@
       "exportSuccess": "导出成功",
       "importSuccess": "导入成功，正在刷新",
       "importFailed": "导入失败",
+      "resetSuccess": "已重置，正在重新进入快速设置",
+      "resetFailed": "重置失败",
       "clearFailed": "清空失败",
       "confirmSettlement": "确认结算并重新开始？",
       "settlementConfirm1": "将把当前未结算的积分记录归档为一个阶段，并将所有学生当前积分清零。",
       "settlementConfirm2": "学生名单不变；结算后的历史在「结算历史」页面查看。",
+      "confirmResetAll": "确认删除所有数据并重新进入快速设置？",
+      "resetConfirm1": "这会删除学生、理由、积分记录、奖励、标签以及全部设置，且不可恢复。",
+      "resetConfirm2": "重置后应用将重新加载，并直接进入快速设置。",
       "settlementSuccess": "结算成功，已重新开始积分",
       "settlementFailed": "结算失败",
       "settle": "结算",

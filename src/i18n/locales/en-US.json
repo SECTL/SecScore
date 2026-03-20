@@ -37,17 +37,17 @@
     "none": "None"
   },
   "oobe": {
-    "title": "Welcome to SecScore",
-    "subtitle": "Education Points Management Expert",
+    "title": "SecScore Quick Setup",
+    "subtitle": "Finish the essentials in a few steps and start using the app",
     "step": "Step {{current}}/{{total}}",
     "skip": "Skip",
     "steps": {
       "entry": {
         "title": "Get Started",
         "description": "Choose how you want to proceed",
-        "enterOobe": "Enter OOBE",
+        "enterOobe": "Enter Quick Setup",
         "connectPostgresAutoSync": "Connect PostgreSQL with Auto Sync",
-        "skipDirect": "Skip OOBE and Enter"
+        "skipDirect": "Skip Quick Setup and Enter"
       },
       "postgresql": {
         "title": "Connect PostgreSQL",
@@ -233,6 +233,9 @@
       "settlement": "Settlement",
       "settlementAndRestart": "Settle and Restart",
       "settlementHint": "Mark current records as a phase and reset all student points to zero.",
+      "quickSetupReset": "Quick Setup Reset",
+      "resetAllAndReenter": "Delete all data and re-enter Quick Setup",
+      "resetHint": "Delete students, reasons, records, rewards, tags, and all settings, then return to Quick Setup.",
       "importExport": "Import / Export",
       "exportJson": "Export JSON",
       "importJson": "Import JSON",
@@ -253,10 +256,15 @@
       "exportSuccess": "Export successful",
       "importSuccess": "Import successful, refreshing",
       "importFailed": "Import failed",
+      "resetSuccess": "Reset complete, reopening Quick Setup",
+      "resetFailed": "Reset failed",
       "clearFailed": "Clear failed",
       "confirmSettlement": "Confirm settlement and restart?",
       "settlementConfirm1": "This will archive current unsettled records as a phase and reset all student points to zero.",
       "settlementConfirm2": "Student list remains unchanged; settlement history available in 'Settlements' page.",
+      "confirmResetAll": "Delete all data and re-enter Quick Setup?",
+      "resetConfirm1": "This will delete students, reasons, score records, rewards, tags, and all settings. This cannot be undone.",
+      "resetConfirm2": "After reset, the app will reload and open Quick Setup directly.",
       "settlementSuccess": "Settlement successful, points restarted",
       "settlementFailed": "Settlement failed",
       "settle": "Settle",

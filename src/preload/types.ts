@@ -205,6 +205,7 @@ const api = {
   exportDataJson: (): Promise<{ success: boolean; data: string }> => invoke("data_export_json"),
   importDataJson: (jsonText: string): Promise<{ success: boolean }> =>
     invoke("data_import_json", { jsonText }),
+  dataResetAll: (): Promise<{ success: boolean }> => invoke("data_reset_all"),
 
   // Window
   windowMinimize: (): Promise<void> => invoke("window_minimize"),
