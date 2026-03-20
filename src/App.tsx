@@ -63,6 +63,7 @@ function MainContent(): React.JSX.Element {
   const syncCheckingRef = useRef(false)
   const syncApplyLoadingRef = useRef(false)
   const lastLocalMutationAtRef = useRef(0)
+  const lastLandscapeSizeRef = useRef<{ width: number; height: number } | null>(null)
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -279,42 +280,45 @@ function MainContent(): React.JSX.Element {
     if (key === "settings") navigate("/settings")
   }
 
-  const resolveOrientationTargetSize = (nextPortraitMode: boolean) => {
-    const currentWidth = Math.max(1, Math.round(window.innerWidth || 0))
-    const currentHeight = Math.max(1, Math.round(window.innerHeight || 0))
-
-    // 切换横竖屏时优先以当前窗口尺寸“互换宽高”为目标，避免每次切换都朝固定大尺寸放大。
-    let targetWidth = nextPortraitMode ? currentHeight : currentWidth
-    let targetHeight = nextPortraitMode ? currentWidth : currentHeight
-
-    const rotatedWidth = nextPortraitMode ? currentHeight : currentWidth
-    const rotatedHeight = nextPortraitMode ? currentWidth : currentHeight
-    const ratio = rotatedWidth / Math.max(1, rotatedHeight)
-
+  const getMaxWindowSize = () => {
     const availableWidth = window.screen?.availWidth || window.innerWidth || 1200
     const availableHeight = window.screen?.availHeight || window.innerHeight || 800
-    const maxWidth = Math.max(420, Math.round(availableWidth - 64))
-    const maxHeight = Math.max(520, Math.round(availableHeight - 64))
-
-    if (targetWidth > maxWidth) {
-      targetWidth = maxWidth
-      targetHeight = Math.max(1, Math.round(targetWidth / ratio))
+    return {
+      maxWidth: Math.max(800, Math.round(availableWidth - 64)),
+      maxHeight: Math.max(600, Math.round(availableHeight - 64)),
     }
-    if (targetHeight > maxHeight) {
-      targetHeight = maxHeight
-      targetWidth = Math.max(1, Math.round(targetHeight * ratio))
-    }
+  }
 
-    if (nextPortraitMode && targetHeight <= targetWidth) {
-      targetHeight = Math.min(maxHeight, targetWidth + 200)
-    } else if (!nextPortraitMode && targetWidth <= targetHeight) {
-      targetWidth = Math.min(maxWidth, targetHeight + 200)
+  const getFixedPortraitSize = () => {
+    const { maxWidth, maxHeight } = getMaxWindowSize()
+    const width = Math.min(940, maxWidth)
+    const height = Math.max(600, Math.min(1600, maxHeight))
+
+    if (height > width) {
+      return { width, height }
     }
 
     return {
-      width: Math.max(420, Math.round(targetWidth)),
-      height: Math.max(520, Math.round(targetHeight)),
+      width: Math.min(maxWidth, Math.max(800, width - 120)),
+      height: Math.min(maxHeight, Math.max(600, height + 120)),
     }
+  }
+
+  const getLandscapeRestoreSize = () => {
+    const { maxWidth, maxHeight } = getMaxWindowSize()
+    const fallback = { width: 1180, height: 680 }
+    const source = lastLandscapeSizeRef.current || fallback
+
+    let width = Math.max(800, Math.min(maxWidth, Math.round(source.width)))
+    let height = Math.max(600, Math.min(maxHeight, Math.round(source.height)))
+    if (width < height) {
+      const swappedWidth = Math.max(800, Math.min(maxWidth, height))
+      const swappedHeight = Math.max(600, Math.min(maxHeight, width))
+      width = swappedWidth
+      height = swappedHeight
+    }
+
+    return { width, height }
   }
 
   const toggleOrientationMode = async () => {
@@ -327,13 +331,19 @@ function MainContent(): React.JSX.Element {
       if (maximized) {
         await api.windowMaximize()
       }
-      const targetSize = resolveOrientationTargetSize(nextPortraitMode)
+
       if (nextPortraitMode) {
+        lastLandscapeSizeRef.current = {
+          width: Math.max(1, Math.round(window.innerWidth || 0)),
+          height: Math.max(1, Math.round(window.innerHeight || 0)),
+        }
+        const targetSize = getFixedPortraitSize()
         await api.windowSetResizable(false)
         await api.windowResize(targetSize.width, targetSize.height)
         setSidebarCollapsed(true)
         setFloatingSidebarExpanded(false)
       } else {
+        const targetSize = getLandscapeRestoreSize()
         await api.windowSetResizable(true)
         await api.windowResize(targetSize.width, targetSize.height)
         setSidebarCollapsed(false)
