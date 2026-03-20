@@ -2106,7 +2106,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       >
         <div>
           <h2 style={{ margin: 0, color: "var(--ss-text-main)", fontSize: "24px" }}>
-            {t("home.title")}
+            {rewardMode ? t("rewardExchange.title") : t("home.title")}
           </h2>
           <p style={{ margin: "4px 0 0", color: "var(--ss-text-secondary)", fontSize: "13px" }}>
             {t("home.subtitle", { count: students.length })}
