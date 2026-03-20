@@ -667,7 +667,7 @@ ORDER BY reward_points DESC, score DESC`,
                           display: "grid",
                           gridTemplateColumns:
                             list.viewMode === "grid"
-                              ? "repeat(auto-fill, minmax(180px, 1fr))"
+                              ? "repeat(auto-fill, minmax(102px, 1fr))"
                               : list.viewMode === "list"
                                 ? "1fr"
                                 : "repeat(auto-fill, minmax(220px, 1fr))",
@@ -678,111 +678,213 @@ ORDER BY reward_points DESC, score DESC`,
                           const avatarColor = getAvatarColor(item.name)
                           const avatarText = getAvatarText(item.name)
                           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
+                          const gridPrimaryValue =
+                            item.score !== undefined
+                              ? item.score
+                              : item.rewardPoints !== undefined
+                                ? item.rewardPoints
+                                : item.weekChange !== undefined
+                                  ? item.weekChange
+                                  : item.weekDeducted !== undefined
+                                    ? -item.weekDeducted
+                                    : item.answeredCount
+
+                          const gridPrimaryLabel =
+                            item.score !== undefined
+                              ? t("board.metrics.totalScore")
+                              : item.rewardPoints !== undefined
+                                ? t("board.metrics.rewardPoints")
+                                : item.weekChange !== undefined
+                                  ? t("board.metrics.weekChange")
+                                  : item.weekDeducted !== undefined
+                                    ? t("board.metrics.weekDeducted")
+                                    : item.answeredCount !== undefined
+                                      ? t("board.metrics.todayAnswered")
+                                      : null
+
                           return (
-                            <Card
+                            <div
                               key={item.key}
                               style={{
-                                backgroundColor: "var(--ss-card-bg)",
-                                border: "1px solid var(--ss-border-color)",
-                                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
+                                ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null),
                                 position: "relative",
                               }}
-                              styles={{
-                                body: {
-                                  padding:
-                                    list.viewMode === "grid" ? "12px" : list.viewMode === "list" ? "10px 12px" : "12px 14px",
-                                },
-                              }}
                             >
-                              {rankBadge && (
-                                <div
-                                  style={{
-                                    position: "absolute",
-                                    top: "-10px",
-                                    left: "-10px",
-                                    fontSize: "24px",
-                                  }}
-                                >
-                                  {rankBadge}
-                                </div>
-                              )}
-                              <div
+                              <Card
                                 style={{
-                                  display: "flex",
-                                  alignItems: list.viewMode === "grid" ? "flex-start" : "center",
-                                  flexDirection: list.viewMode === "grid" ? "column" : "row",
-                                  gap: 10,
+                                  width: "100%",
+                                  height: "100%",
+                                  backgroundColor: "var(--ss-card-bg)",
+                                  border: "1px solid var(--ss-border-color)",
+                                  boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
+                                  position: "relative",
+                                }}
+                                styles={{
+                                  body: {
+                                    padding:
+                                      list.viewMode === "grid"
+                                        ? "8px"
+                                        : list.viewMode === "list"
+                                          ? "10px 12px"
+                                          : "12px 14px",
+                                    height: list.viewMode === "grid" ? "100%" : undefined,
+                                  },
                                 }}
                               >
-                                <div
-                                  style={{
-                                    width: list.viewMode === "grid" ? 56 : 42,
-                                    height: list.viewMode === "grid" ? 56 : 42,
-                                    borderRadius: 12,
-                                    backgroundColor: avatarColor,
-                                    color: "#fff",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontWeight: 700,
-                                    boxShadow: `0 4px 10px ${avatarColor}40`,
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {avatarText}
-                                </div>
-                                <div style={{ minWidth: 0, flex: 1, width: "100%" }}>
+                                {rankBadge && (
                                   <div
                                     style={{
-                                      fontSize: list.viewMode === "grid" ? 16 : 15,
-                                      fontWeight: 600,
-                                      color: "var(--ss-text-main)",
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                      textAlign: list.viewMode === "grid" ? "center" : "left",
+                                      position: "absolute",
+                                      top: "-10px",
+                                      left: "-10px",
+                                      fontSize: "24px",
                                     }}
                                   >
-                                    {item.name}
+                                    {rankBadge}
                                   </div>
+                                )}
+                                {list.viewMode === "grid" ? (
                                   <div
                                     style={{
-                                      marginTop: 4,
+                                      height: "100%",
                                       display: "flex",
-                                      flexWrap: "wrap",
-                                      gap: 6,
-                                      justifyContent: list.viewMode === "grid" ? "center" : "flex-start",
+                                      flexDirection: "column",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: 8,
+                                      textAlign: "center",
                                     }}
                                   >
-                                    {item.score !== undefined && (
-                                      <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                        {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
-                                      </Tag>
-                                    )}
-                                    {item.rewardPoints !== undefined && (
-                                      <Tag color="processing" style={{ margin: 0 }}>
-                                        {t("board.metrics.rewardPoints")}: {item.rewardPoints}
-                                      </Tag>
-                                    )}
-                                    {item.weekChange !== undefined && (
-                                      <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                        {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
-                                      </Tag>
-                                    )}
-                                    {item.weekDeducted !== undefined && (
-                                      <Tag color="gold" style={{ margin: 0 }}>
-                                        {t("board.metrics.weekDeducted")}: {item.weekDeducted}
-                                      </Tag>
-                                    )}
-                                    {item.answeredCount !== undefined && (
-                                      <Tag color="cyan" style={{ margin: 0 }}>
-                                        {t("board.metrics.todayAnswered")}: {item.answeredCount}
-                                      </Tag>
-                                    )}
+                                    <div
+                                      style={{
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: 12,
+                                        backgroundColor: avatarColor,
+                                        color: "#fff",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontWeight: 700,
+                                        fontSize: avatarText.length > 1 ? "14px" : "18px",
+                                        boxShadow: `0 4px 10px ${avatarColor}40`,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {avatarText}
+                                    </div>
+                                    <div
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 6,
+                                        width: "100%",
+                                        minWidth: 0,
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          fontWeight: 600,
+                                          fontSize: 13,
+                                          color: "var(--ss-text-main)",
+                                          maxWidth: "100%",
+                                          whiteSpace: "nowrap",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                        }}
+                                      >
+                                        {item.name}
+                                      </div>
+                                      {gridPrimaryValue !== undefined && gridPrimaryLabel && (
+                                        <Tag
+                                          color={gridPrimaryValue >= 0 ? "success" : "error"}
+                                          style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+                                        >
+                                          {gridPrimaryLabel}:{gridPrimaryValue > 0 ? `+${gridPrimaryValue}` : gridPrimaryValue}
+                                        </Tag>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            </Card>
+                                ) : (
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      flexDirection: "row",
+                                      gap: 10,
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: 12,
+                                        backgroundColor: avatarColor,
+                                        color: "#fff",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontWeight: 700,
+                                        boxShadow: `0 4px 10px ${avatarColor}40`,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {avatarText}
+                                    </div>
+                                    <div style={{ minWidth: 0, flex: 1, width: "100%" }}>
+                                      <div
+                                        style={{
+                                          fontSize: 15,
+                                          fontWeight: 600,
+                                          color: "var(--ss-text-main)",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {item.name}
+                                      </div>
+                                      <div
+                                        style={{
+                                          marginTop: 4,
+                                          display: "flex",
+                                          flexWrap: "wrap",
+                                          gap: 6,
+                                          justifyContent: "flex-start",
+                                        }}
+                                      >
+                                        {item.score !== undefined && (
+                                          <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                                            {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
+                                          </Tag>
+                                        )}
+                                        {item.rewardPoints !== undefined && (
+                                          <Tag color="processing" style={{ margin: 0 }}>
+                                            {t("board.metrics.rewardPoints")}: {item.rewardPoints}
+                                          </Tag>
+                                        )}
+                                        {item.weekChange !== undefined && (
+                                          <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                                            {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
+                                          </Tag>
+                                        )}
+                                        {item.weekDeducted !== undefined && (
+                                          <Tag color="gold" style={{ margin: 0 }}>
+                                            {t("board.metrics.weekDeducted")}: {item.weekDeducted}
+                                          </Tag>
+                                        )}
+                                        {item.answeredCount !== undefined && (
+                                          <Tag color="cyan" style={{ margin: 0 }}>
+                                            {t("board.metrics.todayAnswered")}: {item.answeredCount}
+                                          </Tag>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </Card>
+                            </div>
                           )
                         })}
                       </div>
