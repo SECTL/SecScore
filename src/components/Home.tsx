@@ -89,6 +89,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const searchAreaRef = useRef<HTMLDivElement>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
+  const [batchMode, setBatchMode] = useState(false)
+  const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [operationVisible, setOperationVisible] = useState(false)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
@@ -280,6 +282,14 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     }
   }, [])
 
+  useEffect(() => {
+    setSelectedStudentIds((prev) => {
+      if (prev.length === 0) return prev
+      const validIds = new Set(students.map((s) => s.id))
+      return prev.filter((id) => validIds.has(id))
+    })
+  }, [students])
+
   const t9KeyRows = [
     [
       { digit: "2", letters: "ABC" },
@@ -430,6 +440,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     })
   }, [reasons])
 
+  const selectedStudents = useMemo(() => {
+    if (selectedStudentIds.length === 0) return []
+    const idSet = new Set(selectedStudentIds)
+    return students.filter((s) => idSet.has(s.id))
+  }, [students, selectedStudentIds])
+
   const getAvatarColor = (name: string) => {
     const colors = [
       "#FF6B6B",
@@ -463,55 +479,80 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       messageApi.error(t("common.readOnly"))
       return
     }
+    if (batchMode) {
+      setSelectedStudentIds((prev) =>
+        prev.includes(student.id) ? prev.filter((id) => id !== student.id) : [...prev, student.id]
+      )
+      return
+    }
     setSelectedStudent(student)
     setCustomScore(undefined)
     setReasonContent("")
     setOperationVisible(true)
   }
 
-  const performSubmit = async (student: student, delta: number, content: string) => {
+  const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
     if (!(window as any).api) return
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
     }
+    if (targetStudents.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
 
     setSubmitLoading(true)
-    logHome("performSubmit:start", {
-      student: student.name,
-      delta,
-      content,
-      localScoreBefore: student.score,
-    })
-    const res = await (window as any).api.createEvent({
-      student_name: student.name,
-      reason_content: content,
-      delta: delta,
-    })
+    logHome("performSubmit:start", { studentCount: targetStudents.length, delta, content })
+    let successCount = 0
 
-    logHome("performSubmit:createEvent:response", {
-      student: student.name,
-      delta,
-      success: Boolean(res?.success),
-      message: (res as any)?.message,
-    })
+    for (const student of targetStudents) {
+      const res = await (window as any).api.createEvent({
+        student_name: student.name,
+        reason_content: content,
+        delta: delta,
+      })
 
-    if (res.success) {
-      messageApi.success(
-        delta > 0
-          ? t("home.scoreAdded", { name: student.name, points: Math.abs(delta) })
-          : t("home.scoreDeducted", { name: student.name, points: Math.abs(delta) })
-      )
+      logHome("performSubmit:createEvent:response", {
+        student: student.name,
+        delta,
+        success: Boolean(res?.success),
+        message: (res as any)?.message,
+      })
+      if (res.success) successCount += 1
+    }
+
+    if (successCount > 0) {
+      if (targetStudents.length === 1) {
+        const student = targetStudents[0]
+        messageApi.success(
+          delta > 0
+            ? t("home.scoreAdded", { name: student.name, points: Math.abs(delta) })
+            : t("home.scoreDeducted", { name: student.name, points: Math.abs(delta) })
+        )
+      } else if (successCount === targetStudents.length) {
+        messageApi.success(t("home.batchSuccess", { count: successCount }))
+      } else {
+        messageApi.warning(
+          t("home.batchPartial", { success: successCount, total: targetStudents.length })
+        )
+      }
+
+      setSelectedStudentIds([])
+      setBatchMode(false)
+      setSelectedStudent(null)
       setOperationVisible(false)
+      setCustomScore(undefined)
+      setReasonContent("")
+      setQuickActionStudentId(null)
       fetchData(true)
       fetchLatestEvent()
       emitDataUpdated("events")
-      logHome("performSubmit:afterSuccessRefreshDispatched", {
-        student: student.name,
-        delta,
-      })
+      logHome("performSubmit:afterSuccessRefreshDispatched", { studentCount: targetStudents.length, delta })
     } else {
-      messageApi.error(res.message || t("home.submitFailed"))
+      messageApi.warning(
+        t("home.batchPartial", { success: successCount, total: targetStudents.length })
+      )
     }
     setSubmitLoading(false)
   }
@@ -541,7 +582,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }
 
   const handleSubmit = async () => {
-    if (!selectedStudent) return
+    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+    if (targets.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
 
     const delta = customScore
     if (delta === undefined || !Number.isFinite(delta)) {
@@ -556,12 +601,16 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         : delta < 0
           ? t("home.deductPoints")
           : t("home.pointsChange"))
-    await performSubmit(selectedStudent, delta, content)
+    await performSubmit(targets, delta, content)
   }
 
   const handleReasonSelect = (reason: reason) => {
-    if (!selectedStudent) return
-    performSubmit(selectedStudent, reason.delta, reason.content)
+    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+    if (targets.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
+    performSubmit(targets, reason.delta, reason.content)
   }
 
   const cancelLongPress = () => {
@@ -596,8 +645,47 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
   const handleQuickAdjust = (student: student, delta: number) => {
     const content = delta > 0 ? t("home.addPoints") : t("home.deductPoints")
-    performSubmit(student, delta, content)
+    performSubmit([student], delta, content)
     setQuickActionStudentId(null)
+  }
+
+  const handleSelectAllStudents = () => {
+    setSelectedStudentIds(students.map((s) => s.id))
+  }
+
+  const handleClearSelectedStudents = () => {
+    setSelectedStudentIds([])
+  }
+
+  const handleEnterBatchMode = () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setBatchMode(true)
+    setSelectedStudent(null)
+    setOperationVisible(false)
+    setQuickActionStudentId(null)
+  }
+
+  const handleExitBatchMode = () => {
+    setBatchMode(false)
+    setSelectedStudentIds([])
+  }
+
+  const handleOpenBatchOperation = () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    if (selectedStudents.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
+    setSelectedStudent(null)
+    setCustomScore(undefined)
+    setReasonContent("")
+    setOperationVisible(true)
   }
 
   const renderStudentCard = (student: student, index: number) => {
@@ -612,6 +700,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     }
 
     const isQuickActionMode = quickActionStudentId === student.id
+    const isSelected = selectedStudentIds.includes(student.id)
 
     return (
       <div
@@ -627,15 +716,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           openOperation(student)
         }}
         onMouseDown={(e) => {
+          if (batchMode) return
           if (e.button !== 0) return
           startLongPress(student)
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => startLongPress(student)}
+        onTouchStart={() => {
+          if (batchMode) return
+          startLongPress(student)
+        }}
         onTouchEnd={cancelLongPress}
         onTouchCancel={cancelLongPress}
         onContextMenu={(e) => {
+          if (batchMode) return
           e.preventDefault()
           openQuickAction(student)
         }}
@@ -647,9 +741,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
             border: isQuickActionMode
               ? "1px solid var(--ant-color-primary, #1677ff)"
-              : "1px solid var(--ss-border-color)",
+              : isSelected
+                ? "1px solid var(--ant-color-primary, #1677ff)"
+                : "1px solid var(--ss-border-color)",
             overflow: "visible",
-            boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
+            boxShadow:
+              isQuickActionMode || isSelected ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
           }}
           styles={{ body: { padding: isPortraitMode ? "10px 12px" : "12px" } }}
         >
@@ -787,6 +884,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 <div
                   style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
                 >
+                  {isSelected && (
+                    <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                      {t("home.selected")}
+                    </Tag>
+                  )}
                   <Tag
                     color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
                     style={{ fontWeight: "bold" }}
@@ -806,6 +908,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
     const isQuickActionMode = quickActionStudentId === student.id
+    const isSelected = selectedStudentIds.includes(student.id)
 
     return (
       <div
@@ -821,15 +924,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           openOperation(student)
         }}
         onMouseDown={(e) => {
+          if (batchMode) return
           if (e.button !== 0) return
           startLongPress(student)
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => startLongPress(student)}
+        onTouchStart={() => {
+          if (batchMode) return
+          startLongPress(student)
+        }}
         onTouchEnd={cancelLongPress}
         onTouchCancel={cancelLongPress}
         onContextMenu={(e) => {
+          if (batchMode) return
           e.preventDefault()
           openQuickAction(student)
         }}
@@ -838,7 +946,8 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           position: "relative",
           padding: "8px 10px",
           borderBottom: isLast ? "none" : "1px solid var(--ss-border-color)",
-          background: isQuickActionMode ? "rgba(22, 119, 255, 0.06)" : "transparent",
+          background:
+            isQuickActionMode || isSelected ? "rgba(22, 119, 255, 0.06)" : "transparent",
           transition: "background-color 160ms ease",
         }}
       >
@@ -919,12 +1028,19 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               </Button>
             </Space>
           ) : (
-            <Tag
-              color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
-              style={{ fontWeight: "bold", marginInlineEnd: 0 }}
-            >
-              {student.score > 0 ? `+${student.score}` : student.score}
-            </Tag>
+            <Space size={4}>
+              {isSelected && (
+                <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                  {t("home.selected")}
+                </Tag>
+              )}
+              <Tag
+                color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+              >
+                {student.score > 0 ? `+${student.score}` : student.score}
+              </Tag>
+            </Space>
           )}
         </div>
       </div>
@@ -935,6 +1051,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
     const isQuickActionMode = quickActionStudentId === student.id
+    const isSelected = selectedStudentIds.includes(student.id)
 
     let rankBadge: string | null = null
     if (sortType === "score" && !searchKeyword) {
@@ -957,15 +1074,20 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           openOperation(student)
         }}
         onMouseDown={(e) => {
+          if (batchMode) return
           if (e.button !== 0) return
           startLongPress(student)
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => startLongPress(student)}
+        onTouchStart={() => {
+          if (batchMode) return
+          startLongPress(student)
+        }}
         onTouchEnd={cancelLongPress}
         onTouchCancel={cancelLongPress}
         onContextMenu={(e) => {
+          if (batchMode) return
           e.preventDefault()
           openQuickAction(student)
         }}
@@ -991,9 +1113,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
             border: isQuickActionMode
               ? "1px solid var(--ant-color-primary, #1677ff)"
-              : "1px solid var(--ss-border-color)",
+              : isSelected
+                ? "1px solid var(--ant-color-primary, #1677ff)"
+                : "1px solid var(--ss-border-color)",
             overflow: "visible",
-            boxShadow: isQuickActionMode ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
+            boxShadow:
+              isQuickActionMode || isSelected ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
           }}
           styles={{ body: { height: "100%", padding: "8px" } }}
         >
@@ -1111,6 +1236,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 >
                   {student.score > 0 ? `+${student.score}` : student.score}
                 </Tag>
+                {isSelected && (
+                  <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                    {t("home.selected")}
+                  </Tag>
+                )}
               </div>
             )}
           </div>
@@ -1502,7 +1632,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     )
   }
 
-  const operationPanelContent = selectedStudent && (
+  const operationTargets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+  const isBatchOperation = operationTargets.length > 1 || (batchMode && operationTargets.length > 0)
+
+  const operationPanelContent = operationTargets.length > 0 && (
     <div
       style={{
         display: "flex",
@@ -1525,7 +1658,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1 }}>
-          {selectedStudent.avatarUrl ? (
+          {!isBatchOperation && selectedStudent?.avatarUrl ? (
             <img
               src={selectedStudent.avatarUrl}
               alt={selectedStudent.name}
@@ -1537,13 +1670,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 border: "1px solid var(--ss-border-color)",
               }}
             />
-          ) : (
+          ) : !isBatchOperation ? (
             <div
               style={{
                 width: "32px",
                 height: "32px",
                 borderRadius: "50%",
-                backgroundColor: getAvatarColor(selectedStudent.name),
+                backgroundColor: getAvatarColor(selectedStudent?.name || ""),
                 color: "white",
                 display: "flex",
                 alignItems: "center",
@@ -1552,8 +1685,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 fontWeight: "bold",
               }}
             >
-              {getDisplayText(selectedStudent.name)}
+              {getDisplayText(selectedStudent?.name || "")}
             </div>
+          ) : (
+            <Tag color="processing">{t("home.batchMode")}</Tag>
           )}
           <span
             style={{
@@ -1564,22 +1699,30 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
               whiteSpace: "nowrap",
             }}
           >
-            {selectedStudent.name}
+            {!isBatchOperation
+              ? selectedStudent?.name
+              : t("home.selectedCount", { count: operationTargets.length })}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-          <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
-            {t("home.currentScore")}：
-          </span>
-          <Tag
-            color={
-              selectedStudent.score > 0 ? "success" : selectedStudent.score < 0 ? "error" : "default"
-            }
-            style={{ fontWeight: "bold" }}
-          >
-            {selectedStudent.score > 0 ? `+${selectedStudent.score}` : selectedStudent.score}
-          </Tag>
-        </div>
+        {!isBatchOperation && selectedStudent && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
+              {t("home.currentScore")}：
+            </span>
+            <Tag
+              color={
+                selectedStudent.score > 0
+                  ? "success"
+                  : selectedStudent.score < 0
+                    ? "error"
+                    : "default"
+              }
+              style={{ fontWeight: "bold" }}
+            >
+              {selectedStudent.score > 0 ? `+${selectedStudent.score}` : selectedStudent.score}
+            </Tag>
+          </div>
+        )}
       </div>
 
       {groupedReasons.length > 0 && (
@@ -1769,7 +1912,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             {t("home.preview")}：
           </div>
           <div style={{ fontSize: "15px" }}>
-            {selectedStudent.name}{" "}
+            {isBatchOperation
+              ? t("home.selectedCount", { count: operationTargets.length })
+              : selectedStudent?.name}{" "}
             <span
               style={{
                 fontWeight: "bold",
@@ -1973,6 +2118,31 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           >
             {t("home.undoLastAction")}
           </Button>
+          {!batchMode ? (
+            <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
+              {t("home.multiSelect")}
+            </Button>
+          ) : (
+            <Space size={8} wrap>
+              <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
+                {t("home.selectAll")}
+              </Button>
+              <Button
+                onClick={handleClearSelectedStudents}
+                disabled={!canEdit || selectedStudentIds.length === 0}
+              >
+                {t("home.clearSelected")}
+              </Button>
+              <Button
+                type="primary"
+                onClick={handleOpenBatchOperation}
+                disabled={!canEdit || selectedStudentIds.length === 0}
+              >
+                {t("home.batchOperate")}
+              </Button>
+              <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
+            </Space>
+          )}
         </Space>
       </div>
 
@@ -2016,7 +2186,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       {isPortraitMode ? (
         <Drawer
           title={
-            <div data-tauri-drag-region>{t("home.operationTitle", { name: selectedStudent?.name })}</div>
+            <div data-tauri-drag-region>
+              {isBatchOperation
+                ? t("home.operationTitleBatch", { count: operationTargets.length })
+                : t("home.operationTitle", { name: selectedStudent?.name })}
+            </div>
           }
           className="ss-operation-drawer"
           placement="bottom"
@@ -2041,7 +2215,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         </Drawer>
       ) : (
         <Modal
-          title={t("home.operationTitle", { name: selectedStudent?.name })}
+          title={
+            isBatchOperation
+              ? t("home.operationTitleBatch", { count: operationTargets.length })
+              : t("home.operationTitle", { name: selectedStudent?.name })
+          }
           open={operationVisible}
           onCancel={() => setOperationVisible(false)}
           onOk={handleSubmit}
