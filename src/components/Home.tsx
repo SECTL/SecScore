@@ -105,6 +105,18 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
   }
 
+  const logHome = (message: string, meta?: Record<string, unknown>) => {
+    try {
+      if (meta) {
+        console.info(`[Home] ${message}`, meta)
+      } else {
+        console.info(`[Home] ${message}`)
+      }
+    } catch {
+      void 0
+    }
+  }
+
   const getSurname = (name: string) => {
     if (!name) return ""
     return name.charAt(0)
@@ -121,12 +133,22 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const fetchData = useCallback(async (silent = false) => {
     if (!(window as any).api) return
     const requestId = ++fetchRequestIdRef.current
+    logHome("fetchData:start", { requestId, silent })
     if (!silent) setLoading(true)
     const [stuRes, reaRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
     ])
     if (requestId !== fetchRequestIdRef.current) return
+
+    logHome("fetchData:response", {
+      requestId,
+      silent,
+      studentsSuccess: Boolean(stuRes?.success),
+      studentsCount: Array.isArray(stuRes?.data) ? stuRes.data.length : 0,
+      reasonsSuccess: Boolean(reaRes?.success),
+      reasonsCount: Array.isArray(reaRes?.data) ? reaRes.data.length : 0,
+    })
 
     if (stuRes.success) {
       const enrichedStudents = (stuRes.data as student[]).map((s) => ({
@@ -148,6 +170,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     if (res.success) {
       const latest = Array.isArray(res.data) && res.data.length > 0 ? (res.data[0] as scoreEvent) : null
       setLatestEvent(latest)
+      logHome("fetchLatestEvent:response", {
+        hasLatest: Boolean(latest),
+        latestStudent: latest?.student_name,
+        latestDelta: latest?.delta,
+        latestUuid: latest?.uuid,
+      })
     }
   }, [])
 
@@ -156,6 +184,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     fetchLatestEvent()
     const onDataUpdated = (e: any) => {
       const category = e?.detail?.category
+      logHome("event:ss:data-updated", { detail: e?.detail })
       if (
         category === "events" ||
         category === "students" ||
@@ -448,10 +477,23 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     }
 
     setSubmitLoading(true)
+    logHome("performSubmit:start", {
+      student: student.name,
+      delta,
+      content,
+      localScoreBefore: student.score,
+    })
     const res = await (window as any).api.createEvent({
       student_name: student.name,
       reason_content: content,
       delta: delta,
+    })
+
+    logHome("performSubmit:createEvent:response", {
+      student: student.name,
+      delta,
+      success: Boolean(res?.success),
+      message: (res as any)?.message,
     })
 
     if (res.success) {
@@ -464,6 +506,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       fetchData(true)
       fetchLatestEvent()
       emitDataUpdated("events")
+      logHome("performSubmit:afterSuccessRefreshDispatched", {
+        student: student.name,
+        delta,
+      })
     } else {
       messageApi.error(res.message || t("home.submitFailed"))
     }

@@ -5,6 +5,7 @@ use sea_orm::{
     TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use tauri::State;
 use uuid::Uuid;
@@ -173,7 +174,32 @@ pub async fn event_create(
                 active.update(&txn).await.map_err(|e| e.to_string())?;
 
                 txn.commit().await.map_err(|e| e.to_string())?;
+                {
+                    let state_guard = state.read();
+                    let logger = state_guard.logger.read();
+                    logger.info_with_meta(
+                        "event_create:committed",
+                        json!({
+                            "student_name": student_name,
+                            "delta": data.delta,
+                            "val_prev": val_prev,
+                            "val_curr": val_curr,
+                        }),
+                    );
+                }
                 realtime_dual_write_sync(state.inner()).await?;
+                {
+                    let state_guard = state.read();
+                    let logger = state_guard.logger.read();
+                    logger.info_with_meta(
+                        "event_create:sync_done",
+                        json!({
+                            "student_name": student_name,
+                            "delta": data.delta,
+                            "val_curr": val_curr,
+                        }),
+                    );
+                }
                 Ok(IpcResponse::success(inserted.id))
             }
             Ok(None) => Ok(IpcResponse::error("Student not found")),
