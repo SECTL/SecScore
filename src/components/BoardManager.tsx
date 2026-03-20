@@ -83,6 +83,11 @@ interface DragState {
   containerSize: number
 }
 
+const getFirstLeafId = (node: LayoutNode): string => {
+  if (node.type === "leaf") return node.id
+  return getFirstLeafId(node.first)
+}
+
 const makeId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -345,6 +350,9 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
   const [dragState, setDragState] = useState<DragState | null>(null)
   const [editingListId, setEditingListId] = useState<string | null>(null)
+  const [selectedLeafNodeId, setSelectedLeafNodeId] = useState<string | null>(null)
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [renameValue, setRenameValue] = useState("")
 
   const panelRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
@@ -512,6 +520,15 @@ ORDER BY reward_points DESC, score DESC`,
   }, [activeBoardId, boards])
 
   useEffect(() => {
+    if (!activeBoard) {
+      setSelectedLeafNodeId(null)
+      return
+    }
+    const firstLeafId = getFirstLeafId(activeBoard.layout)
+    setSelectedLeafNodeId((prev) => prev || firstLeafId)
+  }, [activeBoard?.id, activeBoard?.layout])
+
+  useEffect(() => {
     if (!activeBoard) return
     runAllInBoard(activeBoard).catch(() => void 0)
   }, [activeBoardId])
@@ -565,6 +582,18 @@ ORDER BY reward_points DESC, score DESC`,
     mutateBoards((prev) =>
       prev.map((board) => (board.id === boardId ? { ...board, name: name || t("board.untitledBoard") } : board))
     )
+  }
+
+  const openRenameModal = () => {
+    if (!activeBoard) return
+    setRenameValue(activeBoard.name)
+    setRenameVisible(true)
+  }
+
+  const submitRenameBoard = () => {
+    if (!activeBoard) return
+    updateBoardName(activeBoard.id, renameValue.trim() || t("board.untitledBoard"))
+    setRenameVisible(false)
   }
 
   const addBoard = () => {
@@ -626,6 +655,11 @@ ORDER BY reward_points DESC, score DESC`,
         })
       })
     )
+  }
+
+  const splitSelectedLeaf = (direction: SplitDirection) => {
+    if (!activeBoard || !selectedLeafNodeId) return
+    addListBySplit(activeBoard.id, selectedLeafNodeId, direction)
   }
 
   const removeList = (boardId: string, listId: string) => {
@@ -874,10 +908,18 @@ ORDER BY reward_points DESC, score DESC`,
   const renderLeafPanel = (board: BoardConfig, leaf: LayoutLeafNode): React.JSX.Element => {
     const list = board.lists.find((item) => item.id === leaf.listId)
     if (!list) return <Empty description={t("common.noData")} />
+    const isSelected = selectedLeafNodeId === leaf.id
 
     return (
       <Card
-        style={{ height: "100%", backgroundColor: "var(--ss-card-bg)", border: "1px solid var(--ss-border-color)" }}
+        onClick={() => setSelectedLeafNodeId(leaf.id)}
+        style={{
+          height: "100%",
+          backgroundColor: "var(--ss-card-bg)",
+          border: isSelected ? "1px solid var(--ant-color-primary, #1677ff)" : "1px solid var(--ss-border-color)",
+          boxShadow: isSelected ? "0 8px 18px rgba(22, 119, 255, 0.14)" : undefined,
+          cursor: "pointer",
+        }}
         styles={{ body: { height: "100%", display: "flex", flexDirection: "column", padding: 12 } }}
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
@@ -887,12 +929,6 @@ ORDER BY reward_points DESC, score DESC`,
             </Button>
             <Button size="small" onClick={() => setEditingListId(list.id)} icon={<EditOutlined />}>
               {t("board.editList")}
-            </Button>
-            <Button size="small" disabled={!canManage} onClick={() => addListBySplit(board.id, leaf.id, "horizontal")}>
-              {t("board.splitHorizontal")}
-            </Button>
-            <Button size="small" disabled={!canManage} onClick={() => addListBySplit(board.id, leaf.id, "vertical")}>
-              {t("board.splitVertical")}
             </Button>
             <Popconfirm
               title={t("board.removeListConfirm")}
@@ -996,6 +1032,23 @@ ORDER BY reward_points DESC, score DESC`,
             <Tag color={canManage ? "success" : "default"}>{canManage ? t("board.editable") : t("board.readonly")}</Tag>
           </Space>
           <Space>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => splitSelectedLeaf("horizontal")}
+              disabled={!canManage || !activeBoard || !selectedLeafNodeId}
+            >
+              {t("board.splitHorizontal")}
+            </Button>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => splitSelectedLeaf("vertical")}
+              disabled={!canManage || !activeBoard || !selectedLeafNodeId}
+            >
+              {t("board.splitVertical")}
+            </Button>
+            <Button icon={<EditOutlined />} onClick={openRenameModal} disabled={!canManage || !activeBoard}>
+              {t("board.renameBoard")}
+            </Button>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchBoards}>
               {t("common.refresh")}
             </Button>
@@ -1016,34 +1069,17 @@ ORDER BY reward_points DESC, score DESC`,
 
         {activeBoard ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Card
-              title={t("board.boardConfig")}
-              extra={
-                <Space>
-                  <Button onClick={() => runAllInBoard(activeBoard)} icon={<PlayCircleOutlined />}>
-                    {t("board.runAll")}
-                  </Button>
-                  <Popconfirm title={t("board.removeBoardConfirm")} onConfirm={() => removeBoard(activeBoard.id)} disabled={!canManage}>
-                    <Button danger icon={<DeleteOutlined />} disabled={!canManage}>
-                      {t("board.removeBoard")}
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              }
-              style={{ backgroundColor: "var(--ss-card-bg)" }}
-            >
-              <Input
-                value={activeBoard.name}
-                onChange={(e) => updateBoardName(activeBoard.id, e.target.value.trim())}
-                placeholder={t("board.boardNamePlaceholder")}
-                disabled={!canManage}
-              />
-              {saving && (
-                <Typography.Text type="secondary" style={{ display: "block", marginTop: 8 }}>
-                  {t("board.saving")}
-                </Typography.Text>
-              )}
-            </Card>
+            <Space>
+              <Button onClick={() => runAllInBoard(activeBoard)} icon={<PlayCircleOutlined />}>
+                {t("board.runAll")}
+              </Button>
+              <Popconfirm title={t("board.removeBoardConfirm")} onConfirm={() => removeBoard(activeBoard.id)} disabled={!canManage}>
+                <Button danger icon={<DeleteOutlined />} disabled={!canManage}>
+                  {t("board.removeBoard")}
+                </Button>
+              </Popconfirm>
+              {saving && <Typography.Text type="secondary">{t("board.saving")}</Typography.Text>}
+            </Space>
 
             {renderBoardWorkspace()}
           </Space>
@@ -1053,6 +1089,17 @@ ORDER BY reward_points DESC, score DESC`,
           </Card>
         )}
       </Space>
+
+      <Modal
+        title={t("board.renameBoard")}
+        open={renameVisible}
+        onCancel={() => setRenameVisible(false)}
+        onOk={submitRenameBoard}
+        okText={t("common.confirm")}
+        cancelText={t("common.cancel")}
+      >
+        <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder={t("board.boardNamePlaceholder")} />
+      </Modal>
 
       <Modal
         title={t("board.sqlEditorTitle")}

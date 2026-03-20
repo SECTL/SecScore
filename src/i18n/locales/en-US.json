@@ -568,6 +568,7 @@
     "removeBoardConfirm": "Delete current board?",
     "boardConfig": "Board Config",
     "boardNamePlaceholder": "Enter board name",
+    "renameBoard": "Rename Board",
     "newBoard": "New Board",
     "untitledBoard": "Untitled Board",
     "addList": "Add Student List",

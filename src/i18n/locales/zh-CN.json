@@ -568,6 +568,7 @@
     "removeBoardConfirm": "确认删除当前看板？",
     "boardConfig": "看板配置",
     "boardNamePlaceholder": "输入看板名称",
+    "renameBoard": "重命名看板",
     "newBoard": "新看板",
     "untitledBoard": "未命名看板",
     "addList": "新增学生列表",
