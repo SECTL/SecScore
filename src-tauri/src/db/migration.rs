@@ -125,7 +125,10 @@ impl Migration {
         let db_backend = Self::get_db_backend(sqlite);
         let alter_sql = "ALTER TABLE students ADD COLUMN reward_points INTEGER DEFAULT 0";
         let result = conn
-            .execute(Statement::from_string(db_backend.clone(), alter_sql.to_string()))
+            .execute(Statement::from_string(
+                db_backend.clone(),
+                alter_sql.to_string(),
+            ))
             .await;
 
         match result {

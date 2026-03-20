@@ -1,7 +1,7 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
-use std::time::Duration;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 

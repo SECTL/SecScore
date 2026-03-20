@@ -25,8 +25,8 @@ pub async fn register_url_protocol(
     {
         use std::process::Command;
 
-        let exe_path = std::env::current_exe()
-            .map_err(|e| format!("Failed to get executable path: {}", e))?;
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("Failed to get executable path: {}", e))?;
 
         let exe_path_str = exe_path.to_string_lossy();
 
@@ -45,17 +45,11 @@ pub async fn register_url_protocol(
             protocol, exe_path_str
         );
 
-        let _ = Command::new("cmd")
-            .args(["/C", &reg_command])
-            .output();
+        let _ = Command::new("cmd").args(["/C", &reg_command]).output();
 
-        let _ = Command::new("cmd")
-            .args(["/C", &reg_command2])
-            .output();
+        let _ = Command::new("cmd").args(["/C", &reg_command2]).output();
 
-        let _ = Command::new("cmd")
-            .args(["/C", &reg_command3])
-            .output();
+        let _ = Command::new("cmd").args(["/C", &reg_command3]).output();
 
         let _ = app;
 
@@ -83,7 +77,9 @@ pub async fn register_url_protocol(
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         let _ = app;
-        Ok(IpcResponse::error("URL protocol registration is not supported on this platform"))
+        Ok(IpcResponse::error(
+            "URL protocol registration is not supported on this platform",
+        ))
     }
 }
 

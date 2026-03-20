@@ -37,15 +37,15 @@ pub async fn window_maximize(
     #[cfg(desktop)]
     {
         if let Some(window) = app.get_webview_window("main") {
-        let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
+            let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
 
-        if is_maximized {
-            window.unmaximize().map_err(|e| e.to_string())?;
-            Ok(false)
-        } else {
-            window.maximize().map_err(|e| e.to_string())?;
-            Ok(true)
-        }
+            if is_maximized {
+                window.unmaximize().map_err(|e| e.to_string())?;
+                Ok(false)
+            } else {
+                window.maximize().map_err(|e| e.to_string())?;
+                Ok(true)
+            }
         } else {
             Err("Window not found".to_string())
         }
@@ -83,7 +83,7 @@ pub async fn window_is_maximized(
     #[cfg(desktop)]
     {
         if let Some(window) = app.get_webview_window("main") {
-        window.is_maximized().map_err(|e| e.to_string())
+            window.is_maximized().map_err(|e| e.to_string())
         } else {
             Ok(false)
         }

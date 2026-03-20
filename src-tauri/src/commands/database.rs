@@ -5,8 +5,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::time::{timeout, Duration};
 
-use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
+use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::entities::{
     reasons, reward_redemptions, reward_settings, score_events, student_tags, students, tags,
 };
@@ -331,16 +331,17 @@ async fn load_student_tag_pairs(
         .all(conn)
         .await
         .map_err(|e| e.to_string())?;
-    let tag_rows = tags::Entity::find().all(conn).await.map_err(|e| e.to_string())?;
+    let tag_rows = tags::Entity::find()
+        .all(conn)
+        .await
+        .map_err(|e| e.to_string())?;
     let link_rows = student_tags::Entity::find()
         .all(conn)
         .await
         .map_err(|e| e.to_string())?;
 
-    let student_name_map: std::collections::HashMap<i32, String> = student_rows
-        .into_iter()
-        .map(|s| (s.id, s.name))
-        .collect();
+    let student_name_map: std::collections::HashMap<i32, String> =
+        student_rows.into_iter().map(|s| (s.id, s.name)).collect();
     let tag_name_map: std::collections::HashMap<i32, String> =
         tag_rows.into_iter().map(|t| (t.id, t.name)).collect();
 
@@ -486,7 +487,10 @@ async fn upsert_reason(
     }
 }
 
-async fn upsert_tag(conn: &sea_orm::DatabaseConnection, data: &TagNormalized) -> Result<bool, String> {
+async fn upsert_tag(
+    conn: &sea_orm::DatabaseConnection,
+    data: &TagNormalized,
+) -> Result<bool, String> {
     let existing = tags::Entity::find()
         .filter(tags::Column::Name.eq(&data.name))
         .one(conn)
@@ -702,11 +706,9 @@ async fn ensure_student_tag_pair(
         id: sea_orm::ActiveValue::NotSet,
         student_id: Set(student_row.id),
         tag_id: Set(tag_row.id),
-        created_at: Set(
-            chrono::Utc::now()
-                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                .to_string(),
-        ),
+        created_at: Set(chrono::Utc::now()
+            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+            .to_string()),
     }
     .insert(conn)
     .await
@@ -717,10 +719,7 @@ async fn ensure_student_tag_pair(
 async fn current_remote_and_local_from_state(
     app_handle: &AppHandle,
     app_state: &Arc<RwLock<AppState>>,
-) -> Result<
-    Option<(sea_orm::DatabaseConnection, sea_orm::DatabaseConnection)>,
-    String,
-> {
+) -> Result<Option<(sea_orm::DatabaseConnection, sea_orm::DatabaseConnection)>, String> {
     let (current_conn, db_type) = {
         let state_guard = app_state.read();
         let db = state_guard.db.read().clone();
@@ -1053,7 +1052,8 @@ pub async fn db_switch_connection(
 ) -> Result<IpcResponse<SwitchConnectionResult>, String> {
     check_admin_permission(&state)?;
 
-    let (db_type, saved_connection_string, saved_status, conn) = if connection_string.starts_with("postgres://")
+    let (db_type, saved_connection_string, saved_status, conn) = if connection_string
+        .starts_with("postgres://")
         || connection_string.starts_with("postgresql://")
     {
         let conn = timeout(
@@ -1390,7 +1390,8 @@ pub async fn db_sync(
     let db_guard = state_guard.db.read();
     if let Some(conn) = db_guard.as_ref() {
         let settings = state_guard.settings.read();
-        let status_json = settings.get_value(crate::services::settings::SettingsKey::PgConnectionStatus);
+        let status_json =
+            settings.get_value(crate::services::settings::SettingsKey::PgConnectionStatus);
         let db_type = match status_json {
             crate::services::settings::SettingsValue::Json(json) => json
                 .get("type")

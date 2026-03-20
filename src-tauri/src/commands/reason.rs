@@ -117,14 +117,14 @@ pub async fn reason_create(
             updated_at: Set(now),
         };
 
-                match new_reason.insert(conn).await {
-                    Ok(inserted) => {
-                        realtime_dual_write_sync(state.inner()).await?;
-                        Ok(IpcResponse::success(inserted.id))
-                    }
-                    Err(e) => Ok(IpcResponse::error(&format!(
-                        "Failed to create reason: {}",
-                        e
+        match new_reason.insert(conn).await {
+            Ok(inserted) => {
+                realtime_dual_write_sync(state.inner()).await?;
+                Ok(IpcResponse::success(inserted.id))
+            }
+            Err(e) => Ok(IpcResponse::error(&format!(
+                "Failed to create reason: {}",
+                e
             ))),
         }
     } else {
