@@ -40,6 +40,16 @@ interface BoardManagerProps {
   canManage: boolean
 }
 
+interface BoardStudentCardData {
+  key: string
+  name: string
+  score?: number
+  rewardPoints?: number
+  weekChange?: number
+  weekDeducted?: number
+  answeredCount?: number
+}
+
 const makeId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -110,6 +120,72 @@ const resolveSqlTemplate = (sql: string) => {
     .join(formatIso(at(-7)))
     .split("{{since_30d}}")
     .join(formatIso(at(-30)))
+}
+
+const parseNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+const pickStudentName = (row: Record<string, unknown>): string | null => {
+  const nameCandidate = row.student_name ?? row.name ?? row.studentName
+  if (typeof nameCandidate !== "string") return null
+  const name = nameCandidate.trim()
+  return name ? name : null
+}
+
+const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
+  const cards: BoardStudentCardData[] = []
+  rows.forEach((row, index) => {
+    if (!row || typeof row !== "object") return
+    const name = pickStudentName(row as Record<string, unknown>)
+    if (!name) return
+
+    const data = row as Record<string, unknown>
+    cards.push({
+      key: `${name}-${index}`,
+      name,
+      score: parseNumber(data.score),
+      rewardPoints: parseNumber(data.reward_points ?? data.rewardPoints),
+      weekChange: parseNumber(data.week_change ?? data.range_change ?? data.change),
+      weekDeducted: parseNumber(data.week_deducted ?? data.deducted),
+      answeredCount: parseNumber(data.answered_count ?? data.answer_count),
+    })
+  })
+
+  if (cards.every((item) => item.score === undefined)) return cards
+
+  return cards.sort((a, b) => (b.score ?? Number.MIN_SAFE_INTEGER) - (a.score ?? Number.MIN_SAFE_INTEGER))
+}
+
+const getAvatarText = (name: string): string => {
+  const chars = name.trim()
+  if (!chars) return "?"
+  const first = chars[0]
+  const second = chars.length > 1 ? chars[1] : ""
+  return `${first}${second}`.trim()
+}
+
+const getAvatarColor = (name: string): string => {
+  const palette = [
+    "#1677ff",
+    "#13c2c2",
+    "#52c41a",
+    "#faad14",
+    "#eb2f96",
+    "#722ed1",
+    "#2f54eb",
+    "#08979c",
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  }
+  return palette[hash % palette.length]
 }
 
 export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
@@ -481,6 +557,8 @@ ORDER BY reward_points DESC, score DESC`,
 
             {activeBoard.lists.map((list) => {
               const rows = resultMap[list.id] || []
+              const studentCards = toStudentCards(rows)
+              const useCardView = studentCards.length > 0
               const columns =
                 rows.length > 0
                   ? Object.keys(rows[0]).map((key) => ({
@@ -561,18 +639,119 @@ ORDER BY reward_points DESC, score DESC`,
                   )}
 
                   <div style={{ marginTop: 12 }}>
-                    <Table
-                      rowKey={(_, index) => `${list.id}-${index}`}
-                      dataSource={rows}
-                      columns={columns}
-                      loading={Boolean(runningIds[list.id])}
-                      locale={{
-                        emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} />,
-                      }}
-                      scroll={{ x: true }}
-                      pagination={{ pageSize: 20, showSizeChanger: false }}
-                      size="small"
-                    />
+                    {useCardView ? (
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                          gap: 12,
+                        }}
+                      >
+                        {studentCards.map((item, index) => {
+                          const avatarColor = getAvatarColor(item.name)
+                          const avatarText = getAvatarText(item.name)
+                          const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
+                          return (
+                            <Card
+                              key={item.key}
+                              style={{
+                                backgroundColor: "var(--ss-card-bg)",
+                                border: "1px solid var(--ss-border-color)",
+                                boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
+                                position: "relative",
+                              }}
+                              styles={{ body: { padding: "12px 14px" } }}
+                            >
+                              {rankBadge && (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: "-10px",
+                                    left: "-10px",
+                                    fontSize: "24px",
+                                  }}
+                                >
+                                  {rankBadge}
+                                </div>
+                              )}
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div
+                                  style={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: 12,
+                                    backgroundColor: avatarColor,
+                                    color: "#fff",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontWeight: 700,
+                                    boxShadow: `0 4px 10px ${avatarColor}40`,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {avatarText}
+                                </div>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 600,
+                                      color: "var(--ss-text-main)",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {item.name}
+                                  </div>
+                                  <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                    {item.score !== undefined && (
+                                      <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                                        总分: {item.score > 0 ? `+${item.score}` : item.score}
+                                      </Tag>
+                                    )}
+                                    {item.rewardPoints !== undefined && (
+                                      <Tag color="processing" style={{ margin: 0 }}>
+                                        奖励分: {item.rewardPoints}
+                                      </Tag>
+                                    )}
+                                    {item.weekChange !== undefined && (
+                                      <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                                        近7天: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
+                                      </Tag>
+                                    )}
+                                    {item.weekDeducted !== undefined && (
+                                      <Tag color="gold" style={{ margin: 0 }}>
+                                        近7天扣分: {item.weekDeducted}
+                                      </Tag>
+                                    )}
+                                    {item.answeredCount !== undefined && (
+                                      <Tag color="cyan" style={{ margin: 0 }}>
+                                        今日回答: {item.answeredCount}
+                                      </Tag>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </Card>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <Table
+                        rowKey={(_, index) => `${list.id}-${index}`}
+                        dataSource={rows}
+                        columns={columns}
+                        loading={Boolean(runningIds[list.id])}
+                        locale={{
+                          emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} />,
+                        }}
+                        scroll={{ x: true }}
+                        pagination={{ pageSize: 20, showSizeChanger: false }}
+                        size="small"
+                      />
+                    )}
                   </div>
                 </Card>
               )
