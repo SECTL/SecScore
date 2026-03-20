@@ -32,6 +32,15 @@ const safeWriteLog = (payload: {
 
 const patchConsole = () => {
   const c = window.console as any
+  const original = {
+    log: typeof c.log === "function" ? c.log.bind(c) : undefined,
+    info: typeof c.info === "function" ? c.info.bind(c) : undefined,
+    warn: typeof c.warn === "function" ? c.warn.bind(c) : undefined,
+    debug: typeof c.debug === "function" ? c.debug.bind(c) : undefined,
+    error: typeof c.error === "function" ? c.error.bind(c) : undefined,
+    trace: typeof c.trace === "function" ? c.trace.bind(c) : undefined,
+    table: typeof c.table === "function" ? c.table.bind(c) : undefined,
+  }
   const set = (name: string, fn: (...args: any[]) => void) => {
     try {
       c[name] = fn
@@ -40,18 +49,22 @@ const patchConsole = () => {
     }
   }
 
-  set("log", (...args: any[]) =>
+  set("log", (...args: any[]) => {
     safeWriteLog({ level: "info", message: String(args[0] ?? ""), meta: args.slice(1) })
-  )
-  set("info", (...args: any[]) =>
+    original.log?.(...args)
+  })
+  set("info", (...args: any[]) => {
     safeWriteLog({ level: "info", message: String(args[0] ?? ""), meta: args.slice(1) })
-  )
-  set("warn", (...args: any[]) =>
+    original.info?.(...args)
+  })
+  set("warn", (...args: any[]) => {
     safeWriteLog({ level: "warn", message: String(args[0] ?? ""), meta: args.slice(1) })
-  )
-  set("debug", (...args: any[]) =>
+    original.warn?.(...args)
+  })
+  set("debug", (...args: any[]) => {
     safeWriteLog({ level: "debug", message: String(args[0] ?? ""), meta: args.slice(1) })
-  )
+    original.debug?.(...args)
+  })
   set("error", (...args: any[]) => {
     const first = args[0]
     if (first instanceof Error) {
@@ -60,20 +73,24 @@ const patchConsole = () => {
         message: first.message,
         meta: { stack: first.stack, args: args.slice(1) },
       })
+      original.error?.(...args)
       return
     }
     safeWriteLog({ level: "error", message: String(first ?? ""), meta: args.slice(1) })
+    original.error?.(...args)
   })
-  set("trace", (...args: any[]) =>
+  set("trace", (...args: any[]) => {
     safeWriteLog({
       level: "debug",
       message: "console.trace",
       meta: { args, stack: new Error("console.trace").stack },
     })
-  )
-  set("table", (...args: any[]) =>
+    original.trace?.(...args)
+  })
+  set("table", (...args: any[]) => {
     safeWriteLog({ level: "info", message: "console.table", meta: args })
-  )
+    original.table?.(...args)
+  })
 }
 patchConsole()
 
