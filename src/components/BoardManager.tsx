@@ -955,7 +955,7 @@ ORDER BY reward_points DESC, score DESC`,
         }
       >
         {errorMap[list.id] && <Alert style={{ marginBottom: 12 }} type="error" message={errorMap[list.id]} showIcon />}
-        <div style={{ flex: 1, overflow: "hidden" }}>{renderStudentView(list)}</div>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>{renderStudentView(list)}</div>
       </Card>
     )
   }
