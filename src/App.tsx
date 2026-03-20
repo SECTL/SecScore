@@ -279,6 +279,44 @@ function MainContent(): React.JSX.Element {
     if (key === "settings") navigate("/settings")
   }
 
+  const resolveOrientationTargetSize = (nextPortraitMode: boolean) => {
+    const currentWidth = Math.max(1, Math.round(window.innerWidth || 0))
+    const currentHeight = Math.max(1, Math.round(window.innerHeight || 0))
+
+    // 切换横竖屏时优先以当前窗口尺寸“互换宽高”为目标，避免每次切换都朝固定大尺寸放大。
+    let targetWidth = nextPortraitMode ? currentHeight : currentWidth
+    let targetHeight = nextPortraitMode ? currentWidth : currentHeight
+
+    const rotatedWidth = nextPortraitMode ? currentHeight : currentWidth
+    const rotatedHeight = nextPortraitMode ? currentWidth : currentHeight
+    const ratio = rotatedWidth / Math.max(1, rotatedHeight)
+
+    const availableWidth = window.screen?.availWidth || window.innerWidth || 1200
+    const availableHeight = window.screen?.availHeight || window.innerHeight || 800
+    const maxWidth = Math.max(420, Math.round(availableWidth - 64))
+    const maxHeight = Math.max(520, Math.round(availableHeight - 64))
+
+    if (targetWidth > maxWidth) {
+      targetWidth = maxWidth
+      targetHeight = Math.max(1, Math.round(targetWidth / ratio))
+    }
+    if (targetHeight > maxHeight) {
+      targetHeight = maxHeight
+      targetWidth = Math.max(1, Math.round(targetHeight * ratio))
+    }
+
+    if (nextPortraitMode && targetHeight <= targetWidth) {
+      targetHeight = Math.min(maxHeight, targetWidth + 200)
+    } else if (!nextPortraitMode && targetWidth <= targetHeight) {
+      targetWidth = Math.min(maxWidth, targetHeight + 200)
+    }
+
+    return {
+      width: Math.max(420, Math.round(targetWidth)),
+      height: Math.max(520, Math.round(targetHeight)),
+    }
+  }
+
   const toggleOrientationMode = async () => {
     const api = (window as any).api
     if (!api) return
@@ -289,14 +327,15 @@ function MainContent(): React.JSX.Element {
       if (maximized) {
         await api.windowMaximize()
       }
+      const targetSize = resolveOrientationTargetSize(nextPortraitMode)
       if (nextPortraitMode) {
         await api.windowSetResizable(false)
-        await api.windowResize(940, 1600)
+        await api.windowResize(targetSize.width, targetSize.height)
         setSidebarCollapsed(true)
         setFloatingSidebarExpanded(false)
       } else {
         await api.windowSetResizable(true)
-        await api.windowResize(2560, 1440)
+        await api.windowResize(targetSize.width, targetSize.height)
         setSidebarCollapsed(false)
         setFloatingSidebarExpanded(false)
       }
