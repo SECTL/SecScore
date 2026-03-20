@@ -9,6 +9,7 @@ interface student {
   id: number
   name: string
   score: number
+  reward_points: number
   extra_json?: string | null
   avatarUrl?: string | null
   pinyinName?: string
@@ -32,6 +33,12 @@ interface scoreEvent {
   val_prev: number
   val_curr: number
   event_time: string
+}
+
+interface rewardSetting {
+  id: number
+  name: string
+  cost_points: number
 }
 
 type SortType = "alphabet" | "surname" | "score"
@@ -76,6 +83,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
+  const [rewards, setRewards] = useState<rewardSetting[]>([])
   const [loading, setLoading] = useState(false)
   const [sortType, setSortType] = useState<SortType>("alphabet")
   const [layoutType, setLayoutType] = useState<LayoutType>("grouped")
@@ -99,6 +107,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
+  const [rewardMode, setRewardMode] = useState(false)
+  const [rewardStudent, setRewardStudent] = useState<student | null>(null)
+  const [rewardModalVisible, setRewardModalVisible] = useState(false)
+  const [redeemLoading, setRedeemLoading] = useState(false)
   const longPressTimerRef = useRef<number | null>(null)
   const suppressClickRef = useRef(false)
   const fetchRequestIdRef = useRef(0)
@@ -137,9 +149,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     const requestId = ++fetchRequestIdRef.current
     logHome("fetchData:start", { requestId, silent })
     if (!silent) setLoading(true)
-    const [stuRes, reaRes] = await Promise.all([
+    const [stuRes, reaRes, rewRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
+      (window as any).api.rewardSettingQuery(),
     ])
     if (requestId !== fetchRequestIdRef.current) return
 
@@ -163,6 +176,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       setStudents(enrichedStudents)
     }
     if (reaRes.success) setReasons(reaRes.data)
+    if (rewRes.success) setRewards(rewRes.data)
     if (!silent) setLoading(false)
   }, [])
 
@@ -373,6 +387,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     return false
   }, [])
 
+  const getDisplayPoints = useCallback(
+    (s: student) => (rewardMode ? Number(s.reward_points || 0) : Number(s.score || 0)),
+    [rewardMode]
+  )
+
   const sortedStudents = useMemo(() => {
     const filtered = students.filter((s) => matchStudentName(s, searchKeyword))
 
@@ -393,11 +412,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           return surnameA.localeCompare(surnameB, "zh-CN")
         })
       case "score":
-        return filtered.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "zh-CN"))
+        return filtered.sort(
+          (a, b) => getDisplayPoints(b) - getDisplayPoints(a) || a.name.localeCompare(b.name, "zh-CN")
+        )
       default:
         return filtered
     }
-  }, [students, searchKeyword, sortType, matchStudentName])
+  }, [students, searchKeyword, sortType, matchStudentName, getDisplayPoints])
 
   const groupedStudents = useMemo(() => {
     if (sortType === "score" || (sortType === "alphabet" && searchKeyword)) {
@@ -479,6 +500,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       messageApi.error(t("common.readOnly"))
       return
     }
+    if (rewardMode) {
+      setRewardStudent(student)
+      setRewardModalVisible(true)
+      return
+    }
     if (batchMode) {
       setSelectedStudentIds((prev) =>
         prev.includes(student.id) ? prev.filter((id) => id !== student.id) : [...prev, student.id]
@@ -489,6 +515,62 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     setCustomScore(undefined)
     setReasonContent("")
     setOperationVisible(true)
+  }
+
+  const handleToggleRewardMode = () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    if (!rewardMode && rewards.length === 0) {
+      messageApi.warning(t("rewardExchange.noAffordableRewards"))
+      return
+    }
+    setRewardMode((prev) => !prev)
+    setBatchMode(false)
+    setSelectedStudentIds([])
+    setOperationVisible(false)
+    setQuickActionStudentId(null)
+    setRewardStudent(null)
+    setRewardModalVisible(false)
+  }
+
+  const affordableRewards = useMemo(() => {
+    if (!rewardStudent) return []
+    return rewards
+      .filter((r) => r.cost_points <= Number(rewardStudent.reward_points || 0))
+      .sort((a, b) => a.cost_points - b.cost_points || a.name.localeCompare(b.name, "zh-CN"))
+  }, [rewards, rewardStudent])
+
+  const handleRedeemReward = async (reward: rewardSetting) => {
+    if (!(window as any).api || !rewardStudent) return
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setRedeemLoading(true)
+    const res = await (window as any).api.rewardRedeem({
+      student_name: rewardStudent.name,
+      reward_id: reward.id,
+    })
+    setRedeemLoading(false)
+    if (res.success) {
+      messageApi.success(
+        t("rewardExchange.redeemSuccess", {
+          student: rewardStudent.name,
+          reward: reward.name,
+          points: reward.cost_points,
+        })
+      )
+      setRewardModalVisible(false)
+      setRewardStudent(null)
+      setRewardMode(false)
+      fetchData(true)
+      fetchLatestEvent()
+      emitDataUpdated("students")
+      return
+    }
+    messageApi.error(res.message || t("rewardExchange.redeemFailed"))
   }
 
   const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
@@ -621,6 +703,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }
 
   const startLongPress = (student: student) => {
+    if (rewardMode) return
     cancelLongPress()
     longPressTimerRef.current = window.setTimeout(() => {
       if (!canEdit) {
@@ -634,6 +717,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }
 
   const openQuickAction = (student: student) => {
+    if (rewardMode) return
     cancelLongPress()
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
@@ -644,6 +728,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }
 
   const handleQuickAdjust = (student: student, delta: number) => {
+    if (rewardMode) return
     const content = delta > 0 ? t("home.addPoints") : t("home.deductPoints")
     performSubmit([student], delta, content)
     setQuickActionStudentId(null)
@@ -890,10 +975,16 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                     </Tag>
                   )}
                   <Tag
-                    color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                    color={
+                      getDisplayPoints(student) > 0
+                        ? "success"
+                        : getDisplayPoints(student) < 0
+                          ? "error"
+                          : "default"
+                    }
                     style={{ fontWeight: "bold" }}
                   >
-                    {student.score > 0 ? `+${student.score}` : student.score}
+                    {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
                   </Tag>
                 </div>
               </div>
@@ -1035,10 +1126,12 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                 </Tag>
               )}
               <Tag
-                color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                color={
+                  getDisplayPoints(student) > 0 ? "success" : getDisplayPoints(student) < 0 ? "error" : "default"
+                }
                 style={{ fontWeight: "bold", marginInlineEnd: 0 }}
               >
-                {student.score > 0 ? `+${student.score}` : student.score}
+                {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
               </Tag>
             </Space>
           )}
@@ -1231,10 +1324,16 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
                   {student.name}
                 </div>
                 <Tag
-                  color={student.score > 0 ? "success" : student.score < 0 ? "error" : "default"}
+                  color={
+                    getDisplayPoints(student) > 0
+                      ? "success"
+                      : getDisplayPoints(student) < 0
+                        ? "error"
+                        : "default"
+                  }
                   style={{ fontWeight: "bold", marginInlineEnd: 0 }}
                 >
-                  {student.score > 0 ? `+${student.score}` : student.score}
+                  {getDisplayPoints(student) > 0 ? `+${getDisplayPoints(student)}` : getDisplayPoints(student)}
                 </Tag>
                 {isSelected && (
                   <Tag color="processing" style={{ marginInlineEnd: 0 }}>
@@ -1952,6 +2051,36 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     })
   }, [])
 
+  const batchToolbar = rewardMode
+    ? null
+    : !batchMode
+      ? (
+          <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
+            {t("home.multiSelect")}
+          </Button>
+        )
+      : (
+          <Space size={8} wrap>
+            <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
+              {t("home.selectAll")}
+            </Button>
+            <Button
+              onClick={handleClearSelectedStudents}
+              disabled={!canEdit || selectedStudentIds.length === 0}
+            >
+              {t("home.clearSelected")}
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleOpenBatchOperation}
+              disabled={!canEdit || selectedStudentIds.length === 0}
+            >
+              {t("home.batchOperate")}
+            </Button>
+            <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
+          </Space>
+        )
+
   return (
     <div
       style={{
@@ -2106,7 +2235,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             icon={<UndoOutlined />}
             onClick={handleUndoLastEvent}
             loading={undoLoading}
-            disabled={!canEdit || !latestEvent}
+            disabled={!canEdit || !latestEvent || rewardMode}
             title={
               latestEvent
                 ? t("home.undoLastHint", {
@@ -2118,31 +2247,10 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           >
             {t("home.undoLastAction")}
           </Button>
-          {!batchMode ? (
-            <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
-              {t("home.multiSelect")}
-            </Button>
-          ) : (
-            <Space size={8} wrap>
-              <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
-                {t("home.selectAll")}
-              </Button>
-              <Button
-                onClick={handleClearSelectedStudents}
-                disabled={!canEdit || selectedStudentIds.length === 0}
-              >
-                {t("home.clearSelected")}
-              </Button>
-              <Button
-                type="primary"
-                onClick={handleOpenBatchOperation}
-                disabled={!canEdit || selectedStudentIds.length === 0}
-              >
-                {t("home.batchOperate")}
-              </Button>
-              <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
-            </Space>
-          )}
+          <Button type={rewardMode ? "default" : "primary"} onClick={handleToggleRewardMode} disabled={!canEdit}>
+            {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+          </Button>
+          {batchToolbar}
         </Space>
       </div>
 
@@ -2182,6 +2290,54 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           renderGroupedCards()
         )}
       </div>
+
+      <Modal
+        title={t("rewardExchange.chooseRewardTitle", { name: rewardStudent?.name || "" })}
+        open={rewardModalVisible}
+        onCancel={() => {
+          setRewardModalVisible(false)
+          setRewardStudent(null)
+        }}
+        footer={null}
+        destroyOnHidden
+      >
+        {!rewardStudent ? null : (
+          <>
+            <div style={{ marginBottom: "12px", color: "var(--ss-text-secondary)", fontSize: 13 }}>
+              {t("rewardExchange.currentRewardPoints", { points: rewardStudent.reward_points })}
+            </div>
+            {affordableRewards.length === 0 ? (
+              <div style={{ color: "var(--ss-text-secondary)" }}>{t("rewardExchange.noAffordableRewards")}</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {affordableRewards.map((reward) => (
+                  <div
+                    key={reward.id}
+                    style={{
+                      border: "1px solid var(--ss-border-color)",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{reward.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)" }}>
+                        {t("rewardExchange.costLabel", { points: reward.cost_points })}
+                      </div>
+                    </div>
+                    <Button type="primary" loading={redeemLoading} onClick={() => handleRedeemReward(reward)}>
+                      {t("rewardExchange.redeemNow")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Modal>
 
       {isPortraitMode ? (
         <Drawer

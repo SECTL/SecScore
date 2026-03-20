@@ -13,7 +13,6 @@ const loadScoreManager = () => import("./ScoreManager")
 const loadLeaderboard = () => import("./Leaderboard")
 const loadSettlementHistory = () => import("./SettlementHistory")
 const loadAutoScoreManager = () => import("./AutoScoreManager")
-const loadRewardExchange = () => import("./RewardExchange")
 const loadRewardSettings = () => import("./RewardSettings")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
@@ -27,9 +26,6 @@ const SettlementHistory = lazy(() =>
 )
 const AutoScoreManager = lazy(() =>
   loadAutoScoreManager().then((m) => ({ default: m.AutoScoreManager }))
-)
-const RewardExchange = lazy(() =>
-  loadRewardExchange().then((m) => ({ default: m.RewardExchange }))
 )
 const RewardSettings = lazy(() =>
   loadRewardSettings().then((m) => ({ default: m.RewardSettings }))
@@ -45,7 +41,6 @@ const warmupRouteChunks = () =>
     loadLeaderboard(),
     loadSettlementHistory(),
     loadAutoScoreManager(),
-    loadRewardExchange(),
     loadRewardSettings(),
   ])
 
@@ -245,10 +240,6 @@ export function ContentArea({
             <Route path="/settlements" element={<SettlementHistory />} />
             <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
             <Route path="/auto-score" element={<AutoScoreManager />} />
-            <Route
-              path="/reward-exchange"
-              element={<RewardExchange canEdit={permission === "admin" || permission === "points"} />}
-            />
             <Route
               path="/reward-settings"
               element={<RewardSettings canEdit={permission === "admin"} />}

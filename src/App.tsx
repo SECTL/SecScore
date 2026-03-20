@@ -73,7 +73,6 @@ function MainContent(): React.JSX.Element {
     if (p.startsWith("/settlements")) return "settlements"
     if (p.startsWith("/reasons")) return "reasons"
     if (p.startsWith("/auto-score")) return "auto-score"
-    if (p.startsWith("/reward-exchange")) return "reward-exchange"
     if (p.startsWith("/reward-settings")) return "reward-settings"
     if (p.startsWith("/settings")) return "settings"
     return "home"
@@ -274,7 +273,6 @@ function MainContent(): React.JSX.Element {
     if (key === "settlements") navigate("/settlements")
     if (key === "reasons") navigate("/reasons")
     if (key === "auto-score") navigate("/auto-score")
-    if (key === "reward-exchange") navigate("/reward-exchange")
     if (key === "reward-settings") navigate("/reward-settings")
     if (key === "settings") navigate("/settings")
   }

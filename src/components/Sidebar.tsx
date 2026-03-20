@@ -9,7 +9,6 @@ import {
   FileTextOutlined,
   CloudOutlined,
   UploadOutlined,
-  GiftOutlined,
   AppstoreAddOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
@@ -167,11 +166,6 @@ export function Sidebar({
       key: "auto-score",
       icon: <SyncOutlined />,
       label: t("sidebar.autoScore"),
-    },
-    {
-      key: "reward-exchange",
-      icon: <GiftOutlined />,
-      label: t("sidebar.rewardExchange"),
     },
     {
       key: "reward-settings",
