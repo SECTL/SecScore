@@ -276,6 +276,27 @@
       "registerFailed": "注册失败",
       "installerRequired": "需要安装版 SecScore，开发模式下可能无效。"
     },
+    "mcp": {
+      "title": "MCP 服务",
+      "description": "管理内置 MCP HTTP 服务，供外部 MCP 客户端调用。",
+      "running": "运行中",
+      "stopped": "已停止",
+      "noUrl": "暂无地址",
+      "host": "主机",
+      "port": "端口",
+      "start": "启动",
+      "stop": "停止",
+      "refresh": "刷新状态",
+      "hint": "建议仅绑定到 127.0.0.1；启动后 MCP 入口为 http://host:port/mcp",
+      "hostRequired": "请输入 MCP 主机地址",
+      "portInvalid": "请输入有效端口（1-65535）",
+      "startSuccess": "MCP 服务启动成功",
+      "startFailed": "MCP 服务启动失败",
+      "stopSuccess": "MCP 服务已停止",
+      "stopFailed": "MCP 服务停止失败",
+      "startTimeout": "启动 MCP 服务超时，请稍后重试",
+      "stopTimeout": "停止 MCP 服务超时，请稍后重试"
+    },
     "app": {
       "title": "应用控制",
       "description": "快速重启或退出应用。",

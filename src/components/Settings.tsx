@@ -84,6 +84,20 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
   const [urlRegisterLoading, setUrlRegisterLoading] = useState(false)
   const [appQuitLoading, setAppQuitLoading] = useState(false)
   const [appRestartLoading, setAppRestartLoading] = useState(false)
+  const [mcpLoading, setMcpLoading] = useState(false)
+  const [mcpConfig, setMcpConfig] = useState<{ host: string; port: number }>({
+    host: "127.0.0.1",
+    port: 3901,
+  })
+  const [mcpStatus, setMcpStatus] = useState<{
+    is_running: boolean
+    config: { host: string; port: number }
+    url?: string | null
+  }>({
+    is_running: false,
+    config: { host: "127.0.0.1", port: 3901 },
+    url: null,
+  })
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -115,6 +129,21 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
   }
 
+  const loadMcpStatus = async () => {
+    if (!(window as any).api?.mcpServerStatus) return
+    try {
+      const res = await (window as any).api.mcpServerStatus()
+      if (res.success && res.data) {
+        setMcpStatus(res.data)
+        if (res.data.config?.host && res.data.config?.port) {
+          setMcpConfig({ host: res.data.config.host, port: res.data.config.port })
+        }
+      }
+    } catch {
+      // ignore status polling errors in settings page
+    }
+  }
+
   const loadAll = async () => {
     if (!(window as any).api) return
     const res = await (window as any).api.getAllSettings()
@@ -125,6 +154,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     }
     const authRes = await (window as any).api.authGetStatus()
     if (authRes.success && authRes.data) setSecurityStatus(authRes.data)
+    await loadMcpStatus()
   }
 
   useEffect(() => {
@@ -453,6 +483,61 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       })
     } catch (e: any) {
       messageApi.error(e?.message || t("settings.database.uploadFailed"))
+    }
+  }
+
+  const startMcpServer = async () => {
+    if (!(window as any).api?.mcpServerStart) return
+    const host = mcpConfig.host.trim()
+    const port = Number(mcpConfig.port)
+    if (!host) {
+      messageApi.warning(t("settings.mcp.hostRequired"))
+      return
+    }
+    if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+      messageApi.warning(t("settings.mcp.portInvalid"))
+      return
+    }
+
+    setMcpLoading(true)
+    try {
+      const res = await withTimeout(
+        (window as any).api.mcpServerStart({ host, port }),
+        10_000,
+        t("settings.mcp.startTimeout")
+      )
+      if (res.success) {
+        messageApi.success(t("settings.mcp.startSuccess"))
+      } else {
+        messageApi.error(res.message || t("settings.mcp.startFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.mcp.startFailed"))
+    } finally {
+      await loadMcpStatus()
+      setMcpLoading(false)
+    }
+  }
+
+  const stopMcpServer = async () => {
+    if (!(window as any).api?.mcpServerStop) return
+    setMcpLoading(true)
+    try {
+      const res = await withTimeout(
+        (window as any).api.mcpServerStop(),
+        10_000,
+        t("settings.mcp.stopTimeout")
+      )
+      if (res.success) {
+        messageApi.success(t("settings.mcp.stopSuccess"))
+      } else {
+        messageApi.error(res.message || t("settings.mcp.stopFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.mcp.stopFailed"))
+    } finally {
+      await loadMcpStatus()
+      setMcpLoading(false)
     }
   }
 
@@ -1055,6 +1140,76 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                 {t("settings.about.toggleDevTools")}
               </Button>
             </Space>
+          </div>
+          <Divider />
+          <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
+            {t("settings.mcp.title")}
+          </div>
+          <div style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}>
+            {t("settings.mcp.description")}
+          </div>
+          <Space style={{ marginBottom: "12px" }}>
+            <Tag color={mcpStatus.is_running ? "success" : "default"}>
+              {mcpStatus.is_running ? t("settings.mcp.running") : t("settings.mcp.stopped")}
+            </Tag>
+            {mcpStatus.url ? (
+              <Tag color="blue">{mcpStatus.url}</Tag>
+            ) : (
+              <Tag>{t("settings.mcp.noUrl")}</Tag>
+            )}
+          </Space>
+          <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
+            <Form.Item label={t("settings.mcp.host")}>
+              <Input
+                value={mcpConfig.host}
+                onChange={(e) => setMcpConfig((prev) => ({ ...prev, host: e.target.value }))}
+                disabled={!canAdmin || mcpStatus.is_running}
+                style={{ width: "280px" }}
+                placeholder="127.0.0.1"
+              />
+            </Form.Item>
+            <Form.Item label={t("settings.mcp.port")}>
+              <Input
+                value={String(mcpConfig.port)}
+                onChange={(e) => {
+                  const next = Number(e.target.value.replace(/[^\d]/g, ""))
+                  if (Number.isFinite(next) && next > 0) {
+                    setMcpConfig((prev) => ({ ...prev, port: next }))
+                  } else if (!e.target.value) {
+                    setMcpConfig((prev) => ({ ...prev, port: 0 }))
+                  }
+                }}
+                disabled={!canAdmin || mcpStatus.is_running}
+                style={{ width: "180px" }}
+                placeholder="3901"
+              />
+            </Form.Item>
+            <Form.Item label={t("common.operation")}>
+              <Space>
+                <Button
+                  type="primary"
+                  onClick={startMcpServer}
+                  loading={mcpLoading}
+                  disabled={!canAdmin || mcpStatus.is_running}
+                >
+                  {t("settings.mcp.start")}
+                </Button>
+                <Button
+                  danger
+                  onClick={stopMcpServer}
+                  loading={mcpLoading}
+                  disabled={!canAdmin || !mcpStatus.is_running}
+                >
+                  {t("settings.mcp.stop")}
+                </Button>
+                <Button onClick={loadMcpStatus} disabled={mcpLoading}>
+                  {t("settings.mcp.refresh")}
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+          <div style={{ color: "var(--ss-text-secondary)", marginTop: "-8px", fontSize: "12px" }}>
+            {t("settings.mcp.hint")}
           </div>
           <Divider />
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
