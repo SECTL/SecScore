@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Alert,
   Button,
   Card,
   Empty,
   Input,
+  Modal,
   Popconfirm,
   Select,
   Space,
@@ -14,8 +15,11 @@ import {
   Typography,
   message,
 } from "antd"
-import { DeleteOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
+import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
+
+type BoardStudentViewMode = "list" | "card" | "grid"
+type SplitDirection = "horizontal" | "vertical"
 
 interface StudentListConfig {
   id: string
@@ -24,10 +28,28 @@ interface StudentListConfig {
   viewMode: BoardStudentViewMode
 }
 
+interface LayoutLeafNode {
+  id: string
+  type: "leaf"
+  listId: string
+}
+
+interface LayoutSplitNode {
+  id: string
+  type: "split"
+  direction: SplitDirection
+  ratio: number
+  first: LayoutNode
+  second: LayoutNode
+}
+
+type LayoutNode = LayoutLeafNode | LayoutSplitNode
+
 interface BoardConfig {
   id: string
   name: string
   lists: StudentListConfig[]
+  layout: LayoutNode
 }
 
 interface BoardPreset {
@@ -41,8 +63,6 @@ interface BoardManagerProps {
   canManage: boolean
 }
 
-type BoardStudentViewMode = "list" | "card" | "grid"
-
 interface BoardStudentCardData {
   key: string
   name: string
@@ -53,10 +73,22 @@ interface BoardStudentCardData {
   answeredCount?: number
 }
 
+interface DragState {
+  boardId: string
+  splitNodeId: string
+  direction: SplitDirection
+  startRatio: number
+  startX: number
+  startY: number
+  containerSize: number
+}
+
 const makeId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const clampRatio = (value: number) => Math.max(0.15, Math.min(0.85, value))
 
 const getDefaultSql = () => `SELECT
   name AS student_name,
@@ -72,16 +104,90 @@ const createDefaultList = (): StudentListConfig => ({
   viewMode: "card",
 })
 
-const createDefaultBoard = (): BoardConfig => ({
+const createLeafForList = (listId: string): LayoutLeafNode => ({
   id: makeId(),
-  name: "默认看板",
-  lists: [createDefaultList()],
+  type: "leaf",
+  listId,
 })
+
+const createDefaultBoard = (): BoardConfig => {
+  const list = createDefaultList()
+  return {
+    id: makeId(),
+    name: "默认看板",
+    lists: [list],
+    layout: createLeafForList(list.id),
+  }
+}
+
+const collectLeafListIds = (node: LayoutNode, acc: string[] = []): string[] => {
+  if (node.type === "leaf") {
+    acc.push(node.listId)
+    return acc
+  }
+  collectLeafListIds(node.first, acc)
+  collectLeafListIds(node.second, acc)
+  return acc
+}
+
+const pruneLayout = (node: LayoutNode, validListIds: Set<string>): LayoutNode | null => {
+  if (node.type === "leaf") {
+    return validListIds.has(node.listId) ? node : null
+  }
+
+  const first = pruneLayout(node.first, validListIds)
+  const second = pruneLayout(node.second, validListIds)
+
+  if (!first && !second) return null
+  if (!first) return second
+  if (!second) return first
+
+  return { ...node, first, second }
+}
+
+const appendLeafToLayout = (layout: LayoutNode, listId: string): LayoutNode => {
+  return {
+    id: makeId(),
+    type: "split",
+    direction: "horizontal",
+    ratio: 0.5,
+    first: layout,
+    second: createLeafForList(listId),
+  }
+}
+
+const syncBoardLayout = (board: BoardConfig): BoardConfig => {
+  const validListIds = new Set(board.lists.map((item) => item.id))
+  const pruned = pruneLayout(board.layout, validListIds)
+
+  let layout = pruned
+  const used = new Set(layout ? collectLeafListIds(layout) : [])
+  const missing = board.lists.map((item) => item.id).filter((id) => !used.has(id))
+
+  if (!layout) {
+    const firstMissing = missing.shift() || board.lists[0]?.id
+    if (!firstMissing) {
+      const fallbackList = createDefaultList()
+      return {
+        ...board,
+        lists: [fallbackList],
+        layout: createLeafForList(fallbackList.id),
+      }
+    }
+    layout = createLeafForList(firstMissing)
+  }
+
+  for (const listId of missing) {
+    layout = appendLeafToLayout(layout, listId)
+  }
+
+  return { ...board, layout }
+}
 
 const normalizeBoards = (input: unknown): BoardConfig[] => {
   if (!Array.isArray(input)) return [createDefaultBoard()]
 
-  const boards: BoardConfig[] = input
+  const boards = input
     .map((board: any) => {
       const lists = Array.isArray(board?.lists)
         ? board.lists
@@ -98,11 +204,16 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
             .filter((list: StudentListConfig) => list.sql.trim())
         : []
 
-      return {
+      const normalizedLists = lists.length > 0 ? lists : [createDefaultList()]
+      const fallbackLayout = createLeafForList(normalizedLists[0].id)
+      const layout = board?.layout && typeof board.layout === "object" ? (board.layout as LayoutNode) : fallbackLayout
+
+      return syncBoardLayout({
         id: typeof board?.id === "string" && board.id.trim() ? board.id : makeId(),
         name: typeof board?.name === "string" && board.name.trim() ? board.name.trim() : "未命名看板",
-        lists: lists.length > 0 ? lists : [createDefaultList()],
-      }
+        lists: normalizedLists,
+        layout,
+      })
     })
     .filter((board: BoardConfig) => board.id)
 
@@ -196,6 +307,32 @@ const getAvatarColor = (name: string): string => {
   return palette[hash % palette.length]
 }
 
+const replaceLayoutNode = (node: LayoutNode, targetId: string, replacement: LayoutNode): LayoutNode => {
+  if (node.id === targetId) return replacement
+  if (node.type === "leaf") return node
+  return {
+    ...node,
+    first: replaceLayoutNode(node.first, targetId, replacement),
+    second: replaceLayoutNode(node.second, targetId, replacement),
+  }
+}
+
+const updateSplitRatio = (node: LayoutNode, splitNodeId: string, ratio: number): LayoutNode => {
+  if (node.type === "leaf") return node
+  if (node.id === splitNodeId) return { ...node, ratio: clampRatio(ratio) }
+  return {
+    ...node,
+    first: updateSplitRatio(node.first, splitNodeId, ratio),
+    second: updateSplitRatio(node.second, splitNodeId, ratio),
+  }
+}
+
+const removeListFromBoard = (board: BoardConfig, listId: string): BoardConfig => {
+  const nextLists = board.lists.filter((item) => item.id !== listId)
+  if (nextLists.length <= 0) return board
+  return syncBoardLayout({ ...board, lists: nextLists })
+}
+
 export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
   const { t } = useTranslation()
   const [messageApi, contextHolder] = message.useMessage()
@@ -206,6 +343,10 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
   const [runningIds, setRunningIds] = useState<Record<string, boolean>>({})
   const [resultMap, setResultMap] = useState<Record<string, any[]>>({})
   const [errorMap, setErrorMap] = useState<Record<string, string>>({})
+  const [dragState, setDragState] = useState<DragState | null>(null)
+  const [editingListId, setEditingListId] = useState<string | null>(null)
+
+  const panelRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const presets: BoardPreset[] = useMemo(
     () => [
@@ -265,6 +406,11 @@ ORDER BY reward_points DESC, score DESC`,
     [boards, activeBoardId]
   )
 
+  const editingList = useMemo(() => {
+    if (!activeBoard || !editingListId) return null
+    return activeBoard.lists.find((item) => item.id === editingListId) || null
+  }, [activeBoard, editingListId])
+
   const saveBoards = useCallback(
     async (nextBoards: BoardConfig[]) => {
       if (!(window as any).api || !canManage) return
@@ -282,6 +428,19 @@ ORDER BY reward_points DESC, score DESC`,
       }
     },
     [canManage, messageApi, t]
+  )
+
+  const mutateBoards = useCallback(
+    (updater: (prev: BoardConfig[]) => BoardConfig[]) => {
+      setBoards((prev) => {
+        const next = updater(prev).map(syncBoardLayout)
+        if (canManage) {
+          saveBoards(next).catch(() => void 0)
+        }
+        return next
+      })
+    },
+    [canManage, saveBoards]
   )
 
   const fetchBoards = useCallback(async () => {
@@ -349,9 +508,7 @@ ORDER BY reward_points DESC, score DESC`,
   }, [fetchBoards])
 
   useEffect(() => {
-    if (!activeBoardId && boards.length > 0) {
-      setActiveBoardId(boards[0].id)
-    }
+    if (!activeBoardId && boards.length > 0) setActiveBoardId(boards[0].id)
   }, [activeBoardId, boards])
 
   useEffect(() => {
@@ -362,9 +519,7 @@ ORDER BY reward_points DESC, score DESC`,
   useEffect(() => {
     const onDataUpdated = (e: Event) => {
       const detail = (e as CustomEvent<{ category?: string }>).detail
-      if (!detail?.category || detail.category === "all") {
-        runAllInBoard(activeBoard).catch(() => void 0)
-      }
+      if (!detail?.category || detail.category === "all") runAllInBoard(activeBoard).catch(() => void 0)
       if (detail.category === "students" || detail.category === "events" || detail.category === "reasons") {
         runAllInBoard(activeBoard).catch(() => void 0)
       }
@@ -374,15 +529,37 @@ ORDER BY reward_points DESC, score DESC`,
     return () => window.removeEventListener("ss:data-updated", onDataUpdated)
   }, [activeBoard, runAllInBoard])
 
-  const mutateBoards = (updater: (prev: BoardConfig[]) => BoardConfig[]) => {
-    setBoards((prev) => {
-      const next = updater(prev)
-      if (canManage) {
-        saveBoards(next).catch(() => void 0)
-      }
-      return next
-    })
-  }
+  useEffect(() => {
+    if (!dragState) return
+
+    const onMove = (event: MouseEvent) => {
+      const delta =
+        dragState.direction === "horizontal"
+          ? event.clientX - dragState.startX
+          : event.clientY - dragState.startY
+      const ratio = clampRatio(dragState.startRatio + delta / dragState.containerSize)
+
+      mutateBoards((prev) =>
+        prev.map((board) =>
+          board.id === dragState.boardId
+            ? {
+                ...board,
+                layout: updateSplitRatio(board.layout, dragState.splitNodeId, ratio),
+              }
+            : board
+        )
+      )
+    }
+
+    const onUp = () => setDragState(null)
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
+    return () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+  }, [dragState, mutateBoards])
 
   const updateBoardName = (boardId: string, name: string) => {
     mutateBoards((prev) =>
@@ -392,12 +569,8 @@ ORDER BY reward_points DESC, score DESC`,
 
   const addBoard = () => {
     if (!canManage) return
-    const newBoard: BoardConfig = {
-      id: makeId(),
-      name: t("board.newBoard"),
-      lists: [createDefaultList()],
-    }
-
+    const newBoard = createDefaultBoard()
+    newBoard.name = t("board.newBoard")
     mutateBoards((prev) => [...prev, newBoard])
     setActiveBoardId(newBoard.id)
   }
@@ -410,37 +583,54 @@ ORDER BY reward_points DESC, score DESC`,
         return prev
       }
       const next = prev.filter((board) => board.id !== boardId)
-      if (activeBoardId === boardId && next.length > 0) {
-        setActiveBoardId(next[0].id)
-      }
+      if (activeBoardId === boardId && next.length > 0) setActiveBoardId(next[0].id)
       return next
     })
   }
 
-  const addList = (boardId: string) => {
+  const addListBySplit = (boardId: string, leafNodeId: string, direction: SplitDirection) => {
     if (!canManage) return
+
     mutateBoards((prev) =>
-      prev.map((board) =>
-        board.id === boardId
-          ? {
-              ...board,
-              lists: [
-                ...board.lists,
-                {
-                  id: makeId(),
-                  name: t("board.newList"),
-                    sql: getDefaultSql(),
-                  viewMode: "card",
-                },
-              ],
-            }
-          : board
-      )
+      prev.map((board) => {
+        if (board.id !== boardId) return board
+
+        const newList: StudentListConfig = {
+          id: makeId(),
+          name: t("board.newList"),
+          sql: getDefaultSql(),
+          viewMode: "card",
+        }
+
+        const findLeaf = (node: LayoutNode): LayoutLeafNode | null => {
+          if (node.type === "leaf") return node.id === leafNodeId ? node : null
+          return findLeaf(node.first) || findLeaf(node.second)
+        }
+
+        const targetLeaf = findLeaf(board.layout)
+        if (!targetLeaf) return board
+
+        const replacement: LayoutSplitNode = {
+          id: makeId(),
+          type: "split",
+          direction,
+          ratio: 0.5,
+          first: targetLeaf,
+          second: createLeafForList(newList.id),
+        }
+
+        return syncBoardLayout({
+          ...board,
+          lists: [...board.lists, newList],
+          layout: replaceLayoutNode(board.layout, leafNodeId, replacement),
+        })
+      })
     )
   }
 
   const removeList = (boardId: string, listId: string) => {
     if (!canManage) return
+
     mutateBoards((prev) =>
       prev.map((board) => {
         if (board.id !== boardId) return board
@@ -448,10 +638,7 @@ ORDER BY reward_points DESC, score DESC`,
           messageApi.warning(t("board.keepAtLeastOneList"))
           return board
         }
-        return {
-          ...board,
-          lists: board.lists.filter((list) => list.id !== listId),
-        }
+        return removeListFromBoard(board, listId)
       })
     )
   }
@@ -462,14 +649,7 @@ ORDER BY reward_points DESC, score DESC`,
         board.id === boardId
           ? {
               ...board,
-              lists: board.lists.map((list) =>
-                list.id === listId
-                  ? {
-                      ...list,
-                      ...patch,
-                    }
-                  : list
-              ),
+              lists: board.lists.map((list) => (list.id === listId ? { ...list, ...patch } : list)),
             }
           : board
       )
@@ -486,6 +666,324 @@ ORDER BY reward_points DESC, score DESC`,
     })
   }
 
+  const renderStudentView = (list: StudentListConfig) => {
+    const rows = resultMap[list.id] || []
+    const studentCards = toStudentCards(rows)
+    const useCardView = studentCards.length > 0
+
+    const columns =
+      rows.length > 0
+        ? Object.keys(rows[0]).map((key) => ({
+            title: key,
+            dataIndex: key,
+            key,
+            ellipsis: true,
+            render: (value: any) => (value === null || value === undefined || value === "" ? "-" : String(value)),
+          }))
+        : []
+
+    if (!useCardView) {
+      return (
+        <Table
+          rowKey={(_, index) => `${list.id}-${index}`}
+          dataSource={rows}
+          columns={columns}
+          loading={Boolean(runningIds[list.id])}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} /> }}
+          scroll={{ x: true }}
+          pagination={{ pageSize: 20, showSizeChanger: false }}
+          size="small"
+        />
+      )
+    }
+
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            list.viewMode === "grid"
+              ? "repeat(auto-fill, minmax(102px, 1fr))"
+              : list.viewMode === "list"
+                ? "1fr"
+                : "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {studentCards.map((item, index) => {
+          const avatarColor = getAvatarColor(item.name)
+          const avatarText = getAvatarText(item.name)
+          const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
+          const primaryMetric =
+            item.score !== undefined
+              ? { label: t("board.metrics.totalScore"), value: item.score }
+              : item.rewardPoints !== undefined
+                ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
+                : item.weekChange !== undefined
+                  ? { label: t("board.metrics.weekChange"), value: item.weekChange }
+                  : item.weekDeducted !== undefined
+                    ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
+                    : item.answeredCount !== undefined
+                      ? { label: t("board.metrics.todayAnswered"), value: item.answeredCount }
+                      : null
+
+          return (
+            <div key={item.key} style={{ ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null) }}>
+              <Card
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "var(--ss-card-bg)",
+                  border: "1px solid var(--ss-border-color)",
+                  boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
+                  position: "relative",
+                }}
+                styles={{
+                  body: {
+                    padding: list.viewMode === "grid" ? "8px" : list.viewMode === "list" ? "10px 12px" : "12px 14px",
+                    height: list.viewMode === "grid" ? "100%" : undefined,
+                  },
+                }}
+              >
+                {rankBadge && (
+                  <div style={{ position: "absolute", top: "-10px", left: "-10px", fontSize: "24px" }}>{rankBadge}</div>
+                )}
+
+                {list.viewMode === "grid" ? (
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        backgroundColor: avatarColor,
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        fontSize: avatarText.length > 1 ? "14px" : "18px",
+                        boxShadow: `0 4px 10px ${avatarColor}40`,
+                      }}
+                    >
+                      {avatarText}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: 13,
+                          color: "var(--ss-text-main)",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {item.name}
+                      </div>
+                      {primaryMetric && (
+                        <Tag
+                          color={typeof primaryMetric.value === "number" && primaryMetric.value >= 0 ? "success" : "error"}
+                          style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+                        >
+                          {primaryMetric.label}:{primaryMetric.value > 0 ? `+${primaryMetric.value}` : primaryMetric.value}
+                        </Tag>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        backgroundColor: avatarColor,
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 700,
+                        boxShadow: `0 4px 10px ${avatarColor}40`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {avatarText}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: "var(--ss-text-main)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.name}
+                      </div>
+                      <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {item.score !== undefined && (
+                          <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                            {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
+                          </Tag>
+                        )}
+                        {item.rewardPoints !== undefined && (
+                          <Tag color="processing" style={{ margin: 0 }}>
+                            {t("board.metrics.rewardPoints")}: {item.rewardPoints}
+                          </Tag>
+                        )}
+                        {item.weekChange !== undefined && (
+                          <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                            {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
+                          </Tag>
+                        )}
+                        {item.weekDeducted !== undefined && (
+                          <Tag color="gold" style={{ margin: 0 }}>
+                            {t("board.metrics.weekDeducted")}: {item.weekDeducted}
+                          </Tag>
+                        )}
+                        {item.answeredCount !== undefined && (
+                          <Tag color="cyan" style={{ margin: 0 }}>
+                            {t("board.metrics.todayAnswered")}: {item.answeredCount}
+                          </Tag>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderLeafPanel = (board: BoardConfig, leaf: LayoutLeafNode): React.JSX.Element => {
+    const list = board.lists.find((item) => item.id === leaf.listId)
+    if (!list) return <Empty description={t("common.noData")} />
+
+    return (
+      <Card
+        style={{ height: "100%", backgroundColor: "var(--ss-card-bg)", border: "1px solid var(--ss-border-color)" }}
+        styles={{ body: { height: "100%", display: "flex", flexDirection: "column", padding: 12 } }}
+        title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
+        extra={
+          <Space size={6}>
+            <Button size="small" onClick={() => runListQuery(list)} loading={Boolean(runningIds[list.id])} icon={<PlayCircleOutlined />}>
+              {t("board.run")}
+            </Button>
+            <Button size="small" onClick={() => setEditingListId(list.id)} icon={<EditOutlined />}>
+              {t("board.editList")}
+            </Button>
+            <Button size="small" disabled={!canManage} onClick={() => addListBySplit(board.id, leaf.id, "horizontal")}>
+              {t("board.splitHorizontal")}
+            </Button>
+            <Button size="small" disabled={!canManage} onClick={() => addListBySplit(board.id, leaf.id, "vertical")}>
+              {t("board.splitVertical")}
+            </Button>
+            <Popconfirm
+              title={t("board.removeListConfirm")}
+              onConfirm={() => removeList(board.id, list.id)}
+              disabled={!canManage || board.lists.length <= 1}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} disabled={!canManage || board.lists.length <= 1}>
+                {t("board.removeList")}
+              </Button>
+            </Popconfirm>
+          </Space>
+        }
+      >
+        {errorMap[list.id] && <Alert style={{ marginBottom: 12 }} type="error" message={errorMap[list.id]} showIcon />}
+        <div style={{ flex: 1, overflow: "auto" }}>{renderStudentView(list)}</div>
+      </Card>
+    )
+  }
+
+  const renderLayoutNode = (board: BoardConfig, node: LayoutNode): React.JSX.Element => {
+    if (node.type === "leaf") {
+      return (
+        <div style={{ width: "100%", height: "100%", minHeight: 120 }}>
+          {renderLeafPanel(board, node)}
+        </div>
+      )
+    }
+
+    const isHorizontal = node.direction === "horizontal"
+    const handleSize = 8
+
+    return (
+      <div
+        ref={(el) => {
+          panelRefs.current[node.id] = el
+        }}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: isHorizontal ? "row" : "column",
+          minHeight: 200,
+        }}
+      >
+        <div style={{ flex: `${node.ratio} 1 0`, minWidth: 0, minHeight: 0 }}>{renderLayoutNode(board, node.first)}</div>
+        <div
+          onMouseDown={(event) => {
+            if (!canManage) return
+            const container = panelRefs.current[node.id]
+            if (!container) return
+            const rect = container.getBoundingClientRect()
+            const containerSize = isHorizontal ? rect.width : rect.height
+            if (containerSize <= 0) return
+
+            setDragState({
+              boardId: board.id,
+              splitNodeId: node.id,
+              direction: node.direction,
+              startRatio: node.ratio,
+              startX: event.clientX,
+              startY: event.clientY,
+              containerSize,
+            })
+          }}
+          style={{
+            flex: `0 0 ${handleSize}px`,
+            cursor: canManage ? (isHorizontal ? "col-resize" : "row-resize") : "default",
+            background: "var(--ss-border-color)",
+            borderRadius: 4,
+            opacity: canManage ? 0.85 : 0.5,
+            margin: isHorizontal ? "0 4px" : "4px 0",
+          }}
+          title={t("board.dragHandle")}
+        />
+        <div style={{ flex: `${1 - node.ratio} 1 0`, minWidth: 0, minHeight: 0 }}>
+          {renderLayoutNode(board, node.second)}
+        </div>
+      </div>
+    )
+  }
+
+  const renderBoardWorkspace = () => {
+    if (!activeBoard) return <Empty description={t("common.noData")} />
+
+    return (
+      <div style={{ height: "calc(100vh - 280px)", minHeight: 480 }}>
+        {renderLayoutNode(activeBoard, activeBoard.layout)}
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: 24 }}>
       {contextHolder}
@@ -495,9 +993,7 @@ ORDER BY reward_points DESC, score DESC`,
             <Typography.Title level={2} style={{ margin: 0, color: "var(--ss-text-main)" }}>
               {t("board.title")}
             </Typography.Title>
-            <Tag color={canManage ? "success" : "default"}>
-              {canManage ? t("board.editable") : t("board.readonly")}
-            </Tag>
+            <Tag color={canManage ? "success" : "default"}>{canManage ? t("board.editable") : t("board.readonly")}</Tag>
           </Space>
           <Space>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchBoards}>
@@ -509,21 +1005,13 @@ ORDER BY reward_points DESC, score DESC`,
           </Space>
         </Space>
 
-        <Alert
-          type="info"
-          showIcon
-          message={t("board.templateHint")}
-          description={t("board.templateDescription")}
-        />
+        <Alert type="info" showIcon message={t("board.templateHint")} description={t("board.templateDescription")} />
 
         <Tabs
           type="card"
           activeKey={activeBoardId}
           onChange={setActiveBoardId}
-          items={boards.map((board) => ({
-            key: board.id,
-            label: board.name,
-          }))}
+          items={boards.map((board) => ({ key: board.id, label: board.name }))}
         />
 
         {activeBoard ? (
@@ -535,14 +1023,7 @@ ORDER BY reward_points DESC, score DESC`,
                   <Button onClick={() => runAllInBoard(activeBoard)} icon={<PlayCircleOutlined />}>
                     {t("board.runAll")}
                   </Button>
-                  <Button onClick={() => addList(activeBoard.id)} icon={<PlusOutlined />} disabled={!canManage}>
-                    {t("board.addList")}
-                  </Button>
-                  <Popconfirm
-                    title={t("board.removeBoardConfirm")}
-                    onConfirm={() => removeBoard(activeBoard.id)}
-                    disabled={!canManage}
-                  >
+                  <Popconfirm title={t("board.removeBoardConfirm")} onConfirm={() => removeBoard(activeBoard.id)} disabled={!canManage}>
                     <Button danger icon={<DeleteOutlined />} disabled={!canManage}>
                       {t("board.removeBoard")}
                     </Button>
@@ -564,348 +1045,7 @@ ORDER BY reward_points DESC, score DESC`,
               )}
             </Card>
 
-            {activeBoard.lists.map((list) => {
-              const rows = resultMap[list.id] || []
-              const studentCards = toStudentCards(rows)
-              const useCardView = studentCards.length > 0
-              const columns =
-                rows.length > 0
-                  ? Object.keys(rows[0]).map((key) => ({
-                      title: key,
-                      dataIndex: key,
-                      key,
-                      ellipsis: true,
-                      render: (value: any) =>
-                        value === null || value === undefined || value === "" ? "-" : String(value),
-                    }))
-                  : []
-
-              return (
-                <Card
-                  key={list.id}
-                  title={
-                    <Input
-                      value={list.name}
-                      onChange={(e) => updateList(activeBoard.id, list.id, { name: e.target.value })}
-                      placeholder={t("board.listNamePlaceholder")}
-                      disabled={!canManage}
-                    />
-                  }
-                  extra={
-                    <Space>
-                      <Select
-                        style={{ width: 260 }}
-                        placeholder={t("board.applyPreset")}
-                        options={presets.map((preset) => ({
-                          value: preset.id,
-                          label: `${preset.name} · ${preset.description}`,
-                        }))}
-                        onChange={(presetId) => applyPreset(activeBoard.id, list.id, presetId)}
-                        disabled={!canManage}
-                      />
-                      <Select
-                        style={{ width: 140 }}
-                        value={list.viewMode}
-                        onChange={(viewMode: BoardStudentViewMode) =>
-                          updateList(activeBoard.id, list.id, { viewMode })
-                        }
-                        options={[
-                          { value: "list", label: t("board.viewModes.list") },
-                          { value: "card", label: t("board.viewModes.card") },
-                          { value: "grid", label: t("board.viewModes.grid") },
-                        ]}
-                        disabled={!canManage}
-                      />
-                      <Button
-                        type="primary"
-                        icon={<PlayCircleOutlined />}
-                        loading={Boolean(runningIds[list.id])}
-                        onClick={() => runListQuery(list)}
-                      >
-                        {t("board.run")}
-                      </Button>
-                      <Popconfirm
-                        title={t("board.removeListConfirm")}
-                        onConfirm={() => removeList(activeBoard.id, list.id)}
-                        disabled={!canManage}
-                      >
-                        <Button
-                          danger
-                          icon={<DeleteOutlined />}
-                          disabled={!canManage || activeBoard.lists.length <= 1}
-                        >
-                          {t("board.removeList")}
-                        </Button>
-                      </Popconfirm>
-                    </Space>
-                  }
-                  style={{ backgroundColor: "var(--ss-card-bg)" }}
-                >
-                  <Input.TextArea
-                    value={list.sql}
-                    autoSize={{ minRows: 6, maxRows: 12 }}
-                    onChange={(e) => updateList(activeBoard.id, list.id, { sql: e.target.value })}
-                    disabled={!canManage}
-                    spellCheck={false}
-                    placeholder={t("board.sqlPlaceholder")}
-                    style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
-                  />
-
-                  {errorMap[list.id] && (
-                    <Alert
-                      style={{ marginTop: 12 }}
-                      type="error"
-                      message={errorMap[list.id]}
-                      showIcon
-                    />
-                  )}
-
-                  <div style={{ marginTop: 12 }}>
-                    {useCardView ? (
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            list.viewMode === "grid"
-                              ? "repeat(auto-fill, minmax(102px, 1fr))"
-                              : list.viewMode === "list"
-                                ? "1fr"
-                                : "repeat(auto-fill, minmax(220px, 1fr))",
-                          gap: 12,
-                        }}
-                      >
-                        {studentCards.map((item, index) => {
-                          const avatarColor = getAvatarColor(item.name)
-                          const avatarText = getAvatarText(item.name)
-                          const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
-                          const gridPrimaryValue =
-                            item.score !== undefined
-                              ? item.score
-                              : item.rewardPoints !== undefined
-                                ? item.rewardPoints
-                                : item.weekChange !== undefined
-                                  ? item.weekChange
-                                  : item.weekDeducted !== undefined
-                                    ? -item.weekDeducted
-                                    : item.answeredCount
-
-                          const gridPrimaryLabel =
-                            item.score !== undefined
-                              ? t("board.metrics.totalScore")
-                              : item.rewardPoints !== undefined
-                                ? t("board.metrics.rewardPoints")
-                                : item.weekChange !== undefined
-                                  ? t("board.metrics.weekChange")
-                                  : item.weekDeducted !== undefined
-                                    ? t("board.metrics.weekDeducted")
-                                    : item.answeredCount !== undefined
-                                      ? t("board.metrics.todayAnswered")
-                                      : null
-
-                          return (
-                            <div
-                              key={item.key}
-                              style={{
-                                ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null),
-                                position: "relative",
-                              }}
-                            >
-                              <Card
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  backgroundColor: "var(--ss-card-bg)",
-                                  border: "1px solid var(--ss-border-color)",
-                                  boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
-                                  position: "relative",
-                                }}
-                                styles={{
-                                  body: {
-                                    padding:
-                                      list.viewMode === "grid"
-                                        ? "8px"
-                                        : list.viewMode === "list"
-                                          ? "10px 12px"
-                                          : "12px 14px",
-                                    height: list.viewMode === "grid" ? "100%" : undefined,
-                                  },
-                                }}
-                              >
-                                {rankBadge && (
-                                  <div
-                                    style={{
-                                      position: "absolute",
-                                      top: "-10px",
-                                      left: "-10px",
-                                      fontSize: "24px",
-                                    }}
-                                  >
-                                    {rankBadge}
-                                  </div>
-                                )}
-                                {list.viewMode === "grid" ? (
-                                  <div
-                                    style={{
-                                      height: "100%",
-                                      display: "flex",
-                                      flexDirection: "column",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      gap: 8,
-                                      textAlign: "center",
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        width: 42,
-                                        height: 42,
-                                        borderRadius: 12,
-                                        backgroundColor: avatarColor,
-                                        color: "#fff",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontWeight: 700,
-                                        fontSize: avatarText.length > 1 ? "14px" : "18px",
-                                        boxShadow: `0 4px 10px ${avatarColor}40`,
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      {avatarText}
-                                    </div>
-                                    <div
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: 6,
-                                        width: "100%",
-                                        minWidth: 0,
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          fontWeight: 600,
-                                          fontSize: 13,
-                                          color: "var(--ss-text-main)",
-                                          maxWidth: "100%",
-                                          whiteSpace: "nowrap",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                        }}
-                                      >
-                                        {item.name}
-                                      </div>
-                                      {gridPrimaryValue !== undefined && gridPrimaryLabel && (
-                                        <Tag
-                                          color={gridPrimaryValue >= 0 ? "success" : "error"}
-                                          style={{ fontWeight: "bold", marginInlineEnd: 0 }}
-                                        >
-                                          {gridPrimaryLabel}:{gridPrimaryValue > 0 ? `+${gridPrimaryValue}` : gridPrimaryValue}
-                                        </Tag>
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      flexDirection: "row",
-                                      gap: 10,
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        width: 42,
-                                        height: 42,
-                                        borderRadius: 12,
-                                        backgroundColor: avatarColor,
-                                        color: "#fff",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontWeight: 700,
-                                        boxShadow: `0 4px 10px ${avatarColor}40`,
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      {avatarText}
-                                    </div>
-                                    <div style={{ minWidth: 0, flex: 1, width: "100%" }}>
-                                      <div
-                                        style={{
-                                          fontSize: 15,
-                                          fontWeight: 600,
-                                          color: "var(--ss-text-main)",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {item.name}
-                                      </div>
-                                      <div
-                                        style={{
-                                          marginTop: 4,
-                                          display: "flex",
-                                          flexWrap: "wrap",
-                                          gap: 6,
-                                          justifyContent: "flex-start",
-                                        }}
-                                      >
-                                        {item.score !== undefined && (
-                                          <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                            {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
-                                          </Tag>
-                                        )}
-                                        {item.rewardPoints !== undefined && (
-                                          <Tag color="processing" style={{ margin: 0 }}>
-                                            {t("board.metrics.rewardPoints")}: {item.rewardPoints}
-                                          </Tag>
-                                        )}
-                                        {item.weekChange !== undefined && (
-                                          <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                                            {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
-                                          </Tag>
-                                        )}
-                                        {item.weekDeducted !== undefined && (
-                                          <Tag color="gold" style={{ margin: 0 }}>
-                                            {t("board.metrics.weekDeducted")}: {item.weekDeducted}
-                                          </Tag>
-                                        )}
-                                        {item.answeredCount !== undefined && (
-                                          <Tag color="cyan" style={{ margin: 0 }}>
-                                            {t("board.metrics.todayAnswered")}: {item.answeredCount}
-                                          </Tag>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </Card>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <Table
-                        rowKey={(_, index) => `${list.id}-${index}`}
-                        dataSource={rows}
-                        columns={columns}
-                        loading={Boolean(runningIds[list.id])}
-                        locale={{
-                          emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} />,
-                        }}
-                        scroll={{ x: true }}
-                        pagination={{ pageSize: 20, showSizeChanger: false }}
-                        size="small"
-                      />
-                    )}
-                  </div>
-                </Card>
-              )
-            })}
+            {renderBoardWorkspace()}
           </Space>
         ) : (
           <Card>
@@ -913,6 +1053,56 @@ ORDER BY reward_points DESC, score DESC`,
           </Card>
         )}
       </Space>
+
+      <Modal
+        title={t("board.sqlEditorTitle")}
+        open={Boolean(editingList)}
+        onCancel={() => setEditingListId(null)}
+        onOk={() => setEditingListId(null)}
+        okText={t("common.confirm")}
+        cancelText={t("common.cancel")}
+        width={860}
+      >
+        {editingList && activeBoard && (
+          <Space direction="vertical" style={{ width: "100%" }} size={12}>
+            <Input
+              value={editingList.name}
+              onChange={(e) => updateList(activeBoard.id, editingList.id, { name: e.target.value })}
+              placeholder={t("board.listNamePlaceholder")}
+              disabled={!canManage}
+            />
+            <Space>
+              <Select
+                style={{ width: 260 }}
+                placeholder={t("board.applyPreset")}
+                options={presets.map((preset) => ({ value: preset.id, label: `${preset.name} · ${preset.description}` }))}
+                onChange={(presetId) => applyPreset(activeBoard.id, editingList.id, presetId)}
+                disabled={!canManage}
+              />
+              <Select
+                style={{ width: 160 }}
+                value={editingList.viewMode}
+                onChange={(viewMode: BoardStudentViewMode) => updateList(activeBoard.id, editingList.id, { viewMode })}
+                options={[
+                  { value: "list", label: t("board.viewModes.list") },
+                  { value: "card", label: t("board.viewModes.card") },
+                  { value: "grid", label: t("board.viewModes.grid") },
+                ]}
+                disabled={!canManage}
+              />
+            </Space>
+            <Input.TextArea
+              value={editingList.sql}
+              autoSize={{ minRows: 10, maxRows: 18 }}
+              onChange={(e) => updateList(activeBoard.id, editingList.id, { sql: e.target.value })}
+              disabled={!canManage}
+              spellCheck={false}
+              placeholder={t("board.sqlPlaceholder")}
+              style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
+            />
+          </Space>
+        )}
+      </Modal>
     </div>
   )
 }
