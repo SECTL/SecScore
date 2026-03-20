@@ -108,9 +108,9 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const logHome = (message: string, meta?: Record<string, unknown>) => {
     try {
       if (meta) {
-        console.info(`[Home] ${message}`, meta)
+        console.error(`[Home][Diag] ${message}`, meta)
       } else {
-        console.info(`[Home] ${message}`)
+        console.error(`[Home][Diag] ${message}`)
       }
     } catch {
       void 0

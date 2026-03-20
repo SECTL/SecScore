@@ -177,7 +177,7 @@ pub async fn event_create(
                 {
                     let state_guard = state.read();
                     let logger = state_guard.logger.read();
-                    logger.info_with_meta(
+                    logger.error_with_meta(
                         "event_create:committed",
                         json!({
                             "student_name": student_name,
@@ -191,7 +191,7 @@ pub async fn event_create(
                 {
                     let state_guard = state.read();
                     let logger = state_guard.logger.read();
-                    logger.info_with_meta(
+                    logger.error_with_meta(
                         "event_create:sync_done",
                         json!({
                             "student_name": student_name,
