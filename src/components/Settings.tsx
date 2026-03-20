@@ -27,7 +27,11 @@ type appSettings = {
   auto_score_enabled?: boolean
 }
 
-const withTimeout = async (promise: Promise<any>, ms: number, timeoutMessage: string): Promise<any> => {
+const withTimeout = async (
+  promise: Promise<any>,
+  ms: number,
+  timeoutMessage: string
+): Promise<any> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race<any>([
@@ -397,7 +401,11 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
     if (!(window as any).api) return
     try {
       const statusRes = await (window as any).api.dbGetStatus()
-      if (!statusRes.success || !statusRes.data?.connected || statusRes.data?.type !== "postgresql") {
+      if (
+        !statusRes.success ||
+        !statusRes.data?.connected ||
+        statusRes.data?.type !== "postgresql"
+      ) {
         messageApi.warning(t("settings.database.uploadNeedRemote"))
         return
       }
@@ -408,7 +416,9 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         "同步预检查超时，请稍后重试"
       )
       if (!previewRes.success || !previewRes.data?.can_sync) {
-        messageApi.error(previewRes.message || previewRes.data?.message || t("settings.database.uploadFailed"))
+        messageApi.error(
+          previewRes.message || previewRes.data?.message || t("settings.database.uploadFailed")
+        )
         return
       }
       if (!previewRes.data.need_sync) {
@@ -434,9 +444,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
               "执行同步超时，请稍后重试"
             )
             if (applyRes.success && applyRes.data?.success) {
-              messageApi.success(
-                applyRes.data?.message || t("settings.database.uploadSuccess")
-              )
+              messageApi.success(applyRes.data?.message || t("settings.database.uploadSuccess"))
               emitDataUpdated("all")
               await loadAll()
             } else {
@@ -1060,7 +1068,9 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
             {t("settings.app.title")}
           </div>
-          <div style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}>
+          <div
+            style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}
+          >
             {t("settings.app.description")}
           </div>
           <div style={{ marginTop: "8px" }}>

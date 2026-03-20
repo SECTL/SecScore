@@ -105,14 +105,19 @@ export const RewardSettings: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       : await (window as any).api.rewardSettingCreate(payload)
 
     if (res.success) {
-      messageApi.success(editing ? t("rewardSettings.updateSuccess") : t("rewardSettings.createSuccess"))
+      messageApi.success(
+        editing ? t("rewardSettings.updateSuccess") : t("rewardSettings.createSuccess")
+      )
       setVisible(false)
       form.resetFields()
       setEditing(null)
       fetchRewards()
       emitDataUpdated()
     } else {
-      messageApi.error(res.message || (editing ? t("rewardSettings.updateFailed") : t("rewardSettings.createFailed")))
+      messageApi.error(
+        res.message ||
+          (editing ? t("rewardSettings.updateFailed") : t("rewardSettings.createFailed"))
+      )
     }
   }
 
@@ -196,7 +201,11 @@ export const RewardSettings: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             name="cost_points"
             rules={[{ required: true, message: t("rewardSettings.costRequired") }]}
           >
-            <InputNumber min={1} style={{ width: "100%" }} placeholder={t("rewardSettings.costPlaceholder")} />
+            <InputNumber
+              min={1}
+              style={{ width: "100%" }}
+              placeholder={t("rewardSettings.costPlaceholder")}
+            />
           </Form.Item>
         </Form>
       </Modal>

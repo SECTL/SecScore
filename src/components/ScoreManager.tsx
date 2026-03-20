@@ -296,7 +296,9 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   <Button
                     size="small"
                     onClick={handleClearSelectedStudents}
-                    disabled={!selectedStudentNames || selectedStudentNames.length === 0 || !canEdit}
+                    disabled={
+                      !selectedStudentNames || selectedStudentNames.length === 0 || !canEdit
+                    }
                   >
                     {t("score.clearSelectedStudents")}
                   </Button>

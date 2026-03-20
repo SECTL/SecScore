@@ -34,7 +34,11 @@ interface reasonItem {
 
 const deepClone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T
 
-const withTimeout = async (promise: Promise<any>, ms: number, timeoutMessage: string): Promise<any> => {
+const withTimeout = async (
+  promise: Promise<any>,
+  ms: number,
+  timeoutMessage: string
+): Promise<any> => {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race<any>([
@@ -115,17 +119,22 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const steps: oobeStep[] = ["entry", "language", "theme", "password", "students", "reasons", "start"]
+  const steps: oobeStep[] = [
+    "entry",
+    "language",
+    "theme",
+    "password",
+    "students",
+    "reasons",
+    "start",
+  ]
   const stepIndex = steps.indexOf(currentStep) + 1
   const totalSteps = steps.length
 
   const primaryColor = workingTheme?.config?.tdesign?.brandColor || "#1677FF"
   const isDark = workingTheme?.mode === "dark"
 
-  const showOobeMessage = (
-    type: "success" | "error" | "warning" | "info",
-    content: string
-  ) => {
+  const showOobeMessage = (type: "success" | "error" | "warning" | "info", content: string) => {
     messageApi.open({
       type,
       content,
@@ -392,7 +401,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         "同步预检查超时，请稍后重试"
       )
       if (!previewRes?.success || !previewRes?.data?.can_sync) {
-        throw new Error(previewRes?.message || previewRes?.data?.message || t("settings.database.uploadFailed"))
+        throw new Error(
+          previewRes?.message || previewRes?.data?.message || t("settings.database.uploadFailed")
+        )
       }
 
       if (previewRes?.data?.need_sync) {
@@ -403,7 +414,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         )
         if (!syncApplyRes?.success || !syncApplyRes?.data?.success) {
           throw new Error(
-            syncApplyRes?.data?.message || syncApplyRes?.message || t("settings.database.uploadFailed")
+            syncApplyRes?.data?.message ||
+              syncApplyRes?.message ||
+              t("settings.database.uploadFailed")
           )
         }
       }
@@ -942,7 +955,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
             }}
           >
             <div style={{ display: "flex", gap: 8 }}>
-              {currentStep !== "language" && <Button onClick={handlePrev}>{t("common.prev")}</Button>}
+              {currentStep !== "language" && (
+                <Button onClick={handlePrev}>{t("common.prev")}</Button>
+              )}
               {currentStep !== "start" && <Button onClick={handleSkip}>{t("oobe.skip")}</Button>}
             </div>
 

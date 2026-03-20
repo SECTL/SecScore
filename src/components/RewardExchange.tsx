@@ -78,7 +78,10 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }, [fetchData])
 
   const sortedStudents = useMemo(
-    () => [...students].sort((a, b) => b.reward_points - a.reward_points || a.name.localeCompare(b.name, "zh-CN")),
+    () =>
+      [...students].sort(
+        (a, b) => b.reward_points - a.reward_points || a.name.localeCompare(b.name, "zh-CN")
+      ),
     [students]
   )
 
@@ -128,7 +131,12 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const columns: ColumnsType<RedemptionItem> = [
-    { title: t("rewardExchange.recordStudent"), dataIndex: "student_name", key: "student_name", width: 120 },
+    {
+      title: t("rewardExchange.recordStudent"),
+      dataIndex: "student_name",
+      key: "student_name",
+      width: 120,
+    },
     { title: t("rewardExchange.recordReward"), dataIndex: "reward_name", key: "reward_name" },
     {
       title: t("rewardExchange.recordCost"),
@@ -149,7 +157,14 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   return (
     <div style={{ padding: "24px" }}>
       {contextHolder}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "16px",
+        }}
+      >
         <h2 style={{ margin: 0, color: "var(--ss-text-main)" }}>{t("rewardExchange.title")}</h2>
         <Button
           type={exchangeMode ? "default" : "primary"}
@@ -187,7 +202,9 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               onClick={() => handleStudentClick(student)}
               style={{
                 cursor: exchangeMode ? "pointer" : "default",
-                border: exchangeMode ? "1px solid var(--ant-color-primary, #1677ff)" : "1px solid var(--ss-border-color)",
+                border: exchangeMode
+                  ? "1px solid var(--ant-color-primary, #1677ff)"
+                  : "1px solid var(--ss-border-color)",
               }}
               bodyStyle={{ padding: "12px" }}
             >
@@ -196,7 +213,9 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {points > 0 ? `+${points}` : points}
               </Tag>
               <div style={{ marginTop: 8, fontSize: 12, color: "var(--ss-text-secondary)" }}>
-                {exchangeMode ? t("rewardExchange.remainingRewardPoints") : t("rewardExchange.currentScore")}
+                {exchangeMode
+                  ? t("rewardExchange.remainingRewardPoints")
+                  : t("rewardExchange.currentScore")}
               </div>
             </Card>
           )
@@ -228,11 +247,15 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               {t("rewardExchange.currentRewardPoints", { points: selectedStudent.reward_points })}
             </div>
             {affordableRewards.length === 0 ? (
-              <div style={{ color: "var(--ss-text-secondary)" }}>{t("rewardExchange.noAffordableRewards")}</div>
+              <div style={{ color: "var(--ss-text-secondary)" }}>
+                {t("rewardExchange.noAffordableRewards")}
+              </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {affordableRewards
-                  .sort((a, b) => a.cost_points - b.cost_points || a.name.localeCompare(b.name, "zh-CN"))
+                  .sort(
+                    (a, b) => a.cost_points - b.cost_points || a.name.localeCompare(b.name, "zh-CN")
+                  )
                   .map((reward) => (
                     <div
                       key={reward.id}

@@ -124,7 +124,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const api = (window as any).api
     if (!api) return
-
     ;(async () => {
       await loadThemes()
       await loadCurrentTheme()

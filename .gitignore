@@ -54,6 +54,6 @@ coverage
 .cache
 .temp
 .tmp
-
+.eslintcache
 # OS files
 Thumbs.db

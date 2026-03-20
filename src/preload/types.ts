@@ -103,7 +103,8 @@ const api = {
   deleteReason: (id: number): Promise<{ success: boolean }> => invoke("reason_delete", { id }),
 
   // DB - Reward
-  rewardSettingQuery: (): Promise<{ success: boolean; data: any[] }> => invoke("reward_setting_query"),
+  rewardSettingQuery: (): Promise<{ success: boolean; data: any[] }> =>
+    invoke("reward_setting_query"),
   rewardSettingCreate: (data: {
     name: string
     cost_points: number
@@ -121,8 +122,9 @@ const api = {
     data?: { redemption_id: number; remaining_reward_points: number }
     message?: string
   }> => invoke("reward_redeem", { data }),
-  rewardRedemptionQuery: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
-    invoke("reward_redemption_query", { params }),
+  rewardRedemptionQuery: (params?: {
+    limit?: number
+  }): Promise<{ success: boolean; data: any[] }> => invoke("reward_redemption_query", { params }),
 
   // DB - Event
   queryEvents: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
@@ -273,7 +275,9 @@ const api = {
       message?: string
     }
   }> => invoke("db_sync_preview"),
-  dbSyncApply: (strategy: "keep_local" | "keep_remote"): Promise<{
+  dbSyncApply: (
+    strategy: "keep_local" | "keep_remote"
+  ): Promise<{
     success: boolean
     data: { success: boolean; synced_records: number; resolved_conflicts: number; message?: string }
   }> => invoke("db_sync_apply", { strategy }),

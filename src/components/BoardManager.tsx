@@ -211,11 +211,15 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
 
       const normalizedLists = lists.length > 0 ? lists : [createDefaultList()]
       const fallbackLayout = createLeafForList(normalizedLists[0].id)
-      const layout = board?.layout && typeof board.layout === "object" ? (board.layout as LayoutNode) : fallbackLayout
+      const layout =
+        board?.layout && typeof board.layout === "object"
+          ? (board.layout as LayoutNode)
+          : fallbackLayout
 
       return syncBoardLayout({
         id: typeof board?.id === "string" && board.id.trim() ? board.id : makeId(),
-        name: typeof board?.name === "string" && board.name.trim() ? board.name.trim() : "未命名看板",
+        name:
+          typeof board?.name === "string" && board.name.trim() ? board.name.trim() : "未命名看板",
         lists: normalizedLists,
         layout,
       })
@@ -283,7 +287,9 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
 
   if (cards.every((item) => item.score === undefined)) return cards
 
-  return cards.sort((a, b) => (b.score ?? Number.MIN_SAFE_INTEGER) - (a.score ?? Number.MIN_SAFE_INTEGER))
+  return cards.sort(
+    (a, b) => (b.score ?? Number.MIN_SAFE_INTEGER) - (a.score ?? Number.MIN_SAFE_INTEGER)
+  )
 }
 
 const getAvatarText = (name: string): string => {
@@ -312,7 +318,11 @@ const getAvatarColor = (name: string): string => {
   return palette[hash % palette.length]
 }
 
-const replaceLayoutNode = (node: LayoutNode, targetId: string, replacement: LayoutNode): LayoutNode => {
+const replaceLayoutNode = (
+  node: LayoutNode,
+  targetId: string,
+  replacement: LayoutNode
+): LayoutNode => {
   if (node.id === targetId) return replacement
   if (node.type === "leaf") return node
   return {
@@ -551,8 +561,13 @@ ORDER BY reward_points DESC, score DESC`,
   useEffect(() => {
     const onDataUpdated = (e: Event) => {
       const detail = (e as CustomEvent<{ category?: string }>).detail
-      if (!detail?.category || detail.category === "all") runAllInBoard(activeBoard).catch(() => void 0)
-      if (detail.category === "students" || detail.category === "events" || detail.category === "reasons") {
+      if (!detail?.category || detail.category === "all")
+        runAllInBoard(activeBoard).catch(() => void 0)
+      if (
+        detail.category === "students" ||
+        detail.category === "events" ||
+        detail.category === "reasons"
+      ) {
         runAllInBoard(activeBoard).catch(() => void 0)
       }
     }
@@ -595,7 +610,9 @@ ORDER BY reward_points DESC, score DESC`,
 
   const updateBoardName = (boardId: string, name: string) => {
     mutateBoards((prev) =>
-      prev.map((board) => (board.id === boardId ? { ...board, name: name || t("board.untitledBoard") } : board))
+      prev.map((board) =>
+        board.id === boardId ? { ...board, name: name || t("board.untitledBoard") } : board
+      )
     )
   }
 
@@ -727,7 +744,8 @@ ORDER BY reward_points DESC, score DESC`,
             dataIndex: key,
             key,
             ellipsis: true,
-            render: (value: any) => (value === null || value === undefined || value === "" ? "-" : String(value)),
+            render: (value: any) =>
+              value === null || value === undefined || value === "" ? "-" : String(value),
           }))
         : []
 
@@ -738,7 +756,11 @@ ORDER BY reward_points DESC, score DESC`,
           dataSource={rows}
           columns={columns}
           loading={Boolean(runningIds[list.id])}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} /> }}
+          locale={{
+            emptyText: (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t("common.noData")} />
+            ),
+          }}
           scroll={{ x: true }}
           pagination={{ pageSize: 20, showSizeChanger: false }}
           size="small"
@@ -777,7 +799,10 @@ ORDER BY reward_points DESC, score DESC`,
                       : null
 
           return (
-            <div key={item.key} style={{ ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null) }}>
+            <div
+              key={item.key}
+              style={{ ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null) }}
+            >
               <Card
                 style={{
                   width: "100%",
@@ -789,13 +814,22 @@ ORDER BY reward_points DESC, score DESC`,
                 }}
                 styles={{
                   body: {
-                    padding: list.viewMode === "grid" ? "8px" : list.viewMode === "list" ? "10px 12px" : "12px 14px",
+                    padding:
+                      list.viewMode === "grid"
+                        ? "8px"
+                        : list.viewMode === "list"
+                          ? "10px 12px"
+                          : "12px 14px",
                     height: list.viewMode === "grid" ? "100%" : undefined,
                   },
                 }}
               >
                 {rankBadge && (
-                  <div style={{ position: "absolute", top: "-10px", left: "-10px", fontSize: "24px" }}>{rankBadge}</div>
+                  <div
+                    style={{ position: "absolute", top: "-10px", left: "-10px", fontSize: "24px" }}
+                  >
+                    {rankBadge}
+                  </div>
                 )}
 
                 {list.viewMode === "grid" ? (
@@ -827,7 +861,15 @@ ORDER BY reward_points DESC, score DESC`,
                     >
                       {avatarText}
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        width: "100%",
+                      }}
+                    >
                       <div
                         style={{
                           fontWeight: 600,
@@ -842,10 +884,17 @@ ORDER BY reward_points DESC, score DESC`,
                       </div>
                       {primaryMetric && (
                         <Tag
-                          color={typeof primaryMetric.value === "number" && primaryMetric.value >= 0 ? "success" : "error"}
+                          color={
+                            typeof primaryMetric.value === "number" && primaryMetric.value >= 0
+                              ? "success"
+                              : "error"
+                          }
                           style={{ fontWeight: "bold", marginInlineEnd: 0 }}
                         >
-                          {primaryMetric.label}:{primaryMetric.value > 0 ? `+${primaryMetric.value}` : primaryMetric.value}
+                          {primaryMetric.label}:
+                          {primaryMetric.value > 0
+                            ? `+${primaryMetric.value}`
+                            : primaryMetric.value}
                         </Tag>
                       )}
                     </div>
@@ -885,7 +934,8 @@ ORDER BY reward_points DESC, score DESC`,
                       <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {item.score !== undefined && (
                           <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                            {t("board.metrics.totalScore")}: {item.score > 0 ? `+${item.score}` : item.score}
+                            {t("board.metrics.totalScore")}:{" "}
+                            {item.score > 0 ? `+${item.score}` : item.score}
                           </Tag>
                         )}
                         {item.rewardPoints !== undefined && (
@@ -894,8 +944,12 @@ ORDER BY reward_points DESC, score DESC`,
                           </Tag>
                         )}
                         {item.weekChange !== undefined && (
-                          <Tag color={item.weekChange >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                            {t("board.metrics.weekChange")}: {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
+                          <Tag
+                            color={item.weekChange >= 0 ? "success" : "error"}
+                            style={{ margin: 0 }}
+                          >
+                            {t("board.metrics.weekChange")}:{" "}
+                            {item.weekChange > 0 ? `+${item.weekChange}` : item.weekChange}
                           </Tag>
                         )}
                         {item.weekDeducted !== undefined && (
@@ -934,11 +988,15 @@ ORDER BY reward_points DESC, score DESC`,
           flexDirection: "column",
           overflow: "hidden",
           backgroundColor: "var(--ss-card-bg)",
-          border: isSelected ? "1px solid var(--ant-color-primary, #1677ff)" : "1px solid var(--ss-border-color)",
+          border: isSelected
+            ? "1px solid var(--ant-color-primary, #1677ff)"
+            : "1px solid var(--ss-border-color)",
           boxShadow: isSelected ? "0 8px 18px rgba(22, 119, 255, 0.14)" : undefined,
           cursor: "pointer",
         }}
-        styles={{ body: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 12 } }}
+        styles={{
+          body: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 12 },
+        }}
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
           <Space size={6}>
@@ -950,15 +1008,24 @@ ORDER BY reward_points DESC, score DESC`,
               onConfirm={() => removeList(board.id, list.id)}
               disabled={!canManage || board.lists.length <= 1}
             >
-              <Button size="small" danger icon={<DeleteOutlined />} disabled={!canManage || board.lists.length <= 1}>
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={!canManage || board.lists.length <= 1}
+              >
                 {t("board.removeList")}
               </Button>
             </Popconfirm>
           </Space>
         }
       >
-        {errorMap[list.id] && <Alert style={{ marginBottom: 12 }} type="error" message={errorMap[list.id]} showIcon />}
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>{renderStudentView(list)}</div>
+        {errorMap[list.id] && (
+          <Alert style={{ marginBottom: 12 }} type="error" message={errorMap[list.id]} showIcon />
+        )}
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+          {renderStudentView(list)}
+        </div>
       </Card>
     )
   }
@@ -988,7 +1055,9 @@ ORDER BY reward_points DESC, score DESC`,
           minHeight: 200,
         }}
       >
-        <div style={{ flex: `${node.ratio} 1 0`, minWidth: 0, minHeight: 0 }}>{renderLayoutNode(board, node.first)}</div>
+        <div style={{ flex: `${node.ratio} 1 0`, minWidth: 0, minHeight: 0 }}>
+          {renderLayoutNode(board, node.first)}
+        </div>
         <div
           onMouseDown={(event) => {
             if (!canManage) return
@@ -1047,13 +1116,31 @@ ORDER BY reward_points DESC, score DESC`,
       }}
     >
       {contextHolder}
-      <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%", minHeight: 0, flex: 1 }}>
-        <div style={{ display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          width: "100%",
+          minHeight: 0,
+          flex: 1,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            width: "100%",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <Space align="center" size={8}>
             <Typography.Title level={2} style={{ margin: 0, color: "var(--ss-text-main)" }}>
               {t("board.title")}
             </Typography.Title>
-            <Tag color={canManage ? "success" : "default"}>{canManage ? t("board.editable") : t("board.readonly")}</Tag>
+            <Tag color={canManage ? "success" : "default"}>
+              {canManage ? t("board.editable") : t("board.readonly")}
+            </Tag>
           </Space>
           <Space>
             <Button
@@ -1070,7 +1157,11 @@ ORDER BY reward_points DESC, score DESC`,
             >
               {t("board.splitVertical")}
             </Button>
-            <Button icon={<EditOutlined />} onClick={openRenameModal} disabled={!canManage || !activeBoard}>
+            <Button
+              icon={<EditOutlined />}
+              onClick={openRenameModal}
+              disabled={!canManage || !activeBoard}
+            >
               {t("board.renameBoard")}
             </Button>
             <Popconfirm
@@ -1100,7 +1191,16 @@ ORDER BY reward_points DESC, score DESC`,
         />
 
         {activeBoard ? (
-          <div style={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          <div
+            style={{
+              width: "100%",
+              minHeight: 0,
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
             {saving && (
               <Typography.Text type="secondary" style={{ flexShrink: 0 }}>
                 {t("board.saving")}
@@ -1123,7 +1223,11 @@ ORDER BY reward_points DESC, score DESC`,
         okText={t("common.confirm")}
         cancelText={t("common.cancel")}
       >
-        <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder={t("board.boardNamePlaceholder")} />
+        <Input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          placeholder={t("board.boardNamePlaceholder")}
+        />
       </Modal>
 
       <Modal
@@ -1147,14 +1251,19 @@ ORDER BY reward_points DESC, score DESC`,
               <Select
                 style={{ width: 260 }}
                 placeholder={t("board.applyPreset")}
-                options={presets.map((preset) => ({ value: preset.id, label: `${preset.name} · ${preset.description}` }))}
+                options={presets.map((preset) => ({
+                  value: preset.id,
+                  label: `${preset.name} · ${preset.description}`,
+                }))}
                 onChange={(presetId) => applyPreset(activeBoard.id, editingList.id, presetId)}
                 disabled={!canManage}
               />
               <Select
                 style={{ width: 160 }}
                 value={editingList.viewMode}
-                onChange={(viewMode: BoardStudentViewMode) => updateList(activeBoard.id, editingList.id, { viewMode })}
+                onChange={(viewMode: BoardStudentViewMode) =>
+                  updateList(activeBoard.id, editingList.id, { viewMode })
+                }
                 options={[
                   { value: "list", label: t("board.viewModes.list") },
                   { value: "card", label: t("board.viewModes.card") },
@@ -1170,7 +1279,9 @@ ORDER BY reward_points DESC, score DESC`,
               disabled={!canManage}
               spellCheck={false}
               placeholder={t("board.sqlPlaceholder")}
-              style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
+              style={{
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              }}
             />
           </Space>
         )}

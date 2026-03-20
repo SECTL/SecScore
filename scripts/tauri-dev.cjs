@@ -1,21 +1,24 @@
-const net = require('node:net')
-const { spawn } = require('node:child_process')
+const net = require("node:net")
+const { spawn } = require("node:child_process")
+const { writeFileSync, unlinkSync, existsSync } = require("node:fs")
+const { join } = require("node:path")
+const os = require("node:os")
 
-const START_PORT = Number.parseInt(process.env.TAURI_DEV_PORT_START || '1420', 10)
+const START_PORT = Number.parseInt(process.env.TAURI_DEV_PORT_START || "1420", 10)
 
 function canUsePort(port) {
   return new Promise((resolve) => {
     const server = net.createServer()
 
-    server.once('error', () => {
+    server.once("error", () => {
       resolve(false)
     })
 
-    server.once('listening', () => {
+    server.once("listening", () => {
       server.close(() => resolve(true))
     })
 
-    server.listen(port, '127.0.0.1')
+    server.listen(port, "127.0.0.1")
   })
 }
 
@@ -38,27 +41,42 @@ async function main() {
 
   console.log(`[tauri:dev] 使用端口 ${port}`)
 
-  const extraArgs = process.argv.slice(2)
-  const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-  const child = spawn(
-    pnpmCmd,
-    ['tauri', 'dev', '-c', JSON.stringify(overrideConfig), ...extraArgs],
-    {
-      stdio: 'inherit',
-      env: process.env,
-    }
-  )
+  const tempDir = os.tmpdir()
+  const tempConfigPath = join(tempDir, `tauri-config-${Date.now()}.json`)
 
-  child.on('exit', (code, signal) => {
-    if (signal) {
-      process.kill(process.pid, signal)
-      return
+  try {
+    writeFileSync(tempConfigPath, JSON.stringify(overrideConfig), "utf-8")
+
+    const extraArgs = process.argv.slice(2)
+    const cmd = "pnpm"
+    const args = ["tauri", "dev", "--config", tempConfigPath, ...extraArgs]
+
+    const child = spawn(cmd, args, {
+      stdio: "inherit",
+      env: process.env,
+      shell: true,
+      windowsHide: false,
+    })
+
+    child.on("exit", (code, signal) => {
+      if (existsSync(tempConfigPath)) {
+        unlinkSync(tempConfigPath)
+      }
+      if (signal) {
+        process.kill(process.pid, signal)
+        return
+      }
+      process.exit(code ?? 1)
+    })
+  } catch (error) {
+    if (existsSync(tempConfigPath)) {
+      unlinkSync(tempConfigPath)
     }
-    process.exit(code ?? 1)
-  })
+    throw error
+  }
 }
 
 main().catch((error) => {
-  console.error('[tauri:dev] 启动失败:', error)
+  console.error("[tauri:dev] 启动失败:", error)
   process.exit(1)
 })
