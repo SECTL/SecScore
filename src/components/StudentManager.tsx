@@ -5,6 +5,7 @@ import { UploadOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
+import { useResponsive, useIsMobile, useIsTablet } from "../hooks/useResponsive"
 
 const createXlsxWorker = () => {
   return new Worker(new URL("../workers/xlsxWorker.ts", import.meta.url), {
@@ -48,6 +49,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
+  const isMobile = useIsMobile()
+  const isTablet = useIsTablet()
+  const breakpoint = useResponsive()
 
   useEffect(() => {
     xlsxWorkerRef.current = createXlsxWorker()
@@ -470,107 +474,148 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
-  const columns: ColumnsType<student> = [
-    {
-      title: t("students.avatar"),
-      key: "avatar",
-      width: 88,
-      align: "center",
-      render: (_, row) =>
-        row.avatarUrl ? (
-          <img
-            src={row.avatarUrl}
-            alt={row.name}
+  const columns: ColumnsType<student> = useMemo(() => {
+    const baseColumns: ColumnsType<student> = [
+      {
+        title: t("students.avatar"),
+        key: "avatar",
+        width: isMobile ? 60 : 88,
+        align: "center",
+        render: (_, row) =>
+          row.avatarUrl ? (
+            <img
+              src={row.avatarUrl}
+              alt={row.name}
+              style={{
+                width: isMobile ? 24 : 32,
+                height: isMobile ? 24 : 32,
+                borderRadius: "50%",
+                objectFit: "cover",
+                border: "1px solid var(--ss-border-color)",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: isMobile ? 24 : 32,
+                height: isMobile ? 24 : 32,
+                borderRadius: "50%",
+                margin: "0 auto",
+                backgroundColor: "var(--ss-bg-color)",
+                border: "1px dashed var(--ss-border-color)",
+                color: "var(--ss-text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: isMobile ? 10 : 12,
+              }}
+            >
+              -
+            </div>
+          ),
+      },
+      {
+        title: t("students.name"),
+        dataIndex: "name",
+        key: "name",
+        width: isMobile ? 80 : 100,
+        ellipsis: true,
+      },
+      {
+        title: t("students.currentScore"),
+        dataIndex: "score",
+        key: "score",
+        width: isMobile ? 100 : 160,
+        align: "center",
+        render: (score: number) => (
+          <span
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              objectFit: "cover",
-              border: "1px solid var(--ss-border-color)",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              margin: "0 auto",
-              backgroundColor: "var(--ss-bg-color)",
-              border: "1px dashed var(--ss-border-color)",
-              color: "var(--ss-text-secondary)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
+              fontWeight: "bold",
+              color:
+                score > 0
+                  ? "var(--ant-color-success, #52c41a)"
+                  : score < 0
+                    ? "var(--ant-color-error, #ff4d4f)"
+                    : "inherit",
+              fontSize: isMobile ? 12 : 14,
             }}
           >
-            -
-          </div>
+            {score > 0 ? `+${score}` : score}
+          </span>
         ),
-    },
-    { title: t("students.name"), dataIndex: "name", key: "name", width: 100 },
-    {
-      title: t("students.currentScore"),
-      dataIndex: "score",
-      key: "score",
-      width: 160,
-      align: "center",
-      render: (score: number) => (
-        <span
-          style={{
-            fontWeight: "bold",
-            color:
-              score > 0
-                ? "var(--ant-color-success, #52c41a)"
-                : score < 0
-                  ? "var(--ant-color-error, #ff4d4f)"
-                  : "inherit",
-          }}
-        >
-          {score > 0 ? `+${score}` : score}
-        </span>
-      ),
-    },
-    {
-      title: t("students.tags"),
-      dataIndex: "tags",
-      key: "tags",
-      width: 200,
-      render: (tags: string[] = []) => (
-        <Space>
-          {tags.length === 0 ? (
-            <span style={{ color: "var(--ss-text-secondary)" }}>{t("students.noTags")}</span>
-          ) : (
-            tags.slice(0, 3).map((tag) => (
-              <Tag key={tag} color="blue">
-                {tag}
+      },
+      {
+        title: t("students.tags"),
+        dataIndex: "tags",
+        key: "tags",
+        width: isMobile ? 120 : 200,
+        render: (tags: string[] = []) => (
+          <Space size={isMobile ? 2 : 4}>
+            {tags.length === 0 ? (
+              <span style={{ color: "var(--ss-text-secondary)", fontSize: isMobile ? 10 : 12 }}>
+                {t("students.noTags")}
+              </span>
+            ) : (
+              tags.slice(0, isMobile ? 2 : 3).map((tag) => (
+                <Tag key={tag} color="blue" style={{ fontSize: isMobile ? 10 : 12, margin: 0 }}>
+                  {tag}
+                </Tag>
+              ))
+            )}
+            {tags.length > (isMobile ? 2 : 3) && (
+              <Tag style={{ fontSize: isMobile ? 10 : 12, margin: 0 }}>
+                +{tags.length - (isMobile ? 2 : 3)}
               </Tag>
-            ))
-          )}
-          {tags.length > 3 && <Tag>+{tags.length - 3}</Tag>}
-        </Space>
-      ),
-    },
-    {
-      title: t("common.operation"),
-      key: "operation",
-      width: 220,
-      render: (_, row) => (
-        <Space>
-          <Button type="link" disabled={!canEdit} onClick={() => handleOpenTagEditor(row)}>
-            {t("students.editTags")}
-          </Button>
-          <Button type="link" disabled={!canEdit} onClick={() => handleOpenAvatarEditor(row)}>
-            {t("students.editAvatar")}
-          </Button>
-          <Button type="link" danger disabled={!canEdit} onClick={() => handleDelete(row.id)}>
-            {t("common.delete")}
-          </Button>
-        </Space>
-      ),
-    },
-  ]
+            )}
+          </Space>
+        ),
+      },
+      {
+        title: t("common.operation"),
+        key: "operation",
+        width: isMobile ? 150 : 220,
+        fixed: isMobile ? "right" : undefined,
+        render: (_, row) => (
+          <Space size={isMobile ? 4 : 8} direction={isMobile ? "vertical" : "horizontal"}>
+            <Button
+              type="link"
+              size={isMobile ? "small" : "middle"}
+              disabled={!canEdit}
+              onClick={() => handleOpenTagEditor(row)}
+              style={{ padding: isMobile ? "2px 4px" : undefined }}
+            >
+              {t("students.editTags")}
+            </Button>
+            <Button
+              type="link"
+              size={isMobile ? "small" : "middle"}
+              disabled={!canEdit}
+              onClick={() => handleOpenAvatarEditor(row)}
+              style={{ padding: isMobile ? "2px 4px" : undefined }}
+            >
+              {t("students.editAvatar")}
+            </Button>
+            <Button
+              type="link"
+              danger
+              size={isMobile ? "small" : "middle"}
+              disabled={!canEdit}
+              onClick={() => handleDelete(row.id)}
+              style={{ padding: isMobile ? "2px 4px" : undefined }}
+            >
+              {t("common.delete")}
+            </Button>
+          </Space>
+        ),
+      },
+    ]
+
+    if (isMobile) {
+      return baseColumns.filter((col) => col.key !== "tags")
+    }
+
+    return baseColumns
+  }, [t, canEdit, isMobile, isTablet, breakpoint])
 
   const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
@@ -649,7 +694,12 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             placeholder={t("students.importTextPlaceholder")}
             disabled={!canEdit || textImportLoading}
           />
-          <Button type="primary" loading={textImportLoading} disabled={!canEdit} onClick={handleImportTextNames}>
+          <Button
+            type="primary"
+            loading={textImportLoading}
+            disabled={!canEdit}
+            onClick={handleImportTextNames}
+          >
             {t("students.importByText")}
           </Button>
           <Button

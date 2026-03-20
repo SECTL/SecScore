@@ -4,19 +4,10 @@ import {
   BorderOutlined,
   CloseOutlined,
   FullscreenExitOutlined,
-  RotateRightOutlined,
 } from "@ant-design/icons"
 import { useEffect, useState } from "react"
 
-interface WindowControlsProps {
-  isPortraitMode: boolean
-  onToggleOrientation: () => void
-}
-
-export function WindowControls({
-  isPortraitMode,
-  onToggleOrientation,
-}: WindowControlsProps): React.JSX.Element {
+export function WindowControls(): React.JSX.Element {
   const [isMaximized, setIsMaximized] = useState(false)
 
   useEffect(() => {
@@ -76,14 +67,6 @@ export function WindowControls({
         } as React.CSSProperties
       }
     >
-      <Button
-        type="text"
-        onClick={onToggleOrientation}
-        title={isPortraitMode ? "切换到横屏模式" : "切换到竖屏模式"}
-        style={{ width: "46px", height: "32px", borderRadius: 0 }}
-      >
-        <RotateRightOutlined />
-      </Button>
       <Button
         type="text"
         onClick={minimize}

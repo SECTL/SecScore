@@ -52,7 +52,7 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
-  const [isPortraitMode, setIsPortraitMode] = useState(defaultPortraitMode)
+  const [isPortraitMode] = useState(defaultPortraitMode)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
   const [syncConflictVisible, setSyncConflictVisible] = useState(false)
@@ -149,7 +149,8 @@ function MainContent(): React.JSX.Element {
       const res = await api.dbSyncApply(strategy)
       if (res?.success && res?.data?.success) {
         messageApi.success(
-          res.data.message || `同步完成（同步 ${res.data.synced_records} 条，解决冲突 ${res.data.resolved_conflicts} 条）`
+          res.data.message ||
+            `同步完成（同步 ${res.data.synced_records} 条，解决冲突 ${res.data.resolved_conflicts} 条）`
         )
         window.dispatchEvent(
           new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
@@ -178,7 +179,11 @@ function MainContent(): React.JSX.Element {
       try {
         syncCheckingRef.current = true
         const statusRes = await api.dbGetStatus()
-        if (!statusRes?.success || statusRes?.data?.type !== "postgresql" || !statusRes?.data?.connected) {
+        if (
+          !statusRes?.success ||
+          statusRes?.data?.type !== "postgresql" ||
+          !statusRes?.data?.connected
+        ) {
           return
         }
 
@@ -279,40 +284,6 @@ function MainContent(): React.JSX.Element {
     if (key === "settings") navigate("/settings")
   }
 
-  const toggleOrientationMode = async () => {
-    const api = (window as any).api
-    if (!api) return
-
-    const nextPortraitMode = !isPortraitMode
-    try {
-      const maximized = await api.windowIsMaximized()
-      if (maximized) {
-        await api.windowMaximize()
-      }
-      if (nextPortraitMode) {
-        await api.windowSetResizable(false)
-        await api.windowResize(940, 1600)
-        setSidebarCollapsed(true)
-        setFloatingSidebarExpanded(false)
-      } else {
-        await api.windowSetResizable(true)
-        await api.windowResize(2560, 1440)
-        setSidebarCollapsed(false)
-        setFloatingSidebarExpanded(false)
-      }
-      setIsPortraitMode(nextPortraitMode)
-    } catch (error) {
-      messageApi.error(t("common.error"))
-      console.error("Failed to toggle orientation mode:", error)
-    }
-  }
-
-  useEffect(() => {
-    if (!isPortraitMode || !sidebarCollapsed) {
-      setFloatingSidebarExpanded(false)
-    }
-  }, [isPortraitMode, sidebarCollapsed])
-
   const toggleSidebar = () => {
     if (isPortraitMode && sidebarCollapsed) {
       setFloatingSidebarExpanded((prev) => !prev)
@@ -357,7 +328,6 @@ function MainContent(): React.JSX.Element {
           floatingExpand={isPortraitMode}
           floatingExpanded={floatingSidebarExpanded}
           onToggleSidebar={toggleSidebar}
-          onToggleOrientation={toggleOrientationMode}
         />
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
@@ -396,7 +366,9 @@ function MainContent(): React.JSX.Element {
           maskClosable={false}
           destroyOnClose
         >
-          <div style={{ marginBottom: "10px", color: "var(--ss-text-secondary)", fontSize: "12px" }}>
+          <div
+            style={{ marginBottom: "10px", color: "var(--ss-text-secondary)", fontSize: "12px" }}
+          >
             自动同步发现冲突，请选择冲突时优先保留哪一侧的数据。
           </div>
           <div

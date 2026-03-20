@@ -28,9 +28,7 @@ const SettlementHistory = lazy(() =>
 const AutoScoreManager = lazy(() =>
   loadAutoScoreManager().then((m) => ({ default: m.AutoScoreManager }))
 )
-const RewardSettings = lazy(() =>
-  loadRewardSettings().then((m) => ({ default: m.RewardSettings }))
-)
+const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
 const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
 
 const warmupRouteChunks = () =>
@@ -60,7 +58,6 @@ interface ContentAreaProps {
   floatingExpand: boolean
   floatingExpanded: boolean
   onToggleSidebar: () => void
-  onToggleOrientation: () => void
 }
 
 export function ContentArea({
@@ -74,7 +71,6 @@ export function ContentArea({
   floatingExpand,
   floatingExpanded,
   onToggleSidebar,
-  onToggleOrientation,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
 
@@ -153,13 +149,17 @@ export function ContentArea({
             size="small"
             onClick={onToggleSidebar}
             icon={
-              floatingExpand && sidebarCollapsed
-                ? floatingExpanded
-                  ? <MenuFoldOutlined />
-                  : <MenuUnfoldOutlined />
-                : sidebarCollapsed
-                  ? <MenuUnfoldOutlined />
-                  : <MenuFoldOutlined />
+              floatingExpand && sidebarCollapsed ? (
+                floatingExpanded ? (
+                  <MenuFoldOutlined />
+                ) : (
+                  <MenuUnfoldOutlined />
+                )
+              ) : sidebarCollapsed ? (
+                <MenuUnfoldOutlined />
+              ) : (
+                <MenuFoldOutlined />
+              )
             }
             title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
             style={{ width: "32px", height: "32px" }}
@@ -199,12 +199,7 @@ export function ContentArea({
             )}
           </Space>
         </div>
-        {showWindowControls && (
-          <WindowControls
-            isPortraitMode={isPortraitMode}
-            onToggleOrientation={onToggleOrientation}
-          />
-        )}
+        {showWindowControls && <WindowControls />}
       </div>
 
       <Content style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
