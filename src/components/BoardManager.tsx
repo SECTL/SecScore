@@ -15,7 +15,7 @@ import {
   Typography,
   message,
 } from "antd"
-import { DeleteOutlined, EditOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 
 type BoardStudentViewMode = "list" | "card" | "grid"
@@ -511,6 +511,18 @@ ORDER BY reward_points DESC, score DESC`,
     [runListQuery]
   )
 
+  const listConfigSignature = useMemo(() => {
+    if (!activeBoard) return ""
+    return JSON.stringify(
+      activeBoard.lists.map((item) => ({
+        id: item.id,
+        name: item.name,
+        sql: item.sql,
+        viewMode: item.viewMode,
+      }))
+    )
+  }, [activeBoard])
+
   useEffect(() => {
     fetchBoards()
   }, [fetchBoards])
@@ -530,8 +542,11 @@ ORDER BY reward_points DESC, score DESC`,
 
   useEffect(() => {
     if (!activeBoard) return
-    runAllInBoard(activeBoard).catch(() => void 0)
-  }, [activeBoardId])
+    const timer = window.setTimeout(() => {
+      runAllInBoard(activeBoard).catch(() => void 0)
+    }, 260)
+    return () => window.clearTimeout(timer)
+  }, [activeBoard?.id, listConfigSignature, runAllInBoard])
 
   useEffect(() => {
     const onDataUpdated = (e: Event) => {
@@ -924,9 +939,6 @@ ORDER BY reward_points DESC, score DESC`,
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
           <Space size={6}>
-            <Button size="small" onClick={() => runListQuery(list)} loading={Boolean(runningIds[list.id])} icon={<PlayCircleOutlined />}>
-              {t("board.run")}
-            </Button>
             <Button size="small" onClick={() => setEditingListId(list.id)} icon={<EditOutlined />}>
               {t("board.editList")}
             </Button>
@@ -1049,6 +1061,15 @@ ORDER BY reward_points DESC, score DESC`,
             <Button icon={<EditOutlined />} onClick={openRenameModal} disabled={!canManage || !activeBoard}>
               {t("board.renameBoard")}
             </Button>
+            <Popconfirm
+              title={t("board.removeBoardConfirm")}
+              onConfirm={() => activeBoard && removeBoard(activeBoard.id)}
+              disabled={!canManage || !activeBoard}
+            >
+              <Button danger icon={<DeleteOutlined />} disabled={!canManage || !activeBoard}>
+                {t("board.removeBoard")}
+              </Button>
+            </Popconfirm>
             <Button icon={<ReloadOutlined />} loading={loading} onClick={fetchBoards}>
               {t("common.refresh")}
             </Button>
@@ -1057,8 +1078,6 @@ ORDER BY reward_points DESC, score DESC`,
             </Button>
           </Space>
         </Space>
-
-        <Alert type="info" showIcon message={t("board.templateHint")} description={t("board.templateDescription")} />
 
         <Tabs
           type="card"
@@ -1069,17 +1088,7 @@ ORDER BY reward_points DESC, score DESC`,
 
         {activeBoard ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
-            <Space>
-              <Button onClick={() => runAllInBoard(activeBoard)} icon={<PlayCircleOutlined />}>
-                {t("board.runAll")}
-              </Button>
-              <Popconfirm title={t("board.removeBoardConfirm")} onConfirm={() => removeBoard(activeBoard.id)} disabled={!canManage}>
-                <Button danger icon={<DeleteOutlined />} disabled={!canManage}>
-                  {t("board.removeBoard")}
-                </Button>
-              </Popconfirm>
-              {saving && <Typography.Text type="secondary">{t("board.saving")}</Typography.Text>}
-            </Space>
+            {saving && <Typography.Text type="secondary">{t("board.saving")}</Typography.Text>}
 
             {renderBoardWorkspace()}
           </Space>
