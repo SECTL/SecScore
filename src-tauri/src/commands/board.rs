@@ -73,7 +73,12 @@ fn is_readonly_query(sql: &str) -> bool {
     }
 
     let lower = trimmed.to_ascii_lowercase();
-    if !(lower.starts_with("select ") || lower.starts_with("with ")) {
+    let starts_with_select_or_with = lower
+        .split_whitespace()
+        .next()
+        .map(|first| first == "select" || first == "with")
+        .unwrap_or(false);
+    if !starts_with_select_or_with {
         return false;
     }
 
