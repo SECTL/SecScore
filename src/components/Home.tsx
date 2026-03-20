@@ -99,6 +99,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
   const longPressTimerRef = useRef<number | null>(null)
   const suppressClickRef = useRef(false)
+  const fetchRequestIdRef = useRef(0)
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -119,11 +120,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
   const fetchData = useCallback(async (silent = false) => {
     if (!(window as any).api) return
+    const requestId = ++fetchRequestIdRef.current
     if (!silent) setLoading(true)
     const [stuRes, reaRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
     ])
+    if (requestId !== fetchRequestIdRef.current) return
 
     if (stuRes.success) {
       const enrichedStudents = (stuRes.data as student[]).map((s) => ({
@@ -458,11 +461,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           : t("home.scoreDeducted", { name: student.name, points: Math.abs(delta) })
       )
       setOperationVisible(false)
-
-      setStudents((prev) =>
-        prev.map((s) => (s.id === student.id ? { ...s, score: s.score + delta } : s))
-      )
-
+      fetchData(true)
       fetchLatestEvent()
       emitDataUpdated("events")
     } else {
