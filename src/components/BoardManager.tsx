@@ -930,12 +930,15 @@ ORDER BY reward_points DESC, score DESC`,
         onClick={() => setSelectedLeafNodeId(leaf.id)}
         style={{
           height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
           backgroundColor: "var(--ss-card-bg)",
           border: isSelected ? "1px solid var(--ant-color-primary, #1677ff)" : "1px solid var(--ss-border-color)",
           boxShadow: isSelected ? "0 8px 18px rgba(22, 119, 255, 0.14)" : undefined,
           cursor: "pointer",
         }}
-        styles={{ body: { height: "100%", display: "flex", flexDirection: "column", padding: 12 } }}
+        styles={{ body: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 12 } }}
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
           <Space size={6}>
