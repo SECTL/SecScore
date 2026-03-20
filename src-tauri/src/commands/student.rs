@@ -65,6 +65,7 @@ pub async fn student_query(
                         id: s.id,
                         name: s.name,
                         score: s.score,
+                        reward_points: s.reward_points,
                         tags: serde_json::from_str(&s.tags).unwrap_or_default(),
                         extra_json: s.extra_json,
                     })
@@ -120,6 +121,7 @@ pub async fn student_create(
                     id: sea_orm::ActiveValue::NotSet,
                     name: Set(name.to_string()),
                     score: Set(0),
+                    reward_points: Set(0),
                     tags: Set("[]".to_string()),
                     extra_json: Set(None),
                     created_at: Set(now.clone()),
@@ -176,6 +178,9 @@ pub async fn student_update(
                 if let Some(score) = data.score {
                     active.score = Set(score);
                 }
+                if let Some(reward_points) = data.reward_points {
+                    active.reward_points = Set(reward_points);
+                }
                 if let Some(tags) = data.tags {
                     active.tags =
                         Set(serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()));
@@ -227,6 +232,7 @@ pub async fn student_delete(
                     id: sea_orm::ActiveValue::Set(student.id),
                     name: sea_orm::ActiveValue::Unchanged(student.name),
                     score: sea_orm::ActiveValue::Unchanged(student.score),
+                    reward_points: sea_orm::ActiveValue::Unchanged(student.reward_points),
                     tags: sea_orm::ActiveValue::Unchanged(student.tags),
                     extra_json: sea_orm::ActiveValue::Unchanged(student.extra_json),
                     created_at: sea_orm::ActiveValue::Unchanged(student.created_at),
@@ -312,6 +318,7 @@ pub async fn student_import_from_xlsx(
                             id: sea_orm::ActiveValue::NotSet,
                             name: Set(name.to_string()),
                             score: Set(0),
+                            reward_points: Set(0),
                             tags: Set("[]".to_string()),
                             extra_json: Set(None),
                             created_at: Set(now.clone()),

@@ -100,6 +100,28 @@ const api = {
     invoke("reason_update", { id, data }),
   deleteReason: (id: number): Promise<{ success: boolean }> => invoke("reason_delete", { id }),
 
+  // DB - Reward
+  rewardSettingQuery: (): Promise<{ success: boolean; data: any[] }> => invoke("reward_setting_query"),
+  rewardSettingCreate: (data: {
+    name: string
+    cost_points: number
+  }): Promise<{ success: boolean; data?: number; message?: string }> =>
+    invoke("reward_setting_create", { data }),
+  rewardSettingUpdate: (id: number, data: any): Promise<{ success: boolean; message?: string }> =>
+    invoke("reward_setting_update", { id, data }),
+  rewardSettingDelete: (id: number): Promise<{ success: boolean; message?: string }> =>
+    invoke("reward_setting_delete", { id }),
+  rewardRedeem: (data: {
+    student_name: string
+    reward_id: number
+  }): Promise<{
+    success: boolean
+    data?: { redemption_id: number; remaining_reward_points: number }
+    message?: string
+  }> => invoke("reward_redeem", { data }),
+  rewardRedemptionQuery: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
+    invoke("reward_redemption_query", { params }),
+
   // DB - Event
   queryEvents: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
     invoke("event_query", { params }),

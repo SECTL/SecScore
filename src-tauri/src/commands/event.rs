@@ -147,6 +147,7 @@ pub async fn event_create(
             Ok(Some(student)) => {
                 let val_prev = student.score;
                 let val_curr = val_prev + data.delta;
+                let reward_points_next = student.reward_points + data.delta;
                 let now = chrono::Utc::now()
                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
                     .to_string();
@@ -170,6 +171,7 @@ pub async fn event_create(
 
                 let mut active: students::ActiveModel = student.into();
                 active.score = Set(val_curr);
+                active.reward_points = Set(reward_points_next);
                 active.updated_at = Set(now);
                 active.update(&txn).await.map_err(|e| e.to_string())?;
 
@@ -244,12 +246,14 @@ pub async fn event_delete(
 
                 if let Some(student) = student {
                     let new_score = student.score - event.delta;
+                    let new_reward_points = student.reward_points - event.delta;
                     let now = chrono::Utc::now()
                         .format("%Y-%m-%dT%H:%M:%S%.3fZ")
                         .to_string();
 
                     let mut active: students::ActiveModel = student.into();
                     active.score = Set(new_score);
+                    active.reward_points = Set(new_reward_points);
                     active.updated_at = Set(now);
                     active.update(&txn).await.map_err(|e| e.to_string())?;
                 }

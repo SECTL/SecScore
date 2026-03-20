@@ -5,6 +5,7 @@ pub struct Student {
     pub id: i32,
     pub name: String,
     pub score: i32,
+    pub reward_points: i32,
     pub tags: String,
     pub extra_json: Option<String>,
     pub created_at: String,
@@ -15,6 +16,7 @@ pub struct Student {
 pub struct StudentUpdate {
     pub name: Option<String>,
     pub score: Option<i32>,
+    pub reward_points: Option<i32>,
     pub tags: Option<Vec<String>>,
     pub extra_json: Option<String>,
 }
@@ -24,6 +26,7 @@ pub struct StudentWithTags {
     pub id: i32,
     pub name: String,
     pub score: i32,
+    pub reward_points: i32,
     pub tags: Vec<String>,
     pub extra_json: Option<String>,
 }
@@ -35,6 +38,7 @@ impl From<Student> for StudentWithTags {
             id: student.id,
             name: student.name,
             score: student.score,
+            reward_points: student.reward_points,
             tags,
             extra_json: student.extra_json,
         }

@@ -9,6 +9,8 @@ import {
   FileTextOutlined,
   CloudOutlined,
   UploadOutlined,
+  GiftOutlined,
+  AppstoreAddOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -165,6 +167,17 @@ export function Sidebar({
       key: "auto-score",
       icon: <SyncOutlined />,
       label: t("sidebar.autoScore"),
+    },
+    {
+      key: "reward-exchange",
+      icon: <GiftOutlined />,
+      label: t("sidebar.rewardExchange"),
+    },
+    {
+      key: "reward-settings",
+      icon: <AppstoreAddOutlined />,
+      label: t("sidebar.rewardSettings"),
+      disabled: permission !== "admin",
     },
     {
       key: "leaderboard",

@@ -7,7 +7,9 @@ use tokio::time::{timeout, Duration};
 
 use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::connection::DatabaseType;
-use crate::db::entities::{reasons, score_events, student_tags, students, tags};
+use crate::db::entities::{
+    reasons, reward_redemptions, reward_settings, score_events, student_tags, students, tags,
+};
 use crate::db::migration::run_migration;
 use crate::services::permission::PermissionLevel;
 use crate::services::settings::{SettingsKey, SettingsValue};
@@ -93,6 +95,7 @@ pub enum ConflictStrategy {
 struct StudentNormalized {
     name: String,
     score: i32,
+    reward_points: i32,
     tags: String,
     extra_json: Option<String>,
     created_at: String,
@@ -124,6 +127,24 @@ struct EventNormalized {
     val_prev: i32,
     val_curr: i32,
     event_time: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RewardSettingNormalized {
+    name: String,
+    cost_points: i32,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RewardRedemptionNormalized {
+    uuid: String,
+    student_name: String,
+    reward_id: i32,
+    reward_name: String,
+    cost_points: i32,
+    redeemed_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -177,6 +198,7 @@ async fn load_students(
             StudentNormalized {
                 name: row.name,
                 score: row.score,
+                reward_points: row.reward_points,
                 tags: normalize_tags(&row.tags),
                 extra_json: row.extra_json,
                 created_at: row.created_at,
@@ -250,6 +272,52 @@ async fn load_events(
                 val_prev: row.val_prev,
                 val_curr: row.val_curr,
                 event_time: row.event_time,
+            },
+        );
+    }
+    Ok(map)
+}
+
+async fn load_reward_settings(
+    conn: &sea_orm::DatabaseConnection,
+) -> Result<std::collections::HashMap<String, RewardSettingNormalized>, String> {
+    let rows = reward_settings::Entity::find()
+        .all(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut map = std::collections::HashMap::new();
+    for row in rows {
+        map.insert(
+            row.name.clone(),
+            RewardSettingNormalized {
+                name: row.name,
+                cost_points: row.cost_points,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            },
+        );
+    }
+    Ok(map)
+}
+
+async fn load_reward_redemptions(
+    conn: &sea_orm::DatabaseConnection,
+) -> Result<std::collections::HashMap<String, RewardRedemptionNormalized>, String> {
+    let rows = reward_redemptions::Entity::find()
+        .all(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut map = std::collections::HashMap::new();
+    for row in rows {
+        map.insert(
+            row.uuid.clone(),
+            RewardRedemptionNormalized {
+                uuid: row.uuid,
+                student_name: row.student_name,
+                reward_id: row.reward_id,
+                reward_name: row.reward_name,
+                cost_points: row.cost_points,
+                redeemed_at: row.redeemed_at,
             },
         );
     }
@@ -334,6 +402,7 @@ async fn upsert_student(
             let normalized_current = StudentNormalized {
                 name: row.name.clone(),
                 score: row.score,
+                reward_points: row.reward_points,
                 tags: normalize_tags(&row.tags),
                 extra_json: row.extra_json.clone(),
                 created_at: row.created_at.clone(),
@@ -344,6 +413,7 @@ async fn upsert_student(
             }
             let mut active: students::ActiveModel = row.into();
             active.score = Set(data.score);
+            active.reward_points = Set(data.reward_points);
             active.tags = Set(data.tags.clone());
             active.extra_json = Set(data.extra_json.clone());
             active.created_at = Set(data.created_at.clone());
@@ -356,6 +426,7 @@ async fn upsert_student(
                 id: sea_orm::ActiveValue::NotSet,
                 name: Set(data.name.clone()),
                 score: Set(data.score),
+                reward_points: Set(data.reward_points),
                 tags: Set(data.tags.clone()),
                 extra_json: Set(data.extra_json.clone()),
                 created_at: Set(data.created_at.clone()),
@@ -505,6 +576,98 @@ async fn upsert_event(
     }
 }
 
+async fn upsert_reward_setting(
+    conn: &sea_orm::DatabaseConnection,
+    data: &RewardSettingNormalized,
+) -> Result<bool, String> {
+    let existing = reward_settings::Entity::find()
+        .filter(reward_settings::Column::Name.eq(&data.name))
+        .one(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    match existing {
+        Some(row) => {
+            let normalized_current = RewardSettingNormalized {
+                name: row.name.clone(),
+                cost_points: row.cost_points,
+                created_at: row.created_at.clone(),
+                updated_at: row.updated_at.clone(),
+            };
+            if normalized_current == *data {
+                return Ok(false);
+            }
+            let mut active: reward_settings::ActiveModel = row.into();
+            active.cost_points = Set(data.cost_points);
+            active.created_at = Set(data.created_at.clone());
+            active.updated_at = Set(data.updated_at.clone());
+            active.update(conn).await.map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+        None => {
+            reward_settings::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                name: Set(data.name.clone()),
+                cost_points: Set(data.cost_points),
+                created_at: Set(data.created_at.clone()),
+                updated_at: Set(data.updated_at.clone()),
+            }
+            .insert(conn)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+    }
+}
+
+async fn upsert_reward_redemption(
+    conn: &sea_orm::DatabaseConnection,
+    data: &RewardRedemptionNormalized,
+) -> Result<bool, String> {
+    let existing = reward_redemptions::Entity::find()
+        .filter(reward_redemptions::Column::Uuid.eq(&data.uuid))
+        .one(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    match existing {
+        Some(row) => {
+            let normalized_current = RewardRedemptionNormalized {
+                uuid: row.uuid.clone(),
+                student_name: row.student_name.clone(),
+                reward_id: row.reward_id,
+                reward_name: row.reward_name.clone(),
+                cost_points: row.cost_points,
+                redeemed_at: row.redeemed_at.clone(),
+            };
+            if normalized_current == *data {
+                return Ok(false);
+            }
+            let mut active: reward_redemptions::ActiveModel = row.into();
+            active.student_name = Set(data.student_name.clone());
+            active.reward_id = Set(data.reward_id);
+            active.reward_name = Set(data.reward_name.clone());
+            active.cost_points = Set(data.cost_points);
+            active.redeemed_at = Set(data.redeemed_at.clone());
+            active.update(conn).await.map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+        None => {
+            reward_redemptions::ActiveModel {
+                id: sea_orm::ActiveValue::NotSet,
+                uuid: Set(data.uuid.clone()),
+                student_name: Set(data.student_name.clone()),
+                reward_id: Set(data.reward_id),
+                reward_name: Set(data.reward_name.clone()),
+                cost_points: Set(data.cost_points),
+                redeemed_at: Set(data.redeemed_at.clone()),
+            }
+            .insert(conn)
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(true)
+        }
+    }
+}
+
 async fn ensure_student_tag_pair(
     conn: &sea_orm::DatabaseConnection,
     pair: &StudentTagPair,
@@ -625,6 +788,16 @@ pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Resu
         let _ = upsert_event(&local_conn, event).await?;
     }
 
+    let remote_reward_settings = load_reward_settings(&remote_conn).await?;
+    for reward in remote_reward_settings.values() {
+        let _ = upsert_reward_setting(&local_conn, reward).await?;
+    }
+
+    let remote_redemptions = load_reward_redemptions(&remote_conn).await?;
+    for redemption in remote_redemptions.values() {
+        let _ = upsert_reward_redemption(&local_conn, redemption).await?;
+    }
+
     let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
     for pair in &remote_pairs {
         let _ = ensure_student_tag_pair(&local_conn, pair).await?;
@@ -653,6 +826,8 @@ async fn db_sync_apply_internal(
     let local_reasons = load_reasons(&local_conn).await?;
     let local_tags = load_tags(&local_conn).await?;
     let local_events = load_events(&local_conn).await?;
+    let local_reward_settings = load_reward_settings(&local_conn).await?;
+    let local_reward_redemptions = load_reward_redemptions(&local_conn).await?;
     let local_pairs = load_student_tag_pairs(&local_conn).await?;
     let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
 
@@ -709,6 +884,28 @@ async fn db_sync_apply_internal(
             synced_records += 1;
         }
     }
+    for reward in local_reward_settings.values() {
+        if upsert_reward_setting(&remote_conn, reward).await? {
+            synced_records += 1;
+        }
+    }
+    let remote_reward_settings_after = load_reward_settings(&remote_conn).await?;
+    for reward in remote_reward_settings_after.values() {
+        if upsert_reward_setting(&local_conn, reward).await? {
+            synced_records += 1;
+        }
+    }
+    for redemption in local_reward_redemptions.values() {
+        if upsert_reward_redemption(&remote_conn, redemption).await? {
+            synced_records += 1;
+        }
+    }
+    let remote_reward_redemptions_after = load_reward_redemptions(&remote_conn).await?;
+    for redemption in remote_reward_redemptions_after.values() {
+        if upsert_reward_redemption(&local_conn, redemption).await? {
+            synced_records += 1;
+        }
+    }
 
     for pair in local_pairs.union(&remote_pairs) {
         if ensure_student_tag_pair(&local_conn, pair).await? {
@@ -740,6 +937,18 @@ async fn db_sync_apply_internal(
     let preferred_events = load_events(preferred).await?;
     for event in preferred_events.values() {
         if upsert_event(target, event).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_reward_settings = load_reward_settings(preferred).await?;
+    for reward in preferred_reward_settings.values() {
+        if upsert_reward_setting(target, reward).await? {
+            resolved_conflicts += 1;
+        }
+    }
+    let preferred_reward_redemptions = load_reward_redemptions(preferred).await?;
+    for redemption in preferred_reward_redemptions.values() {
+        if upsert_reward_redemption(target, redemption).await? {
             resolved_conflicts += 1;
         }
     }
@@ -1005,6 +1214,10 @@ pub async fn db_sync_preview(
     let remote_tags = load_tags(&remote_conn).await?;
     let local_events = load_events(&local_conn).await?;
     let remote_events = load_events(&remote_conn).await?;
+    let local_reward_settings = load_reward_settings(&local_conn).await?;
+    let remote_reward_settings = load_reward_settings(&remote_conn).await?;
+    let local_reward_redemptions = load_reward_redemptions(&local_conn).await?;
+    let remote_reward_redemptions = load_reward_redemptions(&remote_conn).await?;
     let local_pairs = load_student_tag_pairs(&local_conn).await?;
     let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
 
@@ -1016,9 +1229,29 @@ pub async fn db_sync_preview(
         compare_maps("tags", &local_tags, &remote_tags);
     let (evt_local_only, evt_remote_only, evt_conflicts) =
         compare_maps("score_events", &local_events, &remote_events);
+    let (reward_local_only, reward_remote_only, reward_conflicts) = compare_maps(
+        "reward_settings",
+        &local_reward_settings,
+        &remote_reward_settings,
+    );
+    let (redeem_local_only, redeem_remote_only, redeem_conflicts) = compare_maps(
+        "reward_redemptions",
+        &local_reward_redemptions,
+        &remote_reward_redemptions,
+    );
 
-    let mut local_only = stu_local_only + rea_local_only + tag_local_only + evt_local_only;
-    let mut remote_only = stu_remote_only + rea_remote_only + tag_remote_only + evt_remote_only;
+    let mut local_only = stu_local_only
+        + rea_local_only
+        + tag_local_only
+        + evt_local_only
+        + reward_local_only
+        + redeem_local_only;
+    let mut remote_only = stu_remote_only
+        + rea_remote_only
+        + tag_remote_only
+        + evt_remote_only
+        + reward_remote_only
+        + redeem_remote_only;
 
     for pair in &local_pairs {
         if !remote_pairs.contains(pair) {
@@ -1038,8 +1271,14 @@ pub async fn db_sync_preview(
         conflicts.push(DbSyncConflict {
             table,
             key,
-            local_summary: format!("score={}, updated_at={}", local.score, local.updated_at),
-            remote_summary: format!("score={}, updated_at={}", remote.score, remote.updated_at),
+            local_summary: format!(
+                "score={}, reward_points={}, updated_at={}",
+                local.score, local.reward_points, local.updated_at
+            ),
+            remote_summary: format!(
+                "score={}, reward_points={}, updated_at={}",
+                remote.score, remote.reward_points, remote.updated_at
+            ),
         });
     }
     for (table, key) in rea_conflicts {
@@ -1075,6 +1314,46 @@ pub async fn db_sync_preview(
             remote_summary: format!(
                 "delta={}, val_curr={}, event_time={}",
                 remote.delta, remote.val_curr, remote.event_time
+            ),
+        });
+    }
+    for (table, key) in reward_conflicts {
+        let local = local_reward_settings
+            .get(&key)
+            .expect("local reward setting exists");
+        let remote = remote_reward_settings
+            .get(&key)
+            .expect("remote reward setting exists");
+        conflicts.push(DbSyncConflict {
+            table,
+            key,
+            local_summary: format!(
+                "cost_points={}, updated_at={}",
+                local.cost_points, local.updated_at
+            ),
+            remote_summary: format!(
+                "cost_points={}, updated_at={}",
+                remote.cost_points, remote.updated_at
+            ),
+        });
+    }
+    for (table, key) in redeem_conflicts {
+        let local = local_reward_redemptions
+            .get(&key)
+            .expect("local redemption exists");
+        let remote = remote_reward_redemptions
+            .get(&key)
+            .expect("remote redemption exists");
+        conflicts.push(DbSyncConflict {
+            table,
+            key,
+            local_summary: format!(
+                "student={}, reward={}, cost={}, redeemed_at={}",
+                local.student_name, local.reward_name, local.cost_points, local.redeemed_at
+            ),
+            remote_summary: format!(
+                "student={}, reward={}, cost={}, redeemed_at={}",
+                remote.student_name, remote.reward_name, remote.cost_points, remote.redeemed_at
             ),
         });
     }

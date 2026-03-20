@@ -5,6 +5,8 @@ pub const TABLE_SETTLEMENTS: &str = "settlements";
 pub const TABLE_SETTINGS: &str = "settings";
 pub const TABLE_TAGS: &str = "tags";
 pub const TABLE_STUDENT_TAGS: &str = "student_tags";
+pub const TABLE_REWARD_SETTINGS: &str = "reward_settings";
+pub const TABLE_REWARD_REDEMPTIONS: &str = "reward_redemptions";
 
 pub mod students {
     pub const TABLE: &str = "students";
@@ -12,6 +14,7 @@ pub mod students {
     pub const NAME: &str = "name";
     pub const TAGS: &str = "tags";
     pub const SCORE: &str = "score";
+    pub const REWARD_POINTS: &str = "reward_points";
     pub const EXTRA_JSON: &str = "extra_json";
     pub const CREATED_AT: &str = "created_at";
     pub const UPDATED_AT: &str = "updated_at";
@@ -70,6 +73,26 @@ pub mod student_tags {
     pub const CREATED_AT: &str = "created_at";
 }
 
+pub mod reward_settings {
+    pub const TABLE: &str = "reward_settings";
+    pub const ID: &str = "id";
+    pub const NAME: &str = "name";
+    pub const COST_POINTS: &str = "cost_points";
+    pub const CREATED_AT: &str = "created_at";
+    pub const UPDATED_AT: &str = "updated_at";
+}
+
+pub mod reward_redemptions {
+    pub const TABLE: &str = "reward_redemptions";
+    pub const ID: &str = "id";
+    pub const UUID: &str = "uuid";
+    pub const STUDENT_NAME: &str = "student_name";
+    pub const REWARD_ID: &str = "reward_id";
+    pub const REWARD_NAME: &str = "reward_name";
+    pub const COST_POINTS: &str = "cost_points";
+    pub const REDEEMED_AT: &str = "redeemed_at";
+}
+
 pub fn get_create_students_table_sql(sqlite: bool) -> String {
     if sqlite {
         r#"
@@ -78,6 +101,7 @@ pub fn get_create_students_table_sql(sqlite: bool) -> String {
             name TEXT NOT NULL,
             tags TEXT DEFAULT '[]',
             score INTEGER DEFAULT 0,
+            reward_points INTEGER DEFAULT 0,
             extra_json TEXT,
             created_at TEXT DEFAULT (datetime('now', 'localtime')),
             updated_at TEXT DEFAULT (datetime('now', 'localtime'))
@@ -91,9 +115,66 @@ pub fn get_create_students_table_sql(sqlite: bool) -> String {
             name TEXT NOT NULL,
             tags TEXT DEFAULT '[]',
             score INTEGER DEFAULT 0,
+            reward_points INTEGER DEFAULT 0,
             extra_json TEXT,
             created_at TEXT DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
             updated_at TEXT DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        )
+        "#
+        .to_string()
+    }
+}
+
+pub fn get_create_reward_settings_table_sql(sqlite: bool) -> String {
+    if sqlite {
+        r#"
+        CREATE TABLE IF NOT EXISTS reward_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            cost_points INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now', 'localtime')),
+            updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+        "#
+        .to_string()
+    } else {
+        r#"
+        CREATE TABLE IF NOT EXISTS reward_settings (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            cost_points INTEGER NOT NULL,
+            created_at TEXT DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')),
+            updated_at TEXT DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
+        )
+        "#
+        .to_string()
+    }
+}
+
+pub fn get_create_reward_redemptions_table_sql(sqlite: bool) -> String {
+    if sqlite {
+        r#"
+        CREATE TABLE IF NOT EXISTS reward_redemptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uuid TEXT NOT NULL UNIQUE,
+            student_name TEXT NOT NULL,
+            reward_id INTEGER NOT NULL,
+            reward_name TEXT NOT NULL,
+            cost_points INTEGER NOT NULL,
+            redeemed_at TEXT DEFAULT (datetime('now', 'localtime'))
+        )
+        "#
+        .to_string()
+    } else {
+        r#"
+        CREATE TABLE IF NOT EXISTS reward_redemptions (
+            id SERIAL PRIMARY KEY,
+            uuid TEXT NOT NULL UNIQUE,
+            student_name TEXT NOT NULL,
+            reward_id INTEGER NOT NULL,
+            reward_name TEXT NOT NULL,
+            cost_points INTEGER NOT NULL,
+            redeemed_at TEXT DEFAULT (to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))
         )
         "#
         .to_string()
@@ -258,6 +339,20 @@ pub fn get_create_student_tags_table_sql(sqlite: bool) -> String {
         "#
         .to_string()
     }
+}
+
+pub fn get_create_index_reward_settings_name_sql(_sqlite: bool) -> String {
+    "CREATE INDEX IF NOT EXISTS idx_reward_settings_name ON reward_settings(name)".to_string()
+}
+
+pub fn get_create_index_reward_redemptions_student_name_sql(_sqlite: bool) -> String {
+    "CREATE INDEX IF NOT EXISTS idx_reward_redemptions_student_name ON reward_redemptions(student_name)"
+        .to_string()
+}
+
+pub fn get_create_index_reward_redemptions_reward_id_sql(_sqlite: bool) -> String {
+    "CREATE INDEX IF NOT EXISTS idx_reward_redemptions_reward_id ON reward_redemptions(reward_id)"
+        .to_string()
 }
 
 pub fn get_create_index_score_events_settlement_id_sql(sqlite: bool) -> String {

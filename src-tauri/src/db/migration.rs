@@ -19,6 +19,9 @@ impl Migration {
         Self::create_settings_table(conn, is_sqlite).await?;
         Self::create_tags_table(conn, is_sqlite).await?;
         Self::create_student_tags_table(conn, is_sqlite).await?;
+        Self::create_reward_settings_table(conn, is_sqlite).await?;
+        Self::create_reward_redemptions_table(conn, is_sqlite).await?;
+        Self::ensure_students_reward_points_column(conn, is_sqlite).await?;
 
         Self::create_indexes(conn, is_sqlite).await?;
 
@@ -93,11 +96,64 @@ impl Migration {
         Ok(())
     }
 
+    async fn create_reward_settings_table(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        let sql = get_create_reward_settings_table_sql(sqlite);
+        conn.execute(Statement::from_string(Self::get_db_backend(sqlite), sql))
+            .await?;
+        info!("Created reward_settings table");
+        Ok(())
+    }
+
+    async fn create_reward_redemptions_table(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        let sql = get_create_reward_redemptions_table_sql(sqlite);
+        conn.execute(Statement::from_string(Self::get_db_backend(sqlite), sql))
+            .await?;
+        info!("Created reward_redemptions table");
+        Ok(())
+    }
+
+    async fn ensure_students_reward_points_column(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        let db_backend = Self::get_db_backend(sqlite);
+        let exists_sql = if sqlite {
+            "SELECT 1 AS exists FROM pragma_table_info('students') WHERE name = 'reward_points' LIMIT 1"
+                .to_string()
+        } else {
+            "SELECT 1 AS exists FROM information_schema.columns WHERE table_name = 'students' AND column_name = 'reward_points' LIMIT 1"
+                .to_string()
+        };
+
+        let exists = conn
+            .query_one(Statement::from_string(db_backend.clone(), exists_sql))
+            .await?
+            .is_some();
+
+        if !exists {
+            let alter_sql = "ALTER TABLE students ADD COLUMN reward_points INTEGER DEFAULT 0";
+            conn.execute(Statement::from_string(db_backend.clone(), alter_sql.to_string()))
+                .await?;
+            info!("Added students.reward_points column");
+        }
+
+        Ok(())
+    }
+
     async fn create_indexes(conn: &impl ConnectionTrait, sqlite: bool) -> Result<(), DbErr> {
         let indexes = vec![
             get_create_index_score_events_settlement_id_sql(sqlite),
             get_create_index_score_events_student_name_sql(sqlite),
             get_create_index_reasons_content_sql(sqlite),
+            get_create_index_reward_settings_name_sql(sqlite),
+            get_create_index_reward_redemptions_student_name_sql(sqlite),
+            get_create_index_reward_redemptions_reward_id_sql(sqlite),
         ];
 
         for index_sql in indexes {
@@ -251,6 +307,8 @@ impl Migration {
             TABLE_REASONS,
             TABLE_TAGS,
             TABLE_STUDENTS,
+            TABLE_REWARD_REDEMPTIONS,
+            TABLE_REWARD_SETTINGS,
             TABLE_SETTINGS,
         ];
 
