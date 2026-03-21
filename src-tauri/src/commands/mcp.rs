@@ -6,7 +6,10 @@ use axum::{
     Json, Router,
 };
 use parking_lot::RwLock;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
@@ -92,6 +95,12 @@ struct AddScoreArgs {
     reason_content: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct ListStudentsArgs {
+    #[serde(default)]
+    limit: Option<u64>,
+}
+
 #[derive(Debug, Serialize)]
 struct AddScoreResult {
     event_id: i32,
@@ -104,6 +113,21 @@ struct AddScoreResult {
     event_time: String,
 }
 
+#[derive(Debug, Serialize)]
+struct StudentListItem {
+    id: i32,
+    name: String,
+    score: i32,
+    reward_points: i32,
+    tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ListStudentsResult {
+    total: usize,
+    students: Vec<StudentListItem>,
+}
+
 static MCP_SERVER_STATE: once_cell::sync::Lazy<Arc<Mutex<McpServerState>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(McpServerState::default())));
 
@@ -114,6 +138,20 @@ fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
         return Err("Permission denied: Admin required".to_string());
     }
     Ok(())
+}
+
+fn mcp_log_info(app_state: &Arc<RwLock<AppState>>, message: &str, meta: Value) {
+    println!("[MCP][INFO] {} | {}", message, meta);
+    let state_guard = app_state.read();
+    let logger = state_guard.logger.read();
+    logger.info_with_meta(message, meta.clone());
+}
+
+fn mcp_log_error(app_state: &Arc<RwLock<AppState>>, message: &str, meta: Value) {
+    eprintln!("[MCP][ERROR] {} | {}", message, meta);
+    let state_guard = app_state.read();
+    let logger = state_guard.logger.read();
+    logger.error_with_meta(message, meta.clone());
 }
 
 fn jsonrpc_ok(id: Value, result: Value) -> Value {
@@ -165,6 +203,16 @@ fn tools_list_result() -> Value {
                     },
                     "required": ["student_name", "delta"]
                 }
+            },
+            {
+                "name": "list_students",
+                "description": "获取学生列表，包含姓名、积分、奖励积分和标签。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "description": "最多返回多少条，默认全部"}
+                    }
+                }
             }
         ]
     })
@@ -177,10 +225,24 @@ async fn handle_mcp(
     let req = match serde_json::from_value::<McpRequest>(payload) {
         Ok(v) => v,
         Err(e) => {
+            mcp_log_error(
+                &app_state,
+                "mcp:request_parse_failed",
+                json!({ "error": e.to_string() }),
+            );
             let body = jsonrpc_error(Value::Null, -32700, &format!("Parse error: {}", e));
             return (StatusCode::OK, Json(body)).into_response();
         }
     };
+
+    mcp_log_info(
+        &app_state,
+        "mcp:request_received",
+        json!({
+            "method": req.method.clone(),
+            "has_id": req.id.is_some()
+        }),
+    );
 
     let Some(id) = req.id.clone() else {
         return StatusCode::NO_CONTENT.into_response();
@@ -195,42 +257,130 @@ async fn handle_mcp(
                 .and_then(|p| serde_json::from_value::<ToolCallParams>(p).ok());
 
             match params {
-                None => jsonrpc_error(id, -32602, "Invalid tools/call params"),
-                Some(params) if params.name != "add_score" => {
-                    jsonrpc_error(id, -32601, &format!("Unknown tool: {}", params.name))
+                None => {
+                    mcp_log_error(
+                        &app_state,
+                        "mcp:tools_call_invalid_params",
+                        json!({ "reason": "invalid_tools_call_params" }),
+                    );
+                    jsonrpc_error(id, -32602, "Invalid tools/call params")
                 }
-                Some(params) => match serde_json::from_value::<AddScoreArgs>(params.arguments) {
-                    Ok(args) => match mcp_add_score(&app_state, args).await {
-                        Ok(payload) => jsonrpc_ok(
-                            id,
-                            json!({
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": format!(
-                                            "已记录：{} {:+} 分（{} -> {}）",
-                                            payload.student_name, payload.delta, payload.val_prev, payload.val_curr
-                                        )
-                                    }
-                                ],
-                                "isError": false,
-                                "structuredContent": payload
-                            }),
-                        ),
-                        Err(e) => jsonrpc_ok(
-                            id,
-                            json!({
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": format!("加分失败: {}", e)
-                                    }
-                                ],
-                                "isError": true
-                            }),
-                        ),
+                Some(params) => match params.name.as_str() {
+                    "add_score" => match serde_json::from_value::<AddScoreArgs>(params.arguments) {
+                        Ok(args) => match mcp_add_score(&app_state, args).await {
+                            Ok(payload) => jsonrpc_ok(
+                                id,
+                                json!({
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": format!(
+                                                "已记录：{} {:+} 分（{} -> {}）",
+                                                payload.student_name, payload.delta, payload.val_prev, payload.val_curr
+                                            )
+                                        }
+                                    ],
+                                    "isError": false,
+                                    "structuredContent": payload
+                                }),
+                            ),
+                            Err(e) => {
+                                mcp_log_error(
+                                    &app_state,
+                                    "mcp:tool_call_failed",
+                                    json!({
+                                        "tool": "add_score",
+                                        "error": e
+                                    }),
+                                );
+                                jsonrpc_ok(
+                                    id,
+                                    json!({
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": format!("加分失败: {}", e)
+                                            }
+                                        ],
+                                        "isError": true
+                                    }),
+                                )
+                            }
+                        },
+                        Err(e) => {
+                            mcp_log_error(
+                                &app_state,
+                                "mcp:tool_call_invalid_arguments",
+                                json!({
+                                    "tool": "add_score",
+                                    "error": e.to_string()
+                                }),
+                            );
+                            jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e))
+                        }
                     },
-                    Err(e) => jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e)),
+                    "list_students" => {
+                        match serde_json::from_value::<ListStudentsArgs>(params.arguments) {
+                            Ok(args) => match mcp_list_students(&app_state, args).await {
+                                Ok(payload) => jsonrpc_ok(
+                                    id,
+                                    json!({
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": format!("已获取 {} 名学生", payload.total)
+                                            }
+                                        ],
+                                        "isError": false,
+                                        "structuredContent": payload
+                                    }),
+                                ),
+                                Err(e) => {
+                                    mcp_log_error(
+                                        &app_state,
+                                        "mcp:tool_call_failed",
+                                        json!({
+                                            "tool": "list_students",
+                                            "error": e
+                                        }),
+                                    );
+                                    jsonrpc_ok(
+                                        id,
+                                        json!({
+                                            "content": [
+                                                {
+                                                    "type": "text",
+                                                    "text": format!("获取学生列表失败: {}", e)
+                                                }
+                                            ],
+                                            "isError": true
+                                        }),
+                                    )
+                                }
+                            },
+                            Err(e) => {
+                                mcp_log_error(
+                                    &app_state,
+                                    "mcp:tool_call_invalid_arguments",
+                                    json!({
+                                        "tool": "list_students",
+                                        "error": e.to_string()
+                                    }),
+                                );
+                                jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e))
+                            }
+                        }
+                    }
+                    _ => {
+                        mcp_log_error(
+                            &app_state,
+                            "mcp:tool_call_unknown_tool",
+                            json!({
+                                "tool": params.name
+                            }),
+                        );
+                        jsonrpc_error(id, -32601, &format!("Unknown tool: {}", params.name))
+                    }
                 },
             }
         }
@@ -245,6 +395,16 @@ async fn mcp_add_score(
     app_state: &Arc<RwLock<AppState>>,
     args: AddScoreArgs,
 ) -> Result<AddScoreResult, String> {
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_started",
+        json!({
+            "tool": "add_score",
+            "student_name": args.student_name.clone(),
+            "delta": args.delta
+        }),
+    );
+
     let student_name = args.student_name.trim();
     if student_name.is_empty() {
         return Err("student_name 不能为空".to_string());
@@ -308,6 +468,18 @@ async fn mcp_add_score(
 
     realtime_dual_write_sync(app_state).await?;
 
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_succeeded",
+        json!({
+            "tool": "add_score",
+            "student_name": student_name,
+            "delta": args.delta,
+            "event_id": inserted.id,
+            "event_uuid": event_uuid
+        }),
+    );
+
     Ok(AddScoreResult {
         event_id: inserted.id,
         event_uuid,
@@ -320,15 +492,84 @@ async fn mcp_add_score(
     })
 }
 
+async fn mcp_list_students(
+    app_state: &Arc<RwLock<AppState>>,
+    args: ListStudentsArgs,
+) -> Result<ListStudentsResult, String> {
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_started",
+        json!({
+            "tool": "list_students",
+            "limit": args.limit
+        }),
+    );
+
+    let db_conn = {
+        let state_guard = app_state.read();
+        let db_guard = state_guard.db.read();
+        db_guard.clone()
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let mut query = students::Entity::find().order_by_asc(students::Column::Name);
+    if let Some(limit) = args.limit {
+        // 防止极大值在 PostgreSQL 绑定参数时溢出导致 panic。
+        let safe_limit = limit.min(i64::MAX as u64);
+        query = query.limit(safe_limit);
+    }
+
+    let rows = query.all(&db_conn).await.map_err(|e| e.to_string())?;
+
+    let students = rows
+        .into_iter()
+        .map(|row| StudentListItem {
+            id: row.id,
+            name: row.name,
+            score: row.score,
+            reward_points: row.reward_points,
+            tags: serde_json::from_str::<Vec<String>>(&row.tags).unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_succeeded",
+        json!({
+            "tool": "list_students",
+            "total": students.len()
+        }),
+    );
+
+    Ok(ListStudentsResult {
+        total: students.len(),
+        students,
+    })
+}
+
 #[tauri::command]
 pub async fn mcp_server_start(
     config: Option<McpServerConfig>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<McpServerStartResult>, String> {
     check_admin_permission(&state)?;
+    mcp_log_info(
+        state.inner(),
+        "mcp:server_start_requested",
+        json!({
+            "config": config.clone()
+        }),
+    );
 
     let mut server_state = MCP_SERVER_STATE.lock().await;
     if server_state.is_running {
+        mcp_log_info(
+            state.inner(),
+            "mcp:server_already_running",
+            json!({
+                "url": server_state.url.clone()
+            }),
+        );
         return Ok(IpcResponse::failure_with_type(
             "MCP server is already running",
         ));
@@ -377,6 +618,16 @@ pub async fn mcp_server_start(
     server_state.url = Some(url.clone());
     server_state.shutdown_tx = Some(shutdown_tx);
 
+    mcp_log_info(
+        state.inner(),
+        "mcp:server_started",
+        json!({
+            "url": url.clone(),
+            "host": server_state.config.host.clone(),
+            "port": server_state.config.port
+        }),
+    );
+
     Ok(IpcResponse::success(McpServerStartResult {
         url,
         config: server_state.config.clone(),
@@ -388,10 +639,12 @@ pub async fn mcp_server_stop(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<()>, String> {
     check_admin_permission(&state)?;
+    mcp_log_info(state.inner(), "mcp:server_stop_requested", json!({}));
 
     let mut server_state = MCP_SERVER_STATE.lock().await;
 
     if !server_state.is_running {
+        mcp_log_info(state.inner(), "mcp:server_already_stopped", json!({}));
         return Ok(IpcResponse::success_empty());
     }
 
@@ -402,14 +655,24 @@ pub async fn mcp_server_stop(
     server_state.is_running = false;
     server_state.url = None;
 
+    mcp_log_info(state.inner(), "mcp:server_stopped", json!({}));
+
     Ok(IpcResponse::success_empty())
 }
 
 #[tauri::command]
 pub async fn mcp_server_status(
-    _state: State<'_, Arc<RwLock<AppState>>>,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<McpServerStatus>, String> {
     let server_state = MCP_SERVER_STATE.lock().await;
+    mcp_log_info(
+        state.inner(),
+        "mcp:server_status_requested",
+        json!({
+            "is_running": server_state.is_running,
+            "url": server_state.url.clone()
+        }),
+    );
 
     Ok(IpcResponse::success(McpServerStatus {
         is_running: server_state.is_running,

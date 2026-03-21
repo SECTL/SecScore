@@ -18,6 +18,7 @@
 当前已实现 MCP 工具：
 
 - `add_score`：给指定学生加分或扣分，并写入 `score_events` 记录。
+- `list_students`：获取学生列表（姓名、积分、奖励积分、标签）。
 
 ## 2. 启动与停止 MCP 服务
 
@@ -98,6 +99,28 @@ curl -X POST http://127.0.0.1:3901/mcp \
 - `student_name`（string，必填）：学生姓名。
 - `delta`（integer，必填）：分值变化，正数加分，负数扣分。
 - `reason_content`（string，可选）：原因，默认 `MCP 加分`。
+
+### 3.4 tools/call（调用 list_students）
+
+```bash
+curl -X POST http://127.0.0.1:3901/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "tools/call",
+    "params": {
+      "name": "list_students",
+      "arguments": {
+        "limit": 50
+      }
+    }
+  }'
+```
+
+`list_students` 参数：
+
+- `limit`（integer，可选）：最多返回多少条，默认返回全部学生。
 
 ## 4. 返回结果说明
 
