@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">SecScore</string>
-    <string name="title_activity_main">SecScore</string>
-    <string name="package_name">com.sectl.secscore</string>
-    <string name="custom_url_scheme">com.sectl.secscore</string>
-</resources>
