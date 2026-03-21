@@ -17,6 +17,11 @@ export interface settingChange {
   oldValue: any
 }
 
+export interface dataUpdatedEvent {
+  category?: "events" | "students" | "reasons" | "all"
+  source?: string
+}
+
 export type settingsKey =
   | "is_wizard_completed"
   | "log_level"
@@ -226,6 +231,11 @@ const api = {
   onNavigate: (callback: (route: string) => void): Promise<UnlistenFn> => {
     return listen<string>("app:navigate", (event) => {
       callback(event.payload)
+    })
+  },
+  onDataUpdated: (callback: (payload: dataUpdatedEvent) => void): Promise<UnlistenFn> => {
+    return listen<dataUpdatedEvent>("ss:data-updated", (event) => {
+      callback(event.payload || {})
     })
   },
 

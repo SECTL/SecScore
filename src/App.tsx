@@ -140,6 +140,36 @@ function MainContent(): React.JSX.Element {
     }
   }, [isIosDevice])
 
+  useEffect(() => {
+    const api = (window as any).api
+    if (!api || typeof api.onDataUpdated !== "function") return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onDataUpdated((payload: { category?: string; source?: string }) => {
+        const detail = {
+          category: payload?.category || "all",
+          source: payload?.source || "tauri",
+        }
+        window.dispatchEvent(new CustomEvent("ss:data-updated", { detail }))
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
+  }, [])
+
   const applySyncStrategy = async (strategy: "keep_local" | "keep_remote") => {
     const api = (window as any).api
     if (!api) return
