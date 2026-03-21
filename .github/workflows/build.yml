@@ -210,23 +210,19 @@ jobs:
       - name: 初始化 Android 项目
         run: pnpm tauri android init
 
-      - name: 构建 Android（ARM64）
-        run: pnpm tauri android build --target aarch64
-
-      - name: 构建 Android（ARMv7）
-        run: pnpm tauri android build --target armv7
-
-      - name: 构建 Android（x86_64）
-        run: pnpm tauri android build --target x86_64
+      - name: 构建 Android 全架构
+        run: pnpm tauri android build --target aarch64,armv7,x86_64
 
       - uses: actions/upload-artifact@v4
         with:
           name: dist-android
-          path: src-tauri/gen/android/app/build/outputs/**/*.apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
 
   release:
     needs: [parse, build_win, build_mac, build_linux, build_android]
-    if: ${{ always() && needs.parse.outputs.tag != '' && (needs.build_win.result == 'success' || needs.build_win.result == 'skipped') && (needs.build_mac.result == 'success' || needs.build_mac.result == 'skipped') && (needs.build_linux.result == 'success' || needs.build_linux.result == 'skipped') && (needs.build_android.result == 'success' || needs.build_android.result == 'skipped') }}
+    if: ${{ always() && needs.parse.outputs.tag != '' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -234,24 +230,23 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: 列出产物文件
-        run: |
-          echo "Artifacts found:"
-          find artifacts -type f -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.apk" 2>/dev/null || true
+      - name: 列出所有构建产物
+        run: find artifacts -type f | sort
 
-      - name: 发布 Release
+      - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.parse.outputs.tag }}
           name: SecScore ${{ needs.parse.outputs.tag }}
-          draft: True
+          draft: true
           prerelease: ${{ contains(needs.parse.outputs.version, '-') }}
           files: |
-            artifacts/dist-win/**/*.msi
-            artifacts/dist-win/**/*.exe
-            artifacts/dist-mac/**/*.dmg
-            artifacts/dist-mac/**/*.app.tar.gz
-            artifacts/dist-linux/**/*.deb
-            artifacts/dist-linux/**/*.rpm
-            artifacts/dist-linux/**/*.AppImage
-            artifacts/dist-android/**/*.apk
+            artifacts/**/*.exe
+            artifacts/**/*.msi
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*.apk
+            artifacts/**/*.aab
