@@ -6,7 +6,10 @@ use axum::{
     Json, Router,
 };
 use parking_lot::RwLock;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set, TransactionTrait};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    TransactionTrait,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::net::SocketAddr;
@@ -92,6 +95,12 @@ struct AddScoreArgs {
     reason_content: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct ListStudentsArgs {
+    #[serde(default)]
+    limit: Option<u64>,
+}
+
 #[derive(Debug, Serialize)]
 struct AddScoreResult {
     event_id: i32,
@@ -102,6 +111,21 @@ struct AddScoreResult {
     val_curr: i32,
     reason_content: String,
     event_time: String,
+}
+
+#[derive(Debug, Serialize)]
+struct StudentListItem {
+    id: i32,
+    name: String,
+    score: i32,
+    reward_points: i32,
+    tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ListStudentsResult {
+    total: usize,
+    students: Vec<StudentListItem>,
 }
 
 static MCP_SERVER_STATE: once_cell::sync::Lazy<Arc<Mutex<McpServerState>>> =
@@ -165,6 +189,16 @@ fn tools_list_result() -> Value {
                     },
                     "required": ["student_name", "delta"]
                 }
+            },
+            {
+                "name": "list_students",
+                "description": "获取学生列表，包含姓名、积分、奖励积分和标签。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "description": "最多返回多少条，默认全部"}
+                    }
+                }
             }
         ]
     })
@@ -196,41 +230,75 @@ async fn handle_mcp(
 
             match params {
                 None => jsonrpc_error(id, -32602, "Invalid tools/call params"),
-                Some(params) if params.name != "add_score" => {
-                    jsonrpc_error(id, -32601, &format!("Unknown tool: {}", params.name))
-                }
-                Some(params) => match serde_json::from_value::<AddScoreArgs>(params.arguments) {
-                    Ok(args) => match mcp_add_score(&app_state, args).await {
-                        Ok(payload) => jsonrpc_ok(
-                            id,
-                            json!({
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": format!(
-                                            "已记录：{} {:+} 分（{} -> {}）",
-                                            payload.student_name, payload.delta, payload.val_prev, payload.val_curr
-                                        )
-                                    }
-                                ],
-                                "isError": false,
-                                "structuredContent": payload
-                            }),
-                        ),
-                        Err(e) => jsonrpc_ok(
-                            id,
-                            json!({
-                                "content": [
-                                    {
-                                        "type": "text",
-                                        "text": format!("加分失败: {}", e)
-                                    }
-                                ],
-                                "isError": true
-                            }),
-                        ),
+                Some(params) => match params.name.as_str() {
+                    "add_score" => match serde_json::from_value::<AddScoreArgs>(params.arguments) {
+                        Ok(args) => match mcp_add_score(&app_state, args).await {
+                            Ok(payload) => jsonrpc_ok(
+                                id,
+                                json!({
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": format!(
+                                                "已记录：{} {:+} 分（{} -> {}）",
+                                                payload.student_name, payload.delta, payload.val_prev, payload.val_curr
+                                            )
+                                        }
+                                    ],
+                                    "isError": false,
+                                    "structuredContent": payload
+                                }),
+                            ),
+                            Err(e) => jsonrpc_ok(
+                                id,
+                                json!({
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": format!("加分失败: {}", e)
+                                        }
+                                    ],
+                                    "isError": true
+                                }),
+                            ),
+                        },
+                        Err(e) => jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e)),
                     },
-                    Err(e) => jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e)),
+                    "list_students" => {
+                        match serde_json::from_value::<ListStudentsArgs>(params.arguments) {
+                            Ok(args) => match mcp_list_students(&app_state, args).await {
+                                Ok(payload) => jsonrpc_ok(
+                                    id,
+                                    json!({
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": format!("已获取 {} 名学生", payload.total)
+                                            }
+                                        ],
+                                        "isError": false,
+                                        "structuredContent": payload
+                                    }),
+                                ),
+                                Err(e) => jsonrpc_ok(
+                                    id,
+                                    json!({
+                                        "content": [
+                                            {
+                                                "type": "text",
+                                                "text": format!("获取学生列表失败: {}", e)
+                                            }
+                                        ],
+                                        "isError": true
+                                    }),
+                                ),
+                            },
+                            Err(e) => {
+                                jsonrpc_error(id, -32602, &format!("Invalid arguments: {}", e))
+                            }
+                        }
+                    }
+                    _ => jsonrpc_error(id, -32601, &format!("Unknown tool: {}", params.name)),
                 },
             }
         }
@@ -317,6 +385,43 @@ async fn mcp_add_score(
         val_curr,
         reason_content,
         event_time,
+    })
+}
+
+async fn mcp_list_students(
+    app_state: &Arc<RwLock<AppState>>,
+    args: ListStudentsArgs,
+) -> Result<ListStudentsResult, String> {
+    let db_conn = {
+        let state_guard = app_state.read();
+        let db_guard = state_guard.db.read();
+        db_guard.clone()
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let limit = args.limit.unwrap_or(u64::MAX);
+
+    let rows = students::Entity::find()
+        .order_by_asc(students::Column::Name)
+        .limit(limit)
+        .all(&db_conn)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let students = rows
+        .into_iter()
+        .map(|row| StudentListItem {
+            id: row.id,
+            name: row.name,
+            score: row.score,
+            reward_points: row.reward_points,
+            tags: serde_json::from_str::<Vec<String>>(&row.tags).unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+
+    Ok(ListStudentsResult {
+        total: students.len(),
+        students,
     })
 }
 
