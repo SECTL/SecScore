@@ -512,14 +512,14 @@ async fn mcp_list_students(
     }
     .ok_or_else(|| "Database not connected".to_string())?;
 
-    let limit = args.limit.unwrap_or(u64::MAX);
+    let mut query = students::Entity::find().order_by_asc(students::Column::Name);
+    if let Some(limit) = args.limit {
+        // 防止极大值在 PostgreSQL 绑定参数时溢出导致 panic。
+        let safe_limit = limit.min(i64::MAX as u64);
+        query = query.limit(safe_limit);
+    }
 
-    let rows = students::Entity::find()
-        .order_by_asc(students::Column::Name)
-        .limit(limit)
-        .all(&db_conn)
-        .await
-        .map_err(|e| e.to_string())?;
+    let rows = query.all(&db_conn).await.map_err(|e| e.to_string())?;
 
     let students = rows
         .into_iter()
