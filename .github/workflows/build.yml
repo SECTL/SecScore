@@ -89,7 +89,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist-win
-          path: src-tauri/target/release/bundle/**
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**
+            src-tauri/target/release/bundle/**
 
   build_mac:
     needs: parse
@@ -123,7 +125,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist-mac
-          path: src-tauri/target/release/bundle/**
+          path: |
+            src-tauri/target/x86_64-apple-darwin/release/bundle/**
+            src-tauri/target/aarch64-apple-darwin/release/bundle/**
+            src-tauri/target/universal-apple-darwin/release/bundle/**
+            src-tauri/target/release/bundle/**
 
   build_linux:
     needs: parse
@@ -160,7 +166,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dist-linux
-          path: src-tauri/target/release/bundle/**
+          path: |
+            src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/**
+            src-tauri/target/release/bundle/**
 
   build_android:
     needs: parse
@@ -218,12 +226,18 @@ jobs:
 
   release:
     needs: [parse, build_win, build_mac, build_linux, build_android]
-    if: ${{ always() && needs.parse.outputs.tag != '' }}
+    if: ${{ always() && needs.parse.outputs.tag != '' && (needs.build_win.result == 'success' || needs.build_win.result == 'skipped') && (needs.build_mac.result == 'success' || needs.build_mac.result == 'skipped') && (needs.build_linux.result == 'success' || needs.build_linux.result == 'skipped') && (needs.build_android.result == 'success' || needs.build_android.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
+
+      - name: 列出产物文件
+        run: |
+          echo "Artifacts found:"
+          find artifacts -type f -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.apk" 2>/dev/null || true
 
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
@@ -233,11 +247,11 @@ jobs:
           draft: True
           prerelease: ${{ contains(needs.parse.outputs.version, '-') }}
           files: |
-            artifacts/**/*.msi
-            artifacts/**/*.exe
-            artifacts/**/*.dmg
-            artifacts/**/*.app.tar.gz
-            artifacts/**/*.deb
-            artifacts/**/*.rpm
-            artifacts/**/*.AppImage
-            artifacts/**/*.apk
+            artifacts/dist-win/**/*.msi
+            artifacts/dist-win/**/*.exe
+            artifacts/dist-mac/**/*.dmg
+            artifacts/dist-mac/**/*.app.tar.gz
+            artifacts/dist-linux/**/*.deb
+            artifacts/dist-linux/**/*.rpm
+            artifacts/dist-linux/**/*.AppImage
+            artifacts/dist-android/**/*.apk
