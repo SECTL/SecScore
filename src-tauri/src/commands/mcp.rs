@@ -141,15 +141,17 @@ fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
 }
 
 fn mcp_log_info(app_state: &Arc<RwLock<AppState>>, message: &str, meta: Value) {
+    println!("[MCP][INFO] {} | {}", message, meta);
     let state_guard = app_state.read();
     let logger = state_guard.logger.read();
-    logger.info_with_meta(message, meta);
+    logger.info_with_meta(message, meta.clone());
 }
 
 fn mcp_log_error(app_state: &Arc<RwLock<AppState>>, message: &str, meta: Value) {
+    eprintln!("[MCP][ERROR] {} | {}", message, meta);
     let state_guard = app_state.read();
     let logger = state_guard.logger.read();
-    logger.error_with_meta(message, meta);
+    logger.error_with_meta(message, meta.clone());
 }
 
 fn jsonrpc_ok(id: Value, result: Value) -> Value {
