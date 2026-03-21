@@ -1,8 +1,6 @@
 name: build
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       version:
@@ -75,7 +73,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: 应用版本号
         run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
@@ -107,7 +105,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: 应用版本号
         run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
@@ -139,7 +137,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: 安装系统依赖
         run: |
@@ -176,7 +174,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android, i686-linux-android
 
