@@ -199,6 +199,9 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
+      - name: 初始化 Android 项目
+        run: pnpm tauri android init
+
       - name: 构建 Android（ARM64）
         run: pnpm tauri android build --target aarch64
 
