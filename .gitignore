@@ -1,0 +1,59 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+dist-ssr
+out
+*.local
+
+# Tauri
+src-tauri/target
+src-tauri/Cargo.lock
+src-tauri/gen
+.cargo-local/
+
+# Database
+data.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.DS_Store
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Testing
+coverage
+
+# Cache
+.cache
+.temp
+.tmp
+.eslintcache
+# OS files
+Thumbs.db

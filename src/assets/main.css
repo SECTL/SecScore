@@ -1,0 +1,152 @@
+@import "antd/dist/reset.css";
+
+:root {
+  --ss-app-height: 100vh;
+  --ss-safe-area-top: env(safe-area-inset-top, 0px);
+  --ss-safe-area-right: env(safe-area-inset-right, 0px);
+  --ss-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --ss-safe-area-left: env(safe-area-inset-left, 0px);
+  --ss-font-family:
+    "PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans", "STHeiti", "Heiti SC",
+    "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --ss-app-height: 100dvh;
+  }
+}
+
+/* iOS 使用固定根容器覆盖可视区域，避免首帧/交互后视口高度抖动产生白边 */
+html.platform-ios,
+html.platform-ios body {
+  height: 100%;
+  min-height: 100%;
+}
+
+html,
+body,
+#root {
+  height: var(--ss-app-height);
+  min-height: var(--ss-app-height);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+  background: var(--ss-bg-color, #f5f5f5);
+  font-family: var(--ss-font-family);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+#root {
+  width: 100%;
+  padding-top: var(--ss-safe-area-top);
+  padding-right: var(--ss-safe-area-right);
+  padding-bottom: var(--ss-safe-area-bottom);
+  padding-left: var(--ss-safe-area-left);
+  box-sizing: border-box;
+}
+
+html.platform-ios #root {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  min-height: 0;
+}
+
+html.platform-android {
+  --ss-safe-area-top: max(env(safe-area-inset-top, 0px), 24px);
+}
+
+input,
+textarea {
+  user-select: text;
+  font-family: var(--ss-font-family);
+}
+
+button,
+select {
+  font-family: var(--ss-font-family);
+}
+
+.ant-typography,
+.ant-btn,
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select,
+.ant-select-selection-item,
+.ant-message-notice-content {
+  font-family: var(--ss-font-family) !important;
+}
+
+.ss-sidebar {
+  color: var(--ss-sidebar-text, var(--ss-text-main));
+}
+
+.ss-sidebar .ant-menu {
+  background-color: transparent !important;
+}
+
+.ss-sidebar .ant-menu-item {
+  color: var(--ss-sidebar-text, var(--ss-text-main));
+}
+
+.ss-sidebar .ant-menu-item-selected {
+  background-color: var(--ss-sidebar-active-bg, var(--ss-item-hover, transparent)) !important;
+  color: var(
+    --ss-sidebar-active-text,
+    var(--ant-color-primary, var(--ss-sidebar-text, var(--ss-text-main)))
+  );
+}
+
+@media (pointer: coarse) {
+  .ss-sidebar .ant-menu-item {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .ant-btn {
+    min-height: 44px;
+  }
+
+  .ant-input,
+  .ant-select-selector,
+  .ant-input-number {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .ant-table th,
+  .ant-table td {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+}
+
+.ss-table-center .ant-table th,
+.ss-table-center .ant-table td {
+  text-align: center;
+}
+
+.ss-operation-drawer .ant-drawer-header {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.ss-operation-drawer .ant-drawer-header .ant-drawer-close,
+.ss-operation-drawer .ant-drawer-header button {
+  -webkit-app-region: no-drag;
+}
+
+html.platform-macos,
+html.platform-macos body {
+  background: transparent;
+}
+
+html.platform-macos #root {
+  border-radius: 12px;
+  overflow: hidden;
+}

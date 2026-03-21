@@ -1,0 +1,238 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（例如 1.2.3 或 v1.2.3）"
+        required: true
+      build:
+        description: "构建命令标记（build:win|build:mac|build:linux|build:all）"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      tag: ${{ steps.parse.outputs.tag }}
+      build_script: ${{ steps.parse.outputs.build_script }}
+      run_win: ${{ steps.parse.outputs.run_win }}
+      run_mac: ${{ steps.parse.outputs.run_mac }}
+      run_linux: ${{ steps.parse.outputs.run_linux }}
+      run_android: ${{ steps.parse.outputs.run_android }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 读取提交信息
+        id: msg
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            {
+              echo "message<<__EOF__"
+              echo "${{ github.event.inputs.version }} ${{ github.event.inputs.build }}"
+              echo "__EOF__"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "message<<__EOF__"
+              echo "${{ github.event.head_commit.message }}"
+              echo "__EOF__"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 解析版本与构建命令
+        id: parse
+        env:
+          RELEASE_MESSAGE: ${{ steps.msg.outputs.message }}
+        run: node scripts/ci/parse-commit.mjs
+
+  build_win:
+    needs: parse
+    if: ${{ needs.parse.outputs.run_win == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: 应用版本号
+        run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（Windows）
+        run: pnpm tauri build --target x86_64-pc-windows-msvc
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-win
+          path: src-tauri/target/release/bundle/**
+
+  build_mac:
+    needs: parse
+    if: ${{ needs.parse.outputs.run_mac == 'true' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: 应用版本号
+        run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（macOS）
+        run: pnpm tauri build --target x86_64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-mac
+          path: src-tauri/target/release/bundle/**
+
+  build_linux:
+    needs: parse
+    if: ${{ needs.parse.outputs.run_linux == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: 应用版本号
+        run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（Linux）
+        run: pnpm tauri build --target x86_64-unknown-linux-gnu
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux
+          path: src-tauri/target/release/bundle/**
+
+  build_android:
+    needs: parse
+    if: ${{ needs.parse.outputs.run_android == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android, i686-linux-android
+
+      - name: 安装 NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+
+      - name: 安装 Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: 应用版本号
+        run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建 Android（ARM64）
+        run: pnpm tauri android build --target aarch64-linux-android
+
+      - name: 构建 Android（ARMv7）
+        run: pnpm tauri android build --target armv7-linux-androideabi
+
+      - name: 构建 Android（x86_64）
+        run: pnpm tauri android build --target x86_64-linux-android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-android
+          path: src-tauri/gen/android/app/build/outputs/**/*.apk
+
+  release:
+    needs: [parse, build_win, build_mac, build_linux, build_android]
+    if: ${{ always() && needs.parse.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.parse.outputs.tag }}
+          name: SecScore ${{ needs.parse.outputs.tag }}
+          draft: True
+          prerelease: ${{ contains(needs.parse.outputs.version, '-') }}
+          files: |
+            artifacts/**/*.msi
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*.apk
