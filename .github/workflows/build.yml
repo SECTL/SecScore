@@ -213,13 +213,6 @@ jobs:
       - name: 构建 Android Universal APK
         run: pnpm tauri android build --target aarch64 --target armv7 --target x86_64
 
-      - name: 安装 Android SDK Build Tools
-        env:
-          ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
-        if: ${{ env.ANDROID_SIGNING_KEY != '' }}
-        run: |
-          sdkmanager "build-tools;33.0.0"
-
       - name: 签名 APK
         env:
           ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
@@ -228,6 +221,14 @@ jobs:
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
         if: ${{ env.ANDROID_SIGNING_KEY != '' }}
         run: |
+          # 找到 Android SDK 中的 apksigner
+          APKSIGNER=$(find ${ANDROID_SDK_ROOT} -name "apksigner" -type f 2>/dev/null | head -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "错误: 未找到 apksigner"
+            exit 1
+          fi
+          echo "使用 apksigner: $APKSIGNER"
+          
           # 创建临时密钥库文件
           echo "$ANDROID_SIGNING_KEY" | base64 -d > /tmp/android_keystore.jks
           
@@ -237,7 +238,7 @@ jobs:
             signed_apk="${apk/-unsigned/-signed}"
             
             # 使用 apksigner 签名
-            "${ANDROID_SDK_ROOT}/build-tools/33.0.0/apksigner" sign \
+            "$APKSIGNER" sign \
               --ks /tmp/android_keystore.jks \
               --ks-key-alias "$ANDROID_KEY_ALIAS" \
               --ks-pass pass:"$ANDROID_STORE_PASSWORD" \
@@ -248,7 +249,7 @@ jobs:
             echo "已签名: $signed_apk"
             
             # 验证签名
-            "${ANDROID_SDK_ROOT}/build-tools/33.0.0/apksigner" verify "$signed_apk"
+            "$APKSIGNER" verify "$signed_apk"
             
             # 删除未签名版本，重命名签名版本
             rm "$apk"
