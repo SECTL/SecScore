@@ -1163,7 +1163,9 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
             {t("settings.mcp.title")}
           </div>
-          <div style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}>
+          <div
+            style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}
+          >
             {t("settings.mcp.description")}
           </div>
           <Space style={{ marginBottom: "12px" }}>

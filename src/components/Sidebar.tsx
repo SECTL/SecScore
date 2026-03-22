@@ -14,7 +14,6 @@ import {
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { useResponsive } from "../hooks/useResponsive"
 import appLogo from "../assets/logoHD.svg"
 
 const { Sider } = Layout
@@ -45,8 +44,6 @@ export function Sidebar({
   onFloatingExpandedChange,
 }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
-  const breakpoint = useResponsive()
-  const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()

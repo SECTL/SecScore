@@ -25,19 +25,19 @@
 你可以在前端通过 Tauri `invoke` 调用：
 
 ```ts
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core"
 
-await invoke('mcp_server_start', {
+await invoke("mcp_server_start", {
   config: {
-    host: '127.0.0.1',
+    host: "127.0.0.1",
     port: 3901,
   },
-});
+})
 
-const status = await invoke('mcp_server_status');
-console.log(status);
+const status = await invoke("mcp_server_status")
+console.log(status)
 
-await invoke('mcp_server_stop');
+await invoke("mcp_server_stop")
 ```
 
 说明：

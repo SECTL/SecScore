@@ -309,8 +309,10 @@ const api = {
   mcpServerStart: (config?: {
     port?: number
     host?: string
-  }): Promise<{ success: boolean; data?: { url: string; config: { port: number; host: string } } }> =>
-    invoke("mcp_server_start", { config }),
+  }): Promise<{
+    success: boolean
+    data?: { url: string; config: { port: number; host: string } }
+  }> => invoke("mcp_server_start", { config }),
   mcpServerStop: (): Promise<{ success: boolean }> => invoke("mcp_server_stop"),
   mcpServerStatus: (): Promise<{
     success: boolean

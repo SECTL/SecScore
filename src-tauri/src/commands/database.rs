@@ -1061,7 +1061,6 @@ pub async fn db_switch_connection(
         Some("database"),
         None,
     );
-    drop(state_guard);
 
     let (db_type, saved_connection_string, saved_status, conn) = if connection_string
         .starts_with("postgres://")
@@ -1170,6 +1169,7 @@ pub async fn db_switch_connection(
             conn,
         )
     };
+    drop(state_guard);
 
     {
         let settings_db_path = sqlite_db_path(&app_handle)?;

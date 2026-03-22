@@ -228,10 +228,10 @@ jobs:
             exit 1
           fi
           echo "使用 apksigner: $APKSIGNER"
-          
+
           # 创建临时密钥库文件
           echo "$ANDROID_SIGNING_KEY" | base64 -d > /tmp/android_keystore.jks
-          
+
           # 找到所有未签名的 APK 文件
           find src-tauri/gen/android/app/build/outputs -name "*-unsigned.apk" -type f | while read -r apk; do
             # 生成签名后的文件名
@@ -255,7 +255,7 @@ jobs:
             rm "$apk"
             mv "$signed_apk" "${apk/-unsigned/}"
           done
-          
+
           # 清理密钥库
           rm -f /tmp/android_keystore.jks
 

@@ -20,9 +20,8 @@ export class EventEmitter {
   }
 
   once(event: string | symbol, listener: eventListener): this {
-    const self = this
-    const onceListener: eventListener = function (...args) {
-      self.off(event, onceListener)
+    const onceListener: eventListener = (...args) => {
+      this.off(event, onceListener)
       listener(...args)
     }
     return this.on(event, onceListener)
@@ -72,9 +71,8 @@ export class Context extends EventEmitter {
   }
 
   once(event: string | symbol, listener: eventListener): this {
-    const self = this
-    const onceListener: eventListener = function (...args) {
-      self.off(event, onceListener)
+    const onceListener: eventListener = (...args) => {
+      this.off(event, onceListener)
       listener(...args)
     }
     super.on(event, onceListener)

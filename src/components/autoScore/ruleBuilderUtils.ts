@@ -62,7 +62,7 @@ export const defaultQuery: RuleGroupType = {
   rules: [{ field: "interval_time_passed", operator: "=", value: "1440" }],
 }
 
-export function queryToAutoScoreRule(_query: RuleGroupType): AutoScoreRuleData {
+export function queryToAutoScoreRule(): AutoScoreRuleData {
   const triggers: AutoScoreTrigger[] = []
 
   /*   const processRuleGroup = (group: RuleGroupType, relation: 'AND' | 'OR' = 'AND') => {

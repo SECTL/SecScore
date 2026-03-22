@@ -7,7 +7,7 @@ import { useTheme } from "../../contexts/ThemeContext"
 import { changeLanguage, AppLanguage, languageOptions } from "../../i18n"
 import type { themeConfig } from "../../preload/types"
 import logoSvg from "../../assets/logoHD.svg"
-import { useResponsive, useScreenSize } from "../../hooks/useResponsive"
+import { useResponsive } from "../../hooks/useResponsive"
 
 interface oobeProps {
   visible: boolean
@@ -102,7 +102,6 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const { currentTheme, setTheme, themes, applyTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
   const breakpoint = useResponsive()
-  const { width: screenWidth, height: screenHeight } = useScreenSize()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
 
   const [currentStep, setCurrentStep] = useState<oobeStep>("entry")

@@ -37,7 +37,7 @@ export const RuleComponent: React.FC<RuleComponentProps> = ({ initialData, onCha
   const handleQueryChange = (newQuery: RuleGroupType) => {
     setQuery(newQuery)
     if (onChange) {
-      const ruleData = queryToAutoScoreRule(newQuery)
+      const ruleData = queryToAutoScoreRule()
       onChange(ruleData)
     }
   }
