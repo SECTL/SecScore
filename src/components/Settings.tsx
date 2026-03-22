@@ -16,6 +16,7 @@ import {
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
+import { useResponsive } from "../hooks/useResponsive"
 
 type permissionLevel = "admin" | "points" | "view"
 type appSettings = {
@@ -47,6 +48,8 @@ const withTimeout = async (
 
 export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
   const { t } = useTranslation()
+  const breakpoint = useResponsive()
+  const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const [activeTab, setActiveTab] = useState("appearance")
   const [currentLanguage, setCurrentLanguage] = useState<AppLanguage>(getCurrentLanguage())
   const [settings, setSettings] = useState<appSettings>({
@@ -890,12 +893,17 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
             >
               {t("settings.database.connectionExample")}
             </div>
-            <Space>
+            <Space
+              direction={isMobile ? "vertical" : "horizontal"}
+              size={isMobile ? 8 : "small"}
+              style={{ width: "100%" }}
+            >
               <Button
                 type="primary"
                 onClick={switchToPg}
                 loading={pgSwitchLoading}
                 disabled={!canAdmin || !pgConnectionString}
+                style={{ width: isMobile ? "100%" : "auto" }}
               >
                 {t("settings.database.switchToPostgreSQL")}
               </Button>
@@ -903,6 +911,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                 onClick={switchToSQLite}
                 loading={pgSwitchLoading}
                 disabled={!canAdmin || pgConnectionStatus.type === "sqlite"}
+                style={{ width: isMobile ? "100%" : "auto" }}
               >
                 {t("settings.database.switchToSQLite")}
               </Button>
@@ -910,6 +919,7 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
                 onClick={uploadLocalToRemote}
                 loading={pgUploadLoading}
                 disabled={!canAdmin || pgConnectionStatus.type !== "postgresql"}
+                style={{ width: isMobile ? "100%" : "auto" }}
               >
                 {t("settings.database.uploadButton")}
               </Button>

@@ -14,6 +14,7 @@ import {
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
+import { useResponsive } from "../hooks/useResponsive"
 import appLogo from "../assets/logoHD.svg"
 
 const { Sider } = Layout
@@ -44,6 +45,8 @@ export function Sidebar({
   onFloatingExpandedChange,
 }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
+  const breakpoint = useResponsive()
+  const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
@@ -254,7 +257,16 @@ export function Sidebar({
       </div>
 
       {!hideMenu && (
-        <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           <Menu
             mode="inline"
             inlineCollapsed={isCollapsedView}

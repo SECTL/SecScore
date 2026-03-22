@@ -7,6 +7,7 @@ import { useTheme } from "../../contexts/ThemeContext"
 import { changeLanguage, AppLanguage, languageOptions } from "../../i18n"
 import type { themeConfig } from "../../preload/types"
 import logoSvg from "../../assets/logoHD.svg"
+import { useResponsive, useScreenSize } from "../../hooks/useResponsive"
 
 interface oobeProps {
   visible: boolean
@@ -100,6 +101,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const { t } = useTranslation()
   const { currentTheme, setTheme, themes, applyTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
+  const breakpoint = useResponsive()
+  const { width: screenWidth, height: screenHeight } = useScreenSize()
+  const isMobile = breakpoint === "xs" || breakpoint === "sm"
 
   const [currentStep, setCurrentStep] = useState<oobeStep>("entry")
   const [loading, setLoading] = useState(false)
@@ -902,6 +906,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+        overflow: "hidden",
       }}
     >
       <OOBEBackground primaryColor={primaryColor} mode={workingTheme?.mode || "light"} />
@@ -913,17 +918,21 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
           background: isDark ? "rgba(15, 25, 45, 0.55)" : "rgba(255, 255, 255, 0.65)",
           backdropFilter: "blur(20px)",
           borderRadius: 16,
-          padding: 32,
+          padding: isMobile ? 20 : 32,
           width: 480,
-          maxWidth: "90vw",
+          maxWidth: isMobile ? "100vw" : "90vw",
+          maxHeight: isMobile ? "100vh" : "90vh",
           boxShadow: isDark ? "0 8px 32px rgba(0, 0, 0, 0.3)" : "0 8px 32px rgba(0, 0, 0, 0.1)",
           border: isDark ? "1px solid rgba(255, 255, 255, 0.08)" : "1px solid rgba(0, 0, 0, 0.06)",
           fontFamily: "var(--ss-font-family)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
         }}
       >
         {contextHolder}
 
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: isMobile ? 16 : 24, flexShrink: 0 }}>
           <Typography.Title
             level={3}
             style={{ margin: 0, color: isDark ? "#fff" : "rgba(0, 0, 0, 0.88)" }}
@@ -935,7 +944,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
           </Typography.Text>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: isMobile ? 12 : 16, flexShrink: 0 }}>
           <Typography.Title
             level={4}
             style={{ margin: 0, color: isDark ? "#fff" : "rgba(0, 0, 0, 0.88)" }}
@@ -944,7 +953,18 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
           </Typography.Title>
         </div>
 
-        <div style={{ minHeight: 200, marginBottom: 24 }}>{renderStepContent()}</div>
+        <div
+          style={{
+            minHeight: isMobile ? 150 : 200,
+            marginBottom: isMobile ? 16 : 24,
+            overflowY: isMobile ? "auto" : "visible",
+            overflowX: "hidden",
+            flex: 1,
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {renderStepContent()}
+        </div>
 
         {currentStep !== "entry" && currentStep !== "postgresql" && (
           <div
@@ -952,9 +972,12 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexShrink: 0,
+              flexWrap: isMobile ? "wrap" : "nowrap",
+              gap: isMobile ? 8 : 0,
             }}
           >
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {currentStep !== "language" && (
                 <Button onClick={handlePrev}>{t("common.prev")}</Button>
               )}
@@ -968,6 +991,9 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
                 gap: 8,
                 color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)",
                 fontSize: 12,
+                order: isMobile ? 3 : 2,
+                width: isMobile ? "100%" : "auto",
+                justifyContent: isMobile ? "center" : "flex-start",
               }}
             >
               <div
@@ -991,7 +1017,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
               <span>{t("oobe.step", { current: stepIndex, total: totalSteps })}</span>
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, order: isMobile ? 2 : 3 }}>
               {currentStep !== "start" ? (
                 <Button type="primary" onClick={handleNext}>
                   {t("common.next")}

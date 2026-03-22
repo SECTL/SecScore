@@ -11,6 +11,7 @@ use crate::db::entities::{
     reasons, reward_redemptions, reward_settings, score_events, student_tags, students, tags,
 };
 use crate::db::migration::run_migration;
+use crate::services::logger::LogLevel;
 use crate::services::permission::PermissionLevel;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::state::AppState;
@@ -1052,24 +1053,63 @@ pub async fn db_switch_connection(
 ) -> Result<IpcResponse<SwitchConnectionResult>, String> {
     check_admin_permission(&state)?;
 
+    let state_guard = state.read();
+    let logger = state_guard.logger.read();
+    logger.log(
+        LogLevel::Info,
+        &format!("Database switch requested, connection_string length: {}", connection_string.len()),
+        Some("database"),
+        None,
+    );
+    drop(state_guard);
+
     let (db_type, saved_connection_string, saved_status, conn) = if connection_string
         .starts_with("postgres://")
         || connection_string.starts_with("postgresql://")
     {
+        logger.log(
+            LogLevel::Info,
+            "Switching to PostgreSQL database",
+            Some("database"),
+            None,
+        );
         let conn = timeout(
             Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
             create_postgres_connection(&connection_string),
         )
         .await
         .map_err(|_| "PostgreSQL 连接超时，请检查网络或连接字符串".to_string())?
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            logger.log(
+                LogLevel::Error,
+                &format!("PostgreSQL connection failed: {}", e),
+                Some("database"),
+                None,
+            );
+            e.to_string()
+        })?;
         timeout(
             Duration::from_secs(DB_MIGRATION_TIMEOUT_SECS),
             run_migration(&conn, DatabaseType::PostgreSQL),
         )
         .await
         .map_err(|_| "PostgreSQL 初始化超时，请稍后重试".to_string())?
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            logger.log(
+                LogLevel::Error,
+                &format!("PostgreSQL migration failed: {}", e),
+                Some("database"),
+                None,
+            );
+            e.to_string()
+        })?;
+
+        logger.log(
+            LogLevel::Info,
+            "PostgreSQL connection and migration successful",
+            Some("database"),
+            None,
+        );
 
         (
             "postgresql".to_string(),
@@ -1078,6 +1118,12 @@ pub async fn db_switch_connection(
             conn,
         )
     } else {
+        logger.log(
+            LogLevel::Info,
+            "Switching to SQLite database",
+            Some("database"),
+            None,
+        );
         let path = if connection_string.starts_with("sqlite://") {
             connection_string
                 .strip_prefix("sqlite://")
@@ -1089,10 +1135,33 @@ pub async fn db_switch_connection(
 
         let conn = create_sqlite_connection(&path)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                logger.log(
+                    LogLevel::Error,
+                    &format!("SQLite connection failed: {}", e),
+                    Some("database"),
+                    None,
+                );
+                e.to_string()
+            })?;
         run_migration(&conn, DatabaseType::SQLite)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                logger.log(
+                    LogLevel::Error,
+                    &format!("SQLite migration failed: {}", e),
+                    Some("database"),
+                    None,
+                );
+                e.to_string()
+            })?;
+
+        logger.log(
+            LogLevel::Info,
+            "SQLite connection and migration successful",
+            Some("database"),
+            None,
+        );
 
         (
             "sqlite".to_string(),
@@ -1149,6 +1218,15 @@ pub async fn db_switch_connection(
             key: "pg_connection_status".to_string(),
             value: saved_status,
         },
+    );
+
+    let state_guard = state.read();
+    let logger = state_guard.logger.read();
+    logger.log(
+        LogLevel::Info,
+        &format!("Database switched successfully to {}", db_type),
+        Some("database"),
+        None,
     );
 
     Ok(IpcResponse::success(SwitchConnectionResult { db_type }))
