@@ -213,6 +213,49 @@ jobs:
       - name: 构建 Android 全架构
         run: pnpm tauri android build --target aarch64,armv7,x86_64
 
+      - name: 安装 Android SDK Build Tools
+        if: ${{ secrets.ANDROID_SIGNING_KEY != '' }}
+        run: |
+          sdkmanager "build-tools;33.0.0"
+
+      - name: 签名 APK
+        env:
+          ANDROID_SIGNING_KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        if: ${{ secrets.ANDROID_SIGNING_KEY != '' }}
+        run: |
+          # 创建临时密钥库文件
+          echo "$ANDROID_SIGNING_KEY" | base64 -d > /tmp/android_keystore.jks
+          
+          # 找到所有未签名的 APK 文件
+          find src-tauri/gen/android/app/build/outputs -name "*-unsigned.apk" -type f | while read -r apk; do
+            # 生成签名后的文件名
+            signed_apk="${apk/-unsigned/-signed}"
+            
+            # 使用 apksigner 签名
+            "${ANDROID_SDK_ROOT}/build-tools/33.0.0/apksigner" sign \
+              --ks /tmp/android_keystore.jks \
+              --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --ks-pass pass:"$ANDROID_STORE_PASSWORD" \
+              --key-pass pass:"$ANDROID_KEY_PASSWORD" \
+              --out "$signed_apk" \
+              "$apk"
+            
+            echo "已签名: $signed_apk"
+            
+            # 验证签名
+            "${ANDROID_SDK_ROOT}/build-tools/33.0.0/apksigner" verify "$signed_apk"
+            
+            # 删除未签名版本，重命名签名版本
+            rm "$apk"
+            mv "$signed_apk" "${apk/-unsigned/}"
+          done
+          
+          # 清理密钥库
+          rm -f /tmp/android_keystore.jks
+
       - uses: actions/upload-artifact@v4
         with:
           name: dist-android
