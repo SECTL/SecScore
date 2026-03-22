@@ -1169,7 +1169,6 @@ pub async fn db_switch_connection(
             conn,
         )
     };
-    drop(state_guard);
 
     {
         let settings_db_path = sqlite_db_path(&app_handle)?;
