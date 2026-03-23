@@ -152,3 +152,20 @@ pub async fn window_set_resizable(
     }
     Ok(())
 }
+
+#[tauri::command]
+pub async fn window_start_dragging(
+    app: AppHandle,
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+    }
+
+    #[cfg(desktop)]
+    if let Some(window) = app.get_webview_window("main") {
+        window.start_dragging().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}

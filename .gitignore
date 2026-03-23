@@ -1,59 +1,43 @@
+```
 # Dependencies
-node_modules
-.pnp
-.pnp.js
+node_modules/
+target/
 
-# Build outputs
-dist
-dist-ssr
-out
-*.local
-
-# Tauri
-src-tauri/target
-src-tauri/Cargo.lock
-src-tauri/gen
-.cargo-local/
-
-# Database
-data.sql
-*.sqlite
-*.sqlite3
-*.db
-*.db-shm
-*.db-wal
+# IDE
+.vscode/
+.idea/
 
 # Logs
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-# Editor directories and files
-.DS_Store
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# Environment files
+# Environment
 .env
 .env.local
-.env.*.local
+*.env.*
 
-# Testing
-coverage
-
-# Cache
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
 .cache
-.temp
-.tmp
-.eslintcache
-# OS files
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
+*.sublime-workspace
+.pytest_cache/
+.hypothesis/
+.DS_Store
 Thumbs.db
+```
