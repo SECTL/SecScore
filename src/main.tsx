@@ -143,6 +143,83 @@ const disableTouchZoom = () => {
 }
 disableTouchZoom()
 
+// 桌面端触屏窗口拖动支持
+const enableTouchWindowDrag = () => {
+  const api = (window as any).api
+  if (!api) return
+
+  let touchStartX = 0
+  let touchStartY = 0
+  let isDragging = false
+  let dragElement: Element | null = null
+
+  document.addEventListener(
+    "touchstart",
+    (event) => {
+      const target = event.target as Element
+      if (!target) return
+
+      // 检查是否在可拖动区域内
+      const dragRegion = target.closest('[data-tauri-drag-region]')
+      if (!dragRegion) return
+
+      // 检查是否点击了不可拖动的元素（如按钮）
+      const noDragElement = target.closest('button, input, select, a, [role="button"]')
+      if (noDragElement) return
+
+      const touch = event.touches[0]
+      if (!touch) return
+
+      touchStartX = touch.clientX
+      touchStartY = touch.clientY
+      isDragging = true
+      dragElement = dragRegion
+    },
+    { passive: true }
+  )
+
+  document.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!isDragging || !dragElement) return
+
+      const touch = event.touches[0]
+      if (!touch) return
+
+      const deltaX = touch.clientX - touchStartX
+      const deltaY = touch.clientY - touchStartY
+
+      // 只有当移动距离超过阈值时才认为是拖动窗口
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+        event.preventDefault()
+        api.startDraggingWindow?.()
+        isDragging = false
+        dragElement = null
+      }
+    },
+    { passive: false }
+  )
+
+  document.addEventListener(
+    "touchend",
+    () => {
+      isDragging = false
+      dragElement = null
+    },
+    { passive: true }
+  )
+
+  document.addEventListener(
+    "touchcancel",
+    () => {
+      isDragging = false
+      dragElement = null
+    },
+    { passive: true }
+  )
+}
+enableTouchWindowDrag()
+
 const platform = navigator.userAgent.toLowerCase()
 const isIos = /iphone|ipad|ipod/.test(platform)
 const isAndroid = platform.includes("android")
