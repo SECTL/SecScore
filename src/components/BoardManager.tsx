@@ -1292,6 +1292,9 @@ ORDER BY reward_points DESC, score DESC`,
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               }}
             />
+            <Typography.Link href="https://doubao.com/bot/uEh3mtxq" target="_blank" rel="noreferrer">
+              豆包智能体一句话生成查询
+            </Typography.Link>
           </Space>
         )}
       </Modal>
