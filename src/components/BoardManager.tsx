@@ -444,7 +444,7 @@ ORDER BY reward_points DESC, score DESC`,
 
       setSaving(true)
       try {
-        const res = await (window as any).api.setSetting("dashboards_config", nextBoards)
+        const res = await (window as any).api.boardSaveConfigs(nextBoards)
         if (!res?.success) {
           messageApi.error(res?.message || t("board.saveFailed"))
         }
@@ -475,7 +475,7 @@ ORDER BY reward_points DESC, score DESC`,
 
     setLoading(true)
     try {
-      const res = await (window as any).api.getSetting("dashboards_config")
+      const res = await (window as any).api.boardGetConfigs()
       if (res?.success) {
         const normalized = normalizeBoards(res?.data)
         setBoards(normalized)

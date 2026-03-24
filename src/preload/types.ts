@@ -155,6 +155,10 @@ const api = {
     limit?: number
   }): Promise<{ success: boolean; data: any[]; message?: string }> =>
     invoke("board_query_sql", { params }),
+  boardGetConfigs: (): Promise<{ success: boolean; data: any[]; message?: string }> =>
+    invoke("board_get_configs"),
+  boardSaveConfigs: (configs: any[]): Promise<{ success: boolean; message?: string }> =>
+    invoke("board_save_configs", { configs }),
 
   // Settlement
   querySettlements: (): Promise<{ success: boolean; data: any[] }> => invoke("db_settlement_query"),

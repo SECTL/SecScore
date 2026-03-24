@@ -83,6 +83,8 @@ pub fn run() {
             auto_score_toggle_rule,
             auto_score_get_status,
             auto_score_sort_rules,
+            board_get_configs,
+            board_save_configs,
             board_query_sql,
             log_query,
             log_clear,
