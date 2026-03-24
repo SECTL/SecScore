@@ -835,7 +835,14 @@ ORDER BY reward_points DESC, score DESC`,
               >
                 {rankBadge && (
                   <div
-                    style={{ position: "absolute", top: "-10px", left: "-10px", fontSize: "24px" }}
+                    style={{
+                      position: "absolute",
+                      top: "-22px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      fontSize: "24px",
+                      lineHeight: 1,
+                    }}
                   >
                     {rankBadge}
                   </div>
