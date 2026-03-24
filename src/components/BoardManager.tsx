@@ -1009,9 +1009,15 @@ ORDER BY reward_points DESC, score DESC`,
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
           <Space size={6}>
-            <Button size="small" onClick={() => setEditingListId(list.id)} icon={<EditOutlined />}>
-              {t("board.editList")}
-            </Button>
+            <Button
+              size="small"
+              type="text"
+              shape="circle"
+              onClick={() => setEditingListId(list.id)}
+              icon={<EditOutlined />}
+              aria-label={t("board.editList")}
+              title={t("board.editList")}
+            />
             <Popconfirm
               title={t("board.removeListConfirm")}
               onConfirm={() => removeList(board.id, list.id)}
@@ -1019,12 +1025,14 @@ ORDER BY reward_points DESC, score DESC`,
             >
               <Button
                 size="small"
+                type="text"
+                shape="circle"
                 danger
                 icon={<DeleteOutlined />}
                 disabled={!canManage || board.lists.length <= 1}
-              >
-                {t("board.removeList")}
-              </Button>
+                aria-label={t("board.removeList")}
+                title={t("board.removeList")}
+              />
             </Popconfirm>
           </Space>
         }
