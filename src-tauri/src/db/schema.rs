@@ -3,6 +3,7 @@ pub const TABLE_REASONS: &str = "reasons";
 pub const TABLE_SCORE_EVENTS: &str = "score_events";
 pub const TABLE_SETTLEMENTS: &str = "settlements";
 pub const TABLE_SETTINGS: &str = "settings";
+pub const TABLE_BOARD_CONFIGS: &str = "board_configs";
 pub const TABLE_TAGS: &str = "tags";
 pub const TABLE_STUDENT_TAGS: &str = "student_tags";
 pub const TABLE_REWARD_SETTINGS: &str = "reward_settings";
@@ -55,6 +56,13 @@ pub mod settings {
     pub const TABLE: &str = "settings";
     pub const KEY: &str = "key";
     pub const VALUE: &str = "value";
+}
+
+pub mod board_configs {
+    pub const TABLE: &str = "board_configs";
+    pub const ID: &str = "id";
+    pub const CONFIG_JSON: &str = "config_json";
+    pub const UPDATED_AT: &str = "updated_at";
 }
 
 pub mod tags {
@@ -281,6 +289,28 @@ pub fn get_create_settings_table_sql(sqlite: bool) -> String {
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
+        )
+        "#
+        .to_string()
+    }
+}
+
+pub fn get_create_board_configs_table_sql(sqlite: bool) -> String {
+    if sqlite {
+        r#"
+        CREATE TABLE IF NOT EXISTS board_configs (
+            id INTEGER PRIMARY KEY,
+            config_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        "#
+        .to_string()
+    } else {
+        r#"
+        CREATE TABLE IF NOT EXISTS board_configs (
+            id INTEGER PRIMARY KEY,
+            config_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         )
         "#
         .to_string()

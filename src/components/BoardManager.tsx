@@ -444,7 +444,7 @@ ORDER BY reward_points DESC, score DESC`,
 
       setSaving(true)
       try {
-        const res = await (window as any).api.setSetting("dashboards_config", nextBoards)
+        const res = await (window as any).api.boardSaveConfigs(nextBoards)
         if (!res?.success) {
           messageApi.error(res?.message || t("board.saveFailed"))
         }
@@ -475,7 +475,7 @@ ORDER BY reward_points DESC, score DESC`,
 
     setLoading(true)
     try {
-      const res = await (window as any).api.getSetting("dashboards_config")
+      const res = await (window as any).api.boardGetConfigs()
       if (res?.success) {
         const normalized = normalizeBoards(res?.data)
         setBoards(normalized)
@@ -835,7 +835,14 @@ ORDER BY reward_points DESC, score DESC`,
               >
                 {rankBadge && (
                   <div
-                    style={{ position: "absolute", top: "-10px", left: "-10px", fontSize: "24px" }}
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      fontSize: "32px",
+                      lineHeight: 1,
+                      zIndex: 1,
+                    }}
                   >
                     {rankBadge}
                   </div>
@@ -1009,9 +1016,15 @@ ORDER BY reward_points DESC, score DESC`,
         title={<span style={{ fontWeight: 600 }}>{list.name}</span>}
         extra={
           <Space size={6}>
-            <Button size="small" onClick={() => setEditingListId(list.id)} icon={<EditOutlined />}>
-              {t("board.editList")}
-            </Button>
+            <Button
+              size="small"
+              type="text"
+              shape="circle"
+              onClick={() => setEditingListId(list.id)}
+              icon={<EditOutlined />}
+              aria-label={t("board.editList")}
+              title={t("board.editList")}
+            />
             <Popconfirm
               title={t("board.removeListConfirm")}
               onConfirm={() => removeList(board.id, list.id)}
@@ -1019,12 +1032,14 @@ ORDER BY reward_points DESC, score DESC`,
             >
               <Button
                 size="small"
+                type="text"
+                shape="circle"
                 danger
                 icon={<DeleteOutlined />}
                 disabled={!canManage || board.lists.length <= 1}
-              >
-                {t("board.removeList")}
-              </Button>
+                aria-label={t("board.removeList")}
+                title={t("board.removeList")}
+              />
             </Popconfirm>
           </Space>
         }
@@ -1292,6 +1307,16 @@ ORDER BY reward_points DESC, score DESC`,
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               }}
             />
+            <Typography.Link href="https://doubao.com/bot/uEh3mtxq" target="_blank" rel="noreferrer">
+              豆包智能体一句话生成查询
+            </Typography.Link>
+            <Typography.Link
+              href="https://www.coze.cn/store/agent/7620447018255384610?bot_id=true"
+              target="_blank"
+              rel="noreferrer"
+            >
+              扣子智能体一句话生成查询
+            </Typography.Link>
           </Space>
         )}
       </Modal>

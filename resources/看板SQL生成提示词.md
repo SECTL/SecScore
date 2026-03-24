@@ -65,17 +65,27 @@
 9. `reward_redemptions`
 - `id`, `uuid`, `student_name`, `reward_id`, `reward_name`, `cost_points`, `redeemed_at`
 
-## 5) 看板展示字段命名约定（尽量遵守）
+## 5) 字段名使用铁律（必须遵守，防止列不存在）
+1. `SELECT`、`WHERE`、`GROUP BY`、`ORDER BY`、`JOIN ON` 中引用的字段名，必须来自上面的“可用业务表与字段”原样字段，严禁臆造字段。
+2. “展示名/别名”不等于真实字段名。若需展示为 `student_name`，必须使用别名，不可把别名当字段直接查询。
+3. 关键映射（高频易错）：
+   - `students` 表没有 `student_name`，只有 `name`。正确写法：`students.name AS student_name`（或 `s.name AS student_name`）
+   - `score_events` 表有 `student_name`
+   - `reward_redemptions` 表有 `student_name`
+4. 错误示例（禁止生成）：`SELECT student_name, score FROM students`
+5. 正确示例（优先生成）：`SELECT name AS student_name, score FROM students`
+
+## 6) 看板展示字段命名约定（尽量遵守）
 - 学生名统一命名为：`student_name`
 - 常见指标命名建议：`score`, `reward_points`, `week_change`, `week_deducted`, `answered_count`
 
-## 6) 生成策略
+## 7) 生成策略
 1. 排行类需求必须有 `ORDER BY`。
 2. 聚合类需求必须有清晰别名。
 3. 对可能为空的数据优先使用 `COALESCE`。
 4. 默认不写 `LIMIT`（系统外层会限制）；除非用户明确要求更小结果集。
 
-## 7) 自然周规则（允许生成上个自然周 SQL）
+## 8) 自然周规则（允许生成上个自然周 SQL）
 当用户要求“上个自然周/本自然周”时，必须使用模板变量区间表达，不要自行计算数据库日期函数：
 - 上个自然周：`event_time >= '{ {last_week_start} }' AND event_time < '{ {this_week_start} }'`
 - 本自然周：`event_time >= '{ {this_week_start} }'`
@@ -85,7 +95,7 @@
 2. 不要发明其它周边界变量。
 3. 避免使用 SQLite/PostgreSQL 方言日期函数（如 `strftime`、`date_trunc`）以保证跨库兼容。
 
-## 8) 输出前自检清单（必须全部为“是”）
+## 9) 输出前自检清单（必须全部为“是”）
 - 是否只用了 `SELECT/WITH`？
 - 是否没有 `;` 和注释？
 - 是否没有禁用关键词？
@@ -93,6 +103,7 @@
 - 模板变量是否都加了单引号？
 - 是否没有系统表（如 `sqlite_master`）？
 - 是否只用了给定业务表？
+- 是否所有字段都能在对应表字段清单中找到（尤其检查 `students.name` vs `students.student_name`）？
 
 用户需求：
 { {在这里粘贴用户需求} }

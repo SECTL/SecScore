@@ -17,6 +17,7 @@ impl Migration {
         Self::create_score_events_table(conn, is_sqlite).await?;
         Self::create_settlements_table(conn, is_sqlite).await?;
         Self::create_settings_table(conn, is_sqlite).await?;
+        Self::create_board_configs_table(conn, is_sqlite).await?;
         Self::create_tags_table(conn, is_sqlite).await?;
         Self::create_student_tags_table(conn, is_sqlite).await?;
         Self::create_reward_settings_table(conn, is_sqlite).await?;
@@ -74,6 +75,17 @@ impl Migration {
         conn.execute(Statement::from_string(Self::get_db_backend(sqlite), sql))
             .await?;
         info!("Created settings table");
+        Ok(())
+    }
+
+    async fn create_board_configs_table(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        let sql = get_create_board_configs_table_sql(sqlite);
+        conn.execute(Statement::from_string(Self::get_db_backend(sqlite), sql))
+            .await?;
+        info!("Created board_configs table");
         Ok(())
     }
 
@@ -315,6 +327,7 @@ impl Migration {
             TABLE_REWARD_REDEMPTIONS,
             TABLE_REWARD_SETTINGS,
             TABLE_SETTINGS,
+            TABLE_BOARD_CONFIGS,
         ];
 
         let db_backend = Self::get_db_backend(sqlite);
