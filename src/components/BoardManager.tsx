@@ -836,11 +836,12 @@ ORDER BY reward_points DESC, score DESC`,
                 {rankBadge && (
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "flex-start",
-                      fontSize: "24px",
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      fontSize: "32px",
                       lineHeight: 1,
-                      marginBottom: 6,
+                      zIndex: 1,
                     }}
                   >
                     {rankBadge}
