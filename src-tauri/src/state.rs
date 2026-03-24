@@ -6,7 +6,7 @@ use tauri::AppHandle;
 use crate::services::{
     auth::AuthService, auto_score::AutoScoreService, data::DataService, logger::LoggerService,
     permission::PermissionService, security::SecurityService, settings::SettingsService,
-    theme::ThemeService,
+    theme::ThemeService, SettingsKey, SettingsValue,
 };
 
 pub struct AppState {
@@ -51,7 +51,22 @@ impl AppState {
     pub async fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.settings.write().initialize().await?;
         self.logger.write().initialize(&self.app_handle).await?;
-        self.theme.write().initialize(&self.app_handle).await?;
+
+        {
+            let settings = self.settings.read();
+            let current_theme_id = match settings.get_value(SettingsKey::CurrentThemeId) {
+                SettingsValue::String(s) => s,
+                _ => "light-default".to_string(),
+            };
+            let themes_custom = match settings.get_value(SettingsKey::ThemesCustom) {
+                SettingsValue::Json(j) => j,
+                _ => serde_json::Value::Array(vec![]),
+            };
+            let mut theme = self.theme.write();
+            theme.load_custom_themes(themes_custom);
+            theme.load_saved_theme(&current_theme_id);
+        }
+
         self.auto_score.write().initialize(&self.app_handle).await?;
         Ok(())
     }
