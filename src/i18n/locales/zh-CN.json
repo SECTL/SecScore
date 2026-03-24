@@ -618,7 +618,7 @@
       "todayAnswered": "今日回答"
     },
     "sqlPlaceholder": "输入 SQL（仅支持单条 SELECT / WITH 查询）",
-    "templateHint": "支持时间模板变量：{{today_start}}、{{since_7d}}、{{since_30d}}、{{now}}",
+    "templateHint": "支持时间模板变量：{{today_start}}、{{this_week_start}}、{{last_week_start}}、{{since_7d}}、{{since_30d}}、{{now}}",
     "templateDescription": "可直接在 SQL 中使用模板变量，运行时会自动替换为 ISO 时间，兼容 SQLite 与 PostgreSQL。",
     "saving": "保存中...",
     "saveFailed": "保存看板失败",

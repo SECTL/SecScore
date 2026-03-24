@@ -238,12 +238,21 @@ const resolveSqlTemplate = (sql: string) => {
 
   const todayStart = new Date(now)
   todayStart.setHours(0, 0, 0, 0)
+  const mondayOffset = (todayStart.getDay() + 6) % 7
+  const thisWeekStart = at(-mondayOffset)
+  thisWeekStart.setHours(0, 0, 0, 0)
+  const lastWeekStart = at(-mondayOffset - 7)
+  lastWeekStart.setHours(0, 0, 0, 0)
 
   return sql
     .split("{{now}}")
     .join(formatIso(now))
     .split("{{today_start}}")
     .join(formatIso(todayStart))
+    .split("{{this_week_start}}")
+    .join(formatIso(thisWeekStart))
+    .split("{{last_week_start}}")
+    .join(formatIso(lastWeekStart))
     .split("{{since_7d}}")
     .join(formatIso(at(-7)))
     .split("{{since_30d}}")

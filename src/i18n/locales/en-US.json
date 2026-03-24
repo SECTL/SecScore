@@ -618,7 +618,7 @@
       "todayAnswered": "Today"
     },
     "sqlPlaceholder": "Enter SQL (single SELECT / WITH query only)",
-    "templateHint": "Template variables: {{today_start}}, {{since_7d}}, {{since_30d}}, {{now}}",
+    "templateHint": "Template variables: {{today_start}}, {{this_week_start}}, {{last_week_start}}, {{since_7d}}, {{since_30d}}, {{now}}",
     "templateDescription": "Use template variables directly in SQL. They will be replaced with ISO timestamps at runtime for both SQLite and PostgreSQL.",
     "saving": "Saving...",
     "saveFailed": "Failed to save boards",
