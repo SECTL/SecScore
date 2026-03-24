@@ -1295,6 +1295,13 @@ ORDER BY reward_points DESC, score DESC`,
             <Typography.Link href="https://doubao.com/bot/uEh3mtxq" target="_blank" rel="noreferrer">
               豆包智能体一句话生成查询
             </Typography.Link>
+            <Typography.Link
+              href="https://www.coze.cn/store/agent/7620447018255384610?bot_id=true"
+              target="_blank"
+              rel="noreferrer"
+            >
+              扣子智能体一句话生成查询
+            </Typography.Link>
           </Space>
         )}
       </Modal>
