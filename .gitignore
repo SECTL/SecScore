@@ -40,4 +40,8 @@ coverage.xml
 .hypothesis/
 .DS_Store
 Thumbs.db
+
+# Tauri local/generated artifacts
+src-tauri/data.sql
+src-tauri/gen/
 ```
