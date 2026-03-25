@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
-import { Table, Button, Space, message, Modal, Form, Input, Tag, Pagination } from "antd"
+import { Table, Button, Space, message, Modal, Form, Input, Tag, Pagination, Dropdown } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { UploadOutlined } from "@ant-design/icons"
+import { UploadOutlined, MoreOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
@@ -631,48 +631,30 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       {
         title: t("common.operation"),
         key: "operation",
-        width: isMobile ? 150 : 220,
+        width: isMobile ? 96 : 110,
         fixed: isMobile ? "right" : undefined,
         render: (_, row) => (
-          <Space size={isMobile ? 4 : 8} direction={isMobile ? "vertical" : "horizontal"}>
-            <Button
-              type="link"
-              size={isMobile ? "small" : "middle"}
-              disabled={!canEdit}
-              onClick={() => handleOpenTagEditor(row)}
-              style={{ padding: isMobile ? "2px 4px" : undefined }}
-            >
-              {t("students.editTags")}
+          <Dropdown
+            trigger={["click"]}
+            menu={{
+              items: [
+                { key: "editTags", label: t("students.editTags") },
+                { key: "editGroup", label: t("students.editGroup") },
+                { key: "editAvatar", label: t("students.editAvatar") },
+                { key: "delete", danger: true, label: t("common.delete") },
+              ],
+              onClick: ({ key }) => {
+                if (key === "editTags") handleOpenTagEditor(row)
+                else if (key === "editGroup") handleOpenGroupEditor(row)
+                else if (key === "editAvatar") handleOpenAvatarEditor(row)
+                else if (key === "delete") handleDelete(row.id)
+              },
+            }}
+          >
+            <Button size={isMobile ? "small" : "middle"} disabled={!canEdit} icon={<MoreOutlined />}>
+              {t("common.operation")}
             </Button>
-            <Button
-              type="link"
-              size={isMobile ? "small" : "middle"}
-              disabled={!canEdit}
-              onClick={() => handleOpenGroupEditor(row)}
-              style={{ padding: isMobile ? "2px 4px" : undefined }}
-            >
-              {t("students.editGroup")}
-            </Button>
-            <Button
-              type="link"
-              size={isMobile ? "small" : "middle"}
-              disabled={!canEdit}
-              onClick={() => handleOpenAvatarEditor(row)}
-              style={{ padding: isMobile ? "2px 4px" : undefined }}
-            >
-              {t("students.editAvatar")}
-            </Button>
-            <Button
-              type="link"
-              danger
-              size={isMobile ? "small" : "middle"}
-              disabled={!canEdit}
-              onClick={() => handleDelete(row.id)}
-              style={{ padding: isMobile ? "2px 4px" : undefined }}
-            >
-              {t("common.delete")}
-            </Button>
-          </Space>
+          </Dropdown>
         ),
       },
     ]
