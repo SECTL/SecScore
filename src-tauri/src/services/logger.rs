@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogLevel {
@@ -68,7 +68,12 @@ impl LoggerService {
         }
     }
 
-    pub async fn initialize(&mut self, _app_handle: &AppHandle) -> Result<(), String> {
+    pub async fn initialize(&mut self, app_handle: &AppHandle) -> Result<(), String> {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+        self.log_dir = app_data_dir.join("logs");
         fs::create_dir_all(&self.log_dir).map_err(|e| e.to_string())?;
         Ok(())
     }
