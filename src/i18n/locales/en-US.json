@@ -488,6 +488,8 @@
     "editGroupTitle": "Set Group - {{name}}",
     "groupSaveSuccess": "Group saved",
     "groupSaveFailed": "Failed to save group",
+    "existingGroups": "Existing groups (click to fill)",
+    "noExistingGroups": "No existing groups yet",
     "noGroup": "Ungrouped",
     "editAvatarTitle": "Set Avatar - {{name}}",
     "avatarUpload": "Upload Image",

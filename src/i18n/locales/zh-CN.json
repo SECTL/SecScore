@@ -488,6 +488,8 @@
     "editGroupTitle": "设置小组 - {{name}}",
     "groupSaveSuccess": "小组保存成功",
     "groupSaveFailed": "小组保存失败",
+    "existingGroups": "已有小组（点击一键填入）",
+    "noExistingGroups": "暂无可用的小组",
     "noGroup": "未分组",
     "editAvatarTitle": "设置头像 - {{name}}",
     "avatarUpload": "上传图片",

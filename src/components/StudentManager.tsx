@@ -54,6 +54,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [form] = Form.useForm()
   const [groupForm] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
+  const addFormGroupName = Form.useWatch("group_name", form)
+  const editFormGroupName = Form.useWatch("group_name", groupForm)
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
   const breakpoint = useResponsive()
@@ -666,6 +668,22 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return baseColumns
   }, [t, canEdit, isMobile, isTablet, breakpoint])
 
+  const existingGroupNames = useMemo(() => {
+    const groups = new Set<string>()
+    data.forEach((student) => {
+      const normalized = student.group_name?.trim()
+      if (normalized) groups.add(normalized)
+    })
+    return Array.from(groups).sort((a, b) => a.localeCompare(b, "zh-CN"))
+  }, [data])
+
+  const normalizedAddFormGroupName =
+    typeof addFormGroupName === "string" && addFormGroupName.trim() ? addFormGroupName.trim() : ""
+  const normalizedEditFormGroupName =
+    typeof editFormGroupName === "string" && editFormGroupName.trim()
+      ? editFormGroupName.trim()
+      : ""
+
   const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
@@ -725,6 +743,32 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <Form.Item label={t("students.group")} name="group_name">
             <Input placeholder={t("students.groupPlaceholder")} />
           </Form.Item>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: "var(--ss-text-secondary)", marginBottom: 8, fontSize: 12 }}>
+              {t("students.existingGroups")}
+            </div>
+            {existingGroupNames.length > 0 ? (
+              <Space wrap size={[8, 8]}>
+                {existingGroupNames.map((group) => {
+                  const active = normalizedAddFormGroupName === group
+                  return (
+                    <Tag
+                      key={`add-group-${group}`}
+                      color={active ? "processing" : undefined}
+                      style={{ cursor: "pointer", userSelect: "none", marginInlineEnd: 0 }}
+                      onClick={() => form.setFieldValue("group_name", group)}
+                    >
+                      {group}
+                    </Tag>
+                  )
+                })}
+              </Space>
+            ) : (
+              <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                {t("students.noExistingGroups")}
+              </div>
+            )}
+          </div>
         </Form>
       </Modal>
 
@@ -746,6 +790,32 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <Form.Item label={t("students.group")} name="group_name">
             <Input placeholder={t("students.groupPlaceholder")} />
           </Form.Item>
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: "var(--ss-text-secondary)", marginBottom: 8, fontSize: 12 }}>
+              {t("students.existingGroups")}
+            </div>
+            {existingGroupNames.length > 0 ? (
+              <Space wrap size={[8, 8]}>
+                {existingGroupNames.map((group) => {
+                  const active = normalizedEditFormGroupName === group
+                  return (
+                    <Tag
+                      key={`edit-group-${group}`}
+                      color={active ? "processing" : undefined}
+                      style={{ cursor: "pointer", userSelect: "none", marginInlineEnd: 0 }}
+                      onClick={() => groupForm.setFieldValue("group_name", group)}
+                    >
+                      {group}
+                    </Tag>
+                  )
+                })}
+              </Space>
+            ) : (
+              <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                {t("students.noExistingGroups")}
+              </div>
+            )}
+          </div>
         </Form>
       </Modal>
 
