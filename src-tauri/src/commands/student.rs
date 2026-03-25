@@ -2,12 +2,13 @@ use parking_lot::RwLock;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
 
 use crate::db::entities::students;
 use crate::models::{StudentUpdate, StudentWithTags};
+use crate::services::logger::LogLevel;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
@@ -25,6 +26,49 @@ pub struct ImportStudentsParams {
     pub names: Vec<String>,
 }
 
+#[derive(Deserialize)]
+pub struct FetchBanYouClassroomsParams {
+    pub cookie: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BanYouClassroom {
+    pub class_id: String,
+    #[serde(default)]
+    pub class_nick_name: String,
+    #[serde(default)]
+    pub invitation_code: Option<String>,
+    #[serde(default)]
+    pub master_name: Option<String>,
+    #[serde(default)]
+    pub students_num: Option<i32>,
+    #[serde(default)]
+    pub praise_count: Option<i32>,
+    #[serde(default)]
+    pub class_avatar_path: Option<String>,
+    #[serde(default)]
+    pub class_avatar_data_url: Option<String>,
+    #[serde(default)]
+    pub is_own: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct BanYouClassroomFetchData {
+    #[serde(default)]
+    pub classrooms: Vec<BanYouClassroom>,
+    #[serde(default)]
+    pub administrative_groups: Vec<BanYouClassroom>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BanYouClassroomFetchApiResponse {
+    pub code: i32,
+    pub data: Option<BanYouClassroomFetchData>,
+    pub message: Option<String>,
+}
+
 fn check_admin_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) -> bool {
     let state_guard = state.read();
     let mut permissions = state_guard.permissions.write();
@@ -37,6 +81,80 @@ fn check_view_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) 
     let mut permissions = state_guard.permissions.write();
     let id = sender_id.unwrap_or(0);
     permissions.require_permission(id, PermissionLevel::View)
+}
+
+fn log_banyou(
+    state: &Arc<RwLock<AppState>>,
+    level: LogLevel,
+    message: &str,
+    meta: Option<serde_json::Value>,
+) {
+    let state_guard = state.read();
+    let logger = state_guard.logger.read();
+    logger.log(level, message, Some("student:banyou"), meta);
+}
+
+fn first_n_chars(text: &str, n: usize) -> String {
+    text.chars().take(n).collect()
+}
+
+fn extract_between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str> {
+    let from = text.find(start)?;
+    let from_idx = from + start.len();
+    let tail = &text[from_idx..];
+    let to = tail.find(end)?;
+    Some(&tail[..to])
+}
+
+fn extract_csrf_token_from_html(html: &str) -> Option<String> {
+    let patterns = [
+        ("name=\"csrf-token\" content=\"", "\""),
+        ("name='csrf-token' content='", "'"),
+        ("\"csrfToken\":\"", "\""),
+        ("'csrfToken':'", "'"),
+        ("csrfToken:\"", "\""),
+        ("csrfToken:'", "'"),
+    ];
+    for (start, end) in patterns {
+        if let Some(token) = extract_between(html, start, end) {
+            let trimmed = token.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+async fn fetch_image_as_data_url(
+    client: &reqwest::Client,
+    image_url: &str,
+    cookie: &str,
+) -> Result<String, String> {
+    let response = client
+        .get(image_url)
+        .header(reqwest::header::REFERER, "https://care.seewo.com/app/")
+        .header(reqwest::header::ORIGIN, "https://care.seewo.com")
+        .header(reqwest::header::COOKIE, cookie)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("http status {}", status.as_u16()));
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/png")
+        .to_string();
+
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let base64_data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
+    Ok(format!("data:{};base64,{}", content_type, base64_data))
 }
 
 #[tauri::command]
@@ -361,4 +479,274 @@ pub async fn student_import_from_xlsx(
     } else {
         Ok(IpcResponse::error("Database not connected"))
     }
+}
+
+#[tauri::command]
+pub async fn student_fetch_banyou_classrooms(
+    state: State<'_, Arc<RwLock<AppState>>>,
+    sender_id: Option<u32>,
+    params: FetchBanYouClassroomsParams,
+) -> Result<IpcResponse<BanYouClassroomFetchData>, String> {
+    if !check_admin_permission(&state, sender_id) {
+        return Ok(IpcResponse::error("Permission denied: admin required"));
+    }
+
+    let cookie = params.cookie.trim();
+    if cookie.is_empty() {
+        log_banyou(
+            state.inner(),
+            LogLevel::Warn,
+            "fetch classrooms rejected: empty cookie",
+            None,
+        );
+        return Ok(IpcResponse::error("Cookie cannot be empty"));
+    }
+    log_banyou(
+        state.inner(),
+        LogLevel::Info,
+        "fetch classrooms started",
+        Some(serde_json::json!({
+            "cookie_length": cookie.len(),
+            "contains_uid": cookie.contains("uid="),
+            "contains_access_token": cookie.contains("accessToken="),
+        })),
+    );
+
+    let timestamp = chrono::Utc::now().timestamp_millis();
+    let url = format!(
+        "https://care.seewo.com/app/apis.json?action=CLASSROOM_FETCH&timestamp={timestamp}&isAjax=1"
+    );
+    let payload = serde_json::json!({
+        "action": "CLASSROOM_FETCH",
+        "params": {
+            "originKey": "easicare-web"
+        }
+    });
+
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36")
+        .build()
+        .map_err(|e| {
+            log_banyou(
+                state.inner(),
+                LogLevel::Error,
+                "failed to build reqwest client",
+                Some(serde_json::json!({ "error": e.to_string() })),
+            );
+            e.to_string()
+        })?;
+
+    let csrf_token = match client
+        .get("https://care.seewo.com/app/")
+        .header(reqwest::header::COOKIE, cookie)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let status = resp.status();
+            match resp.text().await {
+                Ok(html) => {
+                    let token = extract_csrf_token_from_html(&html);
+                    log_banyou(
+                        state.inner(),
+                        LogLevel::Info,
+                        "csrf token fetch finished",
+                        Some(serde_json::json!({
+                            "status": status.as_u16(),
+                            "html_length": html.len(),
+                            "csrf_found": token.is_some(),
+                        })),
+                    );
+                    token
+                }
+                Err(e) => {
+                    log_banyou(
+                        state.inner(),
+                        LogLevel::Warn,
+                        "failed to read app html when fetching csrf token",
+                        Some(serde_json::json!({ "error": e.to_string() })),
+                    );
+                    None
+                }
+            }
+        }
+        Err(e) => {
+            log_banyou(
+                state.inner(),
+                LogLevel::Warn,
+                "failed to request app html for csrf token",
+                Some(serde_json::json!({ "error": e.to_string() })),
+            );
+            None
+        }
+    };
+
+    let mut request = client
+        .post(url)
+        .header(
+            reqwest::header::ACCEPT,
+            "application/json, text/javascript, */*; q=0.01",
+        )
+        .header(reqwest::header::ACCEPT_LANGUAGE, "zh-CN,zh;q=0.9")
+        .header(reqwest::header::CACHE_CONTROL, "no-cache")
+        .header(reqwest::header::PRAGMA, "no-cache")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::ORIGIN, "https://care.seewo.com")
+        .header(reqwest::header::REFERER, "https://care.seewo.com/app/")
+        .header("X-Requested-With", "XMLHttpRequest")
+        .header(reqwest::header::COOKIE, cookie)
+        .json(&payload);
+
+    if let Some(token) = csrf_token.clone() {
+        request = request.header("x-csrf-token", token);
+    }
+
+    log_banyou(
+        state.inner(),
+        LogLevel::Info,
+        "sending classroom fetch request",
+        Some(serde_json::json!({
+            "csrf_attached": csrf_token.is_some(),
+        })),
+    );
+
+    let resp = request.send().await.map_err(|e| {
+        log_banyou(
+            state.inner(),
+            LogLevel::Error,
+            "http request failed",
+            Some(serde_json::json!({ "error": e.to_string() })),
+        );
+        e.to_string()
+    })?;
+
+    let status = resp.status();
+    let body = resp.text().await.map_err(|e| {
+        log_banyou(
+            state.inner(),
+            LogLevel::Error,
+            "failed to read response body",
+            Some(serde_json::json!({ "error": e.to_string() })),
+        );
+        e.to_string()
+    })?;
+    log_banyou(
+        state.inner(),
+        LogLevel::Info,
+        "http response received",
+        Some(serde_json::json!({
+            "status": status.as_u16(),
+            "body_length": body.len(),
+            "body_preview": first_n_chars(&body, 500),
+        })),
+    );
+
+    if !status.is_success() {
+        log_banyou(
+            state.inner(),
+            LogLevel::Error,
+            "non-success http status from banyou",
+            Some(serde_json::json!({
+                "status": status.as_u16(),
+                "body_preview": first_n_chars(&body, 500),
+            })),
+        );
+        return Ok(IpcResponse::error(&format!(
+            "班优接口请求失败（HTTP {}）",
+            status.as_u16()
+        )));
+    }
+
+    let parsed: BanYouClassroomFetchApiResponse = serde_json::from_str(&body)
+        .map_err(|e| {
+            log_banyou(
+                state.inner(),
+                LogLevel::Error,
+                "failed to parse banyou response json",
+                Some(serde_json::json!({
+                    "error": e.to_string(),
+                    "body_preview": first_n_chars(&body, 500),
+                })),
+            );
+            format!("Failed to parse BanYou response: {}", e)
+        })?;
+    if parsed.code != 200 {
+        let msg = parsed
+            .message
+            .unwrap_or_else(|| format!("BanYou API returned code {}", parsed.code));
+        log_banyou(
+            state.inner(),
+            LogLevel::Warn,
+            "banyou api returned non-200 business code",
+            Some(serde_json::json!({
+                "code": parsed.code,
+                "message": msg,
+            })),
+        );
+        return Ok(IpcResponse::error(&msg));
+    }
+
+    let mut data = parsed.data.unwrap_or_default();
+
+    for classroom in &mut data.classrooms {
+        classroom.class_avatar_data_url = None;
+        if let Some(url) = classroom.class_avatar_path.clone() {
+            match fetch_image_as_data_url(&client, &url, cookie).await {
+                Ok(data_url) => {
+                    classroom.class_avatar_data_url = Some(data_url);
+                }
+                Err(err) => {
+                    log_banyou(
+                        state.inner(),
+                        LogLevel::Warn,
+                        "failed to fetch classroom avatar",
+                        Some(serde_json::json!({
+                            "class_id": classroom.class_id,
+                            "url": url,
+                            "error": err,
+                        })),
+                    );
+                }
+            }
+        }
+    }
+
+    for classroom in &mut data.administrative_groups {
+        classroom.class_avatar_data_url = None;
+        if let Some(url) = classroom.class_avatar_path.clone() {
+            match fetch_image_as_data_url(&client, &url, cookie).await {
+                Ok(data_url) => {
+                    classroom.class_avatar_data_url = Some(data_url);
+                }
+                Err(err) => {
+                    log_banyou(
+                        state.inner(),
+                        LogLevel::Warn,
+                        "failed to fetch administrative group avatar",
+                        Some(serde_json::json!({
+                            "class_id": classroom.class_id,
+                            "url": url,
+                            "error": err,
+                        })),
+                    );
+                }
+            }
+        }
+    }
+
+    log_banyou(
+        state.inner(),
+        LogLevel::Info,
+        "fetch classrooms succeeded",
+        Some(serde_json::json!({
+            "classrooms": data.classrooms.len(),
+            "administrative_groups": data.administrative_groups.len(),
+            "classrooms_avatar_data_url_count": data
+                .classrooms
+                .iter()
+                .filter(|c| c.class_avatar_data_url.is_some())
+                .count(),
+        })),
+    );
+    Ok(IpcResponse::success(data))
 }

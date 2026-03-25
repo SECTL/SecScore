@@ -24,6 +24,18 @@ interface student {
   avatarUrl?: string | null
 }
 
+interface BanYouClassroom {
+  classId: string
+  classNickName: string
+  invitationCode?: string | null
+  masterName?: string | null
+  studentsNum?: number | null
+  praiseCount?: number | null
+  classAvatarPath?: string | null
+  classAvatarDataUrl?: string | null
+  isOwn?: boolean | null
+}
+
 export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const UNGROUPED_KEY = "__ungrouped__"
   const { t } = useTranslation()
@@ -32,8 +44,10 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(50)
   const [visible, setVisible] = useState(false)
-  const [importVisible, setImportVisible] = useState(false)
+  const [importOptionsVisible, setImportOptionsVisible] = useState(false)
+  const [textImportVisible, setTextImportVisible] = useState(false)
   const [xlsxVisible, setXlsxVisible] = useState(false)
+  const [banYouVisible, setBanYouVisible] = useState(false)
   const [tagEditVisible, setTagEditVisible] = useState(false)
   const [editingStudent, setEditingStudent] = useState<student | null>(null)
   const [groupEditVisible, setGroupEditVisible] = useState(false)
@@ -63,6 +77,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [xlsxAoa, setXlsxAoa] = useState<any[][]>([])
   const [xlsxSelectedCol, setXlsxSelectedCol] = useState<number | null>(null)
   const [textImportValue, setTextImportValue] = useState("")
+  const [banYouCookie, setBanYouCookie] = useState("")
+  const [banYouLoading, setBanYouLoading] = useState(false)
+  const [banYouClassrooms, setBanYouClassrooms] = useState<BanYouClassroom[]>([])
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
@@ -559,7 +576,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           setXlsxAoa(event.data.data)
           setXlsxSelectedCol(null)
           setXlsxVisible(true)
-          setImportVisible(false)
+          setImportOptionsVisible(false)
+          setTextImportVisible(false)
           setXlsxLoading(false)
         } else if (event.data.type === "error") {
           messageApi.error(event.data.error || t("students.parseXlsxFailed"))
@@ -714,11 +732,84 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       const success = await importNames(names)
       if (!success) return
       setTextImportValue("")
-      setImportVisible(false)
+      setTextImportVisible(false)
     } finally {
       setTextImportLoading(false)
     }
   }
+
+  const handleOpenImportOptions = () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setImportOptionsVisible(true)
+  }
+
+  const handleOpenTextImport = () => {
+    setImportOptionsVisible(false)
+    setTextImportVisible(true)
+  }
+
+  const handleOpenXlsxImport = () => {
+    setImportOptionsVisible(false)
+    xlsxInputRef.current?.click()
+  }
+
+  const handleOpenBanYouImport = () => {
+    setImportOptionsVisible(false)
+    setBanYouVisible(true)
+  }
+
+  const handleFetchBanYouClassrooms = async () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    const cookie = banYouCookie.trim()
+    if (!cookie) {
+      messageApi.warning(t("students.banyouCookieRequired"))
+      return
+    }
+
+    setBanYouLoading(true)
+    try {
+      console.debug("[BanYou] fetch classrooms start", {
+        cookieLength: cookie.length,
+        containsUid: cookie.includes("uid="),
+        containsAccessToken: cookie.includes("accessToken="),
+      })
+      const res = await (window as any).api.fetchBanYouClassrooms({ cookie })
+      if (!res?.success || !res?.data) {
+        console.error("[BanYou] fetch classrooms failed", res)
+        messageApi.error(res?.message || t("students.banyouFetchFailed"))
+        return
+      }
+      const classrooms = Array.isArray(res.data.classrooms) ? res.data.classrooms : []
+      console.debug("[BanYou] fetch classrooms success", {
+        classrooms: classrooms.length,
+        administrativeGroups: Array.isArray(res.data.administrativeGroups)
+          ? res.data.administrativeGroups.length
+          : 0,
+      })
+      setBanYouClassrooms(classrooms)
+      messageApi.success(t("students.banyouFetchSuccess", { count: classrooms.length }))
+    } catch (e: any) {
+      console.error("[BanYou] fetch classrooms exception", e)
+      messageApi.error(e?.message || t("students.banyouFetchFailed"))
+    } finally {
+      setBanYouLoading(false)
+    }
+  }
+
+  const banYouCreatedClasses = useMemo(
+    () => banYouClassrooms.filter((item) => item.isOwn !== false),
+    [banYouClassrooms]
+  )
+  const banYouJoinedClasses = useMemo(
+    () => banYouClassrooms.filter((item) => item.isOwn === false),
+    [banYouClassrooms]
+  )
 
   const columns: ColumnsType<student> = useMemo(() => {
     const baseColumns: ColumnsType<student> = [
@@ -889,7 +980,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <Button disabled={!canEdit} onClick={openGroupBoardEditor}>
             {t("students.groupBoardEdit")}
           </Button>
-          <Button disabled={!canEdit} onClick={() => setImportVisible(true)}>
+          <Button disabled={!canEdit} onClick={handleOpenImportOptions}>
             {t("students.importList")}
           </Button>
           <Button type="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
@@ -1145,9 +1236,29 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       </Modal>
 
       <Modal
-        title={t("students.importTitle")}
-        open={importVisible}
-        onCancel={() => setImportVisible(false)}
+        title={t("students.importOptionsTitle")}
+        open={importOptionsVisible}
+        onCancel={() => setImportOptionsVisible(false)}
+        footer={null}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" style={{ width: "100%" }}>
+          <Button type="primary" disabled={!canEdit} onClick={handleOpenTextImport}>
+            {t("students.importByText")}
+          </Button>
+          <Button loading={xlsxLoading} disabled={!canEdit} onClick={handleOpenXlsxImport}>
+            {t("students.importByXlsx")}
+          </Button>
+          <Button disabled={!canEdit} onClick={handleOpenBanYouImport}>
+            {t("students.importByBanyou")}
+          </Button>
+        </Space>
+      </Modal>
+
+      <Modal
+        title={t("students.importByText")}
+        open={textImportVisible}
+        onCancel={() => setTextImportVisible(false)}
         footer={null}
         destroyOnHidden
       >
@@ -1168,30 +1279,181 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             disabled={!canEdit}
             onClick={handleImportTextNames}
           >
-            {t("students.importByText")}
+            {t("students.importConfirm")}
           </Button>
-          <Button
-            loading={xlsxLoading}
-            disabled={!canEdit}
-            onClick={() => {
-              xlsxInputRef.current?.click()
-            }}
-          >
-            {t("students.importByXlsx")}
-          </Button>
-          <input
-            ref={xlsxInputRef}
-            type="file"
-            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) parseXlsxFile(file)
-              if (xlsxInputRef.current) xlsxInputRef.current.value = ""
-            }}
-          />
         </Space>
       </Modal>
+
+      <Modal
+        title={t("students.importByBanyou")}
+        open={banYouVisible}
+        onCancel={() => setBanYouVisible(false)}
+        footer={null}
+        width={900}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" style={{ width: "100%" }} size={12}>
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.banyouCookieHint")}
+          </div>
+          <Input.TextArea
+            value={banYouCookie}
+            onChange={(e) => setBanYouCookie(e.target.value)}
+            rows={4}
+            placeholder={t("students.banyouCookiePlaceholder")}
+            disabled={banYouLoading}
+          />
+          <Button type="primary" loading={banYouLoading} onClick={handleFetchBanYouClassrooms}>
+            {t("students.banyouFetch")}
+          </Button>
+
+          <div style={{ marginTop: 8 }}>
+            <h3 style={{ margin: "0 0 12px", color: "var(--ss-text-main)" }}>
+              {t("students.banyouCreatedClasses")}
+            </h3>
+            {banYouCreatedClasses.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {banYouCreatedClasses.map((item) => (
+                  <div
+                    key={`created-${item.classId}`}
+                    style={{
+                      border: "1px solid var(--ss-border-color)",
+                      borderRadius: 12,
+                      backgroundColor: "var(--ss-card-bg)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderBottom: "1px solid var(--ss-border-color)",
+                        fontWeight: 700,
+                        color: "var(--ss-text-main)",
+                        fontSize: 20,
+                      }}
+                    >
+                      {item.classNickName} {item.invitationCode ? `(${item.invitationCode})` : ""}
+                    </div>
+                    <div style={{ padding: 14, display: "flex", gap: 12 }}>
+                      {item.classAvatarDataUrl ? (
+                        <img
+                          src={item.classAvatarDataUrl}
+                          alt={item.classNickName}
+                          style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover" }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 72,
+                            height: 72,
+                            borderRadius: "50%",
+                            backgroundColor: "var(--ss-bg-color)",
+                            border: "1px dashed var(--ss-border-color)",
+                          }}
+                        />
+                      )}
+                      <div style={{ flex: 1, color: "var(--ss-text-main)" }}>
+                        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
+                          {t("students.banyouClassTeacher")}
+                          {item.masterName || "-"}
+                        </div>
+                        <div style={{ color: "var(--ss-text-secondary)", fontSize: 14 }}>
+                          {t("students.banyouStudentCount")}
+                          {Number(item.studentsNum ?? 0)}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          minWidth: 48,
+                          display: "flex",
+                          alignItems: "flex-end",
+                          justifyContent: "center",
+                          color: "var(--ss-text-main)",
+                          fontSize: 42,
+                          fontWeight: 700,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {Number(item.praiseCount ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: "var(--ss-text-secondary)", fontSize: 13 }}>
+                {t("students.banyouNoClasses")}
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 8 }}>
+            <h3 style={{ margin: "0 0 12px", color: "var(--ss-text-main)" }}>
+              {t("students.banyouJoinedClasses")}
+            </h3>
+            {banYouJoinedClasses.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(320px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {banYouJoinedClasses.map((item) => (
+                  <div
+                    key={`joined-${item.classId}`}
+                    style={{
+                      border: "1px solid var(--ss-border-color)",
+                      borderRadius: 12,
+                      backgroundColor: "var(--ss-card-bg)",
+                      padding: 14,
+                      color: "var(--ss-text-main)",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
+                      {item.classNickName} {item.invitationCode ? `(${item.invitationCode})` : ""}
+                    </div>
+                    <div style={{ color: "var(--ss-text-secondary)", fontSize: 14 }}>
+                      {t("students.banyouClassTeacher")}
+                      {item.masterName || "-"}
+                    </div>
+                    <div style={{ color: "var(--ss-text-secondary)", fontSize: 14 }}>
+                      {t("students.banyouStudentCount")}
+                      {Number(item.studentsNum ?? 0)}
+                    </div>
+                    <div style={{ color: "var(--ss-text-secondary)", fontSize: 14 }}>
+                      {t("students.banyouPraiseCount")}
+                      {Number(item.praiseCount ?? 0)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: "var(--ss-text-secondary)", fontSize: 13 }}>
+                {t("students.banyouNoClasses")}
+              </div>
+            )}
+          </div>
+        </Space>
+      </Modal>
+
+      <input
+        ref={xlsxInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) parseXlsxFile(file)
+          if (xlsxInputRef.current) xlsxInputRef.current.value = ""
+        }}
+      />
 
       <Modal
         title={t("students.xlsxPreview")}

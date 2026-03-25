@@ -89,6 +89,34 @@ const api = {
     names: string[]
   }): Promise<{ success: boolean; data: { inserted: number; skipped: number; total: number } }> =>
     invoke("student_import_from_xlsx", { params }),
+  fetchBanYouClassrooms: (params: { cookie: string }): Promise<{
+    success: boolean
+    data?: {
+      classrooms: Array<{
+        classId: string
+        classNickName: string
+        invitationCode?: string | null
+        masterName?: string | null
+        studentsNum?: number | null
+        praiseCount?: number | null
+        classAvatarPath?: string | null
+        classAvatarDataUrl?: string | null
+        isOwn?: boolean | null
+      }>
+      administrativeGroups: Array<{
+        classId: string
+        classNickName: string
+        invitationCode?: string | null
+        masterName?: string | null
+        studentsNum?: number | null
+        praiseCount?: number | null
+        classAvatarPath?: string | null
+        classAvatarDataUrl?: string | null
+        isOwn?: boolean | null
+      }>
+    }
+    message?: string
+  }> => invoke("student_fetch_banyou_classrooms", { params }),
 
   // DB - Tags
   tagsGetAll: (): Promise<{ success: boolean; data: any[] }> => invoke("tags_get_all"),
