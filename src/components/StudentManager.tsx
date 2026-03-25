@@ -25,6 +25,7 @@ interface student {
 }
 
 export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
+  const UNGROUPED_KEY = "__ungrouped__"
   const { t } = useTranslation()
   const [data, setData] = useState<student[]>([])
   const [loading, setLoading] = useState(false)
@@ -38,6 +39,19 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [groupEditVisible, setGroupEditVisible] = useState(false)
   const [groupEditStudent, setGroupEditStudent] = useState<student | null>(null)
   const [groupSaving, setGroupSaving] = useState(false)
+  const [groupBoardVisible, setGroupBoardVisible] = useState(false)
+  const [groupBoardSaving, setGroupBoardSaving] = useState(false)
+  const [groupBoard, setGroupBoard] = useState<Record<string, student[]>>({})
+  const [groupBoardOrder, setGroupBoardOrder] = useState<string[]>([])
+  const [pointerDraggingStudentId, setPointerDraggingStudentId] = useState<number | null>(null)
+  const [pointerTargetGroup, setPointerTargetGroup] = useState<string | null>(null)
+  const [pointerDragStudentName, setPointerDragStudentName] = useState("")
+  const [pointerDragPosition, setPointerDragPosition] = useState<{ x: number; y: number } | null>(
+    null
+  )
+  const draggingStudentIdRef = useRef<number | null>(null)
+  const pointerDragSourceGroupRef = useRef<string | null>(null)
+  const pointerDragTargetGroupRef = useRef<string | null>(null)
   const [avatarVisible, setAvatarVisible] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarStudent, setAvatarStudent] = useState<student | null>(null)
@@ -252,6 +266,186 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     } finally {
       setGroupSaving(false)
     }
+  }
+
+  const openGroupBoardEditor = () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+
+    const groups = new Set<string>()
+    data.forEach((student) => {
+      const normalized = student.group_name?.trim()
+      if (normalized) groups.add(normalized)
+    })
+    const sortedGroups = Array.from(groups).sort((a, b) => a.localeCompare(b, "zh-CN"))
+    const order = [...sortedGroups, UNGROUPED_KEY]
+    const board: Record<string, student[]> = {}
+    order.forEach((key) => {
+      board[key] = []
+    })
+    data.forEach((student) => {
+      const key = student.group_name?.trim() || UNGROUPED_KEY
+      if (!board[key]) {
+        board[key] = []
+        order.push(key)
+      }
+      board[key].push(student)
+    })
+    order.forEach((key) => {
+      board[key].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"))
+    })
+    console.debug("[GroupBoard] open editor", {
+      groups: order.map((group) => (group === UNGROUPED_KEY ? "ungrouped" : group)),
+      studentCount: data.length,
+    })
+    setGroupBoardOrder(order)
+    setGroupBoard(board)
+    setGroupBoardVisible(true)
+  }
+
+  const moveStudentToGroup = (studentId: number, targetGroup: string) => {
+    setGroupBoard((prev) => {
+      let movingStudent: student | null = null
+      let sourceGroup = ""
+      const next: Record<string, student[]> = {}
+      Object.entries(prev).forEach(([group, students]) => {
+        next[group] = students.filter((student) => {
+          if (student.id === studentId) {
+            movingStudent = student
+            sourceGroup = group
+            return false
+          }
+          return true
+        })
+      })
+
+      if (!movingStudent) return prev
+      const movedStudent = movingStudent as student
+      if (sourceGroup === targetGroup) return prev
+      if (!next[targetGroup]) next[targetGroup] = []
+      next[targetGroup] = [...next[targetGroup], movedStudent]
+      console.debug("[GroupBoard] move student", {
+        studentId,
+        studentName: movedStudent.name,
+        from: sourceGroup === UNGROUPED_KEY ? "ungrouped" : sourceGroup,
+        to: targetGroup === UNGROUPED_KEY ? "ungrouped" : targetGroup,
+      })
+      return next
+    })
+  }
+
+  const handleSaveGroupBoard = async () => {
+    if (!(window as any).api) return
+
+    const groupByStudentId = new Map<number, string>()
+    groupBoardOrder.forEach((groupKey) => {
+      const students = groupBoard[groupKey] || []
+      students.forEach((student) => {
+        groupByStudentId.set(student.id, groupKey === UNGROUPED_KEY ? "" : groupKey)
+      })
+    })
+
+    const changedStudents = data.filter((student) => {
+      const originalGroup = student.group_name?.trim() || ""
+      const nextGroup = groupByStudentId.get(student.id) ?? ""
+      return originalGroup !== nextGroup
+    })
+
+    if (changedStudents.length === 0) {
+      console.debug("[GroupBoard] save skipped, no changes")
+      messageApi.info(t("students.groupBoardNoChanges"))
+      setGroupBoardVisible(false)
+      return
+    }
+
+    setGroupBoardSaving(true)
+    try {
+      const results = await Promise.allSettled(
+        changedStudents.map((student) => {
+          const nextGroup = groupByStudentId.get(student.id) ?? ""
+          return (window as any).api.updateStudent(student.id, { group_name: nextGroup })
+        })
+      )
+      const failedCount = results.filter(
+        (result) => result.status === "rejected" || !result.value?.success
+      ).length
+      console.debug("[GroupBoard] save result", {
+        changedCount: changedStudents.length,
+        failedCount,
+      })
+
+      if (failedCount > 0) {
+        messageApi.error(t("students.groupBoardSaveFailed", { failed: failedCount }))
+      } else {
+        messageApi.success(t("students.groupBoardSaveSuccess", { count: changedStudents.length }))
+        setGroupBoardVisible(false)
+      }
+      fetchStudents()
+      emitDataUpdated("students")
+    } finally {
+      setGroupBoardSaving(false)
+    }
+  }
+
+  const beginPointerDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    studentId: number,
+    studentName: string,
+    sourceGroup: string
+  ) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    draggingStudentIdRef.current = studentId
+    pointerDragSourceGroupRef.current = sourceGroup
+    pointerDragTargetGroupRef.current = null
+    setPointerDraggingStudentId(studentId)
+    setPointerDragStudentName(studentName)
+    setPointerDragPosition({ x: e.clientX, y: e.clientY })
+    setPointerTargetGroup(null)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    console.debug("[GroupBoard] pointer drag start", {
+      studentId,
+      studentName,
+      sourceGroup: sourceGroup === UNGROUPED_KEY ? "ungrouped" : sourceGroup,
+    })
+  }
+
+  const trackPointerTarget = (clientX: number, clientY: number) => {
+    if (draggingStudentIdRef.current == null) return
+    setPointerDragPosition({ x: clientX, y: clientY })
+    const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+    const dropZone = element?.closest("[data-group-drop]") as HTMLElement | null
+    const targetGroup = dropZone?.dataset.groupDrop ?? null
+    if (pointerDragTargetGroupRef.current !== targetGroup) {
+      pointerDragTargetGroupRef.current = targetGroup
+      setPointerTargetGroup(targetGroup)
+      console.debug("[GroupBoard] pointer target", {
+        targetGroup: targetGroup === UNGROUPED_KEY ? "ungrouped" : targetGroup,
+      })
+    }
+  }
+
+  const finishPointerDrag = () => {
+    const studentId = draggingStudentIdRef.current
+    const sourceGroup = pointerDragSourceGroupRef.current
+    const targetGroup = pointerDragTargetGroupRef.current
+    console.debug("[GroupBoard] pointer drag end", {
+      studentId,
+      sourceGroup: sourceGroup === UNGROUPED_KEY ? "ungrouped" : sourceGroup,
+      targetGroup: targetGroup === UNGROUPED_KEY ? "ungrouped" : targetGroup,
+    })
+    if (studentId != null && targetGroup && targetGroup !== sourceGroup) {
+      moveStudentToGroup(studentId, targetGroup)
+    }
+    draggingStudentIdRef.current = null
+    pointerDragSourceGroupRef.current = null
+    pointerDragTargetGroupRef.current = null
+    setPointerDraggingStudentId(null)
+    setPointerDragStudentName("")
+    setPointerDragPosition(null)
+    setPointerTargetGroup(null)
   }
 
   const readFileAsDataUrl = (file: File): Promise<string> => {
@@ -692,6 +886,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between" }}>
         <h2 style={{ margin: 0, color: "var(--ss-text-main)" }}>{t("students.title")}</h2>
         <Space>
+          <Button disabled={!canEdit} onClick={openGroupBoardEditor}>
+            {t("students.groupBoardEdit")}
+          </Button>
           <Button disabled={!canEdit} onClick={() => setImportVisible(true)}>
             {t("students.importList")}
           </Button>
@@ -817,6 +1014,134 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             )}
           </div>
         </Form>
+      </Modal>
+
+      <Modal
+        title={t("students.groupBoardTitle")}
+        open={groupBoardVisible}
+        onCancel={() => {
+          setGroupBoardVisible(false)
+          draggingStudentIdRef.current = null
+          pointerDragSourceGroupRef.current = null
+          pointerDragTargetGroupRef.current = null
+          setPointerDraggingStudentId(null)
+          setPointerDragStudentName("")
+          setPointerDragPosition(null)
+          setPointerTargetGroup(null)
+        }}
+        onOk={handleSaveGroupBoard}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        okButtonProps={{ loading: groupBoardSaving }}
+        width="90%"
+        destroyOnHidden
+      >
+        <div style={{ color: "var(--ss-text-secondary)", marginBottom: 12, fontSize: 12 }}>
+          {t("students.groupBoardHint")}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            overflowX: "auto",
+            paddingBottom: 4,
+            userSelect: pointerDraggingStudentId != null ? "none" : "auto",
+            WebkitUserSelect: pointerDraggingStudentId != null ? "none" : "auto",
+          }}
+        >
+          {groupBoardOrder.map((groupKey) => {
+            const studentsInGroup = groupBoard[groupKey] || []
+            const groupLabel = groupKey === UNGROUPED_KEY ? t("students.noGroup") : groupKey
+            return (
+              <div
+                key={groupKey}
+                data-group-drop={groupKey}
+                style={{
+                  minWidth: isMobile ? 180 : 220,
+                  maxWidth: isMobile ? 220 : 260,
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: 10,
+                  backgroundColor:
+                    pointerTargetGroup === groupKey ? "var(--ss-bg-color)" : "var(--ss-card-bg)",
+                  padding: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  transition: "background-color 120ms ease",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 600,
+                    color: "var(--ss-text-main)",
+                    borderBottom: "1px dashed var(--ss-border-color)",
+                    paddingBottom: 8,
+                  }}
+                >
+                  {groupLabel} ({studentsInGroup.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 160 }}>
+                  {studentsInGroup.length > 0 ? (
+                    studentsInGroup.map((student) => (
+                      <div
+                        key={`${groupKey}-${student.id}`}
+                        onPointerDown={(e) => beginPointerDrag(e, student.id, student.name, groupKey)}
+                        onPointerMove={(e) => trackPointerTarget(e.clientX, e.clientY)}
+                        onPointerUp={finishPointerDrag}
+                        onPointerCancel={finishPointerDrag}
+                        onLostPointerCapture={finishPointerDrag}
+                        style={{
+                          border: "1px solid var(--ss-border-color)",
+                          borderRadius: 8,
+                          backgroundColor:
+                            pointerDraggingStudentId === student.id
+                              ? "var(--ss-bg-color)"
+                              : "var(--ss-card-bg)",
+                          opacity: pointerDraggingStudentId === student.id ? 0.45 : 1,
+                          padding: "8px 10px",
+                          cursor: pointerDraggingStudentId === student.id ? "grabbing" : "grab",
+                          userSelect: "none",
+                          WebkitUserSelect: "none",
+                          touchAction: "none",
+                        }}
+                      >
+                        {student.name}
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                      {t("students.groupBoardEmpty")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {pointerDraggingStudentId != null && pointerDragPosition && (
+          <div
+            style={{
+              position: "fixed",
+              left: pointerDragPosition.x + 14,
+              top: pointerDragPosition.y + 14,
+              pointerEvents: "none",
+              zIndex: 2100,
+              border: "1px solid var(--ss-border-color)",
+              borderRadius: 8,
+              backgroundColor: "var(--ss-card-bg)",
+              color: "var(--ss-text-main)",
+              padding: "8px 10px",
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.16)",
+              fontSize: 13,
+              maxWidth: 220,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {pointerDragStudentName}
+          </div>
+        )}
       </Modal>
 
       <Modal
