@@ -390,6 +390,7 @@
     "sortBy": {
       "alphabet": "Name Sort",
       "surname": "Surname Group",
+      "group": "Group Sort",
       "score": "Points Rank"
     },
     "layoutBy": {
@@ -409,6 +410,7 @@
     "reasonPlaceholder": "Enter reason for points change (optional)",
     "preview": "Change Preview",
     "noReason": "(No reason)",
+    "ungrouped": "Ungrouped",
     "category": {
       "others": "Others"
     },
@@ -445,6 +447,7 @@
     "importList": "Import List",
     "addStudent": "Add Student",
     "name": "Name",
+    "group": "Group",
     "avatar": "Avatar",
     "currentScore": "Current Points",
     "tags": "Tags",
@@ -455,6 +458,7 @@
     "addTitle": "Add Student",
     "addConfirm": "Add",
     "namePlaceholder": "Enter student name",
+    "groupPlaceholder": "Enter group name (optional)",
     "nameRequired": "Please enter name",
     "nameExists": "Student name already exists",
     "addSuccess": "Added successfully",
@@ -480,6 +484,11 @@
     "noNamesFound": "No importable names found in selected column",
     "importFailed": "Import failed",
     "editTagTitle": "Edit Tags - {{name}}",
+    "editGroup": "Set Group",
+    "editGroupTitle": "Set Group - {{name}}",
+    "groupSaveSuccess": "Group saved",
+    "groupSaveFailed": "Failed to save group",
+    "noGroup": "Ungrouped",
     "editAvatarTitle": "Set Avatar - {{name}}",
     "avatarUpload": "Upload Image",
     "avatarClear": "Clear Avatar",

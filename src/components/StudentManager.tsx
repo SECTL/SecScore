@@ -16,6 +16,7 @@ const createXlsxWorker = () => {
 interface student {
   id: number
   name: string
+  group_name?: string | null
   score: number
   tags?: string[]
   tagIds?: number[]
@@ -34,6 +35,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [xlsxVisible, setXlsxVisible] = useState(false)
   const [tagEditVisible, setTagEditVisible] = useState(false)
   const [editingStudent, setEditingStudent] = useState<student | null>(null)
+  const [groupEditVisible, setGroupEditVisible] = useState(false)
+  const [groupEditStudent, setGroupEditStudent] = useState<student | null>(null)
+  const [groupSaving, setGroupSaving] = useState(false)
   const [avatarVisible, setAvatarVisible] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarStudent, setAvatarStudent] = useState<student | null>(null)
@@ -48,6 +52,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
+  const [groupForm] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
   const isMobile = useIsMobile()
   const isTablet = useIsTablet()
@@ -89,6 +94,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               return {
                 id: s.id,
                 name: s.name,
+                group_name: s.group_name ?? null,
                 score: s.score,
                 extra_json: s.extra_json ?? null,
                 avatarUrl: getAvatarFromExtraJson(s.extra_json),
@@ -135,12 +141,16 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       }
 
       const name = values.name.trim()
+      const groupName =
+        typeof values.group_name === "string" && values.group_name.trim()
+          ? values.group_name.trim()
+          : undefined
       if (data.some((s) => s.name === name)) {
         messageApi.warning(t("students.nameExists"))
         return
       }
 
-      const res = await (window as any).api.createStudent({ ...values, name })
+      const res = await (window as any).api.createStudent({ ...values, name, group_name: groupName })
       if (res.success) {
         messageApi.success(t("students.addSuccess"))
         setVisible(false)
@@ -200,6 +210,46 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setAvatarStudent(student)
     setAvatarValue(student.avatarUrl || null)
     setAvatarVisible(true)
+  }
+
+  const handleOpenGroupEditor = (student: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setGroupEditStudent(student)
+    groupForm.setFieldsValue({ group_name: student.group_name || "" })
+    setGroupEditVisible(true)
+  }
+
+  const handleSaveGroup = async () => {
+    if (!(window as any).api || !groupEditStudent) return
+
+    try {
+      const values = await groupForm.validateFields()
+      const groupName =
+        typeof values.group_name === "string" && values.group_name.trim()
+          ? values.group_name.trim()
+          : ""
+      setGroupSaving(true)
+      const res = await (window as any).api.updateStudent(groupEditStudent.id, {
+        group_name: groupName,
+      })
+      if (res?.success) {
+        messageApi.success(t("students.groupSaveSuccess"))
+        setGroupEditVisible(false)
+        setGroupEditStudent(null)
+        groupForm.resetFields()
+        fetchStudents()
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.groupSaveFailed"))
+      }
+    } catch {
+      return
+    } finally {
+      setGroupSaving(false)
+    }
   }
 
   const readFileAsDataUrl = (file: File): Promise<string> => {
@@ -522,6 +572,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         ellipsis: true,
       },
       {
+        title: t("students.group"),
+        dataIndex: "group_name",
+        key: "group_name",
+        width: isMobile ? 90 : 120,
+        ellipsis: true,
+        render: (groupName?: string | null) => groupName?.trim() || t("students.noGroup"),
+      },
+      {
         title: t("students.currentScore"),
         dataIndex: "score",
         key: "score",
@@ -585,6 +643,15 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               style={{ padding: isMobile ? "2px 4px" : undefined }}
             >
               {t("students.editTags")}
+            </Button>
+            <Button
+              type="link"
+              size={isMobile ? "small" : "middle"}
+              disabled={!canEdit}
+              onClick={() => handleOpenGroupEditor(row)}
+              style={{ padding: isMobile ? "2px 4px" : undefined }}
+            >
+              {t("students.editGroup")}
             </Button>
             <Button
               type="link"
@@ -672,6 +739,30 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             rules={[{ required: true, message: t("students.nameRequired") }]}
           >
             <Input placeholder={t("students.namePlaceholder")} />
+          </Form.Item>
+          <Form.Item label={t("students.group")} name="group_name">
+            <Input placeholder={t("students.groupPlaceholder")} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={t("students.editGroupTitle", { name: groupEditStudent?.name || "" })}
+        open={groupEditVisible}
+        onCancel={() => {
+          setGroupEditVisible(false)
+          setGroupEditStudent(null)
+          groupForm.resetFields()
+        }}
+        onOk={handleSaveGroup}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        okButtonProps={{ loading: groupSaving, disabled: !groupEditStudent }}
+        destroyOnHidden
+      >
+        <Form form={groupForm} layout="vertical">
+          <Form.Item label={t("students.group")} name="group_name">
+            <Input placeholder={t("students.groupPlaceholder")} />
           </Form.Item>
         </Form>
       </Modal>

@@ -23,6 +23,7 @@ impl Migration {
         Self::create_reward_settings_table(conn, is_sqlite).await?;
         Self::create_reward_redemptions_table(conn, is_sqlite).await?;
         Self::ensure_students_reward_points_column(conn, is_sqlite).await?;
+        Self::ensure_students_group_name_column(conn, is_sqlite).await?;
 
         Self::create_indexes(conn, is_sqlite).await?;
 
@@ -154,6 +155,39 @@ impl Migration {
                     || msg.contains("duplicate");
                 if already_exists {
                     info!("students.reward_points already exists, skip alter");
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn ensure_students_group_name_column(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        let db_backend = Self::get_db_backend(sqlite);
+        let alter_sql = "ALTER TABLE students ADD COLUMN group_name TEXT";
+        let result = conn
+            .execute(Statement::from_string(
+                db_backend.clone(),
+                alter_sql.to_string(),
+            ))
+            .await;
+
+        match result {
+            Ok(_) => {
+                info!("Added students.group_name column");
+            }
+            Err(e) => {
+                let msg = e.to_string().to_lowercase();
+                let already_exists = msg.contains("duplicate column")
+                    || msg.contains("already exists")
+                    || msg.contains("duplicate");
+                if already_exists {
+                    info!("students.group_name already exists, skip alter");
                 } else {
                     return Err(e);
                 }

@@ -21,6 +21,7 @@ import { useResponsive } from "../hooks/useResponsive"
 interface student {
   id: number
   name: string
+  group_name?: string | null
   score: number
   reward_points: number
   extra_json?: string | null
@@ -54,7 +55,7 @@ interface rewardSetting {
   cost_points: number
 }
 
-type SortType = "alphabet" | "surname" | "score"
+type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 
@@ -159,6 +160,11 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     const py = pinyin(firstChar, { pattern: "first", toneType: "none" })
     return py ? py.toUpperCase() : "#"
   }
+
+  const getGroupName = useCallback(
+    (groupName?: string | null) => groupName?.trim() || t("home.ungrouped"),
+    [t]
+  )
 
   const fetchData = useCallback(async (silent = false) => {
     if (!(window as any).api) return
@@ -438,10 +444,21 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           (a, b) =>
             getDisplayPoints(b) - getDisplayPoints(a) || a.name.localeCompare(b.name, "zh-CN")
         )
+      case "group":
+        return filtered.sort((a, b) => {
+          const groupA = getGroupName(a.group_name)
+          const groupB = getGroupName(b.group_name)
+          if (groupA === groupB) {
+            return (a.pinyinName || "").localeCompare(b.pinyinName || "")
+          }
+          if (groupA === t("home.ungrouped")) return 1
+          if (groupB === t("home.ungrouped")) return -1
+          return groupA.localeCompare(groupB, "zh-CN")
+        })
       default:
         return filtered
     }
-  }, [students, searchKeyword, sortType, matchStudentName, getDisplayPoints])
+  }, [students, searchKeyword, sortType, matchStudentName, getDisplayPoints, getGroupName, t])
 
   const groupedStudents = useMemo(() => {
     if (sortType === "score" || (sortType === "alphabet" && searchKeyword)) {
@@ -450,15 +467,25 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
 
     const groups: Record<string, student[]> = {}
     sortedStudents.forEach((s) => {
-      const key = sortType === "alphabet" ? s.pinyinFirst || "#" : getSurname(s.name)
+      const key =
+        sortType === "alphabet"
+          ? s.pinyinFirst || "#"
+          : sortType === "surname"
+            ? getSurname(s.name)
+            : getGroupName(s.group_name)
       if (!groups[key]) groups[key] = []
       groups[key].push(s)
     })
 
     return Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b, "zh-CN"))
+      .sort(([a], [b]) => {
+        const ungrouped = t("home.ungrouped")
+        if (a === ungrouped) return 1
+        if (b === ungrouped) return -1
+        return a.localeCompare(b, "zh-CN")
+      })
       .map(([key, students]) => ({ key, students }))
-  }, [sortedStudents, sortType, searchKeyword, layoutType])
+  }, [sortedStudents, sortType, searchKeyword, layoutType, getGroupName, t])
 
   const firstStudentIdByGroup = useMemo(() => {
     const result = new Map<string, number>()
@@ -2281,6 +2308,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
             options={[
               { value: "alphabet", label: t("home.sortBy.alphabet") },
               { value: "surname", label: t("home.sortBy.surname") },
+              { value: "group", label: t("home.sortBy.group") },
               { value: "score", label: t("home.sortBy.score") },
             ]}
           />

@@ -17,6 +17,7 @@ use super::response::{ImportResult, IpcResponse};
 #[derive(Deserialize)]
 pub struct CreateStudentData {
     pub name: String,
+    pub group_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +65,7 @@ pub async fn student_query(
                     .map(|s| StudentWithTags {
                         id: s.id,
                         name: s.name,
+                        group_name: s.group_name,
                         score: s.score,
                         reward_points: s.reward_points,
                         tags: serde_json::from_str(&s.tags).unwrap_or_default(),
@@ -117,9 +119,16 @@ pub async fn student_create(
                 let now = chrono::Utc::now()
                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
                     .to_string();
+                let group_name = data
+                    .group_name
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|v| !v.is_empty())
+                    .map(|v| v.to_string());
                 let new_student = students::ActiveModel {
                     id: sea_orm::ActiveValue::NotSet,
                     name: Set(name.to_string()),
+                    group_name: Set(group_name),
                     score: Set(0),
                     reward_points: Set(0),
                     tags: Set("[]".to_string()),
@@ -174,6 +183,14 @@ pub async fn student_update(
 
                 if let Some(name) = data.name {
                     active.name = Set(name);
+                }
+                if let Some(group_name) = data.group_name {
+                    let normalized = group_name.trim();
+                    active.group_name = if normalized.is_empty() {
+                        Set(None)
+                    } else {
+                        Set(Some(normalized.to_string()))
+                    };
                 }
                 if let Some(score) = data.score {
                     active.score = Set(score);
@@ -231,6 +248,7 @@ pub async fn student_delete(
                 students::Entity::delete(students::ActiveModel {
                     id: sea_orm::ActiveValue::Set(student.id),
                     name: sea_orm::ActiveValue::Unchanged(student.name),
+                    group_name: sea_orm::ActiveValue::Unchanged(student.group_name),
                     score: sea_orm::ActiveValue::Unchanged(student.score),
                     reward_points: sea_orm::ActiveValue::Unchanged(student.reward_points),
                     tags: sea_orm::ActiveValue::Unchanged(student.tags),
@@ -317,6 +335,7 @@ pub async fn student_import_from_xlsx(
                         let new_student = students::ActiveModel {
                             id: sea_orm::ActiveValue::NotSet,
                             name: Set(name.to_string()),
+                            group_name: Set(None),
                             score: Set(0),
                             reward_points: Set(0),
                             tags: Set("[]".to_string()),

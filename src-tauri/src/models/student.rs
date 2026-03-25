@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Student {
     pub id: i32,
     pub name: String,
+    pub group_name: Option<String>,
     pub score: i32,
     pub reward_points: i32,
     pub tags: String,
@@ -15,6 +16,7 @@ pub struct Student {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StudentUpdate {
     pub name: Option<String>,
+    pub group_name: Option<String>,
     pub score: Option<i32>,
     pub reward_points: Option<i32>,
     pub tags: Option<Vec<String>>,
@@ -25,6 +27,7 @@ pub struct StudentUpdate {
 pub struct StudentWithTags {
     pub id: i32,
     pub name: String,
+    pub group_name: Option<String>,
     pub score: i32,
     pub reward_points: i32,
     pub tags: Vec<String>,
@@ -37,6 +40,7 @@ impl From<Student> for StudentWithTags {
         Self {
             id: student.id,
             name: student.name,
+            group_name: student.group_name,
             score: student.score,
             reward_points: student.reward_points,
             tags,

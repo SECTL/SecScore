@@ -390,6 +390,7 @@
     "sortBy": {
       "alphabet": "姓名排序",
       "surname": "姓氏分组",
+      "group": "小组排序",
       "score": "积分排行"
     },
     "layoutBy": {
@@ -409,6 +410,7 @@
     "reasonPlaceholder": "输入加分/扣分的原因（可选）",
     "preview": "变更预览",
     "noReason": "（无理由）",
+    "ungrouped": "未分组",
     "category": {
       "others": "其他"
     },
@@ -445,6 +447,7 @@
     "importList": "导入名单",
     "addStudent": "添加学生",
     "name": "姓名",
+    "group": "小组",
     "avatar": "头像",
     "currentScore": "当前积分",
     "tags": "标签",
@@ -455,6 +458,7 @@
     "addTitle": "添加学生",
     "addConfirm": "添加",
     "namePlaceholder": "请输入学生姓名",
+    "groupPlaceholder": "请输入小组名称（可选）",
     "nameRequired": "请输入姓名",
     "nameExists": "学生姓名已存在",
     "addSuccess": "添加成功",
@@ -480,6 +484,11 @@
     "noNamesFound": "所选列未解析到可导入的姓名",
     "importFailed": "导入失败",
     "editTagTitle": "编辑标签 - {{name}}",
+    "editGroup": "设置小组",
+    "editGroupTitle": "设置小组 - {{name}}",
+    "groupSaveSuccess": "小组保存成功",
+    "groupSaveFailed": "小组保存失败",
+    "noGroup": "未分组",
     "editAvatarTitle": "设置头像 - {{name}}",
     "avatarUpload": "上传图片",
     "avatarClear": "清除头像",

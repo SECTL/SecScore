@@ -79,6 +79,7 @@ const api = {
     invoke("student_query", { params }),
   createStudent: (data: {
     name: string
+    group_name?: string
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
     invoke("student_create", { data }),
   updateStudent: (id: number, data: any): Promise<{ success: boolean }> =>

@@ -95,6 +95,7 @@ pub enum ConflictStrategy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StudentNormalized {
     name: String,
+    group_name: Option<String>,
     score: i32,
     reward_points: i32,
     tags: String,
@@ -198,6 +199,7 @@ async fn load_students(
             row.name.clone(),
             StudentNormalized {
                 name: row.name,
+                group_name: row.group_name,
                 score: row.score,
                 reward_points: row.reward_points,
                 tags: normalize_tags(&row.tags),
@@ -403,6 +405,7 @@ async fn upsert_student(
         Some(row) => {
             let normalized_current = StudentNormalized {
                 name: row.name.clone(),
+                group_name: row.group_name.clone(),
                 score: row.score,
                 reward_points: row.reward_points,
                 tags: normalize_tags(&row.tags),
@@ -415,6 +418,7 @@ async fn upsert_student(
             }
             let mut active: students::ActiveModel = row.into();
             active.score = Set(data.score);
+            active.group_name = Set(data.group_name.clone());
             active.reward_points = Set(data.reward_points);
             active.tags = Set(data.tags.clone());
             active.extra_json = Set(data.extra_json.clone());
@@ -427,6 +431,7 @@ async fn upsert_student(
             students::ActiveModel {
                 id: sea_orm::ActiveValue::NotSet,
                 name: Set(data.name.clone()),
+                group_name: Set(data.group_name.clone()),
                 score: Set(data.score),
                 reward_points: Set(data.reward_points),
                 tags: Set(data.tags.clone()),
