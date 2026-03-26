@@ -39,6 +39,7 @@ pub fn run() {
             student_delete,
             student_import_from_xlsx,
             student_fetch_banyou_classrooms,
+            student_fetch_banyou_classroom_detail,
             tags_get_all,
             tags_get_by_student,
             tags_create,

@@ -117,6 +117,47 @@ const api = {
     }
     message?: string
   }> => invoke("student_fetch_banyou_classrooms", { params }),
+  fetchBanYouClassroomDetail: (params: {
+    cookie: string
+    classId: string
+    teamPlanId?: number
+  }): Promise<{
+    success: boolean
+    data?: {
+      medals: Array<{
+        key?: string
+        uid?: string
+        name: string
+        type?: number
+        medalType?: number
+        value?: number
+      }>
+      students: Array<{
+        studentId: string
+        studentName: string
+        avatar?: string | null
+      }>
+      teams: Array<{
+        teamId: string
+        teamName: string
+        students: Array<{
+          studentId: string
+          studentName: string
+        }>
+      }>
+      ungroupedStudents: Array<{
+        studentId: string
+        studentName: string
+      }>
+      teamPlanIdUsed?: number
+      teamPlans?: Array<{
+        teamPlanId: number
+        name?: string
+      }>
+      teamPlanSource?: string
+    }
+    message?: string
+  }> => invoke("student_fetch_banyou_classroom_detail", { params }),
 
   // DB - Tags
   tagsGetAll: (): Promise<{ success: boolean; data: any[] }> => invoke("tags_get_all"),

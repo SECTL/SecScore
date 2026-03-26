@@ -1,5 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
-import { Table, Button, Space, message, Modal, Form, Input, Tag, Pagination, Dropdown } from "antd"
+import {
+  Table,
+  Button,
+  Space,
+  message,
+  Modal,
+  Form,
+  Input,
+  Tag,
+  Pagination,
+  Dropdown,
+  Checkbox,
+  Select,
+} from "antd"
 import type { ColumnsType } from "antd/es/table"
 import { UploadOutlined, MoreOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
@@ -34,6 +47,41 @@ interface BanYouClassroom {
   classAvatarPath?: string | null
   classAvatarDataUrl?: string | null
   isOwn?: boolean | null
+}
+
+interface BanYouMedal {
+  key?: string
+  uid?: string
+  name: string
+  type?: number
+  medalType?: number
+  value?: number
+}
+
+interface BanYouStudentItem {
+  studentId: string
+  studentName: string
+}
+
+interface BanYouTeamItem {
+  teamId: string
+  teamName: string
+  students: BanYouStudentItem[]
+}
+
+interface BanYouTeamPlanOption {
+  teamPlanId: number
+  name?: string
+}
+
+interface BanYouClassroomDetail {
+  medals: BanYouMedal[]
+  students: BanYouStudentItem[]
+  teams: BanYouTeamItem[]
+  ungroupedStudents: BanYouStudentItem[]
+  teamPlanIdUsed?: number
+  teamPlans?: BanYouTeamPlanOption[]
+  teamPlanSource?: string
 }
 
 export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
@@ -79,7 +127,19 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [textImportValue, setTextImportValue] = useState("")
   const [banYouCookie, setBanYouCookie] = useState("")
   const [banYouLoading, setBanYouLoading] = useState(false)
+  const [banYouDetailLoading, setBanYouDetailLoading] = useState(false)
+  const [banYouImportLoading, setBanYouImportLoading] = useState(false)
   const [banYouClassrooms, setBanYouClassrooms] = useState<BanYouClassroom[]>([])
+  const [banYouDetailVisible, setBanYouDetailVisible] = useState(false)
+  const [banYouSelectedClass, setBanYouSelectedClass] = useState<BanYouClassroom | null>(null)
+  const [banYouDetail, setBanYouDetail] = useState<BanYouClassroomDetail | null>(null)
+  const [banYouCheckedMedals, setBanYouCheckedMedals] = useState<string[]>([])
+  const [banYouCheckedStudents, setBanYouCheckedStudents] = useState<string[]>([])
+  const [banYouCheckedTeams, setBanYouCheckedTeams] = useState<string[]>([])
+  const [banYouTeamPlanOptions, setBanYouTeamPlanOptions] = useState<BanYouTeamPlanOption[]>([])
+  const [banYouSelectedTeamPlanId, setBanYouSelectedTeamPlanId] = useState<number | undefined>(
+    undefined
+  )
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
@@ -672,19 +732,20 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return extractUniqueNames(lines)
   }
 
-  const importNames = async (names: string[]) => {
-    if (!(window as any).api) return false
+  const importNames = async (names: string[], options?: { toast?: boolean }) => {
+    const toast = options?.toast ?? true
+    if (!(window as any).api) return { success: false, inserted: 0, skipped: 0 }
     const res = await (window as any).api.importStudentsFromXlsx({ names })
     if (!res?.success) {
-      messageApi.error(res?.message || t("students.importFailed"))
-      return false
+      if (toast) messageApi.error(res?.message || t("students.importFailed"))
+      return { success: false, inserted: 0, skipped: 0 }
     }
     const inserted = Number(res?.data?.inserted ?? 0)
     const skipped = Number(res?.data?.skipped ?? 0)
-    messageApi.success(t("students.importComplete", { inserted, skipped }))
+    if (toast) messageApi.success(t("students.importComplete", { inserted, skipped }))
     fetchStudents()
     emitDataUpdated("students")
-    return true
+    return { success: true, inserted, skipped }
   }
 
   const handleConfirmXlsxImport = async () => {
@@ -705,8 +766,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     setXlsxLoading(true)
     try {
-      const success = await importNames(names)
-      if (!success) return
+      const result = await importNames(names)
+      if (!result.success) return
       setXlsxVisible(false)
       setXlsxAoa([])
       setXlsxFileName("")
@@ -729,8 +790,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     setTextImportLoading(true)
     try {
-      const success = await importNames(names)
-      if (!success) return
+      const result = await importNames(names)
+      if (!result.success) return
       setTextImportValue("")
       setTextImportVisible(false)
     } finally {
@@ -799,6 +860,185 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       messageApi.error(e?.message || t("students.banyouFetchFailed"))
     } finally {
       setBanYouLoading(false)
+    }
+  }
+
+  const medalKey = (item: BanYouMedal, idx: number) => item.key || item.uid || `${item.name}-${idx}`
+
+  const fetchBanYouClassDetail = async (classroom: BanYouClassroom, teamPlanId?: number) => {
+    const cookie = banYouCookie.trim()
+    if (!cookie) {
+      messageApi.warning(t("students.banyouCookieRequired"))
+      return
+    }
+    setBanYouSelectedClass(classroom)
+    setBanYouDetailVisible(true)
+    setBanYouDetailLoading(true)
+    try {
+      const parsedTeamPlanId = typeof teamPlanId === "number" ? teamPlanId : undefined
+      const params: any = {
+        cookie,
+        classId: classroom.classId,
+      }
+      if (Number.isFinite(parsedTeamPlanId)) params.teamPlanId = parsedTeamPlanId
+      const res = await (window as any).api.fetchBanYouClassroomDetail(params)
+      if (!res?.success || !res?.data) {
+        messageApi.error(res?.message || t("students.banyouFetchDetailFailed"))
+        setBanYouDetail(null)
+        return
+      }
+      const detail = res.data as BanYouClassroomDetail
+      setBanYouDetail(detail)
+      const options = Array.isArray(detail.teamPlans) ? detail.teamPlans : []
+      setBanYouTeamPlanOptions(options)
+      const used = Number(detail.teamPlanIdUsed)
+      if (Number.isFinite(used) && used > 0) {
+        setBanYouSelectedTeamPlanId(used)
+      } else if (options.length > 0) {
+        setBanYouSelectedTeamPlanId(Number(options[0].teamPlanId))
+      } else {
+        setBanYouSelectedTeamPlanId(undefined)
+      }
+      setBanYouCheckedStudents((detail.students || []).map((s) => s.studentId))
+      setBanYouCheckedMedals((detail.medals || []).map((m, idx) => medalKey(m, idx)))
+      setBanYouCheckedTeams((detail.teams || []).map((team) => team.teamId))
+    } catch (e: any) {
+      messageApi.error(e?.message || t("students.banyouFetchDetailFailed"))
+      setBanYouDetail(null)
+    } finally {
+      setBanYouDetailLoading(false)
+    }
+  }
+
+  const handleOpenBanYouClassDetail = async (classroom: BanYouClassroom) => {
+    await fetchBanYouClassDetail(classroom)
+  }
+
+  const handleReloadBanYouGroupByPlan = async () => {
+    if (!banYouSelectedClass) return
+    if (!banYouSelectedTeamPlanId) {
+      messageApi.warning(t("students.banyouSelectTeamPlanFirst"))
+      return
+    }
+    await fetchBanYouClassDetail(banYouSelectedClass, banYouSelectedTeamPlanId)
+  }
+
+  const handleImportBanYouSelected = async () => {
+    if (!banYouDetail) return
+    if (!(window as any).api) return
+
+    const selectedStudents = (banYouDetail.students || []).filter((s) =>
+      banYouCheckedStudents.includes(s.studentId)
+    )
+    const selectedMedals = (banYouDetail.medals || []).filter((m, idx) =>
+      banYouCheckedMedals.includes(medalKey(m, idx))
+    )
+    const selectedTeams = (banYouDetail.teams || []).filter((g) => banYouCheckedTeams.includes(g.teamId))
+
+    if (!selectedStudents.length && !selectedMedals.length && !selectedTeams.length) {
+      messageApi.warning(t("students.banyouNothingSelected"))
+      return
+    }
+
+    setBanYouImportLoading(true)
+    try {
+      let studentInserted = 0
+      let studentSkipped = 0
+      if (selectedStudents.length) {
+        const names = selectedStudents.map((s) => s.studentName)
+        const res = await importNames(names, { toast: false })
+        if (!res.success) {
+          messageApi.error(t("students.importFailed"))
+          return
+        }
+        studentInserted = res.inserted
+        studentSkipped = res.skipped
+      }
+
+      let reasonInserted = 0
+      let reasonSkipped = 0
+      if (selectedMedals.length) {
+        const reasonCategory = "班优导入"
+        const currentReasons = await (window as any).api.queryReasons()
+        const existing = new Set<string>()
+        if (currentReasons?.success && Array.isArray(currentReasons?.data)) {
+          for (const r of currentReasons.data) {
+            existing.add(`${r.category}::${r.content}::${Number(r.delta)}`)
+          }
+        }
+        for (const medal of selectedMedals) {
+          const content = String(medal.name || "").trim()
+          if (!content) {
+            reasonSkipped += 1
+            continue
+          }
+          const medalType = Number(medal.medalType ?? medal.type ?? 1)
+          const value = Math.abs(Number(medal.value ?? 1)) || 1
+          const delta = medalType < 0 ? -value : value
+          const key = `${reasonCategory}::${content}::${delta}`
+          if (existing.has(key)) {
+            reasonSkipped += 1
+            continue
+          }
+          const createRes = await (window as any).api.createReason({
+            content,
+            category: reasonCategory,
+            delta,
+          })
+          if (createRes?.success) {
+            reasonInserted += 1
+            existing.add(key)
+          } else {
+            reasonSkipped += 1
+          }
+        }
+      }
+
+      let groupUpdated = 0
+      let groupSkipped = 0
+      if (selectedTeams.length) {
+        const mapping = new Map<string, string>()
+        for (const team of selectedTeams) {
+          for (const student of team.students || []) {
+            const name = String(student.studentName || "").trim()
+            if (name && !mapping.has(name)) mapping.set(name, team.teamName || "")
+          }
+        }
+        if (mapping.size > 0) {
+          const localStudentsRes = await (window as any).api.queryStudents({})
+          const localMap = new Map<string, number>()
+          if (localStudentsRes?.success && Array.isArray(localStudentsRes?.data)) {
+            for (const s of localStudentsRes.data) {
+              localMap.set(String(s.name), Number(s.id))
+            }
+          }
+          for (const [name, groupName] of mapping.entries()) {
+            const id = localMap.get(name)
+            if (!id) {
+              groupSkipped += 1
+              continue
+            }
+            const updateRes = await (window as any).api.updateStudent(id, { group_name: groupName })
+            if (updateRes?.success) groupUpdated += 1
+            else groupSkipped += 1
+          }
+        }
+      }
+
+      emitDataUpdated("all")
+      fetchStudents()
+      messageApi.success(
+        t("students.banyouImportSummary", {
+          studentsInserted: studentInserted,
+          studentsSkipped: studentSkipped,
+          reasonsInserted: reasonInserted,
+          reasonsSkipped: reasonSkipped,
+          groupsUpdated: groupUpdated,
+          groupsSkipped: groupSkipped,
+        })
+      )
+    } finally {
+      setBanYouImportLoading(false)
     }
   }
 
@@ -1322,11 +1562,13 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {banYouCreatedClasses.map((item) => (
                   <div
                     key={`created-${item.classId}`}
+                    onClick={() => handleOpenBanYouClassDetail(item)}
                     style={{
                       border: "1px solid var(--ss-border-color)",
                       borderRadius: 12,
                       backgroundColor: "var(--ss-card-bg)",
                       overflow: "hidden",
+                      cursor: "pointer",
                     }}
                   >
                     <div
@@ -1408,12 +1650,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 {banYouJoinedClasses.map((item) => (
                   <div
                     key={`joined-${item.classId}`}
+                    onClick={() => handleOpenBanYouClassDetail(item)}
                     style={{
                       border: "1px solid var(--ss-border-color)",
                       borderRadius: 12,
                       backgroundColor: "var(--ss-card-bg)",
                       padding: 14,
                       color: "var(--ss-text-main)",
+                      cursor: "pointer",
                     }}
                   >
                     <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>
@@ -1441,6 +1685,161 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             )}
           </div>
         </Space>
+      </Modal>
+
+      <Modal
+        title={
+          banYouSelectedClass
+            ? `${t("students.banyouClassDetail")} - ${banYouSelectedClass.classNickName}`
+            : t("students.banyouClassDetail")
+        }
+        open={banYouDetailVisible}
+        onCancel={() => {
+          setBanYouDetailVisible(false)
+          setBanYouDetail(null)
+          setBanYouSelectedClass(null)
+          setBanYouTeamPlanOptions([])
+          setBanYouSelectedTeamPlanId(undefined)
+        }}
+        width={980}
+        destroyOnHidden
+        onOk={handleImportBanYouSelected}
+        okText={t("students.banyouImportSelected")}
+        okButtonProps={{ loading: banYouImportLoading, disabled: !banYouDetail }}
+        cancelText={t("common.cancel")}
+      >
+        {banYouDetailLoading ? (
+          <div style={{ padding: "24px 0", textAlign: "center", color: "var(--ss-text-secondary)" }}>
+            {t("common.loading")}
+          </div>
+        ) : !banYouDetail ? (
+          <div style={{ color: "var(--ss-text-secondary)" }}>{t("students.banyouDetailEmpty")}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: "70vh" }}>
+            {banYouTeamPlanOptions.length > 0 && (
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                  {t("students.banyouTeamPlanSelector")}
+                </div>
+                <Space>
+                  <Select
+                    style={{ minWidth: 320 }}
+                    value={banYouSelectedTeamPlanId}
+                    onChange={(v) => setBanYouSelectedTeamPlanId(Number(v))}
+                    options={banYouTeamPlanOptions.map((item) => ({
+                      value: item.teamPlanId,
+                      label: item.name?.trim()
+                        ? `${item.name} (${item.teamPlanId})`
+                        : String(item.teamPlanId),
+                    }))}
+                  />
+                  <Button loading={banYouDetailLoading} onClick={handleReloadBanYouGroupByPlan}>
+                    {t("students.banyouLoadTeamPlan")}
+                  </Button>
+                </Space>
+                {banYouDetail.teamPlanSource ? (
+                  <div style={{ marginTop: 6, color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                    {t("students.banyouTeamPlanSource")}
+                    {banYouDetail.teamPlanSource}
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>{t("students.banyouReasonList")}</div>
+              <div
+                style={{
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: 8,
+                  padding: 10,
+                  maxHeight: 180,
+                  overflowY: "auto",
+                }}
+              >
+                <Checkbox.Group
+                  value={banYouCheckedMedals}
+                  onChange={(vals) => setBanYouCheckedMedals(vals as string[])}
+                  style={{ width: "100%" }}
+                >
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    {banYouDetail.medals.map((item, idx) => {
+                      const key = medalKey(item, idx)
+                      const type = Number(item.medalType ?? item.type ?? 1)
+                      const value = Math.abs(Number(item.value ?? 1)) || 1
+                      const delta = type < 0 ? -value : value
+                      return (
+                        <Checkbox key={key} value={key}>
+                          {item.name} ({delta > 0 ? `+${delta}` : delta})
+                        </Checkbox>
+                      )
+                    })}
+                  </Space>
+                </Checkbox.Group>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>{t("students.banyouStudentList")}</div>
+              <div
+                style={{
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: 8,
+                  padding: 10,
+                  maxHeight: 220,
+                  overflowY: "auto",
+                }}
+              >
+                <Checkbox.Group
+                  value={banYouCheckedStudents}
+                  onChange={(vals) => setBanYouCheckedStudents(vals as string[])}
+                  style={{ width: "100%" }}
+                >
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    {banYouDetail.students.map((item) => (
+                      <Checkbox key={item.studentId} value={item.studentId}>
+                        {item.studentName}
+                      </Checkbox>
+                    ))}
+                  </Space>
+                </Checkbox.Group>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>{t("students.banyouTeamList")}</div>
+              <div
+                style={{
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: 8,
+                  padding: 10,
+                  maxHeight: 220,
+                  overflowY: "auto",
+                }}
+              >
+                <Checkbox.Group
+                  value={banYouCheckedTeams}
+                  onChange={(vals) => setBanYouCheckedTeams(vals as string[])}
+                  style={{ width: "100%" }}
+                >
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    {banYouDetail.teams.length > 0 ? (
+                      banYouDetail.teams.map((team) => (
+                        <Checkbox key={team.teamId} value={team.teamId}>
+                          {team.teamName} ({(team.students || []).length})
+                        </Checkbox>
+                      ))
+                    ) : (
+                      <span style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                        {t("students.banyouNoTeams")}
+                      </span>
+                    )}
+                  </Space>
+                </Checkbox.Group>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <input
