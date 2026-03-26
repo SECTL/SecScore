@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
+    "@react-awesome-query-builder/antd": "6.7.0-alpha.0",
     "@react-querybuilder/antd": "^8.14.0",
     "@react-querybuilder/dnd": "^8.14.0",
     "@tauri-apps/api": "^2.5.0",

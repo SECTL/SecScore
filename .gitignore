@@ -2,6 +2,7 @@
 # Dependencies
 node_modules/
 target/
+dist
 
 # IDE
 .vscode/
