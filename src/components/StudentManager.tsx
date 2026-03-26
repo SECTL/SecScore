@@ -92,7 +92,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState<number>(50)
   const [visible, setVisible] = useState(false)
-  const [importOptionsVisible, setImportOptionsVisible] = useState(false)
   const [textImportVisible, setTextImportVisible] = useState(false)
   const [xlsxVisible, setXlsxVisible] = useState(false)
   const [banYouVisible, setBanYouVisible] = useState(false)
@@ -636,7 +635,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           setXlsxAoa(event.data.data)
           setXlsxSelectedCol(null)
           setXlsxVisible(true)
-          setImportOptionsVisible(false)
           setTextImportVisible(false)
           setXlsxLoading(false)
         } else if (event.data.type === "error") {
@@ -799,26 +797,15 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
-  const handleOpenImportOptions = () => {
-    if (!canEdit) {
-      messageApi.error(t("common.readOnly"))
-      return
-    }
-    setImportOptionsVisible(true)
-  }
-
   const handleOpenTextImport = () => {
-    setImportOptionsVisible(false)
     setTextImportVisible(true)
   }
 
   const handleOpenXlsxImport = () => {
-    setImportOptionsVisible(false)
     xlsxInputRef.current?.click()
   }
 
   const handleOpenBanYouImport = () => {
-    setImportOptionsVisible(false)
     setBanYouVisible(true)
   }
 
@@ -1209,6 +1196,23 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       ? editFormGroupName.trim()
       : ""
 
+  const importMenu = {
+    items: [
+      { key: "text", label: t("students.importByText") },
+      { key: "xlsx", label: t("students.importByXlsx") },
+      { key: "banyou", label: t("students.importByBanyou") },
+    ],
+    onClick: ({ key }: { key: string }) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      if (key === "text") handleOpenTextImport()
+      else if (key === "xlsx") handleOpenXlsxImport()
+      else if (key === "banyou") handleOpenBanYouImport()
+    },
+  }
+
   const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
@@ -1220,9 +1224,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <Button disabled={!canEdit} onClick={openGroupBoardEditor}>
             {t("students.groupBoardEdit")}
           </Button>
-          <Button disabled={!canEdit} onClick={handleOpenImportOptions}>
-            {t("students.importList")}
-          </Button>
+          <Dropdown trigger={["click"]} menu={importMenu} disabled={!canEdit}>
+            <Button disabled={!canEdit}>{t("students.importList")}</Button>
+          </Dropdown>
           <Button type="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
             {t("students.addStudent")}
           </Button>
@@ -1473,26 +1477,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             {pointerDragStudentName}
           </div>
         )}
-      </Modal>
-
-      <Modal
-        title={t("students.importOptionsTitle")}
-        open={importOptionsVisible}
-        onCancel={() => setImportOptionsVisible(false)}
-        footer={null}
-        destroyOnHidden
-      >
-        <Space orientation="vertical" style={{ width: "100%" }}>
-          <Button type="primary" disabled={!canEdit} onClick={handleOpenTextImport}>
-            {t("students.importByText")}
-          </Button>
-          <Button loading={xlsxLoading} disabled={!canEdit} onClick={handleOpenXlsxImport}>
-            {t("students.importByXlsx")}
-          </Button>
-          <Button disabled={!canEdit} onClick={handleOpenBanYouImport}>
-            {t("students.importByBanyou")}
-          </Button>
-        </Space>
       </Modal>
 
       <Modal

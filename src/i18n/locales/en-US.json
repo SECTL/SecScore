@@ -468,7 +468,6 @@
     "tagSaveSuccess": "Tags saved successfully",
     "tagSaveFailed": "Failed to save tags",
     "importTitle": "Import List",
-    "importOptionsTitle": "Choose Import Method",
     "importTextHint": "Paste multiple lines, one student name per line",
     "importTextPlaceholder": "Example:\nAlice\nBob\nCharlie",
     "importByText": "Import from Text",

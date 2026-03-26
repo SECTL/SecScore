@@ -45,4 +45,5 @@ Thumbs.db
 # Tauri local/generated artifacts
 src-tauri/data.sql
 src-tauri/gen/
+AGENTS.md
 ```
