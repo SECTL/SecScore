@@ -108,9 +108,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [pointerDraggingStudentId, setPointerDraggingStudentId] = useState<number | null>(null)
   const [pointerTargetGroup, setPointerTargetGroup] = useState<string | null>(null)
   const [pointerDragStudentName, setPointerDragStudentName] = useState("")
-  const [pointerDragPosition, setPointerDragPosition] = useState<{ x: number; y: number } | null>(
-    null
-  )
+  const pointerDragGhostRef = useRef<HTMLDivElement | null>(null)
   const pointerDragPositionRef = useRef<{ x: number; y: number } | null>(null)
   const pointerDragRafRef = useRef<number | null>(null)
   const draggingStudentIdRef = useRef<number | null>(null)
@@ -510,7 +508,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setPointerDraggingStudentId(studentId)
     setPointerDragStudentName(studentName)
     pointerDragPositionRef.current = { x: e.clientX, y: e.clientY }
-    setPointerDragPosition({ x: e.clientX, y: e.clientY })
+    requestAnimationFrame(() => {
+      if (!pointerDragPositionRef.current) return
+      const ghost = pointerDragGhostRef.current
+      if (!ghost) return
+      ghost.style.transform = `translate3d(${pointerDragPositionRef.current.x + 14}px, ${
+        pointerDragPositionRef.current.y + 14
+      }px, 0)`
+    })
     setPointerTargetGroup(null)
     e.currentTarget.setPointerCapture(e.pointerId)
     console.debug("[GroupBoard] pointer drag start", {
@@ -526,10 +531,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     pointerDragRafRef.current = requestAnimationFrame(() => {
       pointerDragRafRef.current = null
       if (!pointerDragPositionRef.current) return
-      setPointerDragPosition({
-        x: pointerDragPositionRef.current.x,
-        y: pointerDragPositionRef.current.y,
-      })
+      const ghost = pointerDragGhostRef.current
+      if (!ghost) return
+      ghost.style.transform = `translate3d(${pointerDragPositionRef.current.x + 14}px, ${
+        pointerDragPositionRef.current.y + 14
+      }px, 0)`
     })
   }
 
@@ -570,8 +576,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
     setPointerDraggingStudentId(null)
     setPointerDragStudentName("")
-    setPointerDragPosition(null)
     setPointerTargetGroup(null)
+    const ghost = pointerDragGhostRef.current
+    if (ghost) ghost.style.transform = "translate3d(-9999px, -9999px, 0)"
   }
 
   const readFileAsDataUrl = (file: File): Promise<string> => {
@@ -1411,9 +1418,15 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           draggingStudentIdRef.current = null
           pointerDragSourceGroupRef.current = null
           pointerDragTargetGroupRef.current = null
+          pointerDragPositionRef.current = null
+          if (pointerDragRafRef.current != null) {
+            cancelAnimationFrame(pointerDragRafRef.current)
+            pointerDragRafRef.current = null
+          }
+          const ghost = pointerDragGhostRef.current
+          if (ghost) ghost.style.transform = "translate3d(-9999px, -9999px, 0)"
           setPointerDraggingStudentId(null)
           setPointerDragStudentName("")
-          setPointerDragPosition(null)
           setPointerTargetGroup(null)
         }}
         onOk={handleSaveGroupBoard}
@@ -1530,8 +1543,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             )
           })}
         </div>
-        {pointerDraggingStudentId != null && pointerDragPosition && (
+        {pointerDraggingStudentId != null && (
           <div
+            ref={pointerDragGhostRef}
             style={{
               position: "fixed",
               left: 0,
@@ -1549,7 +1563,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              transform: `translate3d(${pointerDragPosition.x + 14}px, ${pointerDragPosition.y + 14}px, 0)`,
+              transform: "translate3d(-9999px, -9999px, 0)",
               willChange: "transform",
             }}
           >
