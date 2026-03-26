@@ -111,6 +111,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [pointerDragPosition, setPointerDragPosition] = useState<{ x: number; y: number } | null>(
     null
   )
+  const pointerDragPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const pointerDragRafRef = useRef<number | null>(null)
   const draggingStudentIdRef = useRef<number | null>(null)
   const pointerDragSourceGroupRef = useRef<string | null>(null)
   const pointerDragTargetGroupRef = useRef<string | null>(null)
@@ -155,6 +157,10 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     xlsxWorkerRef.current = createXlsxWorker()
     return () => {
       xlsxWorkerRef.current?.terminate()
+      if (pointerDragRafRef.current != null) {
+        cancelAnimationFrame(pointerDragRafRef.current)
+        pointerDragRafRef.current = null
+      }
     }
   }, [])
 
@@ -503,6 +509,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     pointerDragTargetGroupRef.current = null
     setPointerDraggingStudentId(studentId)
     setPointerDragStudentName(studentName)
+    pointerDragPositionRef.current = { x: e.clientX, y: e.clientY }
     setPointerDragPosition({ x: e.clientX, y: e.clientY })
     setPointerTargetGroup(null)
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -513,9 +520,22 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     })
   }
 
+  const schedulePointerDragPositionUpdate = (clientX: number, clientY: number) => {
+    pointerDragPositionRef.current = { x: clientX, y: clientY }
+    if (pointerDragRafRef.current != null) return
+    pointerDragRafRef.current = requestAnimationFrame(() => {
+      pointerDragRafRef.current = null
+      if (!pointerDragPositionRef.current) return
+      setPointerDragPosition({
+        x: pointerDragPositionRef.current.x,
+        y: pointerDragPositionRef.current.y,
+      })
+    })
+  }
+
   const trackPointerTarget = (clientX: number, clientY: number) => {
     if (draggingStudentIdRef.current == null) return
-    setPointerDragPosition({ x: clientX, y: clientY })
+    schedulePointerDragPositionUpdate(clientX, clientY)
     const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
     const dropZone = element?.closest("[data-group-drop]") as HTMLElement | null
     const targetGroup = dropZone?.dataset.groupDrop ?? null
@@ -543,6 +563,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     draggingStudentIdRef.current = null
     pointerDragSourceGroupRef.current = null
     pointerDragTargetGroupRef.current = null
+    pointerDragPositionRef.current = null
+    if (pointerDragRafRef.current != null) {
+      cancelAnimationFrame(pointerDragRafRef.current)
+      pointerDragRafRef.current = null
+    }
     setPointerDraggingStudentId(null)
     setPointerDragStudentName("")
     setPointerDragPosition(null)
@@ -1509,8 +1534,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           <div
             style={{
               position: "fixed",
-              left: pointerDragPosition.x + 14,
-              top: pointerDragPosition.y + 14,
+              left: 0,
+              top: 0,
               pointerEvents: "none",
               zIndex: 2100,
               border: "1px solid var(--ss-border-color)",
@@ -1524,6 +1549,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              transform: `translate3d(${pointerDragPosition.x + 14}px, ${pointerDragPosition.y + 14}px, 0)`,
+              transition: "transform 90ms linear",
+              willChange: "transform",
             }}
           >
             {pointerDragStudentName}
