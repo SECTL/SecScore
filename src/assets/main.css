@@ -213,6 +213,7 @@ html.platform-macos #root {
 
 .ss-group-board-modal .ant-modal {
   max-height: calc(100vh - 24px);
+  top: 0;
 }
 
 .ss-group-board-modal .ant-modal-content {
@@ -222,5 +223,5 @@ html.platform-macos #root {
 }
 
 .ss-group-board-modal .ant-modal-body {
-  overflow-y: auto;
+  overflow: hidden;
 }

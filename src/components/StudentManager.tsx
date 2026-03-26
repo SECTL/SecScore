@@ -1379,6 +1379,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <Modal
         title={t("students.groupBoardTitle")}
         open={groupBoardVisible}
+        centered
         onCancel={() => {
           setGroupBoardVisible(false)
           setGroupBoardNewGroupName("")
@@ -1396,7 +1397,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         okButtonProps={{ loading: groupBoardSaving }}
         width="90%"
         wrapClassName="ss-group-board-modal"
-        styles={{ body: { maxHeight: "calc(100vh - 220px)", overflowY: "auto" } }}
+        styles={{ body: { maxHeight: "calc(100vh - 220px)", overflow: "hidden" } }}
         destroyOnHidden
       >
         <div style={{ color: "var(--ss-text-secondary)", marginBottom: 12, fontSize: 12 }}>
@@ -1455,7 +1456,18 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 >
                   {groupLabel} ({studentsInGroup.length})
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 160 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    minHeight: 160,
+                    maxHeight: "44vh",
+                    overflowY: "auto",
+                    overflowX: "hidden",
+                    paddingRight: 2,
+                  }}
+                >
                   {studentsInGroup.length > 0 ? (
                     studentsInGroup.map((student) => (
                       <div
