@@ -108,12 +108,21 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [pointerDraggingStudentId, setPointerDraggingStudentId] = useState<number | null>(null)
   const [pointerTargetGroup, setPointerTargetGroup] = useState<string | null>(null)
   const [pointerDragStudentName, setPointerDragStudentName] = useState("")
+  const [pointerDraggingGroupKey, setPointerDraggingGroupKey] = useState<string | null>(null)
+  const [pointerTargetGroupOrderKey, setPointerTargetGroupOrderKey] = useState<string | null>(null)
+  const [pointerDragGroupName, setPointerDragGroupName] = useState("")
   const pointerDragGhostRef = useRef<HTMLDivElement | null>(null)
   const pointerDragPositionRef = useRef<{ x: number; y: number } | null>(null)
   const pointerDragRafRef = useRef<number | null>(null)
   const draggingStudentIdRef = useRef<number | null>(null)
   const pointerDragSourceGroupRef = useRef<string | null>(null)
   const pointerDragTargetGroupRef = useRef<string | null>(null)
+  const pointerDragGroupGhostRef = useRef<HTMLDivElement | null>(null)
+  const pointerDragGroupPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const pointerDragGroupRafRef = useRef<number | null>(null)
+  const pointerDragGroupSourceRef = useRef<string | null>(null)
+  const pointerDragGroupTargetRef = useRef<string | null>(null)
+  const pointerDragGroupInsertAfterRef = useRef(false)
   const [avatarVisible, setAvatarVisible] = useState(false)
   const [avatarSaving, setAvatarSaving] = useState(false)
   const [avatarStudent, setAvatarStudent] = useState<student | null>(null)
@@ -158,6 +167,10 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       if (pointerDragRafRef.current != null) {
         cancelAnimationFrame(pointerDragRafRef.current)
         pointerDragRafRef.current = null
+      }
+      if (pointerDragGroupRafRef.current != null) {
+        cancelAnimationFrame(pointerDragGroupRafRef.current)
+        pointerDragGroupRafRef.current = null
       }
     }
   }, [])
@@ -349,6 +362,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
+  const normalizeGroupBoardOrder = useCallback(
+    (order: string[]) => {
+      const withoutUngrouped = order.filter((key) => key !== UNGROUPED_KEY)
+      return [...withoutUngrouped, UNGROUPED_KEY]
+    },
+    [UNGROUPED_KEY]
+  )
+
   const openGroupBoardEditor = () => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
@@ -361,7 +382,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       if (normalized) groups.add(normalized)
     })
     const sortedGroups = Array.from(groups).sort((a, b) => a.localeCompare(b, "zh-CN"))
-    const order = [...sortedGroups, UNGROUPED_KEY]
+    const order = normalizeGroupBoardOrder([...sortedGroups, UNGROUPED_KEY])
     const board: Record<string, student[]> = {}
     order.forEach((key) => {
       board[key] = []
@@ -381,7 +402,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       groups: order.map((group) => (group === UNGROUPED_KEY ? "ungrouped" : group)),
       studentCount: data.length,
     })
-    setGroupBoardOrder(order)
+    setGroupBoardOrder(normalizeGroupBoardOrder(order))
     setGroupBoard(board)
     setGroupBoardNewGroupName("")
     setGroupBoardVisible(true)
@@ -405,7 +426,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setGroupBoard((prev) => ({ ...prev, [name]: [] }))
     setGroupBoardOrder((prev) => {
       const withoutUngrouped = prev.filter((key) => key !== UNGROUPED_KEY)
-      return [...withoutUngrouped, name, UNGROUPED_KEY]
+      return normalizeGroupBoardOrder([...withoutUngrouped, name, UNGROUPED_KEY])
     })
     setGroupBoardNewGroupName("")
   }
@@ -579,6 +600,88 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setPointerTargetGroup(null)
     const ghost = pointerDragGhostRef.current
     if (ghost) ghost.style.transform = "translate3d(-9999px, -9999px, 0)"
+  }
+
+  const resetGroupOrderDragState = () => {
+    pointerDragGroupSourceRef.current = null
+    pointerDragGroupTargetRef.current = null
+    pointerDragGroupPositionRef.current = null
+    pointerDragGroupInsertAfterRef.current = false
+    if (pointerDragGroupRafRef.current != null) {
+      cancelAnimationFrame(pointerDragGroupRafRef.current)
+      pointerDragGroupRafRef.current = null
+    }
+    setPointerDraggingGroupKey(null)
+    setPointerTargetGroupOrderKey(null)
+    setPointerDragGroupName("")
+    const ghost = pointerDragGroupGhostRef.current
+    if (ghost) ghost.style.transform = "translate3d(-9999px, -9999px, 0)"
+  }
+
+  const scheduleGroupPointerPositionUpdate = (clientX: number, clientY: number) => {
+    pointerDragGroupPositionRef.current = { x: clientX, y: clientY }
+    if (pointerDragGroupRafRef.current != null) return
+    pointerDragGroupRafRef.current = requestAnimationFrame(() => {
+      pointerDragGroupRafRef.current = null
+      if (!pointerDragGroupPositionRef.current) return
+      const ghost = pointerDragGroupGhostRef.current
+      if (!ghost) return
+      ghost.style.transform = `translate3d(${pointerDragGroupPositionRef.current.x + 14}px, ${
+        pointerDragGroupPositionRef.current.y + 14
+      }px, 0)`
+    })
+  }
+
+  const beginGroupOrderDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    groupKey: string,
+    groupLabel: string
+  ) => {
+    if (e.button !== 0 || pointerDraggingStudentId != null || groupKey === UNGROUPED_KEY) return
+    e.preventDefault()
+    pointerDragGroupSourceRef.current = groupKey
+    pointerDragGroupTargetRef.current = null
+    pointerDragGroupInsertAfterRef.current = false
+    setPointerDraggingGroupKey(groupKey)
+    setPointerTargetGroupOrderKey(null)
+    setPointerDragGroupName(groupLabel)
+    scheduleGroupPointerPositionUpdate(e.clientX, e.clientY)
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  const trackGroupOrderTarget = (clientX: number, clientY: number) => {
+    if (!pointerDragGroupSourceRef.current) return
+    scheduleGroupPointerPositionUpdate(clientX, clientY)
+    const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+    const targetElement = element?.closest("[data-group-column]") as HTMLElement | null
+    const targetGroup = targetElement?.dataset.groupColumn ?? null
+    if (targetElement) {
+      const rect = targetElement.getBoundingClientRect()
+      pointerDragGroupInsertAfterRef.current = clientX >= rect.left + rect.width / 2
+    } else {
+      pointerDragGroupInsertAfterRef.current = false
+    }
+    if (pointerDragGroupTargetRef.current !== targetGroup) {
+      pointerDragGroupTargetRef.current = targetGroup
+      setPointerTargetGroupOrderKey(targetGroup)
+    }
+  }
+
+  const finishGroupOrderDrag = () => {
+    const source = pointerDragGroupSourceRef.current
+    const target = pointerDragGroupTargetRef.current
+    const insertAfter = pointerDragGroupInsertAfterRef.current
+    if (source && target && source !== target) {
+      setGroupBoardOrder((prev) => {
+        const next = prev.filter((key) => key !== source)
+        const targetIndex = next.indexOf(target)
+        if (targetIndex < 0) return prev
+        const insertIndex = Math.max(0, Math.min(next.length, targetIndex + (insertAfter ? 1 : 0)))
+        next.splice(insertIndex, 0, source)
+        return normalizeGroupBoardOrder(next)
+      })
+    }
+    resetGroupOrderDragState()
   }
 
   const readFileAsDataUrl = (file: File): Promise<string> => {
@@ -1428,6 +1531,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           setPointerDraggingStudentId(null)
           setPointerDragStudentName("")
           setPointerTargetGroup(null)
+          resetGroupOrderDragState()
         }}
         onOk={handleSaveGroupBoard}
         okText={t("common.save")}
@@ -1459,21 +1563,28 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             gap: 12,
             overflowX: "auto",
             paddingBottom: 4,
-            userSelect: pointerDraggingStudentId != null ? "none" : "auto",
-            WebkitUserSelect: pointerDraggingStudentId != null ? "none" : "auto",
+            userSelect:
+              pointerDraggingStudentId != null || pointerDraggingGroupKey != null ? "none" : "auto",
+            WebkitUserSelect:
+              pointerDraggingStudentId != null || pointerDraggingGroupKey != null ? "none" : "auto",
           }}
         >
           {groupBoardOrder.map((groupKey) => {
             const studentsInGroup = groupBoard[groupKey] || []
             const groupLabel = groupKey === UNGROUPED_KEY ? t("students.noGroup") : groupKey
+            const isDraggingGroup = pointerDraggingGroupKey === groupKey
+            const isGroupOrderTarget = pointerTargetGroupOrderKey === groupKey
             return (
               <div
                 key={groupKey}
+                data-group-column={groupKey}
                 data-group-drop={groupKey}
                 style={{
                   minWidth: isMobile ? 180 : 220,
                   maxWidth: isMobile ? 220 : 260,
-                  border: "1px solid var(--ss-border-color)",
+                  border: isGroupOrderTarget
+                    ? "1px solid var(--ant-color-primary, #1677ff)"
+                    : "1px solid var(--ss-border-color)",
                   borderRadius: 10,
                   backgroundColor:
                     pointerTargetGroup === groupKey ? "var(--ss-bg-color)" : "var(--ss-card-bg)",
@@ -1481,15 +1592,26 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   display: "flex",
                   flexDirection: "column",
                   gap: 8,
-                  transition: "background-color 120ms ease",
+                  transition: "background-color 120ms ease, border-color 120ms ease",
+                  opacity: isDraggingGroup ? 0.55 : 1,
                 }}
               >
                 <div
+                  onPointerDown={(e) => beginGroupOrderDrag(e, groupKey, groupLabel)}
+                  onPointerMove={(e) => trackGroupOrderTarget(e.clientX, e.clientY)}
+                  onPointerUp={finishGroupOrderDrag}
+                  onPointerCancel={finishGroupOrderDrag}
+                  onLostPointerCapture={finishGroupOrderDrag}
                   style={{
                     fontWeight: 600,
                     color: "var(--ss-text-main)",
                     borderBottom: "1px dashed var(--ss-border-color)",
                     paddingBottom: 8,
+                    cursor:
+                      groupKey === UNGROUPED_KEY || pointerDraggingStudentId != null ? "default" : "grab",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    touchAction: "none",
                   }}
                 >
                   {groupLabel} ({studentsInGroup.length})
@@ -1568,6 +1690,33 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             }}
           >
             {pointerDragStudentName}
+          </div>
+        )}
+        {pointerDraggingGroupKey != null && (
+          <div
+            ref={pointerDragGroupGhostRef}
+            style={{
+              position: "fixed",
+              left: 0,
+              top: 0,
+              pointerEvents: "none",
+              zIndex: 2101,
+              border: "1px solid var(--ant-color-primary, #1677ff)",
+              borderRadius: 8,
+              backgroundColor: "var(--ss-card-bg)",
+              color: "var(--ss-text-main)",
+              padding: "8px 10px",
+              boxShadow: "0 8px 24px rgba(0, 0, 0, 0.16)",
+              fontSize: 13,
+              maxWidth: 240,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              transform: "translate3d(-9999px, -9999px, 0)",
+              willChange: "transform",
+            }}
+          >
+            {pointerDragGroupName}
           </div>
         )}
       </Modal>
