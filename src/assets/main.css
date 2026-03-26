@@ -210,3 +210,17 @@ html.platform-macos #root {
   border-radius: 12px;
   overflow: hidden;
 }
+
+.ss-group-board-modal .ant-modal {
+  max-height: calc(100vh - 24px);
+}
+
+.ss-group-board-modal .ant-modal-content {
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+}
+
+.ss-group-board-modal .ant-modal-body {
+  overflow-y: auto;
+}

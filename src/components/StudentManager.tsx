@@ -14,7 +14,7 @@ import {
   Select,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { UploadOutlined, MoreOutlined } from "@ant-design/icons"
+import { UploadOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
@@ -104,6 +104,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [groupBoardSaving, setGroupBoardSaving] = useState(false)
   const [groupBoard, setGroupBoard] = useState<Record<string, student[]>>({})
   const [groupBoardOrder, setGroupBoardOrder] = useState<string[]>([])
+  const [groupBoardNewGroupName, setGroupBoardNewGroupName] = useState("")
   const [pointerDraggingStudentId, setPointerDraggingStudentId] = useState<number | null>(null)
   const [pointerTargetGroup, setPointerTargetGroup] = useState<string | null>(null)
   const [pointerDragStudentName, setPointerDragStudentName] = useState("")
@@ -378,7 +379,31 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     })
     setGroupBoardOrder(order)
     setGroupBoard(board)
+    setGroupBoardNewGroupName("")
     setGroupBoardVisible(true)
+  }
+
+  const handleCreateGroupInBoard = () => {
+    const name = groupBoardNewGroupName.trim()
+    if (!name) {
+      messageApi.warning(t("students.groupBoardGroupNameRequired"))
+      return
+    }
+    if (name === UNGROUPED_KEY) {
+      messageApi.warning(t("students.groupBoardGroupNameInvalid"))
+      return
+    }
+    if (groupBoardOrder.includes(name)) {
+      messageApi.warning(t("students.groupBoardGroupExists"))
+      return
+    }
+
+    setGroupBoard((prev) => ({ ...prev, [name]: [] }))
+    setGroupBoardOrder((prev) => {
+      const withoutUngrouped = prev.filter((key) => key !== UNGROUPED_KEY)
+      return [...withoutUngrouped, name, UNGROUPED_KEY]
+    })
+    setGroupBoardNewGroupName("")
   }
 
   const moveStudentToGroup = (studentId: number, targetGroup: string) => {
@@ -1356,6 +1381,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         open={groupBoardVisible}
         onCancel={() => {
           setGroupBoardVisible(false)
+          setGroupBoardNewGroupName("")
           draggingStudentIdRef.current = null
           pointerDragSourceGroupRef.current = null
           pointerDragTargetGroupRef.current = null
@@ -1369,11 +1395,25 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         cancelText={t("common.cancel")}
         okButtonProps={{ loading: groupBoardSaving }}
         width="90%"
+        wrapClassName="ss-group-board-modal"
+        styles={{ body: { maxHeight: "calc(100vh - 220px)", overflowY: "auto" } }}
         destroyOnHidden
       >
         <div style={{ color: "var(--ss-text-secondary)", marginBottom: 12, fontSize: 12 }}>
           {t("students.groupBoardHint")}
         </div>
+        <Space style={{ marginBottom: 12, width: "100%" }}>
+          <Input
+            value={groupBoardNewGroupName}
+            onChange={(e) => setGroupBoardNewGroupName(e.target.value)}
+            onPressEnter={handleCreateGroupInBoard}
+            placeholder={t("students.groupBoardNewGroupPlaceholder")}
+            maxLength={32}
+          />
+          <Button icon={<PlusOutlined />} onClick={handleCreateGroupInBoard}>
+            {t("students.groupBoardAddGroup")}
+          </Button>
+        </Space>
         <div
           style={{
             display: "flex",
