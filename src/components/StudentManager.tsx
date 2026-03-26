@@ -1550,7 +1550,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               overflow: "hidden",
               textOverflow: "ellipsis",
               transform: `translate3d(${pointerDragPosition.x + 14}px, ${pointerDragPosition.y + 14}px, 0)`,
-              transition: "transform 90ms linear",
               willChange: "transform",
             }}
           >
