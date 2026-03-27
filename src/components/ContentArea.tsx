@@ -9,6 +9,7 @@ import {
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
+import appLogo from "../assets/logoHD.svg"
 
 const loadHome = () => import("./Home")
 const loadStudentManager = () => import("./StudentManager")
@@ -184,10 +185,31 @@ export function ContentArea({
             {
               flex: 1,
               height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              paddingLeft: "8px",
               WebkitAppRegion: "drag",
             } as React.CSSProperties
           }
-        />
+        >
+          {immersiveMode && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "var(--ss-text-main)",
+                fontSize: "14px",
+                fontWeight: 600,
+                userSelect: "none",
+              }}
+            >
+              <img src={appLogo} alt="SecScore" style={{ width: "18px", height: "18px" }} />
+              <span>SecScore</span>
+            </div>
+          )}
+        </div>
         <div
           style={
             {
