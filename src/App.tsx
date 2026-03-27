@@ -14,6 +14,7 @@ function MainContent(): React.JSX.Element {
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
+  const [immersiveMode, setImmersiveMode] = useState(false)
 
   useEffect(() => {
     const api = (window as any).api
@@ -26,6 +27,11 @@ function MainContent(): React.JSX.Element {
       .onNavigate((route: string) => {
         const currentPath = location.pathname === "/" ? "/home" : location.pathname
         const targetPath = route === "/" ? "/home" : route
+
+        if (immersiveMode && !targetPath.startsWith("/home")) {
+          navigate("/", { replace: true })
+          return
+        }
 
         if (currentPath !== targetPath) {
           navigate(route)
@@ -44,7 +50,7 @@ function MainContent(): React.JSX.Element {
       disposed = true
       if (unlisten) unlisten()
     }
-  }, [navigate, location.pathname])
+  }, [navigate, location.pathname, immersiveMode])
 
   const [wizardVisible, setWizardVisible] = useState(false)
   const [permission, setPermission] = useState<"admin" | "points" | "view">("view")
@@ -302,6 +308,7 @@ function MainContent(): React.JSX.Element {
 
   const onMenuChange = (v: string) => {
     const key = String(v)
+    if (immersiveMode && key !== "home") return
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
     if (key === "score") navigate("/score")
@@ -315,11 +322,32 @@ function MainContent(): React.JSX.Element {
   }
 
   const toggleSidebar = () => {
+    if (immersiveMode) return
     if (isPortraitMode && sidebarCollapsed) {
       setFloatingSidebarExpanded((prev) => !prev)
       return
     }
     setSidebarCollapsed((prev) => !prev)
+  }
+
+  useEffect(() => {
+    if (!immersiveMode) return
+    if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
+      navigate("/", { replace: true })
+    }
+  }, [immersiveMode, location.pathname, navigate])
+
+  const toggleImmersiveMode = () => {
+    setImmersiveMode((prev) => {
+      const next = !prev
+      if (next) {
+        setFloatingSidebarExpanded(false)
+        if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
+          navigate("/", { replace: true })
+        }
+      }
+      return next
+    })
   }
 
   const isDark = currentTheme?.mode === "dark"
@@ -338,15 +366,17 @@ function MainContent(): React.JSX.Element {
     >
       {contextHolder}
       <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden" }}>
-        <Sidebar
-          activeMenu={activeMenu}
-          permission={permission}
-          onMenuChange={onMenuChange}
-          collapsed={sidebarCollapsed}
-          floatingExpand={isPortraitMode}
-          floatingExpanded={floatingSidebarExpanded}
-          onFloatingExpandedChange={setFloatingSidebarExpanded}
-        />
+        {!immersiveMode && (
+          <Sidebar
+            activeMenu={activeMenu}
+            permission={permission}
+            onMenuChange={onMenuChange}
+            collapsed={sidebarCollapsed}
+            floatingExpand={isPortraitMode}
+            floatingExpanded={floatingSidebarExpanded}
+            onFloatingExpandedChange={setFloatingSidebarExpanded}
+          />
+        )}
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}
@@ -358,6 +388,9 @@ function MainContent(): React.JSX.Element {
           floatingExpand={isPortraitMode}
           floatingExpanded={floatingSidebarExpanded}
           onToggleSidebar={toggleSidebar}
+          immersiveMode={immersiveMode}
+          isHomePage={activeMenu === "home"}
+          onToggleImmersiveMode={toggleImmersiveMode}
         />
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />

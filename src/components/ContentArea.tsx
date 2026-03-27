@@ -1,6 +1,11 @@
 import React, { Suspense, lazy, useEffect } from "react"
 import { Layout, Space, Button, Tag, Spin } from "antd"
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons"
+import {
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined,
+} from "@ant-design/icons"
 import { Routes, Route, Navigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
@@ -58,6 +63,9 @@ interface ContentAreaProps {
   floatingExpand: boolean
   floatingExpanded: boolean
   onToggleSidebar: () => void
+  immersiveMode: boolean
+  isHomePage: boolean
+  onToggleImmersiveMode: () => void
 }
 
 export function ContentArea({
@@ -71,6 +79,9 @@ export function ContentArea({
   floatingExpand,
   floatingExpanded,
   onToggleSidebar,
+  immersiveMode,
+  isHomePage,
+  onToggleImmersiveMode,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
 
@@ -144,26 +155,28 @@ export function ContentArea({
             } as React.CSSProperties
           }
         >
-          <Button
-            type="text"
-            size="small"
-            onClick={onToggleSidebar}
-            icon={
-              floatingExpand && sidebarCollapsed ? (
-                floatingExpanded ? (
-                  <MenuFoldOutlined />
-                ) : (
+          {!immersiveMode && (
+            <Button
+              type="text"
+              size="small"
+              onClick={onToggleSidebar}
+              icon={
+                floatingExpand && sidebarCollapsed ? (
+                  floatingExpanded ? (
+                    <MenuFoldOutlined />
+                  ) : (
+                    <MenuUnfoldOutlined />
+                  )
+                ) : sidebarCollapsed ? (
                   <MenuUnfoldOutlined />
+                ) : (
+                  <MenuFoldOutlined />
                 )
-              ) : sidebarCollapsed ? (
-                <MenuUnfoldOutlined />
-              ) : (
-                <MenuFoldOutlined />
-              )
-            }
-            title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
-            style={{ width: "32px", height: "32px" }}
-          />
+              }
+              title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
+              style={{ width: "32px", height: "32px" }}
+            />
+          )}
         </div>
         <div
           data-tauri-drag-region
@@ -186,6 +199,15 @@ export function ContentArea({
           }
         >
           <Space size="small">
+            {(immersiveMode || isHomePage) && (
+              <Button
+                size="small"
+                type={immersiveMode ? "primary" : "default"}
+                icon={immersiveMode ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                onClick={onToggleImmersiveMode}
+                title={immersiveMode ? "退出沉浸模式" : "进入沉浸模式"}
+              />
+            )}
             {permissionTag}
             {hasAnyPassword && (
               <>
