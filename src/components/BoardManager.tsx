@@ -19,6 +19,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant
 import { useTranslation } from "react-i18next"
 
 type BoardStudentViewMode = "list" | "card" | "grid"
+type BoardScoreDisplayMode = "total" | "split"
 type SplitDirection = "horizontal" | "vertical"
 
 interface StudentListConfig {
@@ -26,6 +27,7 @@ interface StudentListConfig {
   name: string
   sql: string
   viewMode: BoardStudentViewMode
+  scoreDisplayMode: BoardScoreDisplayMode
 }
 
 interface LayoutLeafNode {
@@ -67,6 +69,8 @@ interface BoardStudentCardData {
   key: string
   name: string
   score?: number
+  addScore?: number
+  deductScore?: number
   rewardPoints?: number
   weekChange?: number
   weekDeducted?: number
@@ -95,18 +99,31 @@ const makeId = () =>
 
 const clampRatio = (value: number) => Math.max(0.15, Math.min(0.85, value))
 
-const getDefaultSql = () => `SELECT
-  name AS student_name,
-  score,
-  reward_points
-FROM students
-ORDER BY score DESC`
+const getDefaultSql = () => `WITH score_stat AS (
+  SELECT
+    student_name,
+    SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END) AS add_score,
+    SUM(CASE WHEN delta < 0 THEN -delta ELSE 0 END) AS deduct_score
+  FROM score_events
+  WHERE settlement_id IS NULL
+  GROUP BY student_name
+)
+SELECT
+  s.name AS student_name,
+  s.score,
+  s.reward_points,
+  COALESCE(ss.add_score, 0) AS add_score,
+  COALESCE(ss.deduct_score, 0) AS deduct_score
+FROM students s
+LEFT JOIN score_stat ss ON ss.student_name = s.name
+ORDER BY s.score DESC`
 
 const createDefaultList = (): StudentListConfig => ({
   id: makeId(),
   name: "学生积分榜",
   sql: getDefaultSql(),
   viewMode: "card",
+  scoreDisplayMode: "total",
 })
 
 const createLeafForList = (listId: string): LayoutLeafNode => ({
@@ -205,6 +222,10 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
                 list?.viewMode === "list" || list?.viewMode === "card" || list?.viewMode === "grid"
                   ? list.viewMode
                   : "card",
+              scoreDisplayMode:
+                list?.scoreDisplayMode === "total" || list?.scoreDisplayMode === "split"
+                  ? list.scoreDisplayMode
+                  : "total",
             }))
             .filter((list: StudentListConfig) => list.sql.trim())
         : []
@@ -289,6 +310,10 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
       key: `${name}-${index}`,
       name,
       score: parseNumber(data.score),
+      addScore: parseNumber(data.add_score ?? data.addScore ?? data.plus_score ?? data.plusScore),
+      deductScore: parseNumber(
+        data.deduct_score ?? data.deductScore ?? data.minus_score ?? data.minusScore
+      ),
       rewardPoints: parseNumber(data.reward_points ?? data.rewardPoints),
       weekChange: parseNumber(data.week_change ?? data.range_change ?? data.change),
       weekDeducted: parseNumber(data.week_deducted ?? data.deducted),
@@ -540,6 +565,7 @@ ORDER BY reward_points DESC, score DESC`,
         name: item.name,
         sql: item.sql,
         viewMode: item.viewMode,
+        scoreDisplayMode: item.scoreDisplayMode,
       }))
     )
   }, [activeBoard])
@@ -672,6 +698,7 @@ ORDER BY reward_points DESC, score DESC`,
           name: t("board.newList"),
           sql: getDefaultSql(),
           viewMode: "card",
+          scoreDisplayMode: "total",
         }
 
         const findLeaf = (node: LayoutNode): LayoutLeafNode | null => {
@@ -796,8 +823,22 @@ ORDER BY reward_points DESC, score DESC`,
           const avatarColor = getAvatarColor(item.name)
           const avatarText = getAvatarText(item.name)
           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
-          const primaryMetric =
-            item.score !== undefined
+          const useSplitScore = list.scoreDisplayMode === "split"
+          const primaryMetric = useSplitScore
+            ? item.addScore !== undefined
+              ? { label: t("board.metrics.addScore"), value: item.addScore }
+              : item.deductScore !== undefined
+                ? { label: t("board.metrics.deductScore"), value: item.deductScore }
+                : item.rewardPoints !== undefined
+                  ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
+                  : item.weekChange !== undefined
+                    ? { label: t("board.metrics.weekChange"), value: item.weekChange }
+                    : item.weekDeducted !== undefined
+                      ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
+                      : item.answeredCount !== undefined
+                        ? { label: t("board.metrics.todayAnswered"), value: item.answeredCount }
+                        : null
+            : item.score !== undefined
               ? { label: t("board.metrics.totalScore"), value: item.score }
               : item.rewardPoints !== undefined
                 ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
@@ -950,10 +991,21 @@ ORDER BY reward_points DESC, score DESC`,
                         {item.name}
                       </div>
                       <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {item.score !== undefined && (
+                        {list.scoreDisplayMode === "total" && item.score !== undefined && (
                           <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
                             {t("board.metrics.totalScore")}:{" "}
                             {item.score > 0 ? `+${item.score}` : item.score}
+                          </Tag>
+                        )}
+                        {list.scoreDisplayMode === "split" && item.addScore !== undefined && (
+                          <Tag color="success" style={{ margin: 0 }}>
+                            {t("board.metrics.addScore")}:{" "}
+                            {item.addScore > 0 ? `+${item.addScore}` : item.addScore}
+                          </Tag>
+                        )}
+                        {list.scoreDisplayMode === "split" && item.deductScore !== undefined && (
+                          <Tag color="error" style={{ margin: 0 }}>
+                            {t("board.metrics.deductScore")}: {item.deductScore}
                           </Tag>
                         )}
                         {item.rewardPoints !== undefined && (
@@ -1302,6 +1354,18 @@ ORDER BY reward_points DESC, score DESC`,
                   { value: "list", label: t("board.viewModes.list") },
                   { value: "card", label: t("board.viewModes.card") },
                   { value: "grid", label: t("board.viewModes.grid") },
+                ]}
+                disabled={!canManage}
+              />
+              <Select
+                style={{ width: 180 }}
+                value={editingList.scoreDisplayMode}
+                onChange={(scoreDisplayMode: BoardScoreDisplayMode) =>
+                  updateList(activeBoard.id, editingList.id, { scoreDisplayMode })
+                }
+                options={[
+                  { value: "total", label: t("board.scoreDisplayModes.total") },
+                  { value: "split", label: t("board.scoreDisplayModes.split") },
                 ]}
                 disabled={!canManage}
               />

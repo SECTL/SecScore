@@ -660,8 +660,14 @@
       "card": "Card View",
       "grid": "Grid View"
     },
+    "scoreDisplayModes": {
+      "total": "Show Total Score",
+      "split": "Show Add & Deduct"
+    },
     "metrics": {
       "totalScore": "Score",
+      "addScore": "Added",
+      "deductScore": "Deducted",
       "rewardPoints": "Reward",
       "weekChange": "7d",
       "weekDeducted": "7d Deduct",

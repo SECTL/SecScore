@@ -660,8 +660,14 @@
       "card": "卡片视图",
       "grid": "网格视图"
     },
+    "scoreDisplayModes": {
+      "total": "显示总分",
+      "split": "显示加分与扣分"
+    },
     "metrics": {
       "totalScore": "总分",
+      "addScore": "加分",
+      "deductScore": "扣分",
       "rewardPoints": "奖励分",
       "weekChange": "近7天",
       "weekDeducted": "近7天扣分",
