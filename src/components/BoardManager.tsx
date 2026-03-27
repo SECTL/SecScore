@@ -308,9 +308,9 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
     if (!name) return
 
     const data = row as Record<string, unknown>
-    const hasAddScoreField =
+    let hasAddScoreField =
       "add_score" in data || "addScore" in data || "plus_score" in data || "plusScore" in data
-    const hasDeductScoreField =
+    let hasDeductScoreField =
       "deduct_score" in data ||
       "deductScore" in data ||
       "minus_score" in data ||
@@ -319,23 +319,37 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
     const addScoreRaw = data.add_score ?? data.addScore ?? data.plus_score ?? data.plusScore
     const deductScoreRaw =
       data.deduct_score ?? data.deductScore ?? data.minus_score ?? data.minusScore
+    const delta = parseNumber(data.delta ?? data.score_delta ?? data.scoreDelta)
+
+    let addScore =
+      addScoreRaw === null || addScoreRaw === undefined
+        ? hasAddScoreField
+          ? 0
+          : undefined
+        : parseNumber(addScoreRaw)
+    let deductScore =
+      deductScoreRaw === null || deductScoreRaw === undefined
+        ? hasDeductScoreField
+          ? 0
+          : undefined
+        : parseNumber(deductScoreRaw)
+
+    if (!hasAddScoreField && !hasDeductScoreField && delta !== undefined) {
+      if (delta >= 0) {
+        hasAddScoreField = true
+        addScore = delta
+      } else {
+        hasDeductScoreField = true
+        deductScore = Math.abs(delta)
+      }
+    }
 
     cards.push({
       key: `${name}-${index}`,
       name,
       score: parseNumber(data.score),
-      addScore:
-        addScoreRaw === null || addScoreRaw === undefined
-          ? hasAddScoreField
-            ? 0
-            : undefined
-          : parseNumber(addScoreRaw),
-      deductScore:
-        deductScoreRaw === null || deductScoreRaw === undefined
-          ? hasDeductScoreField
-            ? 0
-            : undefined
-          : parseNumber(deductScoreRaw),
+      addScore,
+      deductScore,
       hasAddScoreField,
       hasDeductScoreField,
       rewardPoints: parseNumber(data.reward_points ?? data.rewardPoints),
@@ -850,10 +864,14 @@ ORDER BY reward_points DESC, score DESC`,
           const useSplitScore = list.scoreDisplayMode === "split"
           const hasSplitScore = Boolean(item.hasAddScoreField || item.hasDeductScoreField)
           const primaryMetric = useSplitScore
-            ? item.addScore !== undefined
+            ? item.addScore !== undefined && item.addScore !== 0
               ? { label: t("board.metrics.addScore"), value: item.addScore }
-              : item.deductScore !== undefined
+              : item.deductScore !== undefined && item.deductScore !== 0
                 ? { label: t("board.metrics.deductScore"), value: item.deductScore }
+                : item.addScore !== undefined
+                  ? { label: t("board.metrics.addScore"), value: item.addScore }
+                  : item.deductScore !== undefined
+                    ? { label: t("board.metrics.deductScore"), value: item.deductScore }
                 : item.score !== undefined
                   ? { label: t("board.metrics.totalScore"), value: item.score }
                 : item.rewardPoints !== undefined
