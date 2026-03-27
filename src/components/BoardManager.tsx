@@ -824,11 +824,14 @@ ORDER BY reward_points DESC, score DESC`,
           const avatarText = getAvatarText(item.name)
           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
           const useSplitScore = list.scoreDisplayMode === "split"
+          const hasSplitScore = item.addScore !== undefined || item.deductScore !== undefined
           const primaryMetric = useSplitScore
             ? item.addScore !== undefined
               ? { label: t("board.metrics.addScore"), value: item.addScore }
               : item.deductScore !== undefined
                 ? { label: t("board.metrics.deductScore"), value: item.deductScore }
+                : item.score !== undefined
+                  ? { label: t("board.metrics.totalScore"), value: item.score }
                 : item.rewardPoints !== undefined
                   ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
                   : item.weekChange !== undefined
@@ -991,12 +994,14 @@ ORDER BY reward_points DESC, score DESC`,
                         {item.name}
                       </div>
                       <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {list.scoreDisplayMode === "total" && item.score !== undefined && (
+                        {(list.scoreDisplayMode === "total" ||
+                          (list.scoreDisplayMode === "split" && !hasSplitScore)) &&
+                          item.score !== undefined && (
                           <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
                             {t("board.metrics.totalScore")}:{" "}
                             {item.score > 0 ? `+${item.score}` : item.score}
                           </Tag>
-                        )}
+                          )}
                         {list.scoreDisplayMode === "split" && item.addScore !== undefined && (
                           <Tag color="success" style={{ margin: 0 }}>
                             {t("board.metrics.addScore")}:{" "}
