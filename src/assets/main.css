@@ -228,8 +228,12 @@ html.platform-macos #root {
 
 .ss-immersive-sidebar {
   --ss-sidebar-width: 200px;
+  height: 100%;
+  display: flex;
+  flex-shrink: 0;
   width: var(--ss-sidebar-width);
   overflow: hidden;
+  background: var(--ss-sidebar-bg);
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -237,6 +241,10 @@ html.platform-macos #root {
     opacity 220ms ease,
     transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: width, opacity, transform;
+}
+
+.ss-immersive-sidebar .ant-layout-sider {
+  height: 100% !important;
 }
 
 .ss-immersive-sidebar.is-hidden {
