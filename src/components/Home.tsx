@@ -91,9 +91,14 @@ const T9_KEY_MAP: Record<string, string> = {
 interface HomeProps {
   canEdit: boolean
   isPortraitMode?: boolean
+  immersiveMode?: boolean
 }
 
-export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) => {
+export const Home: React.FC<HomeProps> = ({
+  canEdit,
+  isPortraitMode = false,
+  immersiveMode = false,
+}) => {
   const { t } = useTranslation()
   const breakpoint = useResponsive()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
@@ -2136,17 +2141,22 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
   }, [])
 
   const batchToolbar = rewardMode ? null : !batchMode ? (
-    <Button onClick={handleEnterBatchMode} disabled={!canEdit}>
+    <Button onClick={handleEnterBatchMode} disabled={!canEdit} style={{ borderRadius: "999px" }}>
       {t("home.multiSelect")}
     </Button>
   ) : (
     <Space size={8} wrap>
-      <Button onClick={handleSelectAllStudents} disabled={!canEdit || students.length === 0}>
+      <Button
+        onClick={handleSelectAllStudents}
+        disabled={!canEdit || students.length === 0}
+        style={{ borderRadius: "999px" }}
+      >
         {t("home.selectAll")}
       </Button>
       <Button
         onClick={handleClearSelectedStudents}
         disabled={!canEdit || selectedStudentIds.length === 0}
+        style={{ borderRadius: "999px" }}
       >
         {t("home.clearSelected")}
       </Button>
@@ -2154,10 +2164,13 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
         type="primary"
         onClick={handleOpenBatchOperation}
         disabled={!canEdit || selectedStudentIds.length === 0}
+        style={{ borderRadius: "999px" }}
       >
         {t("home.batchOperate")}
       </Button>
-      <Button onClick={handleExitBatchMode}>{t("common.cancel")}</Button>
+      <Button onClick={handleExitBatchMode} style={{ borderRadius: "999px" }}>
+        {t("common.cancel")}
+      </Button>
     </Space>
   )
 
@@ -2165,6 +2178,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
     <div
       style={{
         padding: isPortraitMode ? "16px" : "24px",
+        paddingBottom: immersiveMode ? (isPortraitMode ? "108px" : "124px") : undefined,
         width: "100%",
         boxSizing: "border-box",
         maxWidth: isPortraitMode ? "100%" : "1200px",
@@ -2176,7 +2190,7 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
       {contextHolder}
       <div
         style={{
-          marginBottom: "32px",
+          marginBottom: immersiveMode ? "8px" : "32px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -2184,178 +2198,182 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h2 style={{ margin: 0, color: "var(--ss-text-main)", fontSize: "24px" }}>
-            {rewardMode ? t("rewardExchange.title") : t("home.title")}
-          </h2>
-          <p style={{ margin: "4px 0 0", color: "var(--ss-text-secondary)", fontSize: "13px" }}>
-            {t("home.subtitle", { count: students.length })}
-          </p>
-        </div>
+        {!immersiveMode && (
+          <>
+            <div>
+              <h2 style={{ margin: 0, color: "var(--ss-text-main)", fontSize: "24px" }}>
+                {rewardMode ? t("rewardExchange.title") : t("home.title")}
+              </h2>
+              <p style={{ margin: "4px 0 0", color: "var(--ss-text-secondary)", fontSize: "13px" }}>
+                {t("home.subtitle", { count: students.length })}
+              </p>
+            </div>
 
-        <Space
-          size="middle"
-          align="start"
-          wrap
-          style={{
-            width: isPortraitMode ? "100%" : undefined,
-            justifyContent: isPortraitMode ? "flex-start" : undefined,
-          }}
-        >
-          <div
-            ref={searchAreaRef}
-            style={{
-              position: "relative",
-              width: isMobile ? "100%" : isTablet ? "180px" : "220px",
-              minWidth: isMobile ? "100%" : isTablet ? "150px" : "180px",
-              flexShrink: isMobile ? 0 : 1,
-            }}
-          >
-            <Input
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              onFocus={() => {
-                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+            <Space
+              size="middle"
+              align="start"
+              wrap
+              style={{
+                width: isPortraitMode ? "100%" : undefined,
+                justifyContent: isPortraitMode ? "flex-start" : undefined,
               }}
-              onClick={() => {
-                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setShowPinyinKeyboard(false)
-              }}
-              placeholder={t("home.searchPlaceholder")}
-              prefix={<SearchOutlined />}
-              allowClear
-              style={{ width: "100%" }}
-            />
-            {!disableSearchKeyboard && showPinyinKeyboard && (
+            >
               <div
+                ref={searchAreaRef}
                 style={{
-                  position: "absolute",
-                  top: "calc(100% + 8px)",
-                  left: isPortraitMode ? "0" : "50%",
-                  transform: isPortraitMode ? "none" : "translateX(-50%)",
-                  width: isPortraitMode
-                    ? `min(calc(100vw - 32px), ${searchKeyboardLayout === "qwerty26" ? "288px" : "220px"})`
-                    : searchKeyboardLayout === "qwerty26"
-                      ? "288px"
-                      : "220px",
-                  padding: "8px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--ss-border-color)",
-                  backgroundColor: "var(--ss-card-bg)",
-                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
-                  zIndex: 20,
+                  position: "relative",
+                  width: isMobile ? "100%" : isTablet ? "180px" : "220px",
+                  minWidth: isMobile ? "100%" : isTablet ? "150px" : "180px",
+                  flexShrink: isMobile ? 0 : 1,
                 }}
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {searchKeyboardLayout === "qwerty26"
-                    ? qwertyKeyRows.map((row, rowIndex) => (
-                        <div
-                          key={`qwerty-row-${rowIndex}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: `repeat(${row.length}, 1fr)`,
-                            gap: "7px",
-                          }}
-                        >
-                          {row.map((keyItem) => (
-                            <Button
-                              key={keyItem}
-                              size="small"
-                              onClick={() => handleSearchKeyPress(keyItem)}
-                              style={{ height: "32px", fontSize: "12px", padding: 0 }}
+                <Input
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  onFocus={() => {
+                    if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                  }}
+                  onClick={() => {
+                    if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setShowPinyinKeyboard(false)
+                  }}
+                  placeholder={t("home.searchPlaceholder")}
+                  prefix={<SearchOutlined />}
+                  allowClear
+                  style={{ width: "100%" }}
+                />
+                {!disableSearchKeyboard && showPinyinKeyboard && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 8px)",
+                      left: isPortraitMode ? "0" : "50%",
+                      transform: isPortraitMode ? "none" : "translateX(-50%)",
+                      width: isPortraitMode
+                        ? `min(calc(100vw - 32px), ${searchKeyboardLayout === "qwerty26" ? "288px" : "220px"})`
+                        : searchKeyboardLayout === "qwerty26"
+                          ? "288px"
+                          : "220px",
+                      padding: "8px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--ss-border-color)",
+                      backgroundColor: "var(--ss-card-bg)",
+                      boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
+                      zIndex: 20,
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {searchKeyboardLayout === "qwerty26"
+                        ? qwertyKeyRows.map((row, rowIndex) => (
+                            <div
+                              key={`qwerty-row-${rowIndex}`}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+                                gap: "7px",
+                              }}
                             >
-                              {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
-                            </Button>
-                          ))}
-                        </div>
-                      ))
-                    : t9KeyRows.map((row, rowIndex) => (
-                        <div
-                          key={`pinyin-row-${rowIndex}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(3, 1fr)",
-                            gap: "6px",
-                          }}
-                        >
-                          {row.map((keyItem) => (
-                            <Button
-                              key={keyItem.digit}
-                              size="small"
-                              onClick={() => handleSearchKeyPress(keyItem.digit)}
-                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                              {row.map((keyItem) => (
+                                <Button
+                                  key={keyItem}
+                                  size="small"
+                                  onClick={() => handleSearchKeyPress(keyItem)}
+                                  style={{ height: "32px", fontSize: "12px", padding: 0 }}
+                                >
+                                  {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
+                                </Button>
+                              ))}
+                            </div>
+                          ))
+                        : t9KeyRows.map((row, rowIndex) => (
+                            <div
+                              key={`pinyin-row-${rowIndex}`}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(3, 1fr)",
+                                gap: "6px",
+                              }}
                             >
-                              {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
-                            </Button>
+                              {row.map((keyItem) => (
+                                <Button
+                                  key={keyItem.digit}
+                                  size="small"
+                                  onClick={() => handleSearchKeyPress(keyItem.digit)}
+                                  style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                                >
+                                  {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
+                                </Button>
+                              ))}
+                            </div>
                           ))}
-                        </div>
-                      ))}
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <Select
-            value={sortType}
-            onChange={(v) => setSortType(v as SortType)}
-            style={{
-              width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
-              minWidth: isMobile ? "100px" : "120px",
-              flexShrink: isMobile ? 1 : 0,
-            }}
-            options={[
-              { value: "alphabet", label: t("home.sortBy.alphabet") },
-              { value: "surname", label: t("home.sortBy.surname") },
-              { value: "group", label: t("home.sortBy.group") },
-              { value: "score", label: t("home.sortBy.score") },
-            ]}
-          />
-          <Select
-            value={layoutType}
-            onChange={(v) => setLayoutType(v as LayoutType)}
-            style={{
-              width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
-              minWidth: isMobile ? "100px" : "120px",
-              flexShrink: isMobile ? 1 : 0,
-            }}
-            options={[
-              { value: "grouped", label: t("home.layoutBy.grouped") },
-              { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
-            ]}
-          />
-          <Button
-            icon={<UndoOutlined />}
-            onClick={handleUndoLastEvent}
-            loading={undoLoading}
-            disabled={!canEdit || !latestEvent || rewardMode}
-            title={
-              latestEvent
-                ? t("home.undoLastHint", {
-                    name: latestEvent.student_name,
-                    delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
-                  })
-                : t("home.undoUnavailable")
-            }
-            style={{
-              flexShrink: isMobile ? 1 : 0,
-            }}
-          >
-            {t("home.undoLastAction")}
-          </Button>
-          <Button
-            type={rewardMode ? "default" : "primary"}
-            onClick={handleToggleRewardMode}
-            disabled={!canEdit}
-            style={{
-              flexShrink: isMobile ? 1 : 0,
-            }}
-          >
-            {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-          </Button>
-          {batchToolbar}
-        </Space>
+              <Select
+                value={sortType}
+                onChange={(v) => setSortType(v as SortType)}
+                style={{
+                  width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
+                  minWidth: isMobile ? "100px" : "120px",
+                  flexShrink: isMobile ? 1 : 0,
+                }}
+                options={[
+                  { value: "alphabet", label: t("home.sortBy.alphabet") },
+                  { value: "surname", label: t("home.sortBy.surname") },
+                  { value: "group", label: t("home.sortBy.group") },
+                  { value: "score", label: t("home.sortBy.score") },
+                ]}
+              />
+              <Select
+                value={layoutType}
+                onChange={(v) => setLayoutType(v as LayoutType)}
+                style={{
+                  width: isMobile ? "calc(50% - 8px)" : isTablet ? "130px" : "140px",
+                  minWidth: isMobile ? "100px" : "120px",
+                  flexShrink: isMobile ? 1 : 0,
+                }}
+                options={[
+                  { value: "grouped", label: t("home.layoutBy.grouped") },
+                  { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+                ]}
+              />
+              <Button
+                icon={<UndoOutlined />}
+                onClick={handleUndoLastEvent}
+                loading={undoLoading}
+                disabled={!canEdit || !latestEvent || rewardMode}
+                title={
+                  latestEvent
+                    ? t("home.undoLastHint", {
+                        name: latestEvent.student_name,
+                        delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+                      })
+                    : t("home.undoUnavailable")
+                }
+                style={{
+                  flexShrink: isMobile ? 1 : 0,
+                }}
+              >
+                {t("home.undoLastAction")}
+              </Button>
+              <Button
+                type={rewardMode ? "default" : "primary"}
+                onClick={handleToggleRewardMode}
+                disabled={!canEdit}
+                style={{
+                  flexShrink: isMobile ? 1 : 0,
+                }}
+              >
+                {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+              </Button>
+              {batchToolbar}
+            </Space>
+          </>
+        )}
       </div>
 
       {renderQuickNav()}
@@ -2448,6 +2466,164 @@ export const Home: React.FC<HomeProps> = ({ canEdit, isPortraitMode = false }) =
           </>
         )}
       </Modal>
+
+      {immersiveMode && (
+        <div
+          style={{
+            position: "fixed",
+            left: "50%",
+            bottom: isPortraitMode ? "12px" : "16px",
+            transform: "translateX(-50%)",
+            zIndex: 1100,
+            width: "min(calc(100vw - 20px), 1120px)",
+            borderRadius: "999px",
+            border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
+            backgroundColor: "var(--ss-card-bg)",
+            background: "color-mix(in srgb, var(--ss-card-bg) 78%, transparent)",
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
+            padding: "10px 12px",
+          }}
+        >
+          <div
+            ref={searchAreaRef}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              overflowX: "auto",
+              scrollbarWidth: "thin",
+            }}
+          >
+            <Input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onFocus={() => {
+                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+              }}
+              onClick={() => {
+                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setShowPinyinKeyboard(false)
+              }}
+              placeholder={t("home.searchPlaceholder")}
+              prefix={<SearchOutlined />}
+              allowClear
+              style={{ width: isPortraitMode ? "170px" : "220px", borderRadius: "999px", flexShrink: 0 }}
+            />
+            <Select
+              value={sortType}
+              onChange={(v) => setSortType(v as SortType)}
+              style={{ width: 126, flexShrink: 0 }}
+              options={[
+                { value: "alphabet", label: t("home.sortBy.alphabet") },
+                { value: "surname", label: t("home.sortBy.surname") },
+                { value: "group", label: t("home.sortBy.group") },
+                { value: "score", label: t("home.sortBy.score") },
+              ]}
+            />
+            <Select
+              value={layoutType}
+              onChange={(v) => setLayoutType(v as LayoutType)}
+              style={{ width: 126, flexShrink: 0 }}
+              options={[
+                { value: "grouped", label: t("home.layoutBy.grouped") },
+                { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+              ]}
+            />
+            <Button
+              icon={<UndoOutlined />}
+              onClick={handleUndoLastEvent}
+              loading={undoLoading}
+              disabled={!canEdit || !latestEvent || rewardMode}
+              title={
+                latestEvent
+                  ? t("home.undoLastHint", {
+                      name: latestEvent.student_name,
+                      delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+                    })
+                  : t("home.undoUnavailable")
+              }
+              style={{ borderRadius: "999px", flexShrink: 0 }}
+            >
+              {t("home.undoLastAction")}
+            </Button>
+            <Button
+              type={rewardMode ? "default" : "primary"}
+              onClick={handleToggleRewardMode}
+              disabled={!canEdit}
+              style={{ borderRadius: "999px", flexShrink: 0 }}
+            >
+              {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+            </Button>
+            <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
+            {!disableSearchKeyboard && showPinyinKeyboard && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "calc(100% + 8px)",
+                  left: isPortraitMode ? "8px" : "12px",
+                  width: searchKeyboardLayout === "qwerty26" ? "288px" : "220px",
+                  padding: "8px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--ss-border-color)",
+                  backgroundColor: "var(--ss-card-bg)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
+                  zIndex: 20,
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {searchKeyboardLayout === "qwerty26"
+                    ? qwertyKeyRows.map((row, rowIndex) => (
+                        <div
+                          key={`qwerty-immersive-row-${rowIndex}`}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+                            gap: "7px",
+                          }}
+                        >
+                          {row.map((keyItem) => (
+                            <Button
+                              key={keyItem}
+                              size="small"
+                              onClick={() => handleSearchKeyPress(keyItem)}
+                              style={{ height: "32px", fontSize: "12px", padding: 0 }}
+                            >
+                              {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
+                            </Button>
+                          ))}
+                        </div>
+                      ))
+                    : t9KeyRows.map((row, rowIndex) => (
+                        <div
+                          key={`pinyin-immersive-row-${rowIndex}`}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, 1fr)",
+                            gap: "6px",
+                          }}
+                        >
+                          {row.map((keyItem) => (
+                            <Button
+                              key={keyItem.digit}
+                              size="small"
+                              onClick={() => handleSearchKeyPress(keyItem.digit)}
+                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                            >
+                              {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
+                            </Button>
+                          ))}
+                        </div>
+                      ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {isPortraitMode ? (
         <Drawer

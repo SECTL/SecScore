@@ -270,6 +270,7 @@ export function ContentArea({
                 <Home
                   canEdit={permission === "admin" || permission === "points"}
                   isPortraitMode={isPortraitMode}
+                  immersiveMode={immersiveMode}
                 />
               }
             />
