@@ -71,6 +71,8 @@ interface BoardStudentCardData {
   score?: number
   addScore?: number
   deductScore?: number
+  hasAddScoreField?: boolean
+  hasDeductScoreField?: boolean
   rewardPoints?: number
   weekChange?: number
   weekDeducted?: number
@@ -306,14 +308,36 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
     if (!name) return
 
     const data = row as Record<string, unknown>
+    const hasAddScoreField =
+      "add_score" in data || "addScore" in data || "plus_score" in data || "plusScore" in data
+    const hasDeductScoreField =
+      "deduct_score" in data ||
+      "deductScore" in data ||
+      "minus_score" in data ||
+      "minusScore" in data
+
+    const addScoreRaw = data.add_score ?? data.addScore ?? data.plus_score ?? data.plusScore
+    const deductScoreRaw =
+      data.deduct_score ?? data.deductScore ?? data.minus_score ?? data.minusScore
+
     cards.push({
       key: `${name}-${index}`,
       name,
       score: parseNumber(data.score),
-      addScore: parseNumber(data.add_score ?? data.addScore ?? data.plus_score ?? data.plusScore),
-      deductScore: parseNumber(
-        data.deduct_score ?? data.deductScore ?? data.minus_score ?? data.minusScore
-      ),
+      addScore:
+        addScoreRaw === null || addScoreRaw === undefined
+          ? hasAddScoreField
+            ? 0
+            : undefined
+          : parseNumber(addScoreRaw),
+      deductScore:
+        deductScoreRaw === null || deductScoreRaw === undefined
+          ? hasDeductScoreField
+            ? 0
+            : undefined
+          : parseNumber(deductScoreRaw),
+      hasAddScoreField,
+      hasDeductScoreField,
       rewardPoints: parseNumber(data.reward_points ?? data.rewardPoints),
       weekChange: parseNumber(data.week_change ?? data.range_change ?? data.change),
       weekDeducted: parseNumber(data.week_deducted ?? data.deducted),
@@ -824,7 +848,7 @@ ORDER BY reward_points DESC, score DESC`,
           const avatarText = getAvatarText(item.name)
           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
           const useSplitScore = list.scoreDisplayMode === "split"
-          const hasSplitScore = item.addScore !== undefined || item.deductScore !== undefined
+          const hasSplitScore = Boolean(item.hasAddScoreField || item.hasDeductScoreField)
           const primaryMetric = useSplitScore
             ? item.addScore !== undefined
               ? { label: t("board.metrics.addScore"), value: item.addScore }
