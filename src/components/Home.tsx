@@ -2472,29 +2472,30 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </Modal>
 
-      {immersiveMode && (
-        <div
-          ref={immersiveToolbarRef}
-          data-immersive-toolbar="true"
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: isPortraitMode ? "12px" : "16px",
-            transform: "translateX(-50%)",
-            zIndex: 1100,
-            width: "max-content",
-            maxWidth: "calc(100vw - 20px)",
-            borderRadius: "999px",
-            border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
-            backgroundColor: "var(--ss-card-bg)",
-            background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
-            padding: "10px",
-            overflow: "visible",
-          }}
-        >
+      <div
+        ref={immersiveToolbarRef}
+        data-immersive-toolbar="true"
+        className={`ss-immersive-toolbar ${immersiveMode ? "is-visible" : "is-hidden"}`}
+        aria-hidden={!immersiveMode}
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: isPortraitMode ? "12px" : "16px",
+          transform: "translateX(-50%)",
+          zIndex: 1100,
+          width: "max-content",
+          maxWidth: "calc(100vw - 20px)",
+          borderRadius: "999px",
+          border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
+          backgroundColor: "var(--ss-card-bg)",
+          background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
+          padding: "10px",
+          overflow: "visible",
+        }}
+      >
           <div
             ref={searchAreaRef}
             style={{
@@ -2634,8 +2635,7 @@ export const Home: React.FC<HomeProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
+      </div>
 
       {isPortraitMode ? (
         <Drawer

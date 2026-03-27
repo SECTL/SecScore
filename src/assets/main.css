@@ -225,3 +225,45 @@ html.platform-macos #root {
 .ss-group-board-modal .ant-modal-body {
   overflow: hidden;
 }
+
+.ss-immersive-sidebar {
+  --ss-sidebar-width: 200px;
+  width: var(--ss-sidebar-width);
+  overflow: hidden;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: width, opacity, transform;
+}
+
+.ss-immersive-sidebar.is-hidden {
+  width: 0;
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.ss-immersive-toolbar {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  transition:
+    opacity 200ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.ss-immersive-toolbar.is-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px) scale(0.98);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-immersive-sidebar,
+  .ss-immersive-toolbar {
+    transition: none !important;
+  }
+}
