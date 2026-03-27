@@ -259,6 +259,8 @@ const resolveSqlTemplate = (sql: string) => {
     .join(formatIso(at(-30)))
 }
 
+const trimSqlTailSemicolon = (sql: string) => sql.trimEnd().replace(/;+$/, "")
+
 const parseNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value
   if (typeof value === "string" && value.trim() !== "") {
@@ -1258,7 +1260,15 @@ ORDER BY reward_points DESC, score DESC`,
         title={t("board.sqlEditorTitle")}
         open={Boolean(editingList)}
         onCancel={() => setEditingListId(null)}
-        onOk={() => setEditingListId(null)}
+        onOk={() => {
+          if (editingList && activeBoard && canManage) {
+            const nextSql = trimSqlTailSemicolon(editingList.sql)
+            if (nextSql !== editingList.sql) {
+              updateList(activeBoard.id, editingList.id, { sql: nextSql })
+            }
+          }
+          setEditingListId(null)
+        }}
         okText={t("common.confirm")}
         cancelText={t("common.cancel")}
         width={860}
