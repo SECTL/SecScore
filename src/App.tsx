@@ -7,8 +7,6 @@ import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 
-const IMMERSIVE_TRANSITION_MS = 260
-
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -17,8 +15,6 @@ function MainContent(): React.JSX.Element {
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
   const [immersiveMode, setImmersiveMode] = useState(false)
-  const [sidebarVisible, setSidebarVisible] = useState(true)
-  const sidebarTransitionTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const api = (window as any).api
@@ -354,30 +350,6 @@ function MainContent(): React.JSX.Element {
     })
   }
 
-  useEffect(() => {
-    if (sidebarTransitionTimerRef.current) {
-      window.clearTimeout(sidebarTransitionTimerRef.current)
-      sidebarTransitionTimerRef.current = null
-    }
-
-    if (!immersiveMode) {
-      setSidebarVisible(true)
-      return
-    }
-
-    sidebarTransitionTimerRef.current = window.setTimeout(() => {
-      setSidebarVisible(false)
-      sidebarTransitionTimerRef.current = null
-    }, IMMERSIVE_TRANSITION_MS)
-
-    return () => {
-      if (sidebarTransitionTimerRef.current) {
-        window.clearTimeout(sidebarTransitionTimerRef.current)
-        sidebarTransitionTimerRef.current = null
-      }
-    }
-  }, [immersiveMode])
-
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
 
@@ -394,26 +366,24 @@ function MainContent(): React.JSX.Element {
     >
       {contextHolder}
       <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden" }}>
-        {sidebarVisible && (
-          <div
-            className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
-            style={
-              {
-                "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
-              } as React.CSSProperties
-            }
-          >
-            <Sidebar
-              activeMenu={activeMenu}
-              permission={permission}
-              onMenuChange={onMenuChange}
-              collapsed={sidebarCollapsed}
-              floatingExpand={isPortraitMode}
-              floatingExpanded={floatingSidebarExpanded}
-              onFloatingExpandedChange={setFloatingSidebarExpanded}
-            />
-          </div>
-        )}
+        <div
+          className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
+          style={
+            {
+              "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
+            } as React.CSSProperties
+          }
+        >
+          <Sidebar
+            activeMenu={activeMenu}
+            permission={permission}
+            onMenuChange={onMenuChange}
+            collapsed={sidebarCollapsed}
+            floatingExpand={isPortraitMode}
+            floatingExpanded={floatingSidebarExpanded}
+            onFloatingExpandedChange={setFloatingSidebarExpanded}
+          />
+        </div>
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}
