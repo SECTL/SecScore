@@ -104,6 +104,25 @@
 - “扣分 > 5” 写成 `delta < -5`
 - “只看扣分” 写成 `delta < 0`
 
+## 7.2) 积分相关查询结果字段强制规则
+若用户意图与“积分”相关（例如：积分排行、积分变化、扣分/加分统计、学生积分看板），最终结果中必须包含“学生当前总积分”字段：
+- 字段名统一输出为：`score`
+- 来源必须是 `students.score`（不是 `SUM(score_events.delta)`）
+
+生成要求：
+1. 若主表是 `students`：直接选择 `students.score AS score`（或 `s.score AS score`）
+2. 若主表不是 `students`（如 `score_events`）：必须关联 `students` 并带出总积分  
+   标准关联：`LEFT JOIN students s ON s.name = <学生名字段>`
+3. 若查询按学生聚合，仍需在结果中包含 `score`，不要省略
+
+错误示例（禁止生成）：
+- 积分相关 SQL 只返回 `student_name`、`week_change`，但没有 `score`
+- 用 `SUM(delta)` 命名为 `score` 冒充当前总积分
+
+正确示例（优先生成）：
+- `SELECT e.student_name, COALESCE(s.score, 0) AS score, SUM(e.delta) AS week_change ... LEFT JOIN students s ON s.name = e.student_name ...`
+- `SELECT s.name AS student_name, s.score AS score FROM students s ...`
+
 ## 8) 自然周规则（允许生成上个自然周 SQL）
 当用户要求“上个自然周/本自然周”时，必须使用模板变量区间表达，不要自行计算数据库日期函数：
 - 上个自然周：`event_time >= '{ {last_week_start} }' AND event_time < '{ {this_week_start} }'`
@@ -124,6 +143,7 @@
 - 是否只用了给定业务表？
 - 是否所有字段都能在对应表字段清单中找到（尤其检查 `students.name` vs `students.student_name`）？
 - 若需求涉及“扣分”，是否已使用负数语义（如 `delta < 0`、`delta < -N`）而非 `delta > N`？
+- 若需求涉及“积分”，结果中是否包含 `students.score` 且命名为 `score`？
 
 用户需求：
 { {在这里粘贴用户需求} }
