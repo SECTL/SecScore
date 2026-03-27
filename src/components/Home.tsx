@@ -2475,15 +2475,17 @@ export const Home: React.FC<HomeProps> = ({
             bottom: isPortraitMode ? "12px" : "16px",
             transform: "translateX(-50%)",
             zIndex: 1100,
-            width: "min(calc(100vw - 20px), 1120px)",
+            width: "max-content",
+            maxWidth: "calc(100vw - 20px)",
             borderRadius: "999px",
             border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
             backgroundColor: "var(--ss-card-bg)",
-            background: "color-mix(in srgb, var(--ss-card-bg) 78%, transparent)",
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
             boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
-            padding: "10px 12px",
+            padding: "10px",
+            overflow: "hidden",
           }}
         >
           <div
@@ -2493,6 +2495,7 @@ export const Home: React.FC<HomeProps> = ({
               alignItems: "center",
               gap: "8px",
               overflowX: "auto",
+              justifyContent: "flex-start",
               scrollbarWidth: "thin",
             }}
           >
