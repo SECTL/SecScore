@@ -121,7 +121,6 @@ export const Home: React.FC<HomeProps> = ({
   const immersiveToolbarContentRef = useRef<HTMLDivElement>(null)
   const [immersiveToolbarWidth, setImmersiveToolbarWidth] = useState<number | null>(null)
   const immersiveToolbarHorizontalPadding = 20
-  const immersiveToolbarMinWidth = 320
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -338,10 +337,7 @@ export const Home: React.FC<HomeProps> = ({
       if (frameId !== null) cancelAnimationFrame(frameId)
       frameId = requestAnimationFrame(() => {
         const contentWidth = Math.ceil(contentEl.scrollWidth)
-        const nextWidth = Math.max(
-          immersiveToolbarMinWidth,
-          contentWidth + immersiveToolbarHorizontalPadding
-        )
+        const nextWidth = contentWidth + immersiveToolbarHorizontalPadding
         setImmersiveToolbarWidth((prev) => (prev === nextWidth ? prev : nextWidth))
       })
     }
@@ -356,7 +352,7 @@ export const Home: React.FC<HomeProps> = ({
       window.removeEventListener("resize", updateToolbarWidth)
       if (frameId !== null) cancelAnimationFrame(frameId)
     }
-  }, [immersiveMode, immersiveToolbarHorizontalPadding, immersiveToolbarMinWidth])
+  }, [immersiveMode, immersiveToolbarHorizontalPadding])
 
   useEffect(() => {
     return () => {
@@ -2538,12 +2534,11 @@ export const Home: React.FC<HomeProps> = ({
               immersiveToolbarContentRef.current = node
             }}
             style={{
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
               gap: "8px",
-              overflowX: "auto",
+              overflowX: "visible",
               justifyContent: "flex-start",
-              scrollbarWidth: "thin",
             }}
           >
             <Input
