@@ -14,12 +14,6 @@ importers:
       '@react-awesome-query-builder/antd':
         specifier: 6.7.0-alpha.0
         version: 6.7.0-alpha.0(@ant-design/icons@6.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(antd@6.3.2(moment@2.30.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(dayjs@1.11.20)(moment@2.30.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@react-querybuilder/antd':
-        specifier: ^8.14.0
-        version: 8.14.0(@ant-design/icons@6.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(antd@6.3.2(moment@2.30.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(dayjs@1.11.20)(react-querybuilder@8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1))(react@19.2.4)
-      '@react-querybuilder/dnd':
-        specifier: ^8.14.0
-        version: 8.14.0(react-dnd-html5-backend@16.0.1)(react-dnd-touch-backend@16.0.1)(react-dnd@16.0.1(@types/hoist-non-react-statics@3.3.7(@types/react@19.2.14))(@types/node@22.19.15)(@types/react@19.2.14)(react@19.2.4))(react-querybuilder@8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1))(react@19.2.4)
       '@tauri-apps/api':
         specifier: ^2.5.0
         version: 2.10.1
@@ -41,15 +35,6 @@ importers:
       react:
         specifier: ^19.2.1
         version: 19.2.4
-      react-dnd:
-        specifier: ^16.0.1
-        version: 16.0.1(@types/hoist-non-react-statics@3.3.7(@types/react@19.2.14))(@types/node@22.19.15)(@types/react@19.2.14)(react@19.2.4)
-      react-dnd-html5-backend:
-        specifier: ^16.0.1
-        version: 16.0.1
-      react-dnd-touch-backend:
-        specifier: ^16.0.1
-        version: 16.0.1
       react-dom:
         specifier: ^19.2.1
         version: 19.2.4(react@19.2.4)
@@ -791,24 +776,6 @@ packages:
       react: ^16.8.4 || ^17.0.1 || ^18.0.0 || ^19.0.0
       react-dom: ^16.8.4 || ^17.0.1 || ^18.0.0 || ^19.0.0
 
-  '@react-dnd/asap@5.0.2':
-    resolution: {integrity: sha512-WLyfoHvxhs0V9U+GTsGilGgf2QsPl6ZZ44fnv0/b8T3nQyvzxidxsg/ZltbWssbsRDlYW8UKSQMTGotuTotZ6A==}
-
-  '@react-dnd/invariant@4.0.2':
-    resolution: {integrity: sha512-xKCTqAK/FFauOM9Ta2pswIyT3D8AQlfrYdOi/toTPEhqCuAs1v5tcJ3Y08Izh1cJ5Jchwy9SeAXmMg6zrKs2iw==}
-
-  '@react-dnd/shallowequal@4.0.2':
-    resolution: {integrity: sha512-/RVXdLvJxLg4QKvMoM5WlwNR9ViO9z8B/qPcc+C0Sa/teJY7QG7kJ441DwzOjMYEY7GmU4dj5EcGHIkKZiQZCA==}
-
-  '@react-querybuilder/antd@8.14.0':
-    resolution: {integrity: sha512-H6SMCmKtciOIJyXo29oLMMDIG1+ydE7eoIqAIhItsvJN7iLcAPhvKd5+CuHyOWj9tokEAHGpdm4BP+KPFAxTNw==}
-    peerDependencies:
-      '@ant-design/icons': '>=5'
-      antd: '>=5.11.0'
-      dayjs: '>=1'
-      react: '>=18'
-      react-querybuilder: 8.14.0
-
   '@react-querybuilder/core@8.14.0':
     resolution: {integrity: sha512-j1pIY0Yyn/dXu9ZST/DVY7TqRmIO1hY/mZ8653DaeHaDzUF37tOdkm/NQDU9RfM0KXIWsJY5zlvYAR1DypZ+7g==}
     peerDependencies:
@@ -821,20 +788,6 @@ packages:
       json-logic-js:
         optional: true
       sequelize:
-        optional: true
-
-  '@react-querybuilder/dnd@8.14.0':
-    resolution: {integrity: sha512-g0BHs9Vtbm7OhnhIq1pxJNY3JXNmSbA7NVTlOuqoAfFl0D46rZfGInVzoBfpwVpoLtQIXPO25Y5N/1/LcWuSNg==}
-    peerDependencies:
-      react: '>=18'
-      react-dnd: '>=14.0.0'
-      react-dnd-html5-backend: '>=14.0.0'
-      react-dnd-touch-backend: '>=14.0.0'
-      react-querybuilder: 8.14.0
-    peerDependenciesMeta:
-      react-dnd-html5-backend:
-        optional: true
-      react-dnd-touch-backend:
         optional: true
 
   '@reduxjs/toolkit@2.11.2':
@@ -889,66 +842,79 @@ packages:
     resolution: {integrity: sha512-t4ONHboXi/3E0rT6OZl1pKbl2Vgxf9vJfWgmUoCEVQVxhW6Cw/c8I6hbbu7DAvgp82RKiH7TpLwxnJeKv2pbsw==}
     cpu: [arm]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.59.0':
     resolution: {integrity: sha512-CikFT7aYPA2ufMD086cVORBYGHffBo4K8MQ4uPS/ZnY54GKj36i196u8U+aDVT2LX4eSMbyHtyOh7D7Zvk2VvA==}
     cpu: [arm]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.59.0':
     resolution: {integrity: sha512-jYgUGk5aLd1nUb1CtQ8E+t5JhLc9x5WdBKew9ZgAXg7DBk0ZHErLHdXM24rfX+bKrFe+Xp5YuJo54I5HFjGDAA==}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.59.0':
     resolution: {integrity: sha512-peZRVEdnFWZ5Bh2KeumKG9ty7aCXzzEsHShOZEFiCQlDEepP1dpUl/SrUNXNg13UmZl+gzVDPsiCwnV1uI0RUA==}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-loong64-gnu@4.59.0':
     resolution: {integrity: sha512-gbUSW/97f7+r4gHy3Jlup8zDG190AuodsWnNiXErp9mT90iCy9NKKU0Xwx5k8VlRAIV2uU9CsMnEFg/xXaOfXg==}
     cpu: [loong64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-loong64-musl@4.59.0':
     resolution: {integrity: sha512-yTRONe79E+o0FWFijasoTjtzG9EBedFXJMl888NBEDCDV9I2wGbFFfJQQe63OijbFCUZqxpHz1GzpbtSFikJ4Q==}
     cpu: [loong64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-ppc64-gnu@4.59.0':
     resolution: {integrity: sha512-sw1o3tfyk12k3OEpRddF68a1unZ5VCN7zoTNtSn2KndUE+ea3m3ROOKRCZxEpmT9nsGnogpFP9x6mnLTCaoLkA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-musl@4.59.0':
     resolution: {integrity: sha512-+2kLtQ4xT3AiIxkzFVFXfsmlZiG5FXYW7ZyIIvGA7Bdeuh9Z0aN4hVyXS/G1E9bTP/vqszNIN/pUKCk/BTHsKA==}
     cpu: [ppc64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-riscv64-gnu@4.59.0':
     resolution: {integrity: sha512-NDYMpsXYJJaj+I7UdwIuHHNxXZ/b/N2hR15NyH3m2qAtb/hHPA4g4SuuvrdxetTdndfj9b1WOmy73kcPRoERUg==}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.59.0':
     resolution: {integrity: sha512-nLckB8WOqHIf1bhymk+oHxvM9D3tyPndZH8i8+35p/1YiVoVswPid2yLzgX7ZJP0KQvnkhM4H6QZ5m0LzbyIAg==}
     cpu: [riscv64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.59.0':
     resolution: {integrity: sha512-oF87Ie3uAIvORFBpwnCvUzdeYUqi2wY6jRFWJAy1qus/udHFYIkplYRW+wo+GRUP4sKzYdmE1Y3+rY5Gc4ZO+w==}
     cpu: [s390x]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.59.0':
     resolution: {integrity: sha512-3AHmtQq/ppNuUspKAlvA8HtLybkDflkMuLK4DPo77DfthRb71V84/c4MlWJXixZz4uruIH4uaa07IqoAkG64fg==}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.59.0':
     resolution: {integrity: sha512-2UdiwS/9cTAx7qIUZB/fWtToJwvt0Vbo0zmnYt7ED35KPg13Q0ym1g442THLC7VyI6JfYTP4PiSOWyoMdV2/xg==}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@rollup/rollup-openbsd-x64@4.59.0':
     resolution: {integrity: sha512-M3bLRAVk6GOwFlPTIxVBSYKUaqfLrn8l0psKinkCFxl4lQvOSz8ZrKDz2gxcBwHFpci0B6rttydI4IpS4IS/jQ==}
@@ -1012,30 +978,35 @@ packages:
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [glibc]
 
   '@tauri-apps/cli-linux-arm64-musl@2.10.1':
     resolution: {integrity: sha512-MIj78PDDGjkg3NqGptDOGgfXks7SYJwhiMh8SBoZS+vfdz7yP5jN18bNaLnDhsVIPARcAhE1TlsZe/8Yxo2zqg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
+    libc: [musl]
 
   '@tauri-apps/cli-linux-riscv64-gnu@2.10.1':
     resolution: {integrity: sha512-X0lvOVUg8PCVaoEtEAnpxmnkwlE1gcMDTqfhbefICKDnOTJ5Est3qL0SrWxizDackIOKBcvtpejrSiVpuJI1kw==}
     engines: {node: '>= 10'}
     cpu: [riscv64]
     os: [linux]
+    libc: [glibc]
 
   '@tauri-apps/cli-linux-x64-gnu@2.10.1':
     resolution: {integrity: sha512-2/12bEzsJS9fAKybxgicCDFxYD1WEI9kO+tlDwX5znWG2GwMBaiWcmhGlZ8fi+DMe9CXlcVarMTYc0L3REIRxw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [glibc]
 
   '@tauri-apps/cli-linux-x64-musl@2.10.1':
     resolution: {integrity: sha512-Y8J0ZzswPz50UcGOFuXGEMrxbjwKSPgXftx5qnkuMs2rmwQB5ssvLb6tn54wDSYxe7S6vlLob9vt0VKuNOaCIQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+    libc: [musl]
 
   '@tauri-apps/cli-win32-arm64-msvc@2.10.1':
     resolution: {integrity: sha512-iSt5B86jHYAPJa/IlYw++SXtFPGnWtFJriHn7X0NFBVunF6zu9+/zOn8OgqIWSl8RgzhLGXQEEtGBdR4wzpVgg==}
@@ -1371,9 +1342,6 @@ packages:
   define-properties@1.2.1:
     resolution: {integrity: sha512-8QmQKqEASLd5nx0U1B1okLElbUuuttJ/AnYmRXbbbGDWh6uS208EjD4Xqq/I9wK7u0v6O08XhTWnt5XtEbR6Dg==}
     engines: {node: '>= 0.4'}
-
-  dnd-core@16.0.1:
-    resolution: {integrity: sha512-HK294sl7tbw6F6IeuK16YSBUoorvHpY8RHO+9yFfaJyCDVb6n7PRcezrOEOa2SBCqiYpemh5Jx20ZcjKdFAVng==}
 
   doctrine@2.1.0:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
@@ -2028,27 +1996,6 @@ packages:
     peerDependencies:
       react: '>=16.9.0'
       react-dom: '>=16.9.0'
-
-  react-dnd-html5-backend@16.0.1:
-    resolution: {integrity: sha512-Wu3dw5aDJmOGw8WjH1I1/yTH+vlXEL4vmjk5p+MHxP8HuHJS1lAGeIdG/hze1AvNeXWo/JgULV87LyQOr+r5jw==}
-
-  react-dnd-touch-backend@16.0.1:
-    resolution: {integrity: sha512-NonoCABzzjyWGZuDxSG77dbgMZ2Wad7eQiCd/ECtsR2/NBLTjGksPUx9UPezZ1nQ/L7iD130Tz3RUshL/ClKLA==}
-
-  react-dnd@16.0.1:
-    resolution: {integrity: sha512-QeoM/i73HHu2XF9aKksIUuamHPDvRglEwdHL4jsp784BgUuWcg6mzfxT0QDdQz8Wj0qyRKx2eMg8iZtWvU4E2Q==}
-    peerDependencies:
-      '@types/hoist-non-react-statics': '>= 3.3.1'
-      '@types/node': '>= 12'
-      '@types/react': '>= 16'
-      react: '>= 16.14'
-    peerDependenciesMeta:
-      '@types/hoist-non-react-statics':
-        optional: true
-      '@types/node':
-        optional: true
-      '@types/react':
-        optional: true
 
   react-dom@19.2.4:
     resolution: {integrity: sha512-AXJdLo8kgMbimY95O2aKQqsz2iWi9jMgKJhRBAxECE4IFxfcazB2LmzloIoibJI3C12IlY20+KFaLv+71bUJeQ==}
@@ -3210,20 +3157,6 @@ snapshots:
       - '@types/react-dom'
       - react-native
 
-  '@react-dnd/asap@5.0.2': {}
-
-  '@react-dnd/invariant@4.0.2': {}
-
-  '@react-dnd/shallowequal@4.0.2': {}
-
-  '@react-querybuilder/antd@8.14.0(@ant-design/icons@6.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(antd@6.3.2(moment@2.30.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(dayjs@1.11.20)(react-querybuilder@8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1))(react@19.2.4)':
-    dependencies:
-      '@ant-design/icons': 6.1.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      antd: 6.3.2(moment@2.30.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      dayjs: 1.11.20
-      react: 19.2.4
-      react-querybuilder: 8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1)
-
   '@react-querybuilder/core@8.14.0(json-logic-js@2.0.5)':
     dependencies:
       '@ts-jison/lexer': 0.4.1-alpha.1
@@ -3232,15 +3165,6 @@ snapshots:
       numeric-quantity: 2.1.0
     optionalDependencies:
       json-logic-js: 2.0.5
-
-  '@react-querybuilder/dnd@8.14.0(react-dnd-html5-backend@16.0.1)(react-dnd-touch-backend@16.0.1)(react-dnd@16.0.1(@types/hoist-non-react-statics@3.3.7(@types/react@19.2.14))(@types/node@22.19.15)(@types/react@19.2.14)(react@19.2.4))(react-querybuilder@8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1))(react@19.2.4)':
-    dependencies:
-      react: 19.2.4
-      react-dnd: 16.0.1(@types/hoist-non-react-statics@3.3.7(@types/react@19.2.14))(@types/node@22.19.15)(@types/react@19.2.14)(react@19.2.4)
-      react-querybuilder: 8.14.0(@types/react@19.2.14)(json-logic-js@2.0.5)(react@19.2.4)(redux@5.0.1)
-    optionalDependencies:
-      react-dnd-html5-backend: 16.0.1
-      react-dnd-touch-backend: 16.0.1
 
   '@reduxjs/toolkit@2.11.2(react-redux@9.2.0(@types/react@19.2.14)(react@19.2.4)(redux@5.0.1))(react@19.2.4)':
     dependencies:
@@ -3810,12 +3734,6 @@ snapshots:
       define-data-property: 1.1.4
       has-property-descriptors: 1.0.2
       object-keys: 1.1.1
-
-  dnd-core@16.0.1:
-    dependencies:
-      '@react-dnd/asap': 5.0.2
-      '@react-dnd/invariant': 4.0.2
-      redux: 4.2.1
 
   doctrine@2.1.0:
     dependencies:
@@ -4593,28 +4511,6 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       react-is: 18.3.1
-
-  react-dnd-html5-backend@16.0.1:
-    dependencies:
-      dnd-core: 16.0.1
-
-  react-dnd-touch-backend@16.0.1:
-    dependencies:
-      '@react-dnd/invariant': 4.0.2
-      dnd-core: 16.0.1
-
-  react-dnd@16.0.1(@types/hoist-non-react-statics@3.3.7(@types/react@19.2.14))(@types/node@22.19.15)(@types/react@19.2.14)(react@19.2.4):
-    dependencies:
-      '@react-dnd/invariant': 4.0.2
-      '@react-dnd/shallowequal': 4.0.2
-      dnd-core: 16.0.1
-      fast-deep-equal: 3.1.3
-      hoist-non-react-statics: 3.3.2
-      react: 19.2.4
-    optionalDependencies:
-      '@types/hoist-non-react-statics': 3.3.7(@types/react@19.2.14)
-      '@types/node': 22.19.15
-      '@types/react': 19.2.14
 
   react-dom@19.2.4(react@19.2.4):
     dependencies:

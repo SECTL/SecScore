@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { HolderOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
-import RuleComponent from "./autoScore/ruleComponent"
+import DemoQueryBuilder from "./autoScore/aaa"
 import {
   Card,
   Form,
@@ -426,44 +426,8 @@ export const AutoScoreManager: React.FC = () => {
         </Form>
       </Card>
 
-      <RuleComponent />
-
-      {/*       <Card
-        style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}
-        title={t('autoScore.whenTriggered')}
-      >
-        <Space orientation="vertical" style={{ width: '100%' }}>
-                       {triggerList.map((trigger, index) => renderTriggerItem(trigger, index))}
-           {' '}
-          
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddTrigger}
-            style={{ fontWeight: 'bolder', fontSize: 15 }}
-          >
-            {t('autoScore.addTrigger')}
-          </Button>
-        </Space>
-      </Card>  */}
-
-      {/*       <Card
-        style={{ marginBottom: '24px', backgroundColor: 'var(--ss-card-bg)' }}
-        title={t('autoScore.triggeredActions')}
-      >
-        <Space orientation="vertical" style={{ width: '100%' }}>
-          {actionList.map((action) => renderActionItem(action))}
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={handleAddAction}
-            style={{ fontWeight: 'bolder', fontSize: 15 }}
-          >
-            {t('autoScore.addAction')}
-          </Button>
-        </Space>
-      </Card> */}
-
+      <DemoQueryBuilder />
+      
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
         <Button type="primary" onClick={handleSubmit}>
           {editingRuleId !== null ? t("autoScore.updateAutomation") : t("autoScore.addAutomation")}
