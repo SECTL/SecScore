@@ -117,6 +117,7 @@ export const Home: React.FC<HomeProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const searchAreaRef = useRef<HTMLDivElement>(null)
+  const immersiveToolbarRef = useRef<HTMLDivElement>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -375,6 +376,10 @@ export const Home: React.FC<HomeProps> = ({
     }
     setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
+
+  const getImmersivePopupContainer = useCallback((triggerNode: HTMLElement) => {
+    return immersiveToolbarRef.current ?? triggerNode.parentElement ?? document.body
+  }, [])
 
   const getDisplayText = (name: string) => {
     if (!name) return ""
@@ -2469,6 +2474,8 @@ export const Home: React.FC<HomeProps> = ({
 
       {immersiveMode && (
         <div
+          ref={immersiveToolbarRef}
+          data-immersive-toolbar="true"
           style={{
             position: "fixed",
             left: "50%",
@@ -2485,7 +2492,7 @@ export const Home: React.FC<HomeProps> = ({
             WebkitBackdropFilter: "blur(16px)",
             boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
             padding: "10px",
-            overflow: "hidden",
+            overflow: "visible",
           }}
         >
           <div
@@ -2519,6 +2526,7 @@ export const Home: React.FC<HomeProps> = ({
             <Select
               value={sortType}
               onChange={(v) => setSortType(v as SortType)}
+              getPopupContainer={getImmersivePopupContainer}
               style={{ width: 126, flexShrink: 0 }}
               options={[
                 { value: "alphabet", label: t("home.sortBy.alphabet") },
@@ -2530,6 +2538,7 @@ export const Home: React.FC<HomeProps> = ({
             <Select
               value={layoutType}
               onChange={(v) => setLayoutType(v as LayoutType)}
+              getPopupContainer={getImmersivePopupContainer}
               style={{ width: 126, flexShrink: 0 }}
               options={[
                 { value: "grouped", label: t("home.layoutBy.grouped") },
