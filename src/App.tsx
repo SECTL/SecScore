@@ -518,13 +518,18 @@ function getArchitecture(): string {
 
   if (userAgent.includes("arm64") || userAgent.includes("aarch64")) {
     return "ARM64"
-  } else if (userAgent.includes("x64") || userAgent.includes("amd64")) {
+  } else if (
+    userAgent.includes("x64") ||
+    userAgent.includes("amd64") ||
+    userAgent.includes("x86_64") ||
+    userAgent.includes("intel")
+  ) {
     return "x64"
   } else if (userAgent.includes("i386") || userAgent.includes("i686")) {
     return "x86"
   }
 
-  return userAgent
+  return "Unknown"
 }
 
 function getPlatform(): string {
