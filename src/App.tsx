@@ -366,7 +366,14 @@ function MainContent(): React.JSX.Element {
     >
       {contextHolder}
       <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden" }}>
-        {!immersiveMode && (
+        <div
+          className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
+          style={
+            {
+              "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
+            } as React.CSSProperties
+          }
+        >
           <Sidebar
             activeMenu={activeMenu}
             permission={permission}
@@ -376,7 +383,7 @@ function MainContent(): React.JSX.Element {
             floatingExpanded={floatingSidebarExpanded}
             onFloatingExpandedChange={setFloatingSidebarExpanded}
           />
-        )}
+        </div>
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}

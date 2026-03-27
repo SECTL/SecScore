@@ -117,6 +117,9 @@ export const Home: React.FC<HomeProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const searchAreaRef = useRef<HTMLDivElement>(null)
+  const immersiveToolbarRef = useRef<HTMLDivElement>(null)
+  const immersiveToolbarContentRef = useRef<HTMLDivElement>(null)
+  const [immersiveToolbarWidth, setImmersiveToolbarWidth] = useState<number | null>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -321,6 +324,33 @@ export const Home: React.FC<HomeProps> = ({
   }, [])
 
   useEffect(() => {
+    if (!immersiveMode) return
+    const contentEl = immersiveToolbarContentRef.current
+    if (!contentEl) return
+
+    let frameId: number | null = null
+    const updateToolbarWidth = () => {
+      if (frameId !== null) cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(() => {
+        const contentWidth = Math.ceil(contentEl.getBoundingClientRect().width)
+        const nextWidth = contentWidth + 20
+        setImmersiveToolbarWidth((prev) => (prev === nextWidth ? prev : nextWidth))
+      })
+    }
+
+    updateToolbarWidth()
+    const observer = new ResizeObserver(updateToolbarWidth)
+    observer.observe(contentEl)
+    window.addEventListener("resize", updateToolbarWidth)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", updateToolbarWidth)
+      if (frameId !== null) cancelAnimationFrame(frameId)
+    }
+  }, [immersiveMode])
+
+  useEffect(() => {
     return () => {
       if (longPressTimerRef.current !== null) {
         window.clearTimeout(longPressTimerRef.current)
@@ -375,6 +405,10 @@ export const Home: React.FC<HomeProps> = ({
     }
     setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
+
+  const getImmersivePopupContainer = useCallback((triggerNode: HTMLElement) => {
+    return immersiveToolbarRef.current ?? triggerNode.parentElement ?? document.body
+  }, [])
 
   const getDisplayText = (name: string) => {
     if (!name) return ""
@@ -2467,29 +2501,34 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </Modal>
 
-      {immersiveMode && (
-        <div
-          style={{
-            position: "fixed",
-            left: "50%",
-            bottom: isPortraitMode ? "12px" : "16px",
-            transform: "translateX(-50%)",
-            zIndex: 1100,
-            width: "max-content",
-            maxWidth: "calc(100vw - 20px)",
-            borderRadius: "999px",
-            border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
-            backgroundColor: "var(--ss-card-bg)",
-            background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
-            padding: "10px",
-            overflow: "hidden",
-          }}
-        >
+      <div
+        ref={immersiveToolbarRef}
+        data-immersive-toolbar="true"
+        className={`ss-immersive-toolbar ${immersiveMode ? "is-visible" : "is-hidden"}`}
+        aria-hidden={!immersiveMode}
+        style={{
+          position: "fixed",
+          left: "50%",
+          bottom: isPortraitMode ? "12px" : "16px",
+          zIndex: 1100,
+          width: immersiveToolbarWidth ? `${immersiveToolbarWidth}px` : "max-content",
+          maxWidth: "calc(100vw - 20px)",
+          borderRadius: "999px",
+          border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
+          backgroundColor: "var(--ss-card-bg)",
+          background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
+          padding: "10px",
+          overflow: "visible",
+        }}
+      >
           <div
-            ref={searchAreaRef}
+            ref={(node) => {
+              searchAreaRef.current = node
+              immersiveToolbarContentRef.current = node
+            }}
             style={{
               display: "flex",
               alignItems: "center",
@@ -2519,6 +2558,7 @@ export const Home: React.FC<HomeProps> = ({
             <Select
               value={sortType}
               onChange={(v) => setSortType(v as SortType)}
+              getPopupContainer={getImmersivePopupContainer}
               style={{ width: 126, flexShrink: 0 }}
               options={[
                 { value: "alphabet", label: t("home.sortBy.alphabet") },
@@ -2530,6 +2570,7 @@ export const Home: React.FC<HomeProps> = ({
             <Select
               value={layoutType}
               onChange={(v) => setLayoutType(v as LayoutType)}
+              getPopupContainer={getImmersivePopupContainer}
               style={{ width: 126, flexShrink: 0 }}
               options={[
                 { value: "grouped", label: t("home.layoutBy.grouped") },
@@ -2625,8 +2666,7 @@ export const Home: React.FC<HomeProps> = ({
               </div>
             )}
           </div>
-        </div>
-      )}
+      </div>
 
       {isPortraitMode ? (
         <Drawer
