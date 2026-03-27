@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { HolderOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
-import DemoQueryBuilder from "./autoScore/aaa"
+import Rule from "./autoScore/Rule"
 import {
   Card,
   Form,
@@ -426,8 +426,8 @@ export const AutoScoreManager: React.FC = () => {
         </Form>
       </Card>
 
-      <DemoQueryBuilder />
-      
+      <Rule />
+
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
         <Button type="primary" onClick={handleSubmit}>
           {editingRuleId !== null ? t("autoScore.updateAutomation") : t("autoScore.addAutomation")}
