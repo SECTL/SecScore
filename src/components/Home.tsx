@@ -120,6 +120,8 @@ export const Home: React.FC<HomeProps> = ({
   const immersiveToolbarRef = useRef<HTMLDivElement>(null)
   const immersiveToolbarContentRef = useRef<HTMLDivElement>(null)
   const [immersiveToolbarWidth, setImmersiveToolbarWidth] = useState<number | null>(null)
+  const immersiveToolbarHorizontalPadding = 20
+  const immersiveToolbarMinWidth = 320
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -324,7 +326,10 @@ export const Home: React.FC<HomeProps> = ({
   }, [])
 
   useEffect(() => {
-    if (!immersiveMode) return
+    if (!immersiveMode) {
+      setImmersiveToolbarWidth(null)
+      return
+    }
     const contentEl = immersiveToolbarContentRef.current
     if (!contentEl) return
 
@@ -332,8 +337,11 @@ export const Home: React.FC<HomeProps> = ({
     const updateToolbarWidth = () => {
       if (frameId !== null) cancelAnimationFrame(frameId)
       frameId = requestAnimationFrame(() => {
-        const contentWidth = Math.ceil(contentEl.getBoundingClientRect().width)
-        const nextWidth = contentWidth + 20
+        const contentWidth = Math.ceil(contentEl.scrollWidth)
+        const nextWidth = Math.max(
+          immersiveToolbarMinWidth,
+          contentWidth + immersiveToolbarHorizontalPadding
+        )
         setImmersiveToolbarWidth((prev) => (prev === nextWidth ? prev : nextWidth))
       })
     }
@@ -348,7 +356,7 @@ export const Home: React.FC<HomeProps> = ({
       window.removeEventListener("resize", updateToolbarWidth)
       if (frameId !== null) cancelAnimationFrame(frameId)
     }
-  }, [immersiveMode])
+  }, [immersiveMode, immersiveToolbarHorizontalPadding, immersiveToolbarMinWidth])
 
   useEffect(() => {
     return () => {
