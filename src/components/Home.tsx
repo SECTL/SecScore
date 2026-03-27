@@ -118,6 +118,8 @@ export const Home: React.FC<HomeProps> = ({
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const searchAreaRef = useRef<HTMLDivElement>(null)
   const immersiveToolbarRef = useRef<HTMLDivElement>(null)
+  const immersiveToolbarContentRef = useRef<HTMLDivElement>(null)
+  const [immersiveToolbarWidth, setImmersiveToolbarWidth] = useState<number | null>(null)
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
@@ -320,6 +322,33 @@ export const Home: React.FC<HomeProps> = ({
     document.addEventListener("mousedown", onDocumentClick)
     return () => document.removeEventListener("mousedown", onDocumentClick)
   }, [])
+
+  useEffect(() => {
+    if (!immersiveMode) return
+    const contentEl = immersiveToolbarContentRef.current
+    if (!contentEl) return
+
+    let frameId: number | null = null
+    const updateToolbarWidth = () => {
+      if (frameId !== null) cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(() => {
+        const contentWidth = Math.ceil(contentEl.getBoundingClientRect().width)
+        const nextWidth = contentWidth + 20
+        setImmersiveToolbarWidth((prev) => (prev === nextWidth ? prev : nextWidth))
+      })
+    }
+
+    updateToolbarWidth()
+    const observer = new ResizeObserver(updateToolbarWidth)
+    observer.observe(contentEl)
+    window.addEventListener("resize", updateToolbarWidth)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", updateToolbarWidth)
+      if (frameId !== null) cancelAnimationFrame(frameId)
+    }
+  }, [immersiveMode])
 
   useEffect(() => {
     return () => {
@@ -2481,9 +2510,8 @@ export const Home: React.FC<HomeProps> = ({
           position: "fixed",
           left: "50%",
           bottom: isPortraitMode ? "12px" : "16px",
-          transform: "translateX(-50%)",
           zIndex: 1100,
-          width: "max-content",
+          width: immersiveToolbarWidth ? `${immersiveToolbarWidth}px` : "max-content",
           maxWidth: "calc(100vw - 20px)",
           borderRadius: "999px",
           border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
@@ -2497,7 +2525,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
       >
           <div
-            ref={searchAreaRef}
+            ref={(node) => {
+              searchAreaRef.current = node
+              immersiveToolbarContentRef.current = node
+            }}
             style={{
               display: "flex",
               alignItems: "center",

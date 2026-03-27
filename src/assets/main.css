@@ -258,9 +258,10 @@ html.platform-macos #root {
   opacity: 1;
   transform: translateX(-50%) translateY(0) scale(1);
   transition:
+    width 420ms cubic-bezier(0.2, 1.2, 0.26, 1),
     opacity 200ms ease,
-    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
+    transform 320ms cubic-bezier(0.2, 1.2, 0.26, 1);
+  will-change: width, opacity, transform;
 }
 
 .ss-immersive-toolbar.is-hidden {
