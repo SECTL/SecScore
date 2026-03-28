@@ -164,11 +164,6 @@ export function Sidebar({
       label: t("sidebar.score"),
     },
     {
-      key: "auto-score",
-      icon: <SyncOutlined />,
-      label: t("sidebar.autoScore"),
-    },
-    {
       key: "reward-settings",
       icon: <AppstoreAddOutlined />,
       label: t("sidebar.rewardSettings"),

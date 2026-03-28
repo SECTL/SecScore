@@ -25,7 +25,6 @@ type appSettings = {
   window_zoom?: string
   search_keyboard_layout?: "t9" | "qwerty26"
   disable_search_keyboard?: boolean
-  auto_score_enabled?: boolean
 }
 const withTimeout = async (
   promise: Promise<any>,
