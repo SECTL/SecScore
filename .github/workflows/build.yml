@@ -289,11 +289,11 @@ jobs:
           draft: True
           prerelease: ${{ contains(needs.parse.outputs.version, '-') }}
           files: |
-            artifacts/dist-win/**/*.msi
-            artifacts/dist-win/**/*.exe
-            artifacts/dist-mac/**/*.dmg
-            artifacts/dist-mac/**/*.app.tar.gz
-            artifacts/dist-linux/**/*.deb
-            artifacts/dist-linux/**/*.rpm
-            artifacts/dist-linux/**/*.AppImage
-            artifacts/dist-android/**/*.apk
+            artifacts/**/*.msi
+            artifacts/**/*.exe
+            artifacts/**/*.dmg
+            artifacts/**/*.app.tar.gz
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*.apk
