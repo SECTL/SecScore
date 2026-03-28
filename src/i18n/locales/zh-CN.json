@@ -34,7 +34,8 @@
     "pleaseSelect": "请选择",
     "pleaseEnter": "请输入",
     "readOnly": "当前为只读权限",
-    "none": "无"
+    "none": "无",
+    "more": "更多"
   },
   "oobe": {
     "title": "欢迎使用 SecScore",
@@ -161,6 +162,13 @@
       "saveFailed": "保存失败"
     },
     "zoomHint": "调节应用界面的整体大小",
+    "mobile": {
+      "navigationTitle": "页面入口",
+      "bottomNav": {
+        "label": "底部导航功能",
+        "hint": "可选择要出现在手机底部导航的功能。底栏最多展示 4 项，其余会自动收纳到“更多”。"
+      }
+    },
     "zoomUpdated": "界面缩放已更新",
     "updateFailed": "更新失败",
     "security": {
@@ -423,7 +431,7 @@
     "operationTitle": "积分操作：{{name}}",
     "submitOperation": "提交操作",
     "operationTitleBatch": "积分操作：已选 {{count}} 人",
-    "undoLastAction": "撤销上一步",
+    "undoLastAction": "撤销",
     "undoLastHint": "撤销上一条：{{name}} {{delta}}",
     "undoUnavailable": "当前没有可撤销的积分操作",
     "undoLastSuccess": "已撤销上一步积分操作",
@@ -592,7 +600,7 @@
   },
   "rewardExchange": {
     "title": "奖励兑换",
-    "enterMode": "进入奖励兑换模式",
+    "enterMode": "奖励兑换",
     "exitMode": "退出奖励兑换模式",
     "modeHint": "当前为奖励兑换模式，点击学生卡可选择可兑换奖励。",
     "normalHint": "当前显示学生原始积分，点击按钮后将显示可兑换积分。",
@@ -660,8 +668,14 @@
       "card": "卡片视图",
       "grid": "网格视图"
     },
+    "scoreDisplayModes": {
+      "total": "显示总分",
+      "split": "显示加分与扣分"
+    },
     "metrics": {
       "totalScore": "总分",
+      "addScore": "加分",
+      "deductScore": "扣分",
       "rewardPoints": "奖励分",
       "weekChange": "近7天",
       "weekDeducted": "近7天扣分",

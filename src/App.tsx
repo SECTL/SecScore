@@ -1,4 +1,16 @@
 import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme } from "antd"
+import {
+  HomeOutlined,
+  SettingOutlined,
+  UserOutlined,
+  HistoryOutlined,
+  SyncOutlined,
+  AppstoreAddOutlined,
+  ApartmentOutlined,
+  UnorderedListOutlined,
+  FileTextOutlined,
+  MoreOutlined,
+} from "@ant-design/icons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -6,6 +18,13 @@ import { Sidebar } from "./components/Sidebar"
 import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
+import {
+  MOBILE_NAV_ITEMS,
+  MobileNavKey,
+  sanitizeMobileNavKeys,
+} from "./shared/mobileNavigation"
+
+const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
@@ -14,6 +33,7 @@ function MainContent(): React.JSX.Element {
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
+  const [immersiveMode, setImmersiveMode] = useState(false)
 
   useEffect(() => {
     const api = (window as any).api
@@ -26,6 +46,11 @@ function MainContent(): React.JSX.Element {
       .onNavigate((route: string) => {
         const currentPath = location.pathname === "/" ? "/home" : location.pathname
         const targetPath = route === "/" ? "/home" : route
+
+        if (immersiveMode && !targetPath.startsWith("/home")) {
+          navigate("/", { replace: true })
+          return
+        }
 
         if (currentPath !== targetPath) {
           navigate(route)
@@ -44,7 +69,7 @@ function MainContent(): React.JSX.Element {
       disposed = true
       if (unlisten) unlisten()
     }
-  }, [navigate, location.pathname])
+  }, [navigate, location.pathname, immersiveMode])
 
   const [wizardVisible, setWizardVisible] = useState(false)
   const [permission, setPermission] = useState<"admin" | "points" | "view">("view")
@@ -52,6 +77,10 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
+  const [mobileBottomNavItems, setMobileBottomNavItems] = useState<MobileNavKey[]>(
+    DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
+  )
+  const [moreNavVisible, setMoreNavVisible] = useState(false)
   const [isPortraitMode] = useState(defaultPortraitMode)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
@@ -100,9 +129,47 @@ function MainContent(): React.JSX.Element {
         setHasAnyPassword(anyPwd)
         if (anyPwd && authRes.data.permission === "view") setAuthVisible(true)
       }
+      const settingsRes = await (window as any).api.getAllSettings()
+      if (settingsRes?.success && settingsRes.data) {
+        setMobileBottomNavItems(
+          sanitizeMobileNavKeys(
+            settingsRes.data.mobile_bottom_nav_items,
+            DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
+          )
+        )
+      }
     }
 
     loadAuthAndSettings()
+  }, [])
+
+  useEffect(() => {
+    const api = (window as any).api
+    if (!api || typeof api.onSettingChanged !== "function") return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onSettingChanged((change: { key?: string; value?: unknown }) => {
+        if (change?.key !== "mobile_bottom_nav_items") return
+        setMobileBottomNavItems(
+          sanitizeMobileNavKeys(change.value, DEFAULT_MOBILE_BOTTOM_NAV_ITEMS)
+        )
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => void 0)
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
   }, [])
 
   useEffect(() => {
@@ -302,6 +369,8 @@ function MainContent(): React.JSX.Element {
 
   const onMenuChange = (v: string) => {
     const key = String(v)
+    setMoreNavVisible(false)
+    if (immersiveMode && key !== "home") return
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
     if (key === "score") navigate("/score")
@@ -315,6 +384,7 @@ function MainContent(): React.JSX.Element {
   }
 
   const toggleSidebar = () => {
+    if (immersiveMode) return
     if (isPortraitMode && sidebarCollapsed) {
       setFloatingSidebarExpanded((prev) => !prev)
       return
@@ -322,8 +392,69 @@ function MainContent(): React.JSX.Element {
     setSidebarCollapsed((prev) => !prev)
   }
 
+  useEffect(() => {
+    if (!immersiveMode) return
+    if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
+      navigate("/", { replace: true })
+    }
+  }, [immersiveMode, location.pathname, navigate])
+
+  const toggleImmersiveMode = () => {
+    setImmersiveMode((prev) => {
+      const next = !prev
+      if (next) {
+        setFloatingSidebarExpanded(false)
+        if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
+          navigate("/", { replace: true })
+        }
+      }
+      return next
+    })
+  }
+
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
+  const isMobileDevice = isIosDevice || isAndroidDevice
+  const showMobileBottomNav = isPortraitMode && !immersiveMode
+  const mobileBottomNavIconMap: Record<MobileNavKey, React.ReactNode> = {
+    home: <HomeOutlined style={{ fontSize: "18px" }} />,
+    students: <UserOutlined style={{ fontSize: "18px" }} />,
+    score: <HistoryOutlined style={{ fontSize: "18px" }} />,
+    "auto-score": <SyncOutlined style={{ fontSize: "18px" }} />,
+    "reward-settings": <AppstoreAddOutlined style={{ fontSize: "18px" }} />,
+    boards: <ApartmentOutlined style={{ fontSize: "18px" }} />,
+    leaderboard: <UnorderedListOutlined style={{ fontSize: "18px" }} />,
+    settlements: <FileTextOutlined style={{ fontSize: "18px" }} />,
+    reasons: <UnorderedListOutlined style={{ fontSize: "18px" }} />,
+    settings: <SettingOutlined style={{ fontSize: "18px" }} />,
+  }
+
+  const mobileBottomVisibleItems = useMemo(() => {
+    const preferredKeys = sanitizeMobileNavKeys(
+      mobileBottomNavItems,
+      DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
+    ).slice()
+    for (const baseKey of ["home", "settings"] as const) {
+      if (!preferredKeys.includes(baseKey)) {
+        preferredKeys.push(baseKey)
+      }
+    }
+
+    return preferredKeys
+      .map((key) => MOBILE_NAV_ITEMS.find((item) => item.key === key))
+      .filter((item): item is (typeof MOBILE_NAV_ITEMS)[number] => Boolean(item))
+      .filter((item) => !(item.adminOnly && permission !== "admin"))
+  }, [mobileBottomNavItems, permission])
+
+  const mobileBottomPrimaryItems = useMemo(
+    () => mobileBottomVisibleItems.slice(0, 4),
+    [mobileBottomVisibleItems]
+  )
+  const mobileBottomOverflowItems = useMemo(
+    () => mobileBottomVisibleItems.slice(4),
+    [mobileBottomVisibleItems]
+  )
+  const isMoreActive = mobileBottomOverflowItems.some((item) => item.key === activeMenu)
 
   return (
     <ConfigProvider
@@ -337,16 +468,27 @@ function MainContent(): React.JSX.Element {
       }}
     >
       {contextHolder}
-      <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden" }}>
-        <Sidebar
-          activeMenu={activeMenu}
-          permission={permission}
-          onMenuChange={onMenuChange}
-          collapsed={sidebarCollapsed}
-          floatingExpand={isPortraitMode}
-          floatingExpanded={floatingSidebarExpanded}
-          onFloatingExpandedChange={setFloatingSidebarExpanded}
-        />
+      <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden", position: "relative" }}>
+        {!isPortraitMode && (
+          <div
+            className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
+            style={
+              {
+                "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
+              } as React.CSSProperties
+            }
+          >
+            <Sidebar
+              activeMenu={activeMenu}
+              permission={permission}
+              onMenuChange={onMenuChange}
+              collapsed={sidebarCollapsed}
+              floatingExpand={isPortraitMode}
+              floatingExpanded={floatingSidebarExpanded}
+              onFloatingExpandedChange={setFloatingSidebarExpanded}
+            />
+          </div>
+        )}
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}
@@ -354,11 +496,117 @@ function MainContent(): React.JSX.Element {
           onLogout={logout}
           showWindowControls={!isIosDevice && !isAndroidDevice}
           isPortraitMode={isPortraitMode}
+          isMobileDevice={isMobileDevice}
           sidebarCollapsed={sidebarCollapsed}
           floatingExpand={isPortraitMode}
           floatingExpanded={floatingSidebarExpanded}
           onToggleSidebar={toggleSidebar}
+          immersiveMode={immersiveMode}
+          isHomePage={activeMenu === "home"}
+          onToggleImmersiveMode={toggleImmersiveMode}
+          showSidebarToggle={!isPortraitMode}
+          bottomInset={showMobileBottomNav ? 84 : 0}
         />
+        {showMobileBottomNav && (
+          <div
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "var(--ss-header-bg)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              borderTop: "1px solid var(--ss-border-color)",
+              zIndex: 1400,
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            }}
+          >
+            <div style={{ display: "flex", height: "60px" }}>
+              {mobileBottomPrimaryItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onMenuChange(item.key)}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    background: "transparent",
+                    color:
+                      activeMenu === item.key
+                        ? "var(--ant-color-primary)"
+                        : "var(--ss-text-secondary, var(--ss-text-main))",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "2px",
+                    fontSize: "12px",
+                  }}
+                >
+                  {mobileBottomNavIconMap[item.key]}
+                  <span>{t(item.labelKey)}</span>
+                </button>
+              ))}
+              {mobileBottomOverflowItems.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setMoreNavVisible(true)}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    background: "transparent",
+                    color: isMoreActive
+                      ? "var(--ant-color-primary)"
+                      : "var(--ss-text-secondary, var(--ss-text-main))",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "2px",
+                    fontSize: "12px",
+                  }}
+                >
+                  <MoreOutlined style={{ fontSize: "18px" }} />
+                  <span>{t("common.more", "更多")}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <Modal
+          title={t("common.more", "更多")}
+          open={moreNavVisible}
+          onCancel={() => setMoreNavVisible(false)}
+          footer={null}
+          width={360}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {mobileBottomOverflowItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => onMenuChange(item.key)}
+                style={{
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: "10px",
+                  background: "var(--ss-card-bg)",
+                  color: "var(--ss-text-main)",
+                  height: "44px",
+                  padding: "0 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "14px",
+                }}
+              >
+                {mobileBottomNavIconMap[item.key]}
+                <span>{t(item.labelKey)}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 
@@ -485,13 +733,18 @@ function getArchitecture(): string {
 
   if (userAgent.includes("arm64") || userAgent.includes("aarch64")) {
     return "ARM64"
-  } else if (userAgent.includes("x64") || userAgent.includes("amd64")) {
+  } else if (
+    userAgent.includes("x64") ||
+    userAgent.includes("amd64") ||
+    userAgent.includes("x86_64") ||
+    userAgent.includes("intel")
+  ) {
     return "x64"
   } else if (userAgent.includes("i386") || userAgent.includes("i686")) {
     return "x86"
   }
 
-  return userAgent
+  return "Unknown"
 }
 
 function getPlatform(): string {

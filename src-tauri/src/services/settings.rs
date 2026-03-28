@@ -17,6 +17,7 @@ pub struct SettingsSpec {
     pub dashboards_config: JsonValue,
     pub pg_connection_string: String,
     pub pg_connection_status: JsonValue,
+    pub mobile_bottom_nav_items: JsonValue,
 }
 
 impl Default for SettingsSpec {
@@ -34,6 +35,18 @@ impl Default for SettingsSpec {
             dashboards_config: JsonValue::Array(vec![]),
             pg_connection_string: String::new(),
             pg_connection_status: serde_json::json!({"connected": false, "type": "sqlite"}),
+            mobile_bottom_nav_items: serde_json::json!([
+                "home",
+                "students",
+                "score",
+                "auto-score",
+                "reward-settings",
+                "boards",
+                "leaderboard",
+                "settlements",
+                "reasons",
+                "settings"
+            ]),
         }
     }
 }
@@ -52,6 +65,7 @@ pub enum SettingsKey {
     DashboardsConfig,
     PgConnectionString,
     PgConnectionStatus,
+    MobileBottomNavItems,
 }
 
 impl SettingsKey {
@@ -69,6 +83,7 @@ impl SettingsKey {
             SettingsKey::DashboardsConfig => "dashboards_config",
             SettingsKey::PgConnectionString => "pg_connection_string",
             SettingsKey::PgConnectionStatus => "pg_connection_status",
+            SettingsKey::MobileBottomNavItems => "mobile_bottom_nav_items",
         }
     }
 
@@ -86,6 +101,7 @@ impl SettingsKey {
             "dashboards_config" => Some(SettingsKey::DashboardsConfig),
             "pg_connection_string" => Some(SettingsKey::PgConnectionString),
             "pg_connection_status" => Some(SettingsKey::PgConnectionStatus),
+            "mobile_bottom_nav_items" => Some(SettingsKey::MobileBottomNavItems),
             _ => None,
         }
     }
@@ -383,6 +399,48 @@ impl SettingsService {
             },
         );
 
+        defs.insert(
+            SettingsKey::MobileBottomNavItems,
+            SettingDefinition {
+                kind: SettingValueKind::Json,
+                default_value: SettingsValue::Json(serde_json::json!([
+                    "home",
+                    "students",
+                    "score",
+                    "auto-score",
+                    "reward-settings",
+                    "boards",
+                    "leaderboard",
+                    "settlements",
+                    "reasons",
+                    "settings"
+                ])),
+                write_permission: PermissionRequirement::Admin,
+                validate: Some(|v| {
+                    if let SettingsValue::Json(JsonValue::Array(items)) = v {
+                        let allowed = [
+                            "home",
+                            "students",
+                            "score",
+                            "auto-score",
+                            "reward-settings",
+                            "boards",
+                            "leaderboard",
+                            "settlements",
+                            "reasons",
+                            "settings",
+                        ];
+                        return items.iter().all(|item| {
+                            item.as_str()
+                                .map(|s| allowed.contains(&s))
+                                .unwrap_or(false)
+                        });
+                    }
+                    false
+                }),
+            },
+        );
+
         defs
     }
 
@@ -520,6 +578,21 @@ impl SettingsService {
             pg_connection_status: match self.get_value(SettingsKey::PgConnectionStatus) {
                 SettingsValue::Json(j) => j,
                 _ => serde_json::json!({"connected": false, "type": "sqlite"}),
+            },
+            mobile_bottom_nav_items: match self.get_value(SettingsKey::MobileBottomNavItems) {
+                SettingsValue::Json(j) => j,
+                _ => serde_json::json!([
+                    "home",
+                    "students",
+                    "score",
+                    "auto-score",
+                    "reward-settings",
+                    "boards",
+                    "leaderboard",
+                    "settlements",
+                    "reasons",
+                    "settings"
+                ]),
             },
         }
     }

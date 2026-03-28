@@ -225,3 +225,119 @@ html.platform-macos #root {
 .ss-group-board-modal .ant-modal-body {
   overflow: hidden;
 }
+
+.ss-immersive-sidebar {
+  --ss-sidebar-width: 200px;
+  height: 100%;
+  display: flex;
+  flex-shrink: 0;
+  width: var(--ss-sidebar-width);
+  overflow: hidden;
+  background: var(--ss-sidebar-bg);
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: width, opacity, transform;
+}
+
+.ss-immersive-sidebar .ant-layout-sider {
+  height: 100% !important;
+}
+
+.ss-immersive-sidebar.is-hidden {
+  width: 0;
+  opacity: 0;
+  transform: translateX(-10px);
+  pointer-events: none;
+}
+
+.ss-immersive-toolbar {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  transition:
+    width 420ms cubic-bezier(0.2, 1.2, 0.26, 1),
+    opacity 200ms ease,
+    transform 320ms cubic-bezier(0.2, 1.2, 0.26, 1);
+  will-change: width, opacity, transform;
+}
+
+.ss-immersive-toolbar.is-hidden {
+  opacity: 0;
+  transform: translateX(-50%) translateY(16px) scale(0.98);
+  pointer-events: none;
+}
+
+.ss-settings-mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.ss-settings-mobile-nav-item.ant-btn {
+  min-height: 48px;
+  width: 100%;
+  border-radius: 0;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  color: var(--ss-text-main);
+  border-bottom: 1px solid var(--ss-divider, rgba(5, 5, 5, 0.06));
+}
+
+.ss-settings-mobile-nav-item.ant-btn:last-child {
+  border-bottom: none;
+}
+
+.ss-settings-mobile-nav-item.ant-btn:hover,
+.ss-settings-mobile-nav-item.ant-btn:focus-visible {
+  background: var(--ss-item-hover, rgba(0, 0, 0, 0.04));
+}
+
+.ss-settings-mobile-nav-item.ant-btn.is-active {
+  color: var(--ant-color-primary, #1677ff);
+  background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, transparent);
+}
+
+.ss-settings-mobile-nav-item.ant-btn[disabled] {
+  color: var(--ss-text-secondary);
+  opacity: 0.65;
+}
+
+.ss-settings-mobile-nav-item-label {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.ss-settings-mobile-nav-item-arrow {
+  font-size: 12px;
+}
+
+.ss-route-page {
+  min-height: 100%;
+}
+
+.ss-route-page.is-subpage-enter {
+  animation: ss-subpage-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ss-subpage-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-immersive-sidebar,
+  .ss-immersive-toolbar,
+  .ss-route-page.is-subpage-enter {
+    transition: none !important;
+    animation: none !important;
+  }
+}

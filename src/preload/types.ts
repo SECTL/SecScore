@@ -35,6 +35,7 @@ export type settingsKey =
   | "dashboards_config"
   | "pg_connection_string"
   | "pg_connection_status"
+  | "mobile_bottom_nav_items"
 
 export interface settingsSpec {
   is_wizard_completed: boolean
@@ -53,6 +54,7 @@ export interface settingsSpec {
     type: "sqlite" | "postgresql"
     error?: string
   }
+  mobile_bottom_nav_items: string[]
 }
 
 const api = {

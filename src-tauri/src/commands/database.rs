@@ -828,139 +828,227 @@ async fn db_sync_apply_internal(
     };
 
     let local_students = load_students(&local_conn).await?;
+    let remote_students = load_students(&remote_conn).await?;
     let local_reasons = load_reasons(&local_conn).await?;
+    let remote_reasons = load_reasons(&remote_conn).await?;
     let local_tags = load_tags(&local_conn).await?;
+    let remote_tags = load_tags(&remote_conn).await?;
     let local_events = load_events(&local_conn).await?;
+    let remote_events = load_events(&remote_conn).await?;
     let local_reward_settings = load_reward_settings(&local_conn).await?;
+    let remote_reward_settings = load_reward_settings(&remote_conn).await?;
     let local_reward_redemptions = load_reward_redemptions(&local_conn).await?;
+    let remote_reward_redemptions = load_reward_redemptions(&remote_conn).await?;
     let local_pairs = load_student_tag_pairs(&local_conn).await?;
     let remote_pairs = load_student_tag_pairs(&remote_conn).await?;
-
-    let (preferred, target) = if strategy == ConflictStrategy::KeepLocal {
-        (&local_conn, &remote_conn)
-    } else {
-        (&remote_conn, &local_conn)
-    };
 
     let mut synced_records = 0usize;
     let mut resolved_conflicts = 0usize;
 
-    for student in local_students.values() {
-        if upsert_student(&remote_conn, student).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_students_after = load_students(&remote_conn).await?;
-    for student in remote_students_after.values() {
-        if upsert_student(&local_conn, student).await? {
-            synced_records += 1;
-        }
-    }
-    for reason in local_reasons.values() {
-        if upsert_reason(&remote_conn, reason).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_reasons_after = load_reasons(&remote_conn).await?;
-    for reason in remote_reasons_after.values() {
-        if upsert_reason(&local_conn, reason).await? {
-            synced_records += 1;
-        }
-    }
-    for tag in local_tags.values() {
-        if upsert_tag(&remote_conn, tag).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_tags_after = load_tags(&remote_conn).await?;
-    for tag in remote_tags_after.values() {
-        if upsert_tag(&local_conn, tag).await? {
-            synced_records += 1;
-        }
-    }
-    for event in local_events.values() {
-        if upsert_event(&remote_conn, event).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_events_after = load_events(&remote_conn).await?;
-    for event in remote_events_after.values() {
-        if upsert_event(&local_conn, event).await? {
-            synced_records += 1;
-        }
-    }
-    for reward in local_reward_settings.values() {
-        if upsert_reward_setting(&remote_conn, reward).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_reward_settings_after = load_reward_settings(&remote_conn).await?;
-    for reward in remote_reward_settings_after.values() {
-        if upsert_reward_setting(&local_conn, reward).await? {
-            synced_records += 1;
-        }
-    }
-    for redemption in local_reward_redemptions.values() {
-        if upsert_reward_redemption(&remote_conn, redemption).await? {
-            synced_records += 1;
-        }
-    }
-    let remote_reward_redemptions_after = load_reward_redemptions(&remote_conn).await?;
-    for redemption in remote_reward_redemptions_after.values() {
-        if upsert_reward_redemption(&local_conn, redemption).await? {
-            synced_records += 1;
+    // Deterministic per-key merge:
+    // 1) local_only => remote
+    // 2) remote_only => local
+    // 3) conflict => resolve by strategy (winner -> loser)
+    let student_keys: std::collections::HashSet<String> = local_students
+        .keys()
+        .chain(remote_students.keys())
+        .cloned()
+        .collect();
+    for key in student_keys {
+        match (local_students.get(&key), remote_students.get(&key)) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_student(&remote_conn, local).await?
+                } else {
+                    upsert_student(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_student(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_student(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
         }
     }
 
-    for pair in local_pairs.union(&remote_pairs) {
-        if ensure_student_tag_pair(&local_conn, pair).await? {
-            synced_records += 1;
+    let reason_keys: std::collections::HashSet<String> = local_reasons
+        .keys()
+        .chain(remote_reasons.keys())
+        .cloned()
+        .collect();
+    for key in reason_keys {
+        match (local_reasons.get(&key), remote_reasons.get(&key)) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_reason(&remote_conn, local).await?
+                } else {
+                    upsert_reason(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_reason(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_reason(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
         }
+    }
+
+    let tag_keys: std::collections::HashSet<String> = local_tags
+        .keys()
+        .chain(remote_tags.keys())
+        .cloned()
+        .collect();
+    for key in tag_keys {
+        match (local_tags.get(&key), remote_tags.get(&key)) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_tag(&remote_conn, local).await?
+                } else {
+                    upsert_tag(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_tag(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_tag(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let event_keys: std::collections::HashSet<String> = local_events
+        .keys()
+        .chain(remote_events.keys())
+        .cloned()
+        .collect();
+    for key in event_keys {
+        match (local_events.get(&key), remote_events.get(&key)) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_event(&remote_conn, local).await?
+                } else {
+                    upsert_event(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_event(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_event(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let reward_setting_keys: std::collections::HashSet<String> = local_reward_settings
+        .keys()
+        .chain(remote_reward_settings.keys())
+        .cloned()
+        .collect();
+    for key in reward_setting_keys {
+        match (
+            local_reward_settings.get(&key),
+            remote_reward_settings.get(&key),
+        ) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_reward_setting(&remote_conn, local).await?
+                } else {
+                    upsert_reward_setting(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_reward_setting(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_reward_setting(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let redemption_keys: std::collections::HashSet<String> = local_reward_redemptions
+        .keys()
+        .chain(remote_reward_redemptions.keys())
+        .cloned()
+        .collect();
+    for key in redemption_keys {
+        match (
+            local_reward_redemptions.get(&key),
+            remote_reward_redemptions.get(&key),
+        ) {
+            (Some(local), Some(remote)) if local != remote => {
+                let changed = if strategy == ConflictStrategy::KeepLocal {
+                    upsert_reward_redemption(&remote_conn, local).await?
+                } else {
+                    upsert_reward_redemption(&local_conn, remote).await?
+                };
+                if changed {
+                    resolved_conflicts += 1;
+                }
+            }
+            (Some(local), None) => {
+                if upsert_reward_redemption(&remote_conn, local).await? {
+                    synced_records += 1;
+                }
+            }
+            (None, Some(remote)) => {
+                if upsert_reward_redemption(&local_conn, remote).await? {
+                    synced_records += 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for pair in local_pairs.difference(&remote_pairs) {
         if ensure_student_tag_pair(&remote_conn, pair).await? {
             synced_records += 1;
         }
     }
-
-    let preferred_students = load_students(preferred).await?;
-    for student in preferred_students.values() {
-        if upsert_student(target, student).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_reasons = load_reasons(preferred).await?;
-    for reason in preferred_reasons.values() {
-        if upsert_reason(target, reason).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_tags = load_tags(preferred).await?;
-    for tag in preferred_tags.values() {
-        if upsert_tag(target, tag).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_events = load_events(preferred).await?;
-    for event in preferred_events.values() {
-        if upsert_event(target, event).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_reward_settings = load_reward_settings(preferred).await?;
-    for reward in preferred_reward_settings.values() {
-        if upsert_reward_setting(target, reward).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_reward_redemptions = load_reward_redemptions(preferred).await?;
-    for redemption in preferred_reward_redemptions.values() {
-        if upsert_reward_redemption(target, redemption).await? {
-            resolved_conflicts += 1;
-        }
-    }
-    let preferred_pairs = load_student_tag_pairs(preferred).await?;
-    for pair in &preferred_pairs {
-        if ensure_student_tag_pair(target, pair).await? {
-            resolved_conflicts += 1;
+    for pair in remote_pairs.difference(&local_pairs) {
+        if ensure_student_tag_pair(&local_conn, pair).await? {
+            synced_records += 1;
         }
     }
 
