@@ -1,4 +1,4 @@
-import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme } from "antd"
+import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme, Drawer } from "antd"
 import {
   HomeOutlined,
   SettingOutlined,
@@ -10,6 +10,9 @@ import {
   UnorderedListOutlined,
   FileTextOutlined,
   MoreOutlined,
+  UpOutlined,
+  DownOutlined,
+  HolderOutlined,
 } from "@ant-design/icons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
@@ -25,6 +28,7 @@ import {
 } from "./shared/mobileNavigation"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
+const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(0, 4)
 
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
@@ -34,6 +38,13 @@ function MainContent(): React.JSX.Element {
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
   const [immersiveMode, setImmersiveMode] = useState(false)
+
+  const normalizeStoredBottomKeys = (raw: unknown): MobileNavKey[] => {
+    if (Array.isArray(raw)) {
+      return sanitizeMobileNavKeys(raw, []).slice(0, 4)
+    }
+    return DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS
+  }
 
   useEffect(() => {
     const api = (window as any).api
@@ -81,6 +92,14 @@ function MainContent(): React.JSX.Element {
     DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
   )
   const [moreNavVisible, setMoreNavVisible] = useState(false)
+  const [editingNav, setEditingNav] = useState(false)
+  const [editingBottomNavKeys, setEditingBottomNavKeys] = useState<MobileNavKey[]>([])
+  const [editingMoreNavKeys, setEditingMoreNavKeys] = useState<MobileNavKey[]>([])
+  const [draggingNavKey, setDraggingNavKey] = useState<MobileNavKey | null>(null)
+  const [draggingFromList, setDraggingFromList] = useState<"bottom" | "more" | null>(null)
+  const [dragOverSlot, setDragOverSlot] = useState<{ list: "bottom" | "more"; index: number } | null>(
+    null
+  )
   const [isPortraitMode] = useState(defaultPortraitMode)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
@@ -131,12 +150,7 @@ function MainContent(): React.JSX.Element {
       }
       const settingsRes = await (window as any).api.getAllSettings()
       if (settingsRes?.success && settingsRes.data) {
-        setMobileBottomNavItems(
-          sanitizeMobileNavKeys(
-            settingsRes.data.mobile_bottom_nav_items,
-            DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
-          )
-        )
+        setMobileBottomNavItems(normalizeStoredBottomKeys(settingsRes.data.mobile_bottom_nav_items))
       }
     }
 
@@ -153,9 +167,7 @@ function MainContent(): React.JSX.Element {
     api
       .onSettingChanged((change: { key?: string; value?: unknown }) => {
         if (change?.key !== "mobile_bottom_nav_items") return
-        setMobileBottomNavItems(
-          sanitizeMobileNavKeys(change.value, DEFAULT_MOBILE_BOTTOM_NAV_ITEMS)
-        )
+        setMobileBottomNavItems(normalizeStoredBottomKeys(change.value))
       })
       .then((fn: () => void) => {
         if (disposed) {
@@ -370,6 +382,7 @@ function MainContent(): React.JSX.Element {
   const onMenuChange = (v: string) => {
     const key = String(v)
     setMoreNavVisible(false)
+    setEditingNav(false)
     if (immersiveMode && key !== "home") return
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
@@ -429,32 +442,95 @@ function MainContent(): React.JSX.Element {
     settings: <SettingOutlined style={{ fontSize: "18px" }} />,
   }
 
-  const mobileBottomVisibleItems = useMemo(() => {
-    const preferredKeys = sanitizeMobileNavKeys(
-      mobileBottomNavItems,
-      DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
-    ).slice()
-    for (const baseKey of ["home", "settings"] as const) {
-      if (!preferredKeys.includes(baseKey)) {
-        preferredKeys.push(baseKey)
-      }
-    }
-
-    return preferredKeys
-      .map((key) => MOBILE_NAV_ITEMS.find((item) => item.key === key))
-      .filter((item): item is (typeof MOBILE_NAV_ITEMS)[number] => Boolean(item))
-      .filter((item) => !(item.adminOnly && permission !== "admin"))
-  }, [mobileBottomNavItems, permission])
-
+  const mobileNavAvailableItems = useMemo(
+    () => MOBILE_NAV_ITEMS.filter((item) => !(item.adminOnly && permission !== "admin")),
+    [permission]
+  )
+  const mobileBottomSelectedKeys = useMemo(() => {
+    const availableKeySet = new Set(mobileNavAvailableItems.map((item) => item.key))
+    return sanitizeMobileNavKeys(mobileBottomNavItems, [])
+      .filter((key) => availableKeySet.has(key))
+      .slice(0, 4)
+  }, [mobileBottomNavItems, mobileNavAvailableItems])
   const mobileBottomPrimaryItems = useMemo(
-    () => mobileBottomVisibleItems.slice(0, 4),
-    [mobileBottomVisibleItems]
+    () =>
+      mobileBottomSelectedKeys
+        .map((key) => mobileNavAvailableItems.find((item) => item.key === key))
+        .filter((item): item is (typeof MOBILE_NAV_ITEMS)[number] => Boolean(item)),
+    [mobileBottomSelectedKeys, mobileNavAvailableItems]
   )
   const mobileBottomOverflowItems = useMemo(
-    () => mobileBottomVisibleItems.slice(4),
-    [mobileBottomVisibleItems]
+    () => mobileNavAvailableItems.filter((item) => !mobileBottomSelectedKeys.includes(item.key)),
+    [mobileNavAvailableItems, mobileBottomSelectedKeys]
   )
   const isMoreActive = mobileBottomOverflowItems.some((item) => item.key === activeMenu)
+
+  const openEditNav = () => {
+    const savedKeys = mobileBottomSelectedKeys
+    const missingKeys = mobileNavAvailableItems
+      .map((item) => item.key)
+      .filter((key) => !savedKeys.includes(key))
+    setEditingBottomNavKeys(savedKeys)
+    setEditingMoreNavKeys(missingKeys)
+    setEditingNav(true)
+    setDraggingNavKey(null)
+    setDraggingFromList(null)
+    setDragOverSlot(null)
+  }
+
+  const dropPlaceholder = (
+    <div
+      style={{
+        border: "1px dashed var(--ant-color-primary)",
+        borderRadius: "10px",
+        background: "color-mix(in srgb, var(--ant-color-primary) 10%, transparent)",
+        minHeight: "44px",
+        padding: "8px 10px",
+      }}
+    />
+  )
+
+  const persistMobileBottomKeys = async (nextKeys: MobileNavKey[]) => {
+    const api = (window as any).api
+    if (!api) return
+    const next = sanitizeMobileNavKeys(nextKeys, [])
+    const res = await api.setSetting("mobile_bottom_nav_items", next)
+    if (res.success) {
+      setMobileBottomNavItems(next)
+    } else {
+      messageApi.error(res.message || t("settings.general.saveFailed"))
+    }
+  }
+
+  const handleDropToList = (targetList: "bottom" | "more", targetIndex: number) => {
+    if (!draggingNavKey || !draggingFromList) return
+    const bottom = editingBottomNavKeys.slice()
+    const more = editingMoreNavKeys.slice()
+
+    const source = draggingFromList === "bottom" ? bottom : more
+    const sourceIndex = source.indexOf(draggingNavKey)
+    if (sourceIndex < 0) return
+    source.splice(sourceIndex, 1)
+
+    if (targetList === "bottom" && draggingFromList === "more" && bottom.length >= 4) {
+      setDraggingNavKey(null)
+      setDraggingFromList(null)
+      setDragOverSlot(null)
+      messageApi.warning(t("settings.mobile.bottomMaxHint", "底栏最多 4 个"))
+      return
+    }
+
+    const target = targetList === "bottom" ? bottom : more
+    const clampedIndex = Math.max(0, Math.min(targetIndex, target.length))
+    target.splice(clampedIndex, 0, draggingNavKey)
+
+    setEditingBottomNavKeys(bottom)
+    setEditingMoreNavKeys(more)
+    void persistMobileBottomKeys(bottom)
+    setDraggingNavKey(null)
+    setDraggingFromList(null)
+    setDragOverSlot(null)
+  }
 
   return (
     <ConfigProvider
@@ -575,38 +651,211 @@ function MainContent(): React.JSX.Element {
           </div>
         )}
 
-        <Modal
-          title={t("common.more", "更多")}
+        <Drawer
+          title={editingNav ? t("common.edit") : t("common.more", "更多")}
+          placement="bottom"
           open={moreNavVisible}
-          onCancel={() => setMoreNavVisible(false)}
-          footer={null}
-          width={360}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {mobileBottomOverflowItems.map((item) => (
+          onClose={() => {
+            setMoreNavVisible(false)
+            setEditingNav(false)
+            setDraggingNavKey(null)
+            setDraggingFromList(null)
+            setDragOverSlot(null)
+          }}
+          height={editingNav ? "calc(100vh - env(safe-area-inset-top, 0px))" : "46vh"}
+          styles={{
+            content: {
+              borderTopLeftRadius: editingNav ? 0 : "14px",
+              borderTopRightRadius: editingNav ? 0 : "14px",
+              background: "var(--ss-card-bg)",
+            },
+            header: {
+              borderBottom: "1px solid var(--ss-border-color)",
+              padding: "12px 16px",
+            },
+            body: {
+              padding: "12px 16px 20px",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            },
+          }}
+          extra={
+            permission === "admin" &&
+            (editingNav ? (
               <button
-                key={item.key}
                 type="button"
-                onClick={() => onMenuChange(item.key)}
+                onClick={() => setEditingNav(false)}
                 style={{
                   border: "1px solid var(--ss-border-color)",
-                  borderRadius: "10px",
-                  background: "var(--ss-card-bg)",
+                  borderRadius: "8px",
+                  background: "transparent",
                   color: "var(--ss-text-main)",
-                  height: "44px",
-                  padding: "0 12px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "14px",
+                  padding: "4px 10px",
                 }}
               >
-                {mobileBottomNavIconMap[item.key]}
-                <span>{t(item.labelKey)}</span>
+                {t("common.finish", "完成")}
               </button>
-            ))}
-          </div>
-        </Modal>
+            ) : (
+              <button
+                type="button"
+                onClick={openEditNav}
+                style={{
+                  border: "1px solid var(--ss-border-color)",
+                  borderRadius: "8px",
+                  background: "transparent",
+                  color: "var(--ss-text-main)",
+                  padding: "4px 10px",
+                }}
+              >
+                {t("common.edit")}
+              </button>
+            ))
+          }
+        >
+          {editingNav ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+              }}
+            >
+              <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+                {t(
+                  "settings.mobile.dragHint",
+                  "拖动可调整顺序。前 4 项显示在底栏，其余显示在“更多”。"
+                )}
+              </div>
+              {[
+                {
+                  list: "bottom" as const,
+                  title: t("settings.mobile.bottomSection", "底栏（最多 4 个）"),
+                  keys: editingBottomNavKeys,
+                },
+                {
+                  list: "more" as const,
+                  title: t("settings.mobile.moreSection", "更多"),
+                  keys: editingMoreNavKeys,
+                },
+              ].map((group) => (
+                <div key={group.list} style={{ marginTop: group.list === "more" ? 10 : 0 }}>
+                  <div
+                    style={{
+                      marginBottom: "8px",
+                      fontSize: "12px",
+                      color: "var(--ss-text-secondary)",
+                    }}
+                  >
+                    {group.title}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {Array.from({ length: group.keys.length + 1 }, (_, i) => {
+                      const key = group.keys[i]
+                      const item = key ? MOBILE_NAV_ITEMS.find((it) => it.key === key) : null
+                      return (
+                        <div key={`${group.list}-slot-${i}`}>
+                          <div
+                            onDragEnter={() => setDragOverSlot({ list: group.list, index: i })}
+                            onDragOver={(e) => {
+                              e.preventDefault()
+                              setDragOverSlot({ list: group.list, index: i })
+                            }}
+                            onDrop={() => handleDropToList(group.list, i)}
+                          >
+                            {dragOverSlot?.list === group.list && dragOverSlot?.index === i ? (
+                              dropPlaceholder
+                            ) : (
+                              <div style={{ height: "8px" }} />
+                            )}
+                          </div>
+                          {key && item && (
+                            <button
+                              type="button"
+                              draggable
+                              onDragStart={() => {
+                                setDraggingNavKey(key)
+                                setDraggingFromList(group.list)
+                              }}
+                              onDragEnd={() => {
+                                setDraggingNavKey(null)
+                                setDraggingFromList(null)
+                                setDragOverSlot(null)
+                              }}
+                              style={{
+                                border: "1px solid var(--ss-border-color)",
+                                borderRadius: "10px",
+                                background: "var(--ss-bg-color)",
+                                color: "var(--ss-text-main)",
+                                minHeight: "44px",
+                                padding: "8px 10px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: "8px",
+                                fontSize: "14px",
+                                opacity: draggingNavKey === key ? 0.35 : 1,
+                                transform: draggingNavKey === key ? "scale(0.985)" : "scale(1)",
+                                transition: "opacity 120ms ease, transform 120ms ease",
+                                cursor: "grab",
+                              }}
+                            >
+                              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                {mobileBottomNavIconMap[key]}
+                                <span>{t(item.labelKey)}</span>
+                              </span>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  color: "var(--ss-text-secondary)",
+                                  opacity: 0.9,
+                                }}
+                              >
+                                <UpOutlined style={{ fontSize: "11px" }} />
+                                <DownOutlined style={{ fontSize: "11px" }} />
+                                <HolderOutlined style={{ fontSize: "12px" }} />
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {mobileBottomOverflowItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onMenuChange(item.key)}
+                  style={{
+                    border: "1px solid var(--ss-border-color)",
+                    borderRadius: "10px",
+                    background: "var(--ss-bg-color)",
+                    color: "var(--ss-text-main)",
+                    height: "44px",
+                    padding: "0 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                  }}
+                >
+                  {mobileBottomNavIconMap[item.key]}
+                  <span>{t(item.labelKey)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Drawer>
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 

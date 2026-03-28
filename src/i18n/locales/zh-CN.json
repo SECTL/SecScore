@@ -167,7 +167,13 @@
       "bottomNav": {
         "label": "底部导航功能",
         "hint": "可选择要出现在手机底部导航的功能。底栏最多展示 4 项，其余会自动收纳到“更多”。"
-      }
+      },
+      "dragHint": "拖动可调整顺序。前 4 项显示在底栏，其余显示在“更多”。",
+      "dropHere": "松手后放到这里",
+      "bottomSection": "底栏（最多 4 个）",
+      "moreSection": "更多",
+      "moveToMore": "移到更多",
+      "moveToBottom": "移到底栏"
     },
     "zoomUpdated": "界面缩放已更新",
     "updateFailed": "更新失败",

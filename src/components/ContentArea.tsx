@@ -380,7 +380,7 @@ export function ContentArea({
               />
               <Route
                 path="/settings"
-                element={<Settings permission={permission} mobileNavigationEnabled={isPortraitMode} />}
+                element={<Settings permission={permission} />}
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
