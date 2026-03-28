@@ -318,6 +318,11 @@ html.platform-macos #root {
   min-height: 100%;
 }
 
+.ss-route-page.is-board-page {
+  height: 100%;
+  overflow: hidden;
+}
+
 .ss-route-page.is-subpage-enter {
   animation: ss-subpage-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }

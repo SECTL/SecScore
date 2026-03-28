@@ -92,6 +92,7 @@ export function ContentArea({
   const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
   const shouldAnimateSubPage = isPortraitMode && isSubPage
   const normalizedPath = location.pathname === "/" ? "/home" : location.pathname
+  const isBoardPage = normalizedPath.startsWith("/boards")
   const isMobileHeaderMode = isPortraitMode && isMobileDevice && !immersiveMode
   const isPrimaryMobilePage =
     normalizedPath.startsWith("/home") || normalizedPath.startsWith("/settings")
@@ -317,7 +318,7 @@ export function ContentArea({
       <Content
         style={{
           flex: 1,
-          overflowY: "auto",
+          overflowY: isBoardPage ? "hidden" : "auto",
           overflowX: "hidden",
           paddingBottom: bottomInset ? `${bottomInset}px` : 0,
         }}
@@ -340,7 +341,7 @@ export function ContentArea({
         >
           <div
             key={location.pathname}
-            className={`ss-route-page${shouldAnimateSubPage ? " is-subpage-enter" : ""}`}
+            className={`ss-route-page${shouldAnimateSubPage ? " is-subpage-enter" : ""}${isBoardPage ? " is-board-page" : ""}`}
           >
             <Routes>
               <Route
