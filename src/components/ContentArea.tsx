@@ -19,7 +19,6 @@ const loadReasonManager = () => import("./ReasonManager")
 const loadScoreManager = () => import("./ScoreManager")
 const loadLeaderboard = () => import("./Leaderboard")
 const loadSettlementHistory = () => import("./SettlementHistory")
-const loadAutoScoreManager = () => import("./AutoScoreManager")
 const loadRewardSettings = () => import("./RewardSettings")
 const loadBoardManager = () => import("./BoardManager")
 
@@ -31,9 +30,6 @@ const ScoreManager = lazy(() => loadScoreManager().then((m) => ({ default: m.Sco
 const Leaderboard = lazy(() => loadLeaderboard().then((m) => ({ default: m.Leaderboard })))
 const SettlementHistory = lazy(() =>
   loadSettlementHistory().then((m) => ({ default: m.SettlementHistory }))
-)
-const AutoScoreManager = lazy(() =>
-  loadAutoScoreManager().then((m) => ({ default: m.AutoScoreManager }))
 )
 const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
 const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
@@ -47,7 +43,6 @@ const warmupRouteChunks = () =>
     loadScoreManager(),
     loadLeaderboard(),
     loadSettlementHistory(),
-    loadAutoScoreManager(),
     loadRewardSettings(),
     loadBoardManager(),
   ])
@@ -109,7 +104,6 @@ export function ContentArea({
     if (normalizedPath.startsWith("/leaderboard")) return t("sidebar.leaderboard")
     if (normalizedPath.startsWith("/settlements")) return t("sidebar.settlements")
     if (normalizedPath.startsWith("/reasons")) return t("sidebar.reasons")
-    if (normalizedPath.startsWith("/auto-score")) return t("sidebar.autoScore")
     if (normalizedPath.startsWith("/reward-settings")) return t("sidebar.rewardSettings")
     if (normalizedPath.startsWith("/settings")) return t("sidebar.settings")
     return "SecScore"
@@ -373,7 +367,6 @@ export function ContentArea({
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/settlements" element={<SettlementHistory />} />
               <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
-              <Route path="/auto-score" element={<AutoScoreManager />} />
               <Route
                 path="/reward-settings"
                 element={<RewardSettings canEdit={permission === "admin"} />}

@@ -29,8 +29,6 @@ export type settingsKey =
   | "search_keyboard_layout"
   | "disable_search_keyboard"
   | "themes_custom"
-  | "auto_score_enabled"
-  | "auto_score_rules"
   | "current_theme_id"
   | "dashboards_config"
   | "pg_connection_string"
@@ -44,8 +42,6 @@ export interface settingsSpec {
   search_keyboard_layout: "t9" | "qwerty26"
   disable_search_keyboard: boolean
   themes_custom: themeConfig[]
-  auto_score_enabled: boolean
-  auto_score_rules: any[]
   current_theme_id: string
   dashboards_config: any[]
   pg_connection_string: string
@@ -445,48 +441,9 @@ const api = {
   appQuit: (): Promise<void> => invoke("app_quit"),
   appRestart: (): Promise<void> => invoke("app_restart"),
 
-  // Auto Score
-  autoScoreGetRules: (): Promise<{ success: boolean; data: any[] }> =>
-    invoke("auto_score_get_rules"),
-  autoScoreAddRule: (rule: any): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("auto_score_add_rule", { rule }),
-  autoScoreUpdateRule: (
-    rule: any
-  ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_update_rule", { rule }),
-  autoScoreDeleteRule: (
-    ruleId: number
-  ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_delete_rule", { ruleId }),
-  autoScoreToggleRule: (params: {
-    ruleId: number
-    enabled: boolean
-  }): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_toggle_rule", params),
-  autoScoreGetStatus: (): Promise<{ success: boolean; data: { enabled: boolean } }> =>
-    invoke("auto_score_get_status"),
-  autoScoreSortRules: (
-    ruleIds: number[]
-  ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_sort_rules", { ruleIds }),
-
   // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
   invoke: async (channel: string, ...args: any[]): Promise<any> => {
     switch (channel) {
-      case "auto-score:getRules":
-        return api.autoScoreGetRules()
-      case "auto-score:addRule":
-        return api.autoScoreAddRule(args[0])
-      case "auto-score:updateRule":
-        return api.autoScoreUpdateRule(args[0])
-      case "auto-score:deleteRule":
-        return api.autoScoreDeleteRule(args[0])
-      case "auto-score:toggleRule":
-        return api.autoScoreToggleRule(args[0])
-      case "auto-score:sortRules":
-        return api.autoScoreSortRules(args[0])
-      case "auto-score:getStatus":
-        return api.autoScoreGetStatus()
       default:
         throw new Error(`Unsupported legacy invoke channel: ${channel}`)
     }
