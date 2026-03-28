@@ -60,6 +60,7 @@ interface ContentAreaProps {
   onLogout: () => void
   showWindowControls: boolean
   isPortraitMode: boolean
+  isMobileDevice: boolean
   sidebarCollapsed: boolean
   floatingExpand: boolean
   floatingExpanded: boolean
@@ -78,6 +79,7 @@ export function ContentArea({
   onLogout,
   showWindowControls,
   isPortraitMode,
+  isMobileDevice,
   sidebarCollapsed,
   floatingExpand,
   floatingExpanded,
@@ -228,7 +230,7 @@ export function ContentArea({
           }
         >
           <Space size="small">
-            {(immersiveMode || isHomePage) && (
+            {(immersiveMode || (isHomePage && !isMobileDevice)) && (
               <Button
                 size="small"
                 type={immersiveMode ? "primary" : "default"}

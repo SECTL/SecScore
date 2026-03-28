@@ -353,6 +353,7 @@ function MainContent(): React.JSX.Element {
 
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
+  const isMobileDevice = isIosDevice || isAndroidDevice
   const showMobileBottomNav = isPortraitMode && !immersiveMode
 
   return (
@@ -395,6 +396,7 @@ function MainContent(): React.JSX.Element {
           onLogout={logout}
           showWindowControls={!isIosDevice && !isAndroidDevice}
           isPortraitMode={isPortraitMode}
+          isMobileDevice={isMobileDevice}
           sidebarCollapsed={sidebarCollapsed}
           floatingExpand={isPortraitMode}
           floatingExpanded={floatingSidebarExpanded}
