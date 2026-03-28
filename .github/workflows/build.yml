@@ -40,6 +40,17 @@ jobs:
               echo "${{ github.event.inputs.version }} ${{ github.event.inputs.build }}"
               echo "__EOF__"
             } >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n 1)"
+            if [ -z "$VERSION" ]; then
+              echo "无法从 package.json 读取 version 字段" >&2
+              exit 1
+            fi
+            {
+              echo "message<<__EOF__"
+              echo "$VERSION build:all"
+              echo "__EOF__"
+            } >> "$GITHUB_OUTPUT"
           else
             {
               echo "message<<__EOF__"
