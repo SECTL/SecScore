@@ -415,6 +415,8 @@ function MainContent(): React.JSX.Element {
               right: 0,
               bottom: 0,
               background: "var(--ss-header-bg)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
               borderTop: "1px solid var(--ss-border-color)",
               zIndex: 1400,
               paddingBottom: "env(safe-area-inset-bottom, 0px)",
