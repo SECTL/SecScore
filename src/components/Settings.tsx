@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { RightOutlined } from "@ant-design/icons"
 import {
   Tabs,
   Card,
@@ -18,12 +17,6 @@ import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
-import { useLocation, useNavigate } from "react-router-dom"
-import {
-  MOBILE_NAV_ITEMS,
-  MobileNavKey,
-  sanitizeMobileNavKeys,
-} from "../shared/mobileNavigation"
 
 type permissionLevel = "admin" | "points" | "view"
 type appSettings = {
@@ -33,11 +26,7 @@ type appSettings = {
   search_keyboard_layout?: "t9" | "qwerty26"
   disable_search_keyboard?: boolean
   auto_score_enabled?: boolean
-  mobile_bottom_nav_items?: MobileNavKey[]
 }
-
-const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
-
 const withTimeout = async (
   promise: Promise<any>,
   ms: number,
@@ -58,11 +47,8 @@ const withTimeout = async (
 
 export const Settings: React.FC<{
   permission: permissionLevel
-  mobileNavigationEnabled?: boolean
-}> = ({ permission, mobileNavigationEnabled = false }) => {
+}> = ({ permission }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
-  const location = useLocation()
   const breakpoint = useResponsive()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const [activeTab, setActiveTab] = useState("appearance")
@@ -73,7 +59,6 @@ export const Settings: React.FC<{
     window_zoom: "1.0",
     search_keyboard_layout: "qwerty26",
     disable_search_keyboard: false,
-    mobile_bottom_nav_items: DEFAULT_MOBILE_BOTTOM_NAV_ITEMS,
   })
 
   const [securityStatus, setSecurityStatus] = useState<{
@@ -148,19 +133,6 @@ export const Settings: React.FC<{
     )
   }, [permission, t])
 
-  const mobilePageItems = useMemo(
-    () =>
-      MOBILE_NAV_ITEMS.filter((item) => item.key !== "home" && item.key !== "settings").map(
-        (item) => ({
-          key: item.key,
-          path: item.path,
-          label: t(item.labelKey),
-          disabled: Boolean(item.adminOnly) && !canAdmin,
-        })
-      ),
-    [canAdmin, t]
-  )
-
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
   }
@@ -184,13 +156,7 @@ export const Settings: React.FC<{
     if (!(window as any).api) return
     const res = await (window as any).api.getAllSettings()
     if (res.success && res.data) {
-      setSettings({
-        ...res.data,
-        mobile_bottom_nav_items: sanitizeMobileNavKeys(
-          res.data.mobile_bottom_nav_items,
-          DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
-        ),
-      })
+      setSettings(res.data)
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
     }
@@ -220,15 +186,6 @@ export const Settings: React.FC<{
             return { ...prev, disable_search_keyboard: Boolean(change.value) }
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
-          if (change?.key === "mobile_bottom_nav_items") {
-            return {
-              ...prev,
-              mobile_bottom_nav_items: sanitizeMobileNavKeys(
-                change.value,
-                DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
-              ),
-            }
-          }
           return prev
         })
       })
@@ -637,18 +594,6 @@ export const Settings: React.FC<{
     })
   }
 
-  const handleMobileBottomNavChange = async (value: string[]) => {
-    if (!(window as any).api) return
-    const next = sanitizeMobileNavKeys(value, DEFAULT_MOBILE_BOTTOM_NAV_ITEMS)
-    const res = await (window as any).api.setSetting("mobile_bottom_nav_items", next)
-    if (res.success) {
-      setSettings((prev) => ({ ...prev, mobile_bottom_nav_items: next }))
-      messageApi.success(t("settings.general.saved"))
-    } else {
-      messageApi.error(res.message || t("settings.general.saveFailed"))
-    }
-  }
-
   const tabItems = [
     {
       key: "appearance",
@@ -776,27 +721,6 @@ export const Settings: React.FC<{
               </div>
             </Form.Item>
 
-            {mobileNavigationEnabled && (
-              <Form.Item label={t("settings.mobile.bottomNav.label")}>
-                <Select
-                  mode="multiple"
-                  value={settings.mobile_bottom_nav_items || DEFAULT_MOBILE_BOTTOM_NAV_ITEMS}
-                  onChange={(v) => handleMobileBottomNavChange(v as string[])}
-                  style={{ width: "100%", maxWidth: "520px" }}
-                  disabled={!canAdmin}
-                  options={MOBILE_NAV_ITEMS.map((item) => ({
-                    value: item.key,
-                    label: t(item.labelKey),
-                    disabled: Boolean(item.adminOnly) && !canAdmin,
-                  }))}
-                />
-                <div
-                  style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
-                >
-                  {t("settings.mobile.bottomNav.hint")}
-                </div>
-              </Form.Item>
-            )}
           </Form>
         </Card>
       ),
@@ -1358,35 +1282,6 @@ export const Settings: React.FC<{
         <h2 style={{ margin: 0 }}>{t("settings.title")}</h2>
         {permissionTag}
       </div>
-
-      {mobileNavigationEnabled && isMobile && (
-        <Card
-          title={t("settings.mobile.navigationTitle", "页面入口")}
-          bodyStyle={{ padding: 0 }}
-          style={{
-            marginBottom: "16px",
-            backgroundColor: "var(--ss-card-bg)",
-            color: "var(--ss-text-main)",
-          }}
-        >
-          <div className="ss-settings-mobile-nav-list">
-            {mobilePageItems.map((item) => (
-              <Button
-                key={item.key}
-                disabled={item.disabled}
-                type="text"
-                className={`ss-settings-mobile-nav-item${
-                  location.pathname.startsWith(item.path) ? " is-active" : ""
-                }`}
-                onClick={() => navigate(item.path)}
-              >
-                <span className="ss-settings-mobile-nav-item-label">{item.label}</span>
-                <RightOutlined className="ss-settings-mobile-nav-item-arrow" />
-              </Button>
-            ))}
-          </div>
-        </Card>
-      )}
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 

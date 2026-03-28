@@ -167,7 +167,13 @@
       "bottomNav": {
         "label": "Bottom Navigation Features",
         "hint": "Choose which features appear in the mobile bottom bar. The bar shows up to 4 items; extra items go under \"More\"."
-      }
+      },
+      "dragHint": "Drag to reorder. The first 4 items appear in the bottom bar; the rest stay in \"More\".",
+      "dropHere": "Release to drop here",
+      "bottomSection": "Bottom Bar (up to 4)",
+      "moreSection": "More",
+      "moveToMore": "Move to More",
+      "moveToBottom": "Move to Bottom"
     },
     "zoomUpdated": "Interface zoom updated",
     "updateFailed": "Update failed",
