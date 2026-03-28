@@ -34,7 +34,8 @@
     "pleaseSelect": "Please select",
     "pleaseEnter": "Please enter",
     "readOnly": "Read-only mode",
-    "none": "None"
+    "none": "None",
+    "more": "More"
   },
   "oobe": {
     "title": "Welcome to SecScore",
@@ -161,6 +162,13 @@
       "saveFailed": "Save failed"
     },
     "zoomHint": "Adjust the overall size of the application interface",
+    "mobile": {
+      "navigationTitle": "Page Shortcuts",
+      "bottomNav": {
+        "label": "Bottom Navigation Features",
+        "hint": "Choose which features appear in the mobile bottom bar. The bar shows up to 4 items; extra items go under \"More\"."
+      }
+    },
     "zoomUpdated": "Interface zoom updated",
     "updateFailed": "Update failed",
     "security": {

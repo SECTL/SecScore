@@ -34,7 +34,8 @@
     "pleaseSelect": "请选择",
     "pleaseEnter": "请输入",
     "readOnly": "当前为只读权限",
-    "none": "无"
+    "none": "无",
+    "more": "更多"
   },
   "oobe": {
     "title": "欢迎使用 SecScore",
@@ -161,6 +162,13 @@
       "saveFailed": "保存失败"
     },
     "zoomHint": "调节应用界面的整体大小",
+    "mobile": {
+      "navigationTitle": "页面入口",
+      "bottomNav": {
+        "label": "底部导航功能",
+        "hint": "可选择要出现在手机底部导航的功能。底栏最多展示 4 项，其余会自动收纳到“更多”。"
+      }
+    },
     "zoomUpdated": "界面缩放已更新",
     "updateFailed": "更新失败",
     "security": {

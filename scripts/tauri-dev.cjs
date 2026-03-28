@@ -34,7 +34,7 @@ async function main() {
   const port = await findAvailablePort(START_PORT)
   const overrideConfig = {
     build: {
-      beforeDevCommand: `npm run dev -- --host --port ${port} --strictPort`,
+      beforeDevCommand: `npm run dev -- --host --port ${port}`,
       devUrl: `http://localhost:${port}`,
     },
   }

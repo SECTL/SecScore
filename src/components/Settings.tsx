@@ -19,6 +19,11 @@ import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
 import { useLocation, useNavigate } from "react-router-dom"
+import {
+  MOBILE_NAV_ITEMS,
+  MobileNavKey,
+  sanitizeMobileNavKeys,
+} from "../shared/mobileNavigation"
 
 type permissionLevel = "admin" | "points" | "view"
 type appSettings = {
@@ -28,7 +33,10 @@ type appSettings = {
   search_keyboard_layout?: "t9" | "qwerty26"
   disable_search_keyboard?: boolean
   auto_score_enabled?: boolean
+  mobile_bottom_nav_items?: MobileNavKey[]
 }
+
+const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 
 const withTimeout = async (
   promise: Promise<any>,
@@ -65,6 +73,7 @@ export const Settings: React.FC<{
     window_zoom: "1.0",
     search_keyboard_layout: "qwerty26",
     disable_search_keyboard: false,
+    mobile_bottom_nav_items: DEFAULT_MOBILE_BOTTOM_NAV_ITEMS,
   })
 
   const [securityStatus, setSecurityStatus] = useState<{
@@ -140,21 +149,15 @@ export const Settings: React.FC<{
   }, [permission, t])
 
   const mobilePageItems = useMemo(
-    () => [
-      { key: "students", path: "/students", label: t("sidebar.students"), disabled: !canAdmin },
-      { key: "score", path: "/score", label: t("sidebar.score"), disabled: false },
-      { key: "auto-score", path: "/auto-score", label: t("sidebar.autoScore"), disabled: false },
-      {
-        key: "reward-settings",
-        path: "/reward-settings",
-        label: t("sidebar.rewardSettings"),
-        disabled: !canAdmin,
-      },
-      { key: "boards", path: "/boards", label: t("sidebar.boards"), disabled: false },
-      { key: "leaderboard", path: "/leaderboard", label: t("sidebar.leaderboard"), disabled: false },
-      { key: "settlements", path: "/settlements", label: t("sidebar.settlements"), disabled: false },
-      { key: "reasons", path: "/reasons", label: t("sidebar.reasons"), disabled: !canAdmin },
-    ],
+    () =>
+      MOBILE_NAV_ITEMS.filter((item) => item.key !== "home" && item.key !== "settings").map(
+        (item) => ({
+          key: item.key,
+          path: item.path,
+          label: t(item.labelKey),
+          disabled: Boolean(item.adminOnly) && !canAdmin,
+        })
+      ),
     [canAdmin, t]
   )
 
@@ -181,7 +184,13 @@ export const Settings: React.FC<{
     if (!(window as any).api) return
     const res = await (window as any).api.getAllSettings()
     if (res.success && res.data) {
-      setSettings(res.data)
+      setSettings({
+        ...res.data,
+        mobile_bottom_nav_items: sanitizeMobileNavKeys(
+          res.data.mobile_bottom_nav_items,
+          DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
+        ),
+      })
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
     }
@@ -211,6 +220,15 @@ export const Settings: React.FC<{
             return { ...prev, disable_search_keyboard: Boolean(change.value) }
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
+          if (change?.key === "mobile_bottom_nav_items") {
+            return {
+              ...prev,
+              mobile_bottom_nav_items: sanitizeMobileNavKeys(
+                change.value,
+                DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
+              ),
+            }
+          }
           return prev
         })
       })
@@ -619,6 +637,18 @@ export const Settings: React.FC<{
     })
   }
 
+  const handleMobileBottomNavChange = async (value: string[]) => {
+    if (!(window as any).api) return
+    const next = sanitizeMobileNavKeys(value, DEFAULT_MOBILE_BOTTOM_NAV_ITEMS)
+    const res = await (window as any).api.setSetting("mobile_bottom_nav_items", next)
+    if (res.success) {
+      setSettings((prev) => ({ ...prev, mobile_bottom_nav_items: next }))
+      messageApi.success(t("settings.general.saved"))
+    } else {
+      messageApi.error(res.message || t("settings.general.saveFailed"))
+    }
+  }
+
   const tabItems = [
     {
       key: "appearance",
@@ -745,6 +775,28 @@ export const Settings: React.FC<{
                 {t("settings.zoomHint")}
               </div>
             </Form.Item>
+
+            {mobileNavigationEnabled && (
+              <Form.Item label={t("settings.mobile.bottomNav.label")}>
+                <Select
+                  mode="multiple"
+                  value={settings.mobile_bottom_nav_items || DEFAULT_MOBILE_BOTTOM_NAV_ITEMS}
+                  onChange={(v) => handleMobileBottomNavChange(v as string[])}
+                  style={{ width: "100%", maxWidth: "520px" }}
+                  disabled={!canAdmin}
+                  options={MOBILE_NAV_ITEMS.map((item) => ({
+                    value: item.key,
+                    label: t(item.labelKey),
+                    disabled: Boolean(item.adminOnly) && !canAdmin,
+                  }))}
+                />
+                <div
+                  style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                >
+                  {t("settings.mobile.bottomNav.hint")}
+                </div>
+              </Form.Item>
+            )}
           </Form>
         </Card>
       ),

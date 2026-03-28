@@ -5,8 +5,9 @@ import {
   MenuUnfoldOutlined,
   FullscreenOutlined,
   FullscreenExitOutlined,
+  LeftOutlined,
 } from "@ant-design/icons"
-import { Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 import appLogo from "../assets/logoHD.svg"
@@ -92,8 +93,35 @@ export function ContentArea({
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
   const location = useLocation()
+  const navigate = useNavigate()
   const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
   const shouldAnimateSubPage = isPortraitMode && isSubPage
+  const normalizedPath = location.pathname === "/" ? "/home" : location.pathname
+  const isMobileHeaderMode = isPortraitMode && isMobileDevice && !immersiveMode
+  const isPrimaryMobilePage =
+    normalizedPath.startsWith("/home") || normalizedPath.startsWith("/settings")
+  const showMobileBack = isMobileHeaderMode && !isPrimaryMobilePage
+  const mobilePageTitle = (() => {
+    if (normalizedPath.startsWith("/home")) return t("sidebar.home")
+    if (normalizedPath.startsWith("/students")) return t("sidebar.students")
+    if (normalizedPath.startsWith("/score")) return t("sidebar.score")
+    if (normalizedPath.startsWith("/boards")) return t("sidebar.boards")
+    if (normalizedPath.startsWith("/leaderboard")) return t("sidebar.leaderboard")
+    if (normalizedPath.startsWith("/settlements")) return t("sidebar.settlements")
+    if (normalizedPath.startsWith("/reasons")) return t("sidebar.reasons")
+    if (normalizedPath.startsWith("/auto-score")) return t("sidebar.autoScore")
+    if (normalizedPath.startsWith("/reward-settings")) return t("sidebar.rewardSettings")
+    if (normalizedPath.startsWith("/settings")) return t("sidebar.settings")
+    return "SecScore"
+  })()
+
+  const handleMobileBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate("/settings")
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -165,27 +193,64 @@ export function ContentArea({
             } as React.CSSProperties
           }
         >
-          {!immersiveMode && showSidebarToggle && (
-            <Button
-              type="text"
-              size="small"
-              onClick={onToggleSidebar}
-              icon={
-                floatingExpand && sidebarCollapsed ? (
-                  floatingExpanded ? (
-                    <MenuFoldOutlined />
-                  ) : (
+          {isMobileHeaderMode ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                minWidth: 0,
+                gap: "6px",
+              }}
+            >
+              {showMobileBack && (
+                <Button
+                  type="text"
+                  size="small"
+                  onClick={handleMobileBack}
+                  icon={<LeftOutlined />}
+                  title={t("settlements.back")}
+                  style={{ width: "32px", height: "32px" }}
+                />
+              )}
+              <div
+                style={{
+                  color: "var(--ss-text-main)",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  userSelect: "none",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "40vw",
+                }}
+              >
+                {mobilePageTitle}
+              </div>
+            </div>
+          ) : (
+            !immersiveMode &&
+            showSidebarToggle && (
+              <Button
+                type="text"
+                size="small"
+                onClick={onToggleSidebar}
+                icon={
+                  floatingExpand && sidebarCollapsed ? (
+                    floatingExpanded ? (
+                      <MenuFoldOutlined />
+                    ) : (
+                      <MenuUnfoldOutlined />
+                    )
+                  ) : sidebarCollapsed ? (
                     <MenuUnfoldOutlined />
+                  ) : (
+                    <MenuFoldOutlined />
                   )
-                ) : sidebarCollapsed ? (
-                  <MenuUnfoldOutlined />
-                ) : (
-                  <MenuFoldOutlined />
-                )
-              }
-              title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
-              style={{ width: "32px", height: "32px" }}
-            />
+                }
+                title={sidebarCollapsed ? "展开导航栏" : "收起导航栏"}
+                style={{ width: "32px", height: "32px" }}
+              />
+            )
           )}
         </div>
         <div
