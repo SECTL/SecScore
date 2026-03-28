@@ -1551,6 +1551,7 @@ export const Home: React.FC<HomeProps> = ({
 
   const navContainerRef = useRef<HTMLDivElement>(null)
   const isNavDragging = useRef(false)
+  const navHapticIndexRef = useRef<number | null>(null)
   const bodyUserSelectRef = useRef("")
   const bodyWebkitUserSelectRef = useRef("")
   const [viewportHeight, setViewportHeight] = useState(() =>
@@ -1559,6 +1560,12 @@ export const Home: React.FC<HomeProps> = ({
   const [navActiveKey, setNavActiveKey] = useState<string | null>(null)
   const [navIndicatorY, setNavIndicatorY] = useState(0)
   const [isNavDraggingState, setIsNavDraggingState] = useState(false)
+
+  const triggerNavHaptic = useCallback(() => {
+    if (!isMobile) return
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return
+    navigator.vibrate(8)
+  }, [isMobile])
 
   const quickNavLayout = useMemo(() => {
     const baseItemSize = 24
@@ -1629,6 +1636,10 @@ export const Home: React.FC<HomeProps> = ({
       const clampedY = Math.max(innerTop, Math.min(innerBottom - 0.001, y))
       const index = Math.floor((clampedY - innerTop) / quickNavLayout.itemSize)
       const safeIndex = Math.max(0, Math.min(itemCount - 1, index))
+      if (safeIndex !== navHapticIndexRef.current) {
+        navHapticIndexRef.current = safeIndex
+        triggerNavHaptic()
+      }
 
       const targetGroup = groupedStudents[safeIndex]
       if (targetGroup) {
@@ -1637,11 +1648,12 @@ export const Home: React.FC<HomeProps> = ({
         scrollToGroup(targetGroup.key)
       }
     },
-    [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY]
+    [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY, triggerNavHaptic]
   )
 
   const onNavMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
+    navHapticIndexRef.current = null
     setNavDraggingState(true)
     handleNavAction(e.clientY)
     document.addEventListener("mousemove", onGlobalMouseMove)
@@ -1662,6 +1674,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const onNavTouchStart = (e: React.TouchEvent) => {
+    navHapticIndexRef.current = null
     setNavDraggingState(true)
     if (e.touches[0]) {
       handleNavAction(e.touches[0].clientY)
@@ -1677,6 +1690,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const onNavTouchEnd = () => {
+    navHapticIndexRef.current = null
     setNavDraggingState(false)
   }
 
