@@ -113,6 +113,7 @@ export const Home: React.FC<HomeProps> = ({
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
   const [disableSearchKeyboard, setDisableSearchKeyboard] = useState(false)
+  const canShowSearchKeyboard = !isMobile && !disableSearchKeyboard
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -301,10 +302,10 @@ export const Home: React.FC<HomeProps> = ({
   }, [])
 
   useEffect(() => {
-    if (disableSearchKeyboard && showPinyinKeyboard) {
+    if (!canShowSearchKeyboard && showPinyinKeyboard) {
       setShowPinyinKeyboard(false)
     }
-  }, [disableSearchKeyboard, showPinyinKeyboard])
+  }, [canShowSearchKeyboard, showPinyinKeyboard])
 
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
@@ -2269,10 +2270,10 @@ export const Home: React.FC<HomeProps> = ({
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
                   onFocus={() => {
-                    if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                    if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
                   }}
                   onClick={() => {
-                    if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                    if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Escape") setShowPinyinKeyboard(false)
@@ -2282,7 +2283,7 @@ export const Home: React.FC<HomeProps> = ({
                   allowClear
                   style={{ width: "100%" }}
                 />
-                {!disableSearchKeyboard && showPinyinKeyboard && (
+                {canShowSearchKeyboard && showPinyinKeyboard && (
                   <div
                     style={{
                       position: "absolute",
@@ -2545,10 +2546,10 @@ export const Home: React.FC<HomeProps> = ({
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               onFocus={() => {
-                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
               }}
               onClick={() => {
-                if (!disableSearchKeyboard) setShowPinyinKeyboard(true)
+                if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
               }}
               onKeyDown={(e) => {
                 if (e.key === "Escape") setShowPinyinKeyboard(false)
@@ -2606,7 +2607,7 @@ export const Home: React.FC<HomeProps> = ({
               {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
             </Button>
             <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
-            {!disableSearchKeyboard && showPinyinKeyboard && (
+            {canShowSearchKeyboard && showPinyinKeyboard && (
               <div
                 style={{
                   position: "absolute",

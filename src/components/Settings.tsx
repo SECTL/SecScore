@@ -655,58 +655,62 @@ export const Settings: React.FC<{
           <Divider />
 
           <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
-            <Form.Item label={t("settings.searchKeyboard.title")}>
-              <Select
-                value={settings.search_keyboard_layout || "qwerty26"}
-                onChange={async (v) => {
-                  if (!(window as any).api) return
-                  const next = String(v) as "t9" | "qwerty26"
-                  const res = await (window as any).api.setSetting("search_keyboard_layout", next)
-                  if (res.success) {
-                    setSettings((prev) => ({ ...prev, search_keyboard_layout: next }))
-                    messageApi.success(t("settings.general.saved"))
-                  } else {
-                    messageApi.error(res.message || t("settings.general.saveFailed"))
-                  }
-                }}
-                style={{ width: "320px" }}
-                disabled={!canAdmin}
-                options={[
-                  { value: "qwerty26", label: t("settings.searchKeyboard.options.qwerty26") },
-                  { value: "t9", label: t("settings.searchKeyboard.options.t9") },
-                ]}
-              />
-              <div
-                style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
-              >
-                {t("settings.searchKeyboard.hint")}
-              </div>
-            </Form.Item>
+            {!isMobile && (
+              <>
+                <Form.Item label={t("settings.searchKeyboard.title")}>
+                  <Select
+                    value={settings.search_keyboard_layout || "qwerty26"}
+                    onChange={async (v) => {
+                      if (!(window as any).api) return
+                      const next = String(v) as "t9" | "qwerty26"
+                      const res = await (window as any).api.setSetting("search_keyboard_layout", next)
+                      if (res.success) {
+                        setSettings((prev) => ({ ...prev, search_keyboard_layout: next }))
+                        messageApi.success(t("settings.general.saved"))
+                      } else {
+                        messageApi.error(res.message || t("settings.general.saveFailed"))
+                      }
+                    }}
+                    style={{ width: "320px" }}
+                    disabled={!canAdmin}
+                    options={[
+                      { value: "qwerty26", label: t("settings.searchKeyboard.options.qwerty26") },
+                      { value: "t9", label: t("settings.searchKeyboard.options.t9") },
+                    ]}
+                  />
+                  <div
+                    style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                  >
+                    {t("settings.searchKeyboard.hint")}
+                  </div>
+                </Form.Item>
 
-            <Form.Item label={t("settings.searchKeyboard.disableToggle")}>
-              <Switch
-                checked={Boolean(settings.disable_search_keyboard)}
-                onChange={async (checked) => {
-                  if (!(window as any).api) return
-                  const res = await (window as any).api.setSetting(
-                    "disable_search_keyboard",
-                    checked
-                  )
-                  if (res.success) {
-                    setSettings((prev) => ({ ...prev, disable_search_keyboard: checked }))
-                    messageApi.success(t("settings.general.saved"))
-                  } else {
-                    messageApi.error(res.message || t("settings.general.saveFailed"))
-                  }
-                }}
-                disabled={!canAdmin}
-              />
-              <div
-                style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
-              >
-                {t("settings.searchKeyboard.disableHint")}
-              </div>
-            </Form.Item>
+                <Form.Item label={t("settings.searchKeyboard.disableToggle")}>
+                  <Switch
+                    checked={Boolean(settings.disable_search_keyboard)}
+                    onChange={async (checked) => {
+                      if (!(window as any).api) return
+                      const res = await (window as any).api.setSetting(
+                        "disable_search_keyboard",
+                        checked
+                      )
+                      if (res.success) {
+                        setSettings((prev) => ({ ...prev, disable_search_keyboard: checked }))
+                        messageApi.success(t("settings.general.saved"))
+                      } else {
+                        messageApi.error(res.message || t("settings.general.saveFailed"))
+                      }
+                    }}
+                    disabled={!canAdmin}
+                  />
+                  <div
+                    style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                  >
+                    {t("settings.searchKeyboard.disableHint")}
+                  </div>
+                </Form.Item>
+              </>
+            )}
 
             <Form.Item label={t("settings.interfaceZoom")}>
               <Select
