@@ -70,3 +70,13 @@ const pkgPath = path.join(process.cwd(), "package.json")
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"))
 pkg.version = version
 fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf-8")
+
+const tauriConfPath = path.join(process.cwd(), "src-tauri", "tauri.conf.json")
+const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"))
+tauriConf.version = version
+fs.writeFileSync(tauriConfPath, `${JSON.stringify(tauriConf, null, 2)}\n`, "utf-8")
+
+const cargoPath = path.join(process.cwd(), "src-tauri", "Cargo.toml")
+let cargoContent = fs.readFileSync(cargoPath, "utf-8")
+cargoContent = cargoContent.replace(/^version = "[^"]+"/m, `version = "${version}"`)
+fs.writeFileSync(cargoPath, cargoContent, "utf-8")

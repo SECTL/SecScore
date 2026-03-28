@@ -6,7 +6,7 @@
   "homepage": "https://example.org",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/generate-about-content.mjs && vite build",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.cjs",
     "tauri:build": "tauri build",

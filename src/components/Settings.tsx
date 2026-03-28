@@ -77,6 +77,8 @@ export const Settings: React.FC<{
   const [recoveryDialogString, setRecoveryDialogString] = useState("")
   const [recoveryDialogFilename, setRecoveryDialogFilename] = useState("")
 
+  const [aboutContent, setAboutContent] = useState<{ title: string; description: string; content: string; rawMarkdown: string } | null>(null)
+
   const [logsDialogVisible, setLogsDialogVisible] = useState(false)
   const [logsText, setLogsText] = useState("")
   const [logsLoading, setLogsLoading] = useState(false)
@@ -165,8 +167,21 @@ export const Settings: React.FC<{
     await loadMcpStatus()
   }
 
+  const loadAboutContent = async () => {
+    try {
+      const res = await fetch("/about-content.json")
+      if (res.ok) {
+        const data = await res.json()
+        setAboutContent(data)
+      }
+    } catch {
+      // ignore if about-content.json not found
+    }
+  }
+
   useEffect(() => {
     loadAll()
+    loadAboutContent()
     const api = (window as any).api
     if (!api) return
 
@@ -1122,17 +1137,19 @@ export const Settings: React.FC<{
       label: t("settings.about.title"),
       children: (
         <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>SecScore</div>
+          <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
+            {aboutContent?.title || "SecScore"}
+          </div>
           <div style={{ color: "var(--ss-text-secondary)", marginBottom: "16px" }}>
-            {t("settings.about.appName")}
+            {aboutContent?.description || t("settings.about.appName")}
           </div>
           <Divider />
           <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", rowGap: "10px" }}>
             <div style={{ color: "var(--ss-text-secondary)" }}>{t("settings.about.version")}</div>
-            <div>v1.0.0</div>
+            <div>{aboutContent?.version || "v1.0.0"}</div>
             <div style={{ color: "var(--ss-text-secondary)" }}>{t("settings.about.copyright")}</div>
             <div>{"CopyRight © 2025-" + currentYear + " SECTL"}</div>
-            <div style={{ color: "var(--ss-text-secondary)" }}>Electron</div>
+            <div style={{ color: "var(--ss-text-secondary)" }}>Tauri</div>
             <div>{(window as any).electron?.process?.versions?.electron || "-"}</div>
             <div style={{ color: "var(--ss-text-secondary)" }}>Chromium</div>
             <div>{(window as any).electron?.process?.versions?.chrome || "-"}</div>
@@ -1165,6 +1182,21 @@ export const Settings: React.FC<{
               </Button>
             </Space>
           </div>
+          {aboutContent?.content && (
+            <>
+              <Divider />
+              <div
+                style={{
+                  maxHeight: "400px",
+                  overflow: "auto",
+                  padding: "16px",
+                  backgroundColor: "var(--ss-bg-secondary)",
+                  borderRadius: "8px",
+                }}
+                dangerouslySetInnerHTML={{ __html: aboutContent.content }}
+              />
+            </>
+          )}
           <Divider />
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
             {t("settings.mcp.title")}
