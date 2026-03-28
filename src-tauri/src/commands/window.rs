@@ -100,7 +100,7 @@ pub async fn toggle_devtools(
         let _ = app;
     }
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, desktop))]
     if let Some(window) = app.get_webview_window("main") {
         if window.is_devtools_open() {
             window.close_devtools();
