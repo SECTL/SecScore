@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
+import { RightOutlined } from "@ant-design/icons"
 import {
   Tabs,
   Card,
@@ -17,6 +18,7 @@ import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
+import { useLocation, useNavigate } from "react-router-dom"
 
 type permissionLevel = "admin" | "points" | "view"
 type appSettings = {
@@ -46,8 +48,13 @@ const withTimeout = async (
   }
 }
 
-export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission }) => {
+export const Settings: React.FC<{
+  permission: permissionLevel
+  mobileNavigationEnabled?: boolean
+}> = ({ permission, mobileNavigationEnabled = false }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const location = useLocation()
   const breakpoint = useResponsive()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const [activeTab, setActiveTab] = useState("appearance")
@@ -131,6 +138,25 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
       </Tag>
     )
   }, [permission, t])
+
+  const mobilePageItems = useMemo(
+    () => [
+      { key: "students", path: "/students", label: t("sidebar.students"), disabled: !canAdmin },
+      { key: "score", path: "/score", label: t("sidebar.score"), disabled: false },
+      { key: "auto-score", path: "/auto-score", label: t("sidebar.autoScore"), disabled: false },
+      {
+        key: "reward-settings",
+        path: "/reward-settings",
+        label: t("sidebar.rewardSettings"),
+        disabled: !canAdmin,
+      },
+      { key: "boards", path: "/boards", label: t("sidebar.boards"), disabled: false },
+      { key: "leaderboard", path: "/leaderboard", label: t("sidebar.leaderboard"), disabled: false },
+      { key: "settlements", path: "/settlements", label: t("sidebar.settlements"), disabled: false },
+      { key: "reasons", path: "/reasons", label: t("sidebar.reasons"), disabled: !canAdmin },
+    ],
+    [canAdmin, t]
+  )
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -1276,6 +1302,35 @@ export const Settings: React.FC<{ permission: permissionLevel }> = ({ permission
         <h2 style={{ margin: 0 }}>{t("settings.title")}</h2>
         {permissionTag}
       </div>
+
+      {mobileNavigationEnabled && isMobile && (
+        <Card
+          title={t("settings.mobile.navigationTitle", "页面入口")}
+          bodyStyle={{ padding: 0 }}
+          style={{
+            marginBottom: "16px",
+            backgroundColor: "var(--ss-card-bg)",
+            color: "var(--ss-text-main)",
+          }}
+        >
+          <div className="ss-settings-mobile-nav-list">
+            {mobilePageItems.map((item) => (
+              <Button
+                key={item.key}
+                disabled={item.disabled}
+                type="text"
+                className={`ss-settings-mobile-nav-item${
+                  location.pathname.startsWith(item.path) ? " is-active" : ""
+                }`}
+                onClick={() => navigate(item.path)}
+              >
+                <span className="ss-settings-mobile-nav-item-label">{item.label}</span>
+                <RightOutlined className="ss-settings-mobile-nav-item-arrow" />
+              </Button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
 

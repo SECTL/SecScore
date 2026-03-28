@@ -1,4 +1,5 @@
 import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme } from "antd"
+import { HomeOutlined, SettingOutlined } from "@ant-design/icons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -352,6 +353,7 @@ function MainContent(): React.JSX.Element {
 
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
+  const showMobileBottomNav = isPortraitMode && !immersiveMode
 
   return (
     <ConfigProvider
@@ -365,25 +367,27 @@ function MainContent(): React.JSX.Element {
       }}
     >
       {contextHolder}
-      <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden" }}>
-        <div
-          className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
-          style={
-            {
-              "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
-            } as React.CSSProperties
-          }
-        >
-          <Sidebar
-            activeMenu={activeMenu}
-            permission={permission}
-            onMenuChange={onMenuChange}
-            collapsed={sidebarCollapsed}
-            floatingExpand={isPortraitMode}
-            floatingExpanded={floatingSidebarExpanded}
-            onFloatingExpandedChange={setFloatingSidebarExpanded}
-          />
-        </div>
+      <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden", position: "relative" }}>
+        {!isPortraitMode && (
+          <div
+            className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
+            style={
+              {
+                "--ss-sidebar-width": `${sidebarCollapsed ? 64 : 200}px`,
+              } as React.CSSProperties
+            }
+          >
+            <Sidebar
+              activeMenu={activeMenu}
+              permission={permission}
+              onMenuChange={onMenuChange}
+              collapsed={sidebarCollapsed}
+              floatingExpand={isPortraitMode}
+              floatingExpanded={floatingSidebarExpanded}
+              onFloatingExpandedChange={setFloatingSidebarExpanded}
+            />
+          </div>
+        )}
         <ContentArea
           permission={permission}
           hasAnyPassword={hasAnyPassword}
@@ -398,7 +402,70 @@ function MainContent(): React.JSX.Element {
           immersiveMode={immersiveMode}
           isHomePage={activeMenu === "home"}
           onToggleImmersiveMode={toggleImmersiveMode}
+          showSidebarToggle={!isPortraitMode}
+          bottomInset={showMobileBottomNav ? 84 : 0}
         />
+        {showMobileBottomNav && (
+          <div
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "var(--ss-header-bg)",
+              borderTop: "1px solid var(--ss-border-color)",
+              zIndex: 1400,
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            }}
+          >
+            <div style={{ display: "flex", height: "60px" }}>
+              <button
+                type="button"
+                onClick={() => onMenuChange("home")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "transparent",
+                  color:
+                    activeMenu === "home"
+                      ? "var(--ant-color-primary)"
+                      : "var(--ss-text-secondary, var(--ss-text-main))",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "2px",
+                  fontSize: "12px",
+                }}
+              >
+                <HomeOutlined style={{ fontSize: "18px" }} />
+                <span>{t("sidebar.home")}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onMenuChange("settings")}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "transparent",
+                  color:
+                    activeMenu === "home"
+                      ? "var(--ss-text-secondary, var(--ss-text-main))"
+                      : "var(--ant-color-primary)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "2px",
+                  fontSize: "12px",
+                }}
+              >
+                <SettingOutlined style={{ fontSize: "18px" }} />
+                <span>{t("sidebar.settings")}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 

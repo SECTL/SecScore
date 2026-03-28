@@ -6,7 +6,7 @@ import {
   FullscreenOutlined,
   FullscreenExitOutlined,
 } from "@ant-design/icons"
-import { Routes, Route, Navigate } from "react-router-dom"
+import { Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 import appLogo from "../assets/logoHD.svg"
@@ -67,6 +67,8 @@ interface ContentAreaProps {
   immersiveMode: boolean
   isHomePage: boolean
   onToggleImmersiveMode: () => void
+  showSidebarToggle?: boolean
+  bottomInset?: number
 }
 
 export function ContentArea({
@@ -83,8 +85,13 @@ export function ContentArea({
   immersiveMode,
   isHomePage,
   onToggleImmersiveMode,
+  showSidebarToggle = true,
+  bottomInset = 0,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
+  const location = useLocation()
+  const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
+  const shouldAnimateSubPage = isPortraitMode && isSubPage
 
   useEffect(() => {
     let cancelled = false
@@ -156,7 +163,7 @@ export function ContentArea({
             } as React.CSSProperties
           }
         >
-          {!immersiveMode && (
+          {!immersiveMode && showSidebarToggle && (
             <Button
               type="text"
               size="small"
@@ -246,7 +253,14 @@ export function ContentArea({
         {showWindowControls && <WindowControls />}
       </div>
 
-      <Content style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+      <Content
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingBottom: bottomInset ? `${bottomInset}px` : 0,
+        }}
+      >
         <Suspense
           fallback={
             <div
@@ -263,34 +277,47 @@ export function ContentArea({
             </div>
           }
         >
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Home
-                  canEdit={permission === "admin" || permission === "points"}
-                  isPortraitMode={isPortraitMode}
-                  immersiveMode={immersiveMode}
-                />
-              }
-            />
-            <Route path="/students" element={<StudentManager canEdit={permission === "admin"} />} />
-            <Route
-              path="/score"
-              element={<ScoreManager canEdit={permission === "admin" || permission === "points"} />}
-            />
-            <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/settlements" element={<SettlementHistory />} />
-            <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
-            <Route path="/auto-score" element={<AutoScoreManager />} />
-            <Route
-              path="/reward-settings"
-              element={<RewardSettings canEdit={permission === "admin"} />}
-            />
-            <Route path="/settings" element={<Settings permission={permission} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <div
+            key={location.pathname}
+            className={`ss-route-page${shouldAnimateSubPage ? " is-subpage-enter" : ""}`}
+          >
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <Home
+                    canEdit={permission === "admin" || permission === "points"}
+                    isPortraitMode={isPortraitMode}
+                    immersiveMode={immersiveMode}
+                  />
+                }
+              />
+              <Route
+                path="/students"
+                element={<StudentManager canEdit={permission === "admin"} />}
+              />
+              <Route
+                path="/score"
+                element={
+                  <ScoreManager canEdit={permission === "admin" || permission === "points"} />
+                }
+              />
+              <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
+              <Route path="/settlements" element={<SettlementHistory />} />
+              <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
+              <Route path="/auto-score" element={<AutoScoreManager />} />
+              <Route
+                path="/reward-settings"
+                element={<RewardSettings canEdit={permission === "admin"} />}
+              />
+              <Route
+                path="/settings"
+                element={<Settings permission={permission} mobileNavigationEnabled={isPortraitMode} />}
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </Suspense>
       </Content>
     </Layout>
