@@ -92,6 +92,9 @@ select {
 
 .ss-sidebar .ant-menu-item {
   color: var(--ss-sidebar-text, var(--ss-text-main));
+  height: 40px !important;
+  line-height: 42px !important;
+  border-radius: 6px !important;
 }
 
 .ss-sidebar .ant-menu-item-selected {
@@ -316,6 +319,11 @@ html.platform-macos #root {
 
 .ss-route-page {
   min-height: 100%;
+}
+
+.ss-route-page.is-board-page {
+  height: 100%;
+  overflow: hidden;
 }
 
 .ss-route-page.is-subpage-enter {

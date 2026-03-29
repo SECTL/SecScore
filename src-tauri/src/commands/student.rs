@@ -313,7 +313,9 @@ async fn post_banyou_action<T: DeserializeOwned>(
     params: serde_json::Value,
 ) -> Result<T, String> {
     let timestamp = chrono::Utc::now().timestamp_millis();
-    let url = format!("https://care.seewo.com/app/apis.json?action={action}&timestamp={timestamp}&isAjax=1");
+    let url = format!(
+        "https://care.seewo.com/app/apis.json?action={action}&timestamp={timestamp}&isAjax=1"
+    );
     let payload = serde_json::json!({
         "action": action,
         "params": params,
@@ -371,7 +373,11 @@ async fn post_banyou_action<T: DeserializeOwned>(
                 "body_preview": first_n_chars(&body, 500),
             })),
         );
-        return Err(format!("班优接口请求失败（{} HTTP {}）", action, status.as_u16()));
+        return Err(format!(
+            "班优接口请求失败（{} HTTP {}）",
+            action,
+            status.as_u16()
+        ));
     }
 
     let parsed: BanYouApiResponse<T> = serde_json::from_str(&body).map_err(|e| {
@@ -993,7 +999,9 @@ pub async fn student_fetch_banyou_classroom_detail(
         (Vec::new(), None)
     };
 
-    let final_team_plan_id = params.team_plan_id.or_else(|| team_plans.first().map(|p| p.team_plan_id));
+    let final_team_plan_id = params
+        .team_plan_id
+        .or_else(|| team_plans.first().map(|p| p.team_plan_id));
 
     let group_data = if let Some(team_plan_id) = final_team_plan_id {
         match post_banyou_action::<BanYouGroupFetchData>(
@@ -1032,7 +1040,10 @@ pub async fn student_fetch_banyou_classroom_detail(
     let detail = BanYouClassroomDetailData {
         medals,
         students: students_data.students,
-        teams: group_data.as_ref().map(|d| d.teams.clone()).unwrap_or_default(),
+        teams: group_data
+            .as_ref()
+            .map(|d| d.teams.clone())
+            .unwrap_or_default(),
         ungrouped_students: group_data
             .as_ref()
             .map(|d| d.students.clone())

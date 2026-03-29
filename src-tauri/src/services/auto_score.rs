@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Months, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::{AppHandle, Emitter};
@@ -13,6 +13,20 @@ pub struct AutoScoreTrigger {
 pub struct AutoScoreAction {
     pub event: String,
     pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum IntervalUnit {
+    Minute,
+    Day,
+    Month,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct IntervalTriggerValue {
+    amount: i64,
+    unit: IntervalUnit,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,23 +185,17 @@ impl AutoScoreService {
 
         for trigger in &rule.triggers {
             if trigger.event == "interval_time_passed" {
-                let minutes = trigger
-                    .value
+                let interval = parse_interval_trigger_value(trigger.value.as_ref());
+                let base_time = rule
+                    .last_executed
                     .as_ref()
-                    .and_then(|v| v.parse::<i64>().ok())
-                    .unwrap_or(30);
-                let interval_ms = minutes * 60 * 1000;
+                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                    .map(|value| value.with_timezone(&Utc))
+                    .unwrap_or(now);
 
-                if let Some(last_executed_str) = &rule.last_executed {
-                    if let Ok(last_executed) = DateTime::parse_from_rfc3339(last_executed_str) {
-                        let last_executed_utc: DateTime<Utc> = last_executed.with_timezone(&Utc);
-                        let next_execute_time =
-                            last_executed_utc + chrono::Duration::milliseconds(interval_ms);
-                        let delay_ms = (next_execute_time - now).num_milliseconds();
-                        return Some(delay_ms.max(0));
-                    }
-                }
-                return Some(interval_ms);
+                let next_execute_time = add_interval_to_time(base_time, &interval)?;
+                let delay_ms = (next_execute_time - now).num_milliseconds();
+                return Some(delay_ms.max(0));
             }
         }
         None
@@ -195,5 +203,45 @@ impl AutoScoreService {
 
     pub async fn notify_rules_changed(&self, app_handle: &AppHandle) {
         let _ = app_handle.emit("auto-score:rulesChanged", &self.rules);
+    }
+}
+
+fn parse_interval_trigger_value(value: Option<&String>) -> IntervalTriggerValue {
+    if let Some(raw_value) = value {
+        if let Ok(minutes) = raw_value.parse::<i64>() {
+            if minutes > 0 {
+                return IntervalTriggerValue {
+                    amount: minutes,
+                    unit: IntervalUnit::Minute,
+                };
+            }
+        }
+
+        if let Ok(parsed_value) = serde_json::from_str::<IntervalTriggerValue>(raw_value) {
+            if parsed_value.amount > 0 {
+                return parsed_value;
+            }
+        }
+    }
+
+    IntervalTriggerValue {
+        amount: 30,
+        unit: IntervalUnit::Minute,
+    }
+}
+
+fn add_interval_to_time(
+    base_time: DateTime<Utc>,
+    interval: &IntervalTriggerValue,
+) -> Option<DateTime<Utc>> {
+    match interval.unit {
+        IntervalUnit::Minute => {
+            base_time.checked_add_signed(chrono::Duration::minutes(interval.amount))
+        }
+        IntervalUnit::Day => base_time.checked_add_signed(chrono::Duration::days(interval.amount)),
+        IntervalUnit::Month => {
+            let months = u32::try_from(interval.amount).ok()?;
+            base_time.checked_add_months(Months::new(months))
+        }
     }
 }

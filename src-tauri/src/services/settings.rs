@@ -431,9 +431,7 @@ impl SettingsService {
                             "settings",
                         ];
                         return items.iter().all(|item| {
-                            item.as_str()
-                                .map(|s| allowed.contains(&s))
-                                .unwrap_or(false)
+                            item.as_str().map(|s| allowed.contains(&s)).unwrap_or(false)
                         });
                     }
                     false

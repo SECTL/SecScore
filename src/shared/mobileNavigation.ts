@@ -24,6 +24,7 @@ export const MOBILE_NAV_ITEMS: MobileNavItemConfig[] = [
   { key: "home", path: "/home", labelKey: "sidebar.home" },
   { key: "students", path: "/students", labelKey: "sidebar.students", adminOnly: true },
   { key: "score", path: "/score", labelKey: "sidebar.score" },
+  { key: "auto-score", path: "/auto-score", labelKey: "sidebar.autoScore", adminOnly: true },
   {
     key: "reward-settings",
     path: "/reward-settings",
