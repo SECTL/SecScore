@@ -76,7 +76,13 @@ export const Settings: React.FC<{
   const [recoveryDialogString, setRecoveryDialogString] = useState("")
   const [recoveryDialogFilename, setRecoveryDialogFilename] = useState("")
 
-  const [aboutContent, setAboutContent] = useState<{ title: string; description: string; content: string; rawMarkdown: string } | null>(null)
+  const [aboutContent, setAboutContent] = useState<{
+    title: string
+    description: string
+    content: string
+    rawMarkdown: string
+    version?: string
+  } | null>(null)
 
   const [logsDialogVisible, setLogsDialogVisible] = useState(false)
   const [logsText, setLogsText] = useState("")
