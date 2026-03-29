@@ -872,17 +872,20 @@ ORDER BY reward_points DESC, score DESC`,
                   ? { label: t("board.metrics.addScore"), value: item.addScore }
                   : item.deductScore !== undefined
                     ? { label: t("board.metrics.deductScore"), value: item.deductScore }
-                : item.score !== undefined
-                  ? { label: t("board.metrics.totalScore"), value: item.score }
-                : item.rewardPoints !== undefined
-                  ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
-                  : item.weekChange !== undefined
-                    ? { label: t("board.metrics.weekChange"), value: item.weekChange }
-                    : item.weekDeducted !== undefined
-                      ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
-                      : item.answeredCount !== undefined
-                        ? { label: t("board.metrics.todayAnswered"), value: item.answeredCount }
-                        : null
+                    : item.score !== undefined
+                      ? { label: t("board.metrics.totalScore"), value: item.score }
+                      : item.rewardPoints !== undefined
+                        ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
+                        : item.weekChange !== undefined
+                          ? { label: t("board.metrics.weekChange"), value: item.weekChange }
+                          : item.weekDeducted !== undefined
+                            ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
+                            : item.answeredCount !== undefined
+                              ? {
+                                  label: t("board.metrics.todayAnswered"),
+                                  value: item.answeredCount,
+                                }
+                              : null
             : item.score !== undefined
               ? { label: t("board.metrics.totalScore"), value: item.score }
               : item.rewardPoints !== undefined
@@ -1039,10 +1042,13 @@ ORDER BY reward_points DESC, score DESC`,
                         {(list.scoreDisplayMode === "total" ||
                           (list.scoreDisplayMode === "split" && !hasSplitScore)) &&
                           item.score !== undefined && (
-                          <Tag color={item.score >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                            {t("board.metrics.totalScore")}:{" "}
-                            {item.score > 0 ? `+${item.score}` : item.score}
-                          </Tag>
+                            <Tag
+                              color={item.score >= 0 ? "success" : "error"}
+                              style={{ margin: 0 }}
+                            >
+                              {t("board.metrics.totalScore")}:{" "}
+                              {item.score > 0 ? `+${item.score}` : item.score}
+                            </Tag>
                           )}
                         {list.scoreDisplayMode === "split" && item.addScore !== undefined && (
                           <Tag color="success" style={{ margin: 0 }}>
@@ -1428,7 +1434,11 @@ ORDER BY reward_points DESC, score DESC`,
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               }}
             />
-            <Typography.Link href="https://doubao.com/bot/uEh3mtxq" target="_blank" rel="noreferrer">
+            <Typography.Link
+              href="https://doubao.com/bot/uEh3mtxq"
+              target="_blank"
+              rel="noreferrer"
+            >
               豆包智能体一句话生成查询
             </Typography.Link>
             <Typography.Link

@@ -260,7 +260,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         return
       }
 
-      const res = await (window as any).api.createStudent({ ...values, name, group_name: groupName })
+      const res = await (window as any).api.createStudent({
+        ...values,
+        name,
+        group_name: groupName,
+      })
       if (res.success) {
         messageApi.success(t("students.addSuccess"))
         setVisible(false)
@@ -1080,7 +1084,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     const selectedMedals = (banYouDetail.medals || []).filter((m, idx) =>
       banYouCheckedMedals.includes(medalKey(m, idx))
     )
-    const selectedTeams = (banYouDetail.teams || []).filter((g) => banYouCheckedTeams.includes(g.teamId))
+    const selectedTeams = (banYouDetail.teams || []).filter((g) =>
+      banYouCheckedTeams.includes(g.teamId)
+    )
 
     if (!selectedStudents.length && !selectedMedals.length && !selectedTeams.length) {
       messageApi.warning(t("students.banyouNothingSelected"))
@@ -1325,7 +1331,11 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               },
             }}
           >
-            <Button size={isMobile ? "small" : "middle"} disabled={!canEdit} icon={<MoreOutlined />}>
+            <Button
+              size={isMobile ? "small" : "middle"}
+              disabled={!canEdit}
+              icon={<MoreOutlined />}
+            >
               {t("common.operation")}
             </Button>
           </Dropdown>
@@ -1608,7 +1618,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     borderBottom: "1px dashed var(--ss-border-color)",
                     paddingBottom: 8,
                     cursor:
-                      groupKey === UNGROUPED_KEY || pointerDraggingStudentId != null ? "default" : "grab",
+                      groupKey === UNGROUPED_KEY || pointerDraggingStudentId != null
+                        ? "default"
+                        : "grab",
                     userSelect: "none",
                     WebkitUserSelect: "none",
                     touchAction: "none",
@@ -1632,7 +1644,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     studentsInGroup.map((student) => (
                       <div
                         key={`${groupKey}-${student.id}`}
-                        onPointerDown={(e) => beginPointerDrag(e, student.id, student.name, groupKey)}
+                        onPointerDown={(e) =>
+                          beginPointerDrag(e, student.id, student.name, groupKey)
+                        }
                         onPointerMove={(e) => trackPointerTarget(e.clientX, e.clientY)}
                         onPointerUp={finishPointerDrag}
                         onPointerCancel={finishPointerDrag}
@@ -1935,7 +1949,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         cancelText={t("common.cancel")}
       >
         {banYouDetailLoading ? (
-          <div style={{ padding: "24px 0", textAlign: "center", color: "var(--ss-text-secondary)" }}>
+          <div
+            style={{ padding: "24px 0", textAlign: "center", color: "var(--ss-text-secondary)" }}
+          >
             {t("common.loading")}
           </div>
         ) : !banYouDetail ? (
@@ -1973,7 +1989,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             )}
 
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>{t("students.banyouReasonList")}</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                {t("students.banyouReasonList")}
+              </div>
               <div
                 style={{
                   border: "1px solid var(--ss-border-color)",
@@ -2006,7 +2024,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             </div>
 
             <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>{t("students.banyouStudentList")}</div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                {t("students.banyouStudentList")}
+              </div>
               <div
                 style={{
                   border: "1px solid var(--ss-border-color)",

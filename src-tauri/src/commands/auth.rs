@@ -30,6 +30,30 @@ pub struct SetPasswordsResponse {
     pub recovery_string: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthConfig {
+    pub platform_id: String,
+    pub platform_secret: String,
+    pub callback_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthTokenResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthUserInfo {
+    pub user_id: String,
+    pub email: String,
+    pub name: String,
+    pub github_username: Option<String>,
+    pub permission: u32,
+}
+
 fn get_iv_hex() -> String {
     SecurityService::generate_iv_hex()
 }
@@ -270,4 +294,117 @@ pub async fn auth_clear_all(
         Ok(()) => Ok(IpcResponse::success(())),
         Err(e) => Ok(IpcResponse::error(&e)),
     }
+}
+
+#[tauri::command]
+pub async fn oauth_get_authorization_url(
+    platform_id: String,
+    callback_url: String,
+) -> Result<IpcResponse<String>, String> {
+    let url = format!(
+        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code",
+        platform_id,
+        urlencoding::encode(&callback_url)
+    );
+    Ok(IpcResponse::success(url))
+}
+
+#[tauri::command]
+pub async fn oauth_exchange_code(
+    code: String,
+    platform_id: String,
+    platform_secret: String,
+    callback_url: String,
+) -> Result<IpcResponse<OAuthTokenResponse>, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://sectl.top/api/oauth/token")
+        .json(&serde_json::json!({
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": platform_id,
+            "client_secret": platform_secret,
+            "redirect_uri": callback_url
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Ok(IpcResponse::error(&error_text));
+    }
+
+    let token_response: OAuthTokenResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(token_response))
+}
+
+#[tauri::command]
+pub async fn oauth_get_user_info(
+    access_token: String,
+) -> Result<IpcResponse<OAuthUserInfo>, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://sectl.top/api/oauth/userinfo")
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Ok(IpcResponse::error(&error_text));
+    }
+
+    let user_info: OAuthUserInfo = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(user_info))
+}
+
+#[tauri::command]
+pub async fn oauth_refresh_token(
+    refresh_token: String,
+    platform_id: String,
+    platform_secret: String,
+) -> Result<IpcResponse<OAuthTokenResponse>, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://sectl.top/api/oauth/token")
+        .json(&serde_json::json!({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": platform_id,
+            "client_secret": platform_secret
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Ok(IpcResponse::error(&error_text));
+    }
+
+    let token_response: OAuthTokenResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(token_response))
 }

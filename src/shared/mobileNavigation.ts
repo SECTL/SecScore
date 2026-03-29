@@ -2,6 +2,7 @@ export const MOBILE_NAV_ALL_KEYS = [
   "home",
   "students",
   "score",
+  "auto-score",
   "reward-settings",
   "boards",
   "leaderboard",

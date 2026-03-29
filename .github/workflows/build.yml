@@ -72,6 +72,13 @@ jobs:
       - name: 应用版本号
         run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
 
+      - name: 设置 OAuth 环境变量
+        run: |
+          echo "VITE_OAUTH_PLATFORM_ID=${{ secrets.OAUTH_PLATFORM_ID }}" >> $env:GITHUB_ENV
+          echo "VITE_OAUTH_PLATFORM_SECRET=${{ secrets.OAUTH_PLATFORM_SECRET }}" >> $env:GITHUB_ENV
+          echo "VITE_OAUTH_CALLBACK_URL=secscore://oauth/callback" >> $env:GITHUB_ENV
+        shell: pwsh
+
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
@@ -107,6 +114,12 @@ jobs:
 
       - name: 应用版本号
         run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 设置 OAuth 环境变量
+        run: |
+          echo "VITE_OAUTH_PLATFORM_ID=${{ secrets.OAUTH_PLATFORM_ID }}" >> $GITHUB_ENV
+          echo "VITE_OAUTH_PLATFORM_SECRET=${{ secrets.OAUTH_PLATFORM_SECRET }}" >> $GITHUB_ENV
+          echo "VITE_OAUTH_CALLBACK_URL=secscore://oauth/callback" >> $GITHUB_ENV
 
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
@@ -148,6 +161,12 @@ jobs:
 
       - name: 应用版本号
         run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 设置 OAuth 环境变量
+        run: |
+          echo "VITE_OAUTH_PLATFORM_ID=${{ secrets.OAUTH_PLATFORM_ID }}" >> $GITHUB_ENV
+          echo "VITE_OAUTH_PLATFORM_SECRET=${{ secrets.OAUTH_PLATFORM_SECRET }}" >> $GITHUB_ENV
+          echo "VITE_OAUTH_CALLBACK_URL=secscore://oauth/callback" >> $GITHUB_ENV
 
       - name: 安装依赖
         run: pnpm install --frozen-lockfile

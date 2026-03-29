@@ -12,11 +12,16 @@ import {
   Modal,
   Switch,
   message,
+  Avatar,
+  Typography,
 } from "antd"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
+import { OAuthLogin } from "./OAuthLogin"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
+
+const { Text, Paragraph } = Typography
 
 type permissionLevel = "admin" | "points" | "view"
 type appSettings = {
@@ -76,7 +81,13 @@ export const Settings: React.FC<{
   const [recoveryDialogString, setRecoveryDialogString] = useState("")
   const [recoveryDialogFilename, setRecoveryDialogFilename] = useState("")
 
-  const [aboutContent, setAboutContent] = useState<{ title: string; description: string; content: string; rawMarkdown: string } | null>(null)
+  const [aboutContent, setAboutContent] = useState<{
+    title: string
+    description: string
+    content: string
+    rawMarkdown: string
+    version?: string
+  } | null>(null)
 
   const [logsDialogVisible, setLogsDialogVisible] = useState(false)
   const [logsText, setLogsText] = useState("")
@@ -119,6 +130,15 @@ export const Settings: React.FC<{
   const [pgTestLoading, setPgTestLoading] = useState(false)
   const [pgSwitchLoading, setPgSwitchLoading] = useState(false)
   const [pgUploadLoading, setPgUploadLoading] = useState(false)
+
+  const [oauthLoginVisible, setOAuthLoginVisible] = useState(false)
+  const [oauthUserInfo, setOAuthUserInfo] = useState<{
+    user_id: string
+    email: string
+    name: string
+    github_username?: string
+    permission: number
+  } | null>(null)
 
   const permissionTag = useMemo(() => {
     return (
@@ -652,7 +672,10 @@ export const Settings: React.FC<{
                     onChange={async (v) => {
                       if (!(window as any).api) return
                       const next = String(v) as "t9" | "qwerty26"
-                      const res = await (window as any).api.setSetting("search_keyboard_layout", next)
+                      const res = await (window as any).api.setSetting(
+                        "search_keyboard_layout",
+                        next
+                      )
                       if (res.success) {
                         setSettings((prev) => ({ ...prev, search_keyboard_layout: next }))
                         messageApi.success(t("settings.general.saved"))
@@ -668,7 +691,11 @@ export const Settings: React.FC<{
                     ]}
                   />
                   <div
-                    style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      color: "var(--ss-text-secondary)",
+                    }}
                   >
                     {t("settings.searchKeyboard.hint")}
                   </div>
@@ -693,7 +720,11 @@ export const Settings: React.FC<{
                     disabled={!canAdmin}
                   />
                   <div
-                    style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                    style={{
+                      marginTop: "4px",
+                      fontSize: "12px",
+                      color: "var(--ss-text-secondary)",
+                    }}
                   >
                     {t("settings.searchKeyboard.disableHint")}
                   </div>
@@ -734,7 +765,6 @@ export const Settings: React.FC<{
                 {t("settings.zoomHint")}
               </div>
             </Form.Item>
-
           </Form>
         </Card>
       ),
@@ -839,6 +869,84 @@ export const Settings: React.FC<{
             <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
               {t("settings.security.resetHint")}
             </div>
+          </Card>
+        </>
+      ),
+    },
+    {
+      key: "account",
+      label: t("settings.tabs.account"),
+      children: (
+        <>
+          <Card
+            style={{
+              backgroundColor: "var(--ss-card-bg)",
+              color: "var(--ss-text-main)",
+              marginBottom: "16px",
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: "16px" }}>
+              {t("settings.account.title")}
+            </div>
+
+            {oauthUserInfo ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <Avatar size={64} style={{ backgroundColor: "#1890ff" }}>
+                    {oauthUserInfo.name.charAt(0).toUpperCase()}
+                  </Avatar>
+                  <div>
+                    <div style={{ fontSize: "18px", fontWeight: 600 }}>{oauthUserInfo.name}</div>
+                    <div style={{ fontSize: "14px", color: "var(--ss-text-secondary)" }}>
+                      {oauthUserInfo.email}
+                    </div>
+                    {oauthUserInfo.github_username && (
+                      <div style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
+                        GitHub: @{oauthUserInfo.github_username}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Divider />
+
+                <div>
+                  <Text type="secondary">{t("settings.account.userId")}:</Text>
+                  <Text code style={{ marginLeft: "8px" }}>
+                    {oauthUserInfo.user_id}
+                  </Text>
+                </div>
+
+                <div>
+                  <Text type="secondary">{t("settings.account.permission")}:</Text>
+                  <Tag color="blue" style={{ marginLeft: "8px" }}>
+                    {oauthUserInfo.permission === 1
+                      ? t("permissions.admin")
+                      : oauthUserInfo.permission === 2
+                        ? t("permissions.points")
+                        : t("permissions.view")}
+                  </Tag>
+                </div>
+
+                <Divider />
+
+                <Button danger onClick={() => setOAuthUserInfo(null)}>
+                  {t("settings.account.logout")}
+                </Button>
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <Paragraph style={{ color: "var(--ss-text-secondary)" }}>
+                  {t("settings.account.notLoggedIn")}
+                </Paragraph>
+                <Paragraph style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
+                  {t("settings.account.oauthHint")}
+                </Paragraph>
+                <Button type="primary" size="large" onClick={() => setOAuthLoginVisible(true)}>
+                  {t("settings.account.loginButton")}
+                </Button>
+              </div>
+            )}
           </Card>
         </>
       ),
@@ -1420,6 +1528,15 @@ export const Settings: React.FC<{
       >
         清空后将关闭保护（无密码时默认视为管理权限）。
       </Modal>
+
+      <OAuthLogin
+        visible={oauthLoginVisible}
+        onClose={() => setOAuthLoginVisible(false)}
+        onSuccess={(userInfo) => {
+          setOAuthUserInfo(userInfo)
+          messageApi.success(t("settings.account.loginSuccess"))
+        }}
+      />
     </div>
   )
 }

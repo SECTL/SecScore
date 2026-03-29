@@ -160,7 +160,7 @@ const enableTouchWindowDrag = () => {
       if (!target) return
 
       // 检查是否在可拖动区域内
-      const dragRegion = target.closest('[data-tauri-drag-region]')
+      const dragRegion = target.closest("[data-tauri-drag-region]")
       if (!dragRegion) return
 
       // 检查是否点击了不可拖动的元素（如按钮）

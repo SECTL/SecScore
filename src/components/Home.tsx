@@ -2356,7 +2356,9 @@ export const Home: React.FC<HomeProps> = ({
                                   onClick={() => handleSearchKeyPress(keyItem.digit)}
                                   style={{ height: "28px", fontSize: "11px", padding: 0 }}
                                 >
-                                  {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
+                                  {keyItem.digit === "⌫"
+                                    ? "⌫"
+                                    : `${keyItem.digit} ${keyItem.letters}`}
                                 </Button>
                               ))}
                             </div>
@@ -2543,147 +2545,151 @@ export const Home: React.FC<HomeProps> = ({
           overflow: "visible",
         }}
       >
-          <div
-            ref={(node) => {
-              searchAreaRef.current = node
-              immersiveToolbarContentRef.current = node
+        <div
+          ref={(node) => {
+            searchAreaRef.current = node
+            immersiveToolbarContentRef.current = node
+          }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            overflowX: "visible",
+            justifyContent: "flex-start",
+          }}
+        >
+          <Input
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onFocus={() => {
+              if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
             }}
+            onClick={() => {
+              if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowPinyinKeyboard(false)
+            }}
+            placeholder={t("home.searchPlaceholder")}
+            prefix={<SearchOutlined />}
+            allowClear
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              overflowX: "visible",
-              justifyContent: "flex-start",
+              width: isPortraitMode ? "170px" : "220px",
+              borderRadius: "999px",
+              flexShrink: 0,
             }}
+          />
+          <Select
+            value={sortType}
+            onChange={(v) => setSortType(v as SortType)}
+            getPopupContainer={getImmersivePopupContainer}
+            style={{ width: 126, flexShrink: 0 }}
+            options={[
+              { value: "alphabet", label: t("home.sortBy.alphabet") },
+              { value: "surname", label: t("home.sortBy.surname") },
+              { value: "group", label: t("home.sortBy.group") },
+              { value: "score", label: t("home.sortBy.score") },
+            ]}
+          />
+          <Select
+            value={layoutType}
+            onChange={(v) => setLayoutType(v as LayoutType)}
+            getPopupContainer={getImmersivePopupContainer}
+            style={{ width: 126, flexShrink: 0 }}
+            options={[
+              { value: "grouped", label: t("home.layoutBy.grouped") },
+              { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+            ]}
+          />
+          <Button
+            icon={<UndoOutlined />}
+            onClick={handleUndoLastEvent}
+            loading={undoLoading}
+            disabled={!canEdit || !latestEvent || rewardMode}
+            title={
+              latestEvent
+                ? t("home.undoLastHint", {
+                    name: latestEvent.student_name,
+                    delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+                  })
+                : t("home.undoUnavailable")
+            }
+            style={{ borderRadius: "999px", flexShrink: 0 }}
           >
-            <Input
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              onFocus={() => {
-                if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
+            {t("home.undoLastAction")}
+          </Button>
+          <Button
+            type={rewardMode ? "default" : "primary"}
+            onClick={handleToggleRewardMode}
+            disabled={!canEdit}
+            style={{ borderRadius: "999px", flexShrink: 0 }}
+          >
+            {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+          </Button>
+          <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
+          {canShowSearchKeyboard && showPinyinKeyboard && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "calc(100% + 8px)",
+                left: isPortraitMode ? "8px" : "12px",
+                width: searchKeyboardLayout === "qwerty26" ? "288px" : "220px",
+                padding: "8px",
+                borderRadius: "10px",
+                border: "1px solid var(--ss-border-color)",
+                backgroundColor: "var(--ss-card-bg)",
+                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
+                zIndex: 20,
               }}
-              onClick={() => {
-                if (canShowSearchKeyboard) setShowPinyinKeyboard(true)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setShowPinyinKeyboard(false)
-              }}
-              placeholder={t("home.searchPlaceholder")}
-              prefix={<SearchOutlined />}
-              allowClear
-              style={{ width: isPortraitMode ? "170px" : "220px", borderRadius: "999px", flexShrink: 0 }}
-            />
-            <Select
-              value={sortType}
-              onChange={(v) => setSortType(v as SortType)}
-              getPopupContainer={getImmersivePopupContainer}
-              style={{ width: 126, flexShrink: 0 }}
-              options={[
-                { value: "alphabet", label: t("home.sortBy.alphabet") },
-                { value: "surname", label: t("home.sortBy.surname") },
-                { value: "group", label: t("home.sortBy.group") },
-                { value: "score", label: t("home.sortBy.score") },
-              ]}
-            />
-            <Select
-              value={layoutType}
-              onChange={(v) => setLayoutType(v as LayoutType)}
-              getPopupContainer={getImmersivePopupContainer}
-              style={{ width: 126, flexShrink: 0 }}
-              options={[
-                { value: "grouped", label: t("home.layoutBy.grouped") },
-                { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
-              ]}
-            />
-            <Button
-              icon={<UndoOutlined />}
-              onClick={handleUndoLastEvent}
-              loading={undoLoading}
-              disabled={!canEdit || !latestEvent || rewardMode}
-              title={
-                latestEvent
-                  ? t("home.undoLastHint", {
-                      name: latestEvent.student_name,
-                      delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
-                    })
-                  : t("home.undoUnavailable")
-              }
-              style={{ borderRadius: "999px", flexShrink: 0 }}
             >
-              {t("home.undoLastAction")}
-            </Button>
-            <Button
-              type={rewardMode ? "default" : "primary"}
-              onClick={handleToggleRewardMode}
-              disabled={!canEdit}
-              style={{ borderRadius: "999px", flexShrink: 0 }}
-            >
-              {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-            </Button>
-            <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
-            {canShowSearchKeyboard && showPinyinKeyboard && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 8px)",
-                  left: isPortraitMode ? "8px" : "12px",
-                  width: searchKeyboardLayout === "qwerty26" ? "288px" : "220px",
-                  padding: "8px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--ss-border-color)",
-                  backgroundColor: "var(--ss-card-bg)",
-                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
-                  zIndex: 20,
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {searchKeyboardLayout === "qwerty26"
-                    ? qwertyKeyRows.map((row, rowIndex) => (
-                        <div
-                          key={`qwerty-immersive-row-${rowIndex}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: `repeat(${row.length}, 1fr)`,
-                            gap: "7px",
-                          }}
-                        >
-                          {row.map((keyItem) => (
-                            <Button
-                              key={keyItem}
-                              size="small"
-                              onClick={() => handleSearchKeyPress(keyItem)}
-                              style={{ height: "32px", fontSize: "12px", padding: 0 }}
-                            >
-                              {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
-                            </Button>
-                          ))}
-                        </div>
-                      ))
-                    : t9KeyRows.map((row, rowIndex) => (
-                        <div
-                          key={`pinyin-immersive-row-${rowIndex}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(3, 1fr)",
-                            gap: "6px",
-                          }}
-                        >
-                          {row.map((keyItem) => (
-                            <Button
-                              key={keyItem.digit}
-                              size="small"
-                              onClick={() => handleSearchKeyPress(keyItem.digit)}
-                              style={{ height: "28px", fontSize: "11px", padding: 0 }}
-                            >
-                              {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
-                            </Button>
-                          ))}
-                        </div>
-                      ))}
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {searchKeyboardLayout === "qwerty26"
+                  ? qwertyKeyRows.map((row, rowIndex) => (
+                      <div
+                        key={`qwerty-immersive-row-${rowIndex}`}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: `repeat(${row.length}, 1fr)`,
+                          gap: "7px",
+                        }}
+                      >
+                        {row.map((keyItem) => (
+                          <Button
+                            key={keyItem}
+                            size="small"
+                            onClick={() => handleSearchKeyPress(keyItem)}
+                            style={{ height: "32px", fontSize: "12px", padding: 0 }}
+                          >
+                            {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
+                          </Button>
+                        ))}
+                      </div>
+                    ))
+                  : t9KeyRows.map((row, rowIndex) => (
+                      <div
+                        key={`pinyin-immersive-row-${rowIndex}`}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(3, 1fr)",
+                          gap: "6px",
+                        }}
+                      >
+                        {row.map((keyItem) => (
+                          <Button
+                            key={keyItem.digit}
+                            size="small"
+                            onClick={() => handleSearchKeyPress(keyItem.digit)}
+                            style={{ height: "28px", fontSize: "11px", padding: 0 }}
+                          >
+                            {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
+                          </Button>
+                        ))}
+                      </div>
+                    ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {isPortraitMode ? (

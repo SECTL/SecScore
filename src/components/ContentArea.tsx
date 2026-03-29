@@ -371,10 +371,7 @@ export function ContentArea({
                 path="/reward-settings"
                 element={<RewardSettings canEdit={permission === "admin"} />}
               />
-              <Route
-                path="/settings"
-                element={<Settings permission={permission} />}
-              />
+              <Route path="/settings" element={<Settings permission={permission} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
