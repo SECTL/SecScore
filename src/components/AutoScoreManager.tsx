@@ -14,9 +14,10 @@ import {
   Tag,
   message,
 } from "antd"
-import { Utils as QbUtils, type ImmutableTree } from "@react-awesome-query-builder/antd"
+import { type ImmutableTree } from "@react-awesome-query-builder/antd"
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
+import { fetchAllTags } from "./TagEditorDialog"
 import { ActionEditor } from "./AutoScoreManagerPage/ActionEditor"
 import { TriggerRuleBuilder } from "./AutoScoreManagerPage/TriggerRuleBuilder"
 import {
@@ -30,9 +31,15 @@ import {
   triggersToQueryTree,
   type ActionDraft,
   type AutoScoreRule,
+  type AutoScoreTagOption,
 } from "./AutoScoreManagerPage/AutoScoreUtils"
 
 interface StudentItem {
+  id: number
+  name: string
+}
+
+interface TagItem {
   id: number
   name: string
 }
@@ -50,10 +57,20 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const { t, i18n } = useTranslation()
   const [form] = Form.useForm<RuleFormValues>()
   const [messageApi, contextHolder] = message.useMessage()
+  const [tags, setTags] = useState<TagItem[]>([])
+
+  const tagOptions = useMemo<AutoScoreTagOption[]>(
+    () =>
+      tags.map((tag) => ({
+        label: tag.name,
+        value: tag.name,
+      })),
+    [tags]
+  )
 
   const triggerConfig = useMemo(
-    () => createTriggerQueryConfig(t),
-    [i18n.resolvedLanguage, i18n.language]
+    () => createTriggerQueryConfig(t, tagOptions),
+    [i18n.resolvedLanguage, i18n.language, tagOptions]
   )
   const [triggerTree, setTriggerTree] = useState<ImmutableTree>(() =>
     createEmptyTriggerTree(triggerConfig)
@@ -66,10 +83,6 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
-
-  useEffect(() => {
-    setTriggerTree((prevTree) => QbUtils.checkTree(prevTree, triggerConfig))
-  }, [triggerConfig])
 
   useEffect(() => {
     const maxPage = Math.max(1, Math.ceil(rules.length / pageSize))
@@ -103,6 +116,19 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     }
   }
 
+  const fetchTags = async () => {
+    if (!canEdit) return
+
+    try {
+      const tagList = await fetchAllTags()
+      if (Array.isArray(tagList)) {
+        setTags(tagList)
+      }
+    } catch {
+      void 0
+    }
+  }
+
   const fetchRules = async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
@@ -124,6 +150,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
 
   useEffect(() => {
     if (!canEdit) return
+    fetchTags().catch(() => void 0)
     fetchStudents().catch(() => void 0)
     fetchRules().catch(() => void 0)
   }, [canEdit])
@@ -387,10 +414,15 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         config={triggerConfig}
         value={triggerTree}
         canEdit={canEdit}
-        onChange={(nextTree, config) => setTriggerTree(QbUtils.checkTree(nextTree, config))}
+        onChange={(nextTree) => setTriggerTree(nextTree)}
       />
 
-      <ActionEditor value={actionDrafts} canEdit={canEdit} onChange={setActionDrafts} />
+      <ActionEditor
+        value={actionDrafts}
+        tagOptions={tagOptions}
+        canEdit={canEdit}
+        onChange={setActionDrafts}
+      />
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
         <Button type="primary" loading={saving} disabled={!canEdit} onClick={() => handleSubmit().catch(() => void 0)}>

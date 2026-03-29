@@ -292,9 +292,10 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             *db_guard = Some(active_conn);
         }
 
-        state_guard.initialize().await.map_err(|e| {
-            format!("Failed to initialize app state: {}", e)
-        })?;
+        state_guard
+            .initialize()
+            .await
+            .map_err(|e| format!("Failed to initialize app state: {}", e))?;
 
         Ok::<_, Box<dyn std::error::Error>>(())
     });

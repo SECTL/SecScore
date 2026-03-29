@@ -8,6 +8,7 @@ import {
   type JsonRule,
 } from "@react-awesome-query-builder/antd"
 import type { TFunction } from "i18next"
+import { IntervalValueWidget, parseIntervalTriggerValue, stringifyIntervalTriggerValue } from "./IntervalValueWidget"
 
 export interface AutoScoreTrigger {
   event: string
@@ -31,17 +32,25 @@ export interface AutoScoreRule {
 
 export type ActionEvent = "add_score" | "add_tag"
 
+export interface AutoScoreTagOption {
+  label: string
+  value: string
+}
+
 export interface ActionDraft {
   id: string
   event: ActionEvent
-  value: string
+  value: string | string[]
 }
 
 export type ActionDraftError = "score_required" | "tag_required" | null
 
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
+const TRIGGER_TYPE_INTERVAL = "interval_duration"
+const TRIGGER_WIDGET_INTERVAL = "interval_duration"
 const OP_EQUAL = "equal"
+const OP_MULTISELECT_CONTAINS = "multiselect_contains"
 
 const buildEmptyGroup = (): JsonGroup => ({
   id: QbUtils.uuid(),
@@ -66,31 +75,71 @@ const toStringValue = (value: unknown): string => {
   return String(value)
 }
 
+const normalizeTagValues = (values: unknown[]): string[] => {
+  const normalized = values
+    .map((value) => toStringValue(value).trim())
+    .filter(Boolean)
+
+  return Array.from(new Set(normalized))
+}
+
+const parseTagValues = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return normalizeTagValues(value)
+  }
+
+  const text = toStringValue(value).trim()
+  if (!text) return []
+
+  if (text.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed)) {
+        return normalizeTagValues(parsed)
+      }
+    } catch {
+      void 0
+    }
+  }
+
+  return [text]
+}
+
+const stringifyTagValues = (values: string[]): string | null => {
+  const normalized = normalizeTagValues(values)
+  if (normalized.length === 0) return null
+  if (normalized.length === 1) return normalized[0]
+  return JSON.stringify(normalized)
+}
+
 const ruleFromTrigger = (trigger: AutoScoreTrigger): JsonRule | null => {
   if (trigger.event === "interval_time_passed") {
-    const minutes = toFiniteNumber(trigger.value)
-    if (!minutes || minutes <= 0) return null
+    const intervalValue = parseIntervalTriggerValue(trigger.value)
+    const serializedIntervalValue = intervalValue
+      ? stringifyIntervalTriggerValue(intervalValue)
+      : null
+    if (!serializedIntervalValue) return null
     return {
       id: QbUtils.uuid(),
       type: "rule",
       properties: {
         field: TRIGGER_FIELD_INTERVAL,
         operator: OP_EQUAL,
-        value: [Math.floor(minutes)],
+        value: [serializedIntervalValue],
       },
     }
   }
 
   if (trigger.event === "student_has_tag") {
-    const tagName = toStringValue(trigger.value).trim()
-    if (!tagName) return null
+    const tagNames = parseTagValues(trigger.value)
+    if (tagNames.length === 0) return null
     return {
       id: QbUtils.uuid(),
       type: "rule",
       properties: {
         field: TRIGGER_FIELD_TAG,
-        operator: OP_EQUAL,
-        value: [tagName],
+        operator: OP_MULTISELECT_CONTAINS,
+        value: [tagNames],
       },
     }
   }
@@ -103,20 +152,24 @@ const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
   const value = Array.isArray(rule.properties?.value) ? rule.properties.value[0] : undefined
 
   if (field === TRIGGER_FIELD_INTERVAL) {
-    const minutes = toFiniteNumber(value)
-    if (!minutes || minutes <= 0) return null
+    const intervalValue = parseIntervalTriggerValue(value)
+    const serializedIntervalValue = intervalValue
+      ? stringifyIntervalTriggerValue(intervalValue)
+      : null
+    if (!serializedIntervalValue) return null
     return {
       event: "interval_time_passed",
-      value: String(Math.floor(minutes)),
+      value: serializedIntervalValue,
     }
   }
 
   if (field === TRIGGER_FIELD_TAG) {
-    const tagName = toStringValue(value).trim()
-    if (!tagName) return null
+    const tagNames = parseTagValues(value)
+    const serializedValue = stringifyTagValues(tagNames)
+    if (!serializedValue) return null
     return {
       event: "student_has_tag",
-      value: tagName,
+      value: serializedValue,
     }
   }
 
@@ -139,24 +192,61 @@ const collectTriggersFromItems = (items: JsonItem[] | undefined): AutoScoreTrigg
   return collected
 }
 
-export const createTriggerQueryConfig = (t: TFunction): Config =>
+export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagOption[]): Config =>
   ({
     ...AntdConfig,
+    widgets: {
+      ...AntdConfig.widgets,
+      [TRIGGER_WIDGET_INTERVAL]: {
+        ...AntdConfig.widgets.text,
+        type: "text",
+        jsType: "string",
+        hideOperator: true,
+        factory: IntervalValueWidget,
+        valuePlaceholder: t("autoScore.intervalAmountPlaceholder"),
+        validateValue: (value) => {
+          const rawValue = toStringValue(value).trim()
+          if (!rawValue) return true
+          return parseIntervalTriggerValue(rawValue) !== null
+        },
+      },
+    },
+    types: {
+      ...AntdConfig.types,
+      [TRIGGER_TYPE_INTERVAL]: {
+        ...AntdConfig.types.text,
+        defaultOperator: OP_EQUAL,
+        mainWidget: TRIGGER_WIDGET_INTERVAL,
+        widgets: {
+          [TRIGGER_WIDGET_INTERVAL]: {
+            operators: [OP_EQUAL],
+          },
+        },
+      },
+    },
     fields: {
       [TRIGGER_FIELD_INTERVAL]: {
         label: t("autoScore.triggerIntervalTime"),
-        type: "number",
+        type: TRIGGER_TYPE_INTERVAL,
         operators: [OP_EQUAL],
         valueSources: ["value"],
-        preferWidgets: ["number"],
-        fieldSettings: { min: 1 },
+        preferWidgets: [TRIGGER_WIDGET_INTERVAL],
       },
       [TRIGGER_FIELD_TAG]: {
         label: t("autoScore.triggerStudentTag"),
-        type: "text",
-        operators: [OP_EQUAL],
+        type: "multiselect",
+        defaultOperator: OP_MULTISELECT_CONTAINS,
+        operators: [OP_MULTISELECT_CONTAINS],
         valueSources: ["value"],
-        preferWidgets: ["text"],
+        preferWidgets: ["multiselect"],
+        fieldSettings: {
+          listValues: tagOptions.map((tag) => ({
+            value: tag.value,
+            title: tag.label,
+          })),
+          allowCustomValues: true,
+          showSearch: true,
+        },
       },
     },
     settings: {
@@ -229,7 +319,8 @@ export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
       return {
         id: QbUtils.uuid(),
         event: action.event,
-        value: toStringValue(action.value),
+        value:
+          action.event === "add_tag" ? parseTagValues(action.value) : toStringValue(action.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -243,7 +334,7 @@ export const actionDraftsToPayload = (
   const actions: AutoScoreAction[] = []
   for (const draft of drafts) {
     if (draft.event === "add_score") {
-      const score = toFiniteNumber(draft.value)
+      const score = Array.isArray(draft.value) ? null : toFiniteNumber(draft.value)
       if (!score || score === 0) {
         return { actions: [], error: "score_required" }
       }
@@ -251,11 +342,11 @@ export const actionDraftsToPayload = (
       continue
     }
 
-    const tagName = draft.value.trim()
-    if (!tagName) {
+    const serializedTagValue = stringifyTagValues(parseTagValues(draft.value))
+    if (!serializedTagValue) {
       return { actions: [], error: "tag_required" }
     }
-    actions.push({ event: draft.event, value: tagName })
+    actions.push({ event: draft.event, value: serializedTagValue })
   }
 
   return { actions, error: null }

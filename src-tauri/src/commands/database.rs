@@ -1150,7 +1150,10 @@ pub async fn db_switch_connection(
     let logger = state_guard.logger.read();
     logger.log(
         LogLevel::Info,
-        &format!("Database switch requested, connection_string length: {}", connection_string.len()),
+        &format!(
+            "Database switch requested, connection_string length: {}",
+            connection_string.len()
+        ),
         Some("database"),
         None,
     );
@@ -1225,17 +1228,15 @@ pub async fn db_switch_connection(
             connection_string
         };
 
-        let conn = create_sqlite_connection(&path)
-            .await
-            .map_err(|e| {
-                logger.log(
-                    LogLevel::Error,
-                    &format!("SQLite connection failed: {}", e),
-                    Some("database"),
-                    None,
-                );
-                e.to_string()
-            })?;
+        let conn = create_sqlite_connection(&path).await.map_err(|e| {
+            logger.log(
+                LogLevel::Error,
+                &format!("SQLite connection failed: {}", e),
+                Some("database"),
+                None,
+            );
+            e.to_string()
+        })?;
         run_migration(&conn, DatabaseType::SQLite)
             .await
             .map_err(|e| {

@@ -1,6 +1,6 @@
 use parking_lot::RwLock;
-use serde::Deserialize;
 use sea_orm::{ConnectionTrait, DatabaseConnection, Statement};
+use serde::Deserialize;
 use serde_json::{Map, Value as JsonValue};
 use sqlx::{Column, Row, SqlitePool};
 use std::collections::HashSet;
@@ -155,7 +155,10 @@ async fn get_board_configs_raw(conn: &DatabaseConnection) -> Result<Option<Strin
     }
 }
 
-async fn upsert_board_configs_raw(conn: &DatabaseConnection, config_json: &str) -> Result<(), String> {
+async fn upsert_board_configs_raw(
+    conn: &DatabaseConnection,
+    config_json: &str,
+) -> Result<(), String> {
     let config_escaped = escape_sql(config_json);
     let now_escaped = escape_sql(&now_iso());
     let sql = format!(
