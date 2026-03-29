@@ -770,6 +770,7 @@
     "adminDeleteRequired": "Admin permission required to delete auto score automation",
     "adminToggleRequired": "Admin permission required to enable/disable auto score automation",
     "fetchFailed": "Failed to get automation",
+    "unsupportedLogic": "Saving currently supports AND-only conditions. OR / NOT logic is not wired to backend persistence yet",
     "triggerRequired": "Please add at least one trigger",
     "actionRequired": "Please add at least one action",
     "createSuccess": "Automation created successfully",

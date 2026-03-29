@@ -17,6 +17,7 @@ const loadStudentManager = () => import("./StudentManager")
 const loadSettings = () => import("./Settings")
 const loadReasonManager = () => import("./ReasonManager")
 const loadScoreManager = () => import("./ScoreManager")
+const loadAutoScoreManager = () => import("./AutoScoreManager")
 const loadLeaderboard = () => import("./Leaderboard")
 const loadSettlementHistory = () => import("./SettlementHistory")
 const loadRewardSettings = () => import("./RewardSettings")
@@ -27,6 +28,7 @@ const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m
 const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })))
 const ReasonManager = lazy(() => loadReasonManager().then((m) => ({ default: m.ReasonManager })))
 const ScoreManager = lazy(() => loadScoreManager().then((m) => ({ default: m.ScoreManager })))
+const AutoScoreManager = lazy(loadAutoScoreManager)
 const Leaderboard = lazy(() => loadLeaderboard().then((m) => ({ default: m.Leaderboard })))
 const SettlementHistory = lazy(() =>
   loadSettlementHistory().then((m) => ({ default: m.SettlementHistory }))
@@ -41,6 +43,7 @@ const warmupRouteChunks = () =>
     loadSettings(),
     loadReasonManager(),
     loadScoreManager(),
+    loadAutoScoreManager(),
     loadLeaderboard(),
     loadSettlementHistory(),
     loadRewardSettings(),
@@ -101,6 +104,7 @@ export function ContentArea({
     if (normalizedPath.startsWith("/home")) return t("sidebar.home")
     if (normalizedPath.startsWith("/students")) return t("sidebar.students")
     if (normalizedPath.startsWith("/score")) return t("sidebar.score")
+    if (normalizedPath.startsWith("/auto-score")) return t("sidebar.autoScore")
     if (normalizedPath.startsWith("/boards")) return t("sidebar.boards")
     if (normalizedPath.startsWith("/leaderboard")) return t("sidebar.leaderboard")
     if (normalizedPath.startsWith("/settlements")) return t("sidebar.settlements")
@@ -363,6 +367,10 @@ export function ContentArea({
                 element={
                   <ScoreManager canEdit={permission === "admin" || permission === "points"} />
                 }
+              />
+              <Route
+                path="/auto-score"
+                element={<AutoScoreManager canEdit={permission === "admin"} />}
               />
               <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
