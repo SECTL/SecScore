@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { useEffect, useMemo } from "react"
 import { Button, Card, InputNumber, Select, Space } from "antd"
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
@@ -19,6 +19,14 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
   onChange,
 }) => {
   const { t } = useTranslation()
+  const fallbackDraft = useMemo(() => createDefaultActionDraft(), [])
+  const safeValue = value.length > 0 ? value : [fallbackDraft]
+
+  useEffect(() => {
+    if (value.length === 0) {
+      onChange([fallbackDraft])
+    }
+  }, [fallbackDraft, onChange, value.length])
 
   const actionOptions = useMemo(
     () => [
@@ -31,7 +39,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
   const mergedTagOptions = useMemo(() => {
     const optionMap = new Map(tagOptions.map((option) => [option.value, option]))
 
-    for (const action of value) {
+    for (const action of safeValue) {
       if (action.event !== "add_tag") continue
       const tagValues = Array.isArray(action.value)
         ? action.value
@@ -47,19 +55,19 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
     }
 
     return Array.from(optionMap.values())
-  }, [tagOptions, value])
+  }, [safeValue, tagOptions])
 
   const updateAction = (id: string, patch: Partial<Omit<ActionDraft, "id">>) => {
-    onChange(value.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    onChange(safeValue.map((item) => (item.id === id ? { ...item, ...patch } : item)))
   }
 
   const handleAddAction = () => {
-    onChange([...value, createDefaultActionDraft()])
+    onChange([...safeValue, createDefaultActionDraft()])
   }
 
   const handleRemoveAction = (id: string) => {
-    if (value.length <= 1) return
-    onChange(value.filter((item) => item.id !== id))
+    if (safeValue.length <= 1) return
+    onChange(safeValue.filter((item) => item.id !== id))
   }
 
   return (
@@ -68,7 +76,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
       title={t("autoScore.triggeredActions")}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={12}>
-        {value.map((action) => (
+        {safeValue.map((action) => (
           <div key={action.id} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <Select
               style={{ minWidth: 180 }}
@@ -108,7 +116,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
             <Button
               danger
               icon={<DeleteOutlined />}
-              disabled={!canEdit || value.length <= 1}
+              disabled={!canEdit || safeValue.length <= 1}
               onClick={() => handleRemoveAction(action.id)}
             />
           </div>

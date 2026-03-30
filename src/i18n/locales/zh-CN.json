@@ -135,6 +135,8 @@
     },
     "language": "语言",
     "languageHint": "选择界面显示语言",
+    "fontFamily": "全局字体",
+    "fontFamilyHint": "选择应用界面的字体（需要刷新页面以完全生效）",
     "theme": "主题",
     "password": "设置密码",
     "themeMode": "模式",

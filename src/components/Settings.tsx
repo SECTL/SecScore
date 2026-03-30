@@ -30,6 +30,18 @@ type appSettings = {
   window_zoom?: string
   search_keyboard_layout?: "t9" | "qwerty26"
   disable_search_keyboard?: boolean
+  font_family?: string
+}
+
+interface FontOption {
+  value: string
+  label: string
+  fontFamily: string
+}
+
+const applyFontFamily = (fontFamily: string) => {
+  document.documentElement.style.setProperty("--ss-font-family", fontFamily)
+  document.body.style.fontFamily = fontFamily
 }
 const withTimeout = async (
   promise: Promise<any>,
@@ -64,6 +76,8 @@ export const Settings: React.FC<{
     search_keyboard_layout: "qwerty26",
     disable_search_keyboard: false,
   })
+  const [fontOptions, setFontOptions] = useState<FontOption[]>([])
+  const [isLoadingFonts, setIsLoadingFonts] = useState(true)
 
   const [securityStatus, setSecurityStatus] = useState<{
     permission: permissionLevel
@@ -173,6 +187,36 @@ export const Settings: React.FC<{
     }
   }
 
+  const loadSystemFonts = async () => {
+    if (!(window as any).api?.getSystemFonts) return
+
+    setIsLoadingFonts(true)
+    try {
+      const res = await (window as any).api.getSystemFonts()
+      if (res.success && Array.isArray(res.data)) {
+        const fontList = res.data
+          .map((name: string) => ({
+            value: `system-${name}`,
+            label: name,
+            fontFamily: `"${name}"`,
+          })) as FontOption[]
+
+        setFontOptions(fontList)
+
+        if (settings.font_family) {
+          const currentFontOpt = fontList.find((f) => f.value === settings.font_family)
+          if (currentFontOpt) {
+            applyFontFamily(currentFontOpt.fontFamily)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load system fonts:", error)
+    } finally {
+      setIsLoadingFonts(false)
+    }
+  }
+
   const loadAll = async () => {
     if (!(window as any).api) return
     const res = await (window as any).api.getAllSettings()
@@ -180,10 +224,17 @@ export const Settings: React.FC<{
       setSettings(res.data)
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
+      if (res.data.font_family) {
+        const fontOpt = fontOptions.find((f) => f.value === res.data.font_family)
+        if (fontOpt) {
+          applyFontFamily(fontOpt.fontFamily)
+        }
+      }
     }
     const authRes = await (window as any).api.authGetStatus()
     if (authRes.success && authRes.data) setSecurityStatus(authRes.data)
     await loadMcpStatus()
+    await loadSystemFonts()
   }
 
   const loadAboutContent = async () => {
@@ -220,6 +271,13 @@ export const Settings: React.FC<{
             return { ...prev, disable_search_keyboard: Boolean(change.value) }
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
+          if (change?.key === "font_family") {
+            const fontOpt = fontOptions.find((f) => f.value === change.value)
+            if (fontOpt) {
+              applyFontFamily(fontOpt.fontFamily)
+            }
+            return { ...prev, font_family: change.value }
+          }
           return prev
         })
       })
@@ -664,6 +722,43 @@ export const Settings: React.FC<{
           <Divider />
 
           <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
+            <Form.Item label={t("settings.fontFamily")}>
+              <Select
+                value={settings.font_family || "system"}
+                onChange={async (v) => {
+                  const fontOpt = fontOptions.find((f) => f.value === v)
+                  if (!fontOpt) return
+                  applyFontFamily(fontOpt.fontFamily)
+                  setSettings((prev) => ({ ...prev, font_family: v }))
+                  if ((window as any).api) {
+                    const res = await (window as any).api.setSetting("font_family", v)
+                    if (res.success) {
+                      messageApi.success(t("settings.general.saved"))
+                    } else {
+                      messageApi.error(res.message || t("settings.general.saveFailed"))
+                    }
+                  } else {
+                    messageApi.success(t("settings.general.saved"))
+                  }
+                }}
+                style={{ width: "320px" }}
+                loading={isLoadingFonts}
+                options={fontOptions.map((opt) => ({
+                  value: opt.value,
+                  label: opt.label,
+                }))}
+                showSearch
+                filterOption={(input, option) =>
+                  (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                }
+              />
+              <div
+                style={{ marginTop: "4px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+              >
+                {t("settings.fontFamilyHint")}
+              </div>
+            </Form.Item>
+
             {!isMobile && (
               <>
                 <Form.Item label={t("settings.searchKeyboard.title")}>

@@ -135,6 +135,8 @@
     },
     "language": "Language",
     "languageHint": "Select interface display language",
+    "fontFamily": "Global Font",
+    "fontFamilyHint": "Select the application interface font (page refresh required for full effect)",
     "theme": "Theme",
     "password": "Set Password",
     "themeMode": "Mode",

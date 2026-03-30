@@ -43,7 +43,7 @@ export interface ActionDraft {
   value: string | string[]
 }
 
-export type ActionDraftError = "score_required" | "tag_required" | null
+export type ActionDraftError = "action_required" | "score_required" | "tag_required" | null
 
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
@@ -312,6 +312,32 @@ export const createDefaultActionDraft = (): ActionDraft => ({
   value: "1",
 })
 
+const isActionEvent = (value: unknown): value is ActionEvent =>
+  value === "add_score" || value === "add_tag"
+
+export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined): ActionDraft[] => {
+  if (!Array.isArray(drafts) || drafts.length === 0) {
+    return [createDefaultActionDraft()]
+  }
+
+  const normalized = drafts
+    .map((draft) => {
+      if (!draft || !isActionEvent(draft.event)) return null
+
+      return {
+        id: typeof draft.id === "string" && draft.id ? draft.id : QbUtils.uuid(),
+        event: draft.event,
+        value:
+          draft.event === "add_tag"
+            ? parseTagValues(draft.value)
+            : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
+      } satisfies ActionDraft
+    })
+    .filter((item): item is ActionDraft => Boolean(item))
+
+  return normalized.length > 0 ? normalized : [createDefaultActionDraft()]
+}
+
 export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
   const mapped = actions
     .map((action) => {
@@ -325,14 +351,19 @@ export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
     })
     .filter((item): item is ActionDraft => Boolean(item))
 
-  return mapped.length > 0 ? mapped : [createDefaultActionDraft()]
+  return normalizeActionDrafts(mapped)
 }
 
 export const actionDraftsToPayload = (
   drafts: ActionDraft[]
 ): { actions: AutoScoreAction[]; error: ActionDraftError } => {
+  const normalizedDrafts = normalizeActionDrafts(drafts)
+  if (normalizedDrafts.length === 0) {
+    return { actions: [], error: "action_required" }
+  }
+
   const actions: AutoScoreAction[] = []
-  for (const draft of drafts) {
+  for (const draft of normalizedDrafts) {
     if (draft.event === "add_score") {
       const score = Array.isArray(draft.value) ? null : toFiniteNumber(draft.value)
       if (!score || score === 0) {

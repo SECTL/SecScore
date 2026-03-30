@@ -27,6 +27,7 @@ import {
   createEmptyTriggerTree,
   createTriggerQueryConfig,
   hasUnsupportedTriggerLogic,
+  normalizeActionDrafts,
   queryTreeToTriggers,
   triggersToQueryTree,
   type ActionDraft,
@@ -183,7 +184,15 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       return
     }
 
-    const actionPayload = actionDraftsToPayload(actionDrafts)
+    const normalizedActionDrafts = normalizeActionDrafts(actionDrafts)
+    const actionPayload = actionDraftsToPayload(normalizedActionDrafts)
+    if (actionDrafts.length === 0) {
+      setActionDrafts(normalizedActionDrafts)
+    }
+    if (actionPayload.error === "action_required") {
+      messageApi.warning(t("autoScore.actionRequired"))
+      return
+    }
     if (actionPayload.error === "score_required") {
       messageApi.warning(t("autoScore.scorePlaceholder"))
       return
@@ -423,7 +432,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         value={actionDrafts}
         tagOptions={tagOptions}
         canEdit={canEdit}
-        onChange={setActionDrafts}
+        onChange={(nextDrafts) => setActionDrafts(normalizeActionDrafts(nextDrafts))}
       />
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
