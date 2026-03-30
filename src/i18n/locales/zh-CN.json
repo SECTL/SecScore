@@ -127,6 +127,7 @@
     "tabs": {
       "appearance": "外观",
       "security": "安全",
+      "account": "账户",
       "database": "数据库连接",
       "dataManagement": "数据管理",
       "urlProtocol": "URL 链接",
@@ -208,6 +209,16 @@
       "clearFailed": "清空失败",
       "passwordClearedNewRecovery": "密码已清空，新的找回字符串",
       "newRecoveryString": "新的找回字符串（请保存）"
+    },
+    "account": {
+      "title": "SECTL Auth 账户",
+      "notLoggedIn": "尚未登录 SECTL Auth 账户",
+      "oauthHint": "使用 SECTL Auth 账号登录，享受统一认证和远程退登功能",
+      "loginButton": "使用 SECTL Auth 登录",
+      "loginSuccess": "登录成功",
+      "logout": "退出登录",
+      "userId": "用户ID",
+      "permission": "权限等级"
     },
     "database": {
       "title": "数据库连接",

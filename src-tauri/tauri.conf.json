@@ -58,6 +58,14 @@
   "plugins": {
     "shell": {
       "open": true
+    },
+    "deepLink": {
+      "domains": [
+        {
+          "host": "oauth",
+          "schemes": ["secscore"]
+        }
+      ]
     }
   }
 }

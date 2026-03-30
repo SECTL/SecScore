@@ -1,4 +1,13 @@
-import { Layout, Modal, Input, message, ConfigProvider, theme as antTheme, Drawer } from "antd"
+import {
+  Layout,
+  Modal,
+  Input,
+  message,
+  ConfigProvider,
+  theme as antTheme,
+  Drawer,
+  Button,
+} from "antd"
 import {
   HomeOutlined,
   SettingOutlined,
@@ -20,15 +29,16 @@ import { useTranslation } from "react-i18next"
 import { Sidebar } from "./components/Sidebar"
 import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
+import { OAuthLogin } from "./components/OAuthLogin"
+import { OAuthCallback } from "./components/OAuthCallback"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
-import {
-  MOBILE_NAV_ITEMS,
-  MobileNavKey,
-  sanitizeMobileNavKeys,
-} from "./shared/mobileNavigation"
+import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
-const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(0, 4)
+const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(
+  0,
+  4
+)
 
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
@@ -88,6 +98,7 @@ function MainContent(): React.JSX.Element {
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
+  const [oauthVisible, setOAuthVisible] = useState(false)
   const [mobileBottomNavItems, setMobileBottomNavItems] = useState<MobileNavKey[]>(
     DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
   )
@@ -97,9 +108,10 @@ function MainContent(): React.JSX.Element {
   const [editingMoreNavKeys, setEditingMoreNavKeys] = useState<MobileNavKey[]>([])
   const [draggingNavKey, setDraggingNavKey] = useState<MobileNavKey | null>(null)
   const [draggingFromList, setDraggingFromList] = useState<"bottom" | "more" | null>(null)
-  const [dragOverSlot, setDragOverSlot] = useState<{ list: "bottom" | "more"; index: number } | null>(
-    null
-  )
+  const [dragOverSlot, setDragOverSlot] = useState<{
+    list: "bottom" | "more"
+    index: number
+  } | null>(null)
   const [isPortraitMode] = useState(defaultPortraitMode)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
@@ -379,6 +391,24 @@ function MainContent(): React.JSX.Element {
     }
   }
 
+  const handleOAuthSuccess = (userInfo: {
+    user_id: string
+    email: string
+    name: string
+    github_username?: string
+    permission: number
+  }) => {
+    let newPermission: "admin" | "points" | "view" = "view"
+    if (userInfo.permission >= 18) {
+      newPermission = "admin"
+    } else if (userInfo.permission >= 1) {
+      newPermission = "points"
+    }
+
+    setPermission(newPermission)
+    messageApi.success(t("auth.oauthSuccess", "登录成功"))
+  }
+
   const onMenuChange = (v: string) => {
     const key = String(v)
     setMoreNavVisible(false)
@@ -544,7 +574,9 @@ function MainContent(): React.JSX.Element {
       }}
     >
       {contextHolder}
-      <Layout style={{ height: "100%", flexDirection: "row", overflow: "hidden", position: "relative" }}>
+      <Layout
+        style={{ height: "100%", flexDirection: "row", overflow: "hidden", position: "relative" }}
+      >
         {!isPortraitMode && (
           <div
             className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
@@ -878,8 +910,25 @@ function MainContent(): React.JSX.Element {
               placeholder={t("auth.passwordPlaceholder")}
               maxLength={6}
             />
+            <div style={{ textAlign: "center", marginTop: "8px" }}>
+              <Button
+                type="link"
+                onClick={() => {
+                  setAuthVisible(false)
+                  setOAuthVisible(true)
+                }}
+              >
+                {t("auth.useOAuth", "使用 SECTL Auth 登录")}
+              </Button>
+            </div>
           </div>
         </Modal>
+
+        <OAuthLogin
+          visible={oauthVisible}
+          onClose={() => setOAuthVisible(false)}
+          onSuccess={handleOAuthSuccess}
+        />
 
         <Modal
           title="检测到本地与远程数据冲突"
@@ -1044,6 +1093,7 @@ function App(): React.JSX.Element {
     <ThemeProvider>
       <HashRouter>
         <Routes>
+          <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/*" element={<MainContent />} />
         </Routes>
       </HashRouter>

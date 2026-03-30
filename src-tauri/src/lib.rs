@@ -12,6 +12,7 @@ use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::{commands::*, state::AppState};
 use parking_lot::RwLock;
 use std::sync::Arc;
+use tauri::Emitter;
 #[cfg(desktop)]
 use tauri::{
     image::Image,
@@ -26,6 +27,7 @@ use tokio::time::{timeout, Duration};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             let state = AppState::new(app.handle().clone());
             app.manage(Arc::new(RwLock::new(state)));
@@ -73,6 +75,10 @@ pub fn run() {
             auth_generate_recovery,
             auth_reset_by_recovery,
             auth_clear_all,
+            oauth_get_authorization_url,
+            oauth_exchange_code,
+            oauth_get_user_info,
+            oauth_refresh_token,
             theme_list,
             theme_current,
             theme_set,
@@ -135,6 +141,26 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     setup_tray(app)?;
 
     setup_window_events(app)?;
+
+    setup_deep_link(app)?;
+
+    Ok(())
+}
+
+fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = app.handle().clone();
+
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_deep_link::DeepLinkExt;
+
+        app.deep_link().on_open_url(move |event| {
+            let url = event.urls().first().map(|u| u.to_string()).unwrap_or_default();
+            if !url.is_empty() {
+                let _ = handle.emit("deep-link://new-url", url);
+            }
+        });
+    }
 
     Ok(())
 }

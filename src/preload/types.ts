@@ -111,7 +111,9 @@ const api = {
     names: string[]
   }): Promise<{ success: boolean; data: { inserted: number; skipped: number; total: number } }> =>
     invoke("student_import_from_xlsx", { params }),
-  fetchBanYouClassrooms: (params: { cookie: string }): Promise<{
+  fetchBanYouClassrooms: (params: {
+    cookie: string
+  }): Promise<{
     success: boolean
     data?: {
       classrooms: Array<{
@@ -343,6 +345,55 @@ const api = {
   ): Promise<{ success: boolean; data?: { recoveryString: string }; message?: string }> =>
     invoke("auth_reset_by_recovery", { recoveryString }),
   authClearAll: (): Promise<{ success: boolean }> => invoke("auth_clear_all"),
+
+  // OAuth
+  oauthGetAuthorizationUrl: (
+    platformId: string,
+    callbackUrl: string
+  ): Promise<{ success: boolean; data: string; message?: string }> =>
+    invoke("oauth_get_authorization_url", { platformId, callbackUrl }),
+  oauthExchangeCode: (
+    code: string,
+    platformId: string,
+    platformSecret: string,
+    callbackUrl: string
+  ): Promise<{
+    success: boolean
+    data: {
+      access_token: string
+      refresh_token: string
+      token_type: string
+      expires_in: number
+    }
+    message?: string
+  }> => invoke("oauth_exchange_code", { code, platformId, platformSecret, callbackUrl }),
+  oauthGetUserInfo: (
+    accessToken: string
+  ): Promise<{
+    success: boolean
+    data: {
+      user_id: string
+      email: string
+      name: string
+      github_username?: string
+      permission: number
+    }
+    message?: string
+  }> => invoke("oauth_get_user_info", { accessToken }),
+  oauthRefreshToken: (
+    refreshToken: string,
+    platformId: string,
+    platformSecret: string
+  ): Promise<{
+    success: boolean
+    data: {
+      access_token: string
+      refresh_token: string
+      token_type: string
+      expires_in: number
+    }
+    message?: string
+  }> => invoke("oauth_refresh_token", { refreshToken, platformId, platformSecret }),
 
   // Data import/export
   exportDataJson: (): Promise<{ success: boolean; data: string }> => invoke("data_export_json"),

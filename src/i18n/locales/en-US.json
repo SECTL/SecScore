@@ -127,6 +127,7 @@
     "tabs": {
       "appearance": "Appearance",
       "security": "Security",
+      "account": "Account",
       "database": "Database Connection",
       "dataManagement": "Data Management",
       "urlProtocol": "URL Protocol",
@@ -208,6 +209,16 @@
       "clearFailed": "Clear failed",
       "passwordClearedNewRecovery": "Password cleared, new recovery string",
       "newRecoveryString": "New recovery string (please save it)"
+    },
+    "account": {
+      "title": "SECTL Auth Account",
+      "notLoggedIn": "Not logged in to SECTL Auth",
+      "oauthHint": "Use SECTL Auth account to login, enjoy unified authentication and remote logout",
+      "loginButton": "Login with SECTL Auth",
+      "loginSuccess": "Login successful",
+      "logout": "Logout",
+      "userId": "User ID",
+      "permission": "Permission Level"
     },
     "database": {
       "title": "Database Connection",
