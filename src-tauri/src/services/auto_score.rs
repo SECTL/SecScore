@@ -1,21 +1,24 @@
 use chrono::{DateTime, Months, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde_json::Value as JsonValue;
+use std::collections::HashSet;
 use tauri::{AppHandle, Emitter};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+const DEFAULT_INTERVAL_MINUTES: i64 = 30;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AutoScoreTrigger {
     pub event: String,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AutoScoreAction {
     pub event: String,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum IntervalUnit {
     Minute,
@@ -23,13 +26,13 @@ enum IntervalUnit {
     Month,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 struct IntervalTriggerValue {
     amount: i64,
     unit: IntervalUnit,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AutoScoreRule {
     pub id: i32,
     pub name: String,
@@ -75,6 +78,13 @@ impl AutoScoreService {
         }
     }
 
+    pub fn from_rules(rules: Vec<AutoScoreRule>) -> Self {
+        Self {
+            rules,
+            initialized: true,
+        }
+    }
+
     pub async fn initialize(
         &mut self,
         _app_handle: &AppHandle,
@@ -86,96 +96,116 @@ impl AutoScoreService {
         Ok(())
     }
 
-    pub fn load_rules(&mut self, rules_json: serde_json::Value) {
-        if let serde_json::Value::Array(arr) = rules_json {
-            self.rules = arr
-                .into_iter()
-                .filter_map(|v| serde_json::from_value(v).ok())
-                .collect();
-        } else {
-            self.rules = Vec::new();
-        }
+    pub fn deserialize_rules(rules_json: &JsonValue) -> Vec<AutoScoreRule> {
+        let JsonValue::Array(items) = rules_json else {
+            return Vec::new();
+        };
+
+        items
+            .iter()
+            .filter_map(|item| serde_json::from_value::<AutoScoreRule>(item.clone()).ok())
+            .filter_map(|rule| normalize_rule(rule).ok())
+            .collect()
+    }
+
+    pub fn serialize_rules(rules: &[AutoScoreRule]) -> Result<JsonValue, String> {
+        serde_json::to_value(rules)
+            .map_err(|error| format!("Failed to serialize auto score rules: {}", error))
+    }
+
+    pub fn load_rules(&mut self, rules_json: JsonValue) {
+        self.rules = Self::deserialize_rules(&rules_json);
+    }
+
+    pub fn replace_rules(&mut self, rules: Vec<AutoScoreRule>) {
+        self.rules = rules;
+    }
+
+    pub fn into_rules(self) -> Vec<AutoScoreRule> {
+        self.rules
     }
 
     pub fn get_rules_json(&self) -> serde_json::Value {
-        serde_json::to_value(&self.rules).unwrap_or(serde_json::Value::Array(vec![]))
+        Self::serialize_rules(&self.rules).unwrap_or(JsonValue::Array(vec![]))
     }
 
     pub fn get_rules(&self) -> &[AutoScoreRule] {
         &self.rules
     }
 
-    pub fn get_rules_mut(&mut self) -> &mut Vec<AutoScoreRule> {
-        &mut self.rules
+    pub fn add_rule(&mut self, rule: AutoScoreRule) -> Result<i32, String> {
+        let mut normalized_rule = normalize_rule(rule)?;
+        let new_id = self.rules.iter().map(|item| item.id).max().unwrap_or(0) + 1;
+        normalized_rule.id = new_id;
+        normalized_rule.last_executed = None;
+        self.rules.push(normalized_rule);
+        Ok(new_id)
     }
 
-    pub fn add_rule(&mut self, mut rule: AutoScoreRule) -> i32 {
-        let new_id = self.rules.iter().map(|r| r.id).max().unwrap_or(0) + 1;
-        rule.id = new_id;
-        rule.last_executed = None;
-        self.rules.push(rule);
-        new_id
+    pub fn update_rule(&mut self, rule: AutoScoreRule) -> Result<(), String> {
+        let Some(index) = self.rules.iter().position(|item| item.id == rule.id) else {
+            return Err("Rule not found".to_string());
+        };
+
+        let last_executed = self.rules[index].last_executed.clone();
+        let mut normalized_rule = normalize_rule(rule)?;
+        normalized_rule.id = self.rules[index].id;
+        normalized_rule.last_executed = normalize_last_executed(last_executed);
+        self.rules[index] = normalized_rule;
+        Ok(())
     }
 
-    pub fn update_rule(&mut self, rule: AutoScoreRule) -> bool {
-        if let Some(existing) = self.rules.iter_mut().find(|r| r.id == rule.id) {
-            *existing = rule;
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn delete_rule(&mut self, rule_id: i32) -> bool {
+    pub fn delete_rule(&mut self, rule_id: i32) -> Result<(), String> {
         let before_len = self.rules.len();
-        self.rules.retain(|r| r.id != rule_id);
-        self.rules.len() < before_len
-    }
-
-    pub fn toggle_rule(&mut self, rule_id: i32, enabled: bool) -> bool {
-        if let Some(rule) = self.rules.iter_mut().find(|r| r.id == rule_id) {
-            rule.enabled = enabled;
-            true
-        } else {
-            false
+        self.rules.retain(|rule| rule.id != rule_id);
+        if self.rules.len() == before_len {
+            return Err("Rule not found".to_string());
         }
+        Ok(())
     }
 
-    pub fn sort_rules(&mut self, rule_ids: &[i32]) -> bool {
-        let rule_map: HashMap<i32, AutoScoreRule> =
-            self.rules.drain(..).map(|r| (r.id, r)).collect();
+    pub fn toggle_rule(&mut self, rule_id: i32, enabled: bool) -> Result<(), String> {
+        let Some(rule) = self.rules.iter_mut().find(|item| item.id == rule_id) else {
+            return Err("Rule not found".to_string());
+        };
 
-        let mut sorted_rules: Vec<AutoScoreRule> = Vec::new();
-        for id in rule_ids {
-            if let Some(rule) = rule_map.get(id) {
-                sorted_rules.push(rule.clone());
+        rule.enabled = enabled;
+        Ok(())
+    }
+
+    pub fn sort_rules(&mut self, rule_ids: &[i32]) {
+        let mut ordered_rules = Vec::with_capacity(self.rules.len());
+        let mut consumed = HashSet::new();
+
+        for rule_id in rule_ids {
+            if !consumed.insert(*rule_id) {
+                continue;
+            }
+
+            if let Some(rule) = self.rules.iter().find(|item| item.id == *rule_id).cloned() {
+                ordered_rules.push(rule);
             }
         }
 
-        for (_, rule) in rule_map {
-            if !rule_ids.contains(&rule.id) {
-                sorted_rules.push(rule);
+        for rule in &self.rules {
+            if consumed.insert(rule.id) {
+                ordered_rules.push(rule.clone());
             }
         }
 
-        self.rules = sorted_rules;
-        true
+        self.rules = ordered_rules;
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.rules.iter().any(|r| r.enabled)
+        self.rules.iter().any(|rule| rule.enabled)
     }
 
     pub fn get_rule_by_id(&self, id: i32) -> Option<&AutoScoreRule> {
-        self.rules.iter().find(|r| r.id == id)
-    }
-
-    pub fn get_rule_by_id_mut(&mut self, id: i32) -> Option<&mut AutoScoreRule> {
-        self.rules.iter_mut().find(|r| r.id == id)
+        self.rules.iter().find(|rule| rule.id == id)
     }
 
     pub fn mark_rule_executed(&mut self, rule_id: i32) {
-        if let Some(rule) = self.rules.iter_mut().find(|r| r.id == rule_id) {
+        if let Some(rule) = self.rules.iter_mut().find(|item| item.id == rule_id) {
             rule.last_executed = Some(Utc::now().to_rfc3339());
         }
     }
@@ -184,20 +214,29 @@ impl AutoScoreService {
         let now = Utc::now();
 
         for trigger in &rule.triggers {
-            if trigger.event == "interval_time_passed" {
-                let interval = parse_interval_trigger_value(trigger.value.as_ref());
-                let base_time = rule
-                    .last_executed
-                    .as_ref()
-                    .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-                    .map(|value| value.with_timezone(&Utc))
-                    .unwrap_or(now);
-
-                let next_execute_time = add_interval_to_time(base_time, &interval)?;
-                let delay_ms = (next_execute_time - now).num_milliseconds();
-                return Some(delay_ms.max(0));
+            if trigger.event != "interval_time_passed" {
+                continue;
             }
+
+            let interval = parse_interval_trigger_value(trigger.value.as_deref()).unwrap_or(
+                IntervalTriggerValue {
+                    amount: DEFAULT_INTERVAL_MINUTES,
+                    unit: IntervalUnit::Minute,
+                },
+            );
+
+            let base_time = rule
+                .last_executed
+                .as_ref()
+                .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+                .map(|value| value.with_timezone(&Utc))
+                .unwrap_or(now);
+
+            let next_execute_time = add_interval_to_time(base_time, &interval)?;
+            let delay_ms = (next_execute_time - now).num_milliseconds();
+            return Some(delay_ms.max(0));
         }
+
         None
     }
 
@@ -206,27 +245,197 @@ impl AutoScoreService {
     }
 }
 
-fn parse_interval_trigger_value(value: Option<&String>) -> IntervalTriggerValue {
-    if let Some(raw_value) = value {
-        if let Ok(minutes) = raw_value.parse::<i64>() {
-            if minutes > 0 {
-                return IntervalTriggerValue {
-                    amount: minutes,
-                    unit: IntervalUnit::Minute,
-                };
-            }
+fn normalize_rule(mut rule: AutoScoreRule) -> Result<AutoScoreRule, String> {
+    rule.name = normalize_required_string(rule.name, "automation name")?;
+    rule.student_names = dedupe_trimmed_strings(rule.student_names);
+
+    if rule.triggers.is_empty() {
+        return Err("At least one trigger is required".to_string());
+    }
+    if rule.actions.is_empty() {
+        return Err("At least one action is required".to_string());
+    }
+
+    rule.triggers = rule
+        .triggers
+        .into_iter()
+        .map(normalize_trigger)
+        .collect::<Result<Vec<_>, _>>()?;
+    rule.actions = rule
+        .actions
+        .into_iter()
+        .map(normalize_action)
+        .collect::<Result<Vec<_>, _>>()?;
+    rule.last_executed = normalize_last_executed(rule.last_executed);
+
+    Ok(rule)
+}
+
+fn normalize_trigger(trigger: AutoScoreTrigger) -> Result<AutoScoreTrigger, String> {
+    let event = normalize_required_string(trigger.event, "trigger event")?;
+
+    match event.as_str() {
+        "interval_time_passed" => {
+            let interval = parse_interval_trigger_value(trigger.value.as_deref())
+                .ok_or_else(|| "Invalid interval trigger value".to_string())?;
+            let value = stringify_interval_trigger_value(&interval)
+                .ok_or_else(|| "Invalid interval trigger value".to_string())?;
+
+            Ok(AutoScoreTrigger {
+                event,
+                value: Some(value),
+            })
+        }
+        "student_has_tag" => {
+            let tag_values = parse_tag_values(trigger.value.as_deref());
+            let value = stringify_tag_values(&tag_values)
+                .ok_or_else(|| "Student tag trigger requires at least one tag".to_string())?;
+
+            Ok(AutoScoreTrigger {
+                event,
+                value: Some(value),
+            })
+        }
+        _ => Err(format!("Unsupported trigger event: {}", event)),
+    }
+}
+
+fn normalize_action(action: AutoScoreAction) -> Result<AutoScoreAction, String> {
+    let event = normalize_required_string(action.event, "action event")?;
+
+    match event.as_str() {
+        "add_score" => {
+            let value = normalize_non_zero_numeric_string(action.value.as_deref())
+                .ok_or_else(|| "Add score action requires a non-zero numeric value".to_string())?;
+
+            Ok(AutoScoreAction {
+                event,
+                value: Some(value),
+            })
+        }
+        "add_tag" => {
+            let tag_values = parse_tag_values(action.value.as_deref());
+            let value = stringify_tag_values(&tag_values)
+                .ok_or_else(|| "Add tag action requires at least one tag".to_string())?;
+
+            Ok(AutoScoreAction {
+                event,
+                value: Some(value),
+            })
+        }
+        _ => Err(format!("Unsupported action event: {}", event)),
+    }
+}
+
+fn normalize_required_string(value: String, field_name: &str) -> Result<String, String> {
+    let normalized = value.trim().to_string();
+    if normalized.is_empty() {
+        return Err(format!("{} is required", field_name));
+    }
+    Ok(normalized)
+}
+
+fn dedupe_trimmed_strings(values: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+
+    for value in values {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            continue;
         }
 
-        if let Ok(parsed_value) = serde_json::from_str::<IntervalTriggerValue>(raw_value) {
-            if parsed_value.amount > 0 {
-                return parsed_value;
-            }
+        let owned = trimmed.to_string();
+        if seen.insert(owned.clone()) {
+            normalized.push(owned);
         }
     }
 
-    IntervalTriggerValue {
-        amount: 30,
-        unit: IntervalUnit::Minute,
+    normalized
+}
+
+fn parse_tag_values(value: Option<&str>) -> Vec<String> {
+    let Some(raw_value) = value.map(str::trim) else {
+        return Vec::new();
+    };
+
+    if raw_value.is_empty() {
+        return Vec::new();
+    }
+
+    if raw_value.starts_with('[') {
+        if let Ok(parsed_values) = serde_json::from_str::<Vec<String>>(raw_value) {
+            return dedupe_trimmed_strings(parsed_values);
+        }
+    }
+
+    dedupe_trimmed_strings(vec![raw_value.to_string()])
+}
+
+fn stringify_tag_values(values: &[String]) -> Option<String> {
+    if values.is_empty() {
+        return None;
+    }
+
+    if values.len() == 1 {
+        return values.first().cloned();
+    }
+
+    serde_json::to_string(values).ok()
+}
+
+fn normalize_non_zero_numeric_string(value: Option<&str>) -> Option<String> {
+    let normalized = value?.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let parsed = normalized.parse::<f64>().ok()?;
+    if !parsed.is_finite() || parsed == 0.0 {
+        return None;
+    }
+
+    Some(normalized.to_string())
+}
+
+fn normalize_last_executed(value: Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .and_then(|raw_value| DateTime::parse_from_rfc3339(raw_value).ok())
+        .map(|parsed| parsed.with_timezone(&Utc).to_rfc3339())
+}
+
+fn parse_interval_trigger_value(value: Option<&str>) -> Option<IntervalTriggerValue> {
+    let raw_value = value.map(str::trim)?;
+    if raw_value.is_empty() {
+        return None;
+    }
+
+    if let Ok(minutes) = raw_value.parse::<i64>() {
+        if minutes > 0 {
+            return Some(IntervalTriggerValue {
+                amount: minutes,
+                unit: IntervalUnit::Minute,
+            });
+        }
+    }
+
+    let parsed_value = serde_json::from_str::<IntervalTriggerValue>(raw_value).ok()?;
+    if parsed_value.amount <= 0 {
+        return None;
+    }
+
+    Some(parsed_value)
+}
+
+fn stringify_interval_trigger_value(value: &IntervalTriggerValue) -> Option<String> {
+    if value.amount <= 0 {
+        return None;
+    }
+
+    match value.unit {
+        IntervalUnit::Minute => Some(value.amount.to_string()),
+        IntervalUnit::Day | IntervalUnit::Month => serde_json::to_string(value).ok(),
     }
 }
 

@@ -1,10 +1,12 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::services::{
-    AutoScoreAction, AutoScoreRule, AutoScoreTrigger, PermissionLevel, SettingsKey, SettingsValue,
+    AutoScoreAction, AutoScoreRule, AutoScoreService, AutoScoreTrigger, PermissionLevel,
+    SettingsKey, SettingsValue,
 };
 use crate::state::AppState;
 
@@ -51,6 +53,101 @@ pub struct AutoScoreStatus {
     pub enabled: bool,
 }
 
+fn build_rule_from_create(rule: CreateAutoScoreRule) -> AutoScoreRule {
+    AutoScoreRule {
+        id: 0,
+        name: rule.name,
+        enabled: rule.enabled,
+        student_names: rule.student_names,
+        triggers: rule.triggers,
+        actions: rule.actions,
+        last_executed: None,
+    }
+}
+
+fn build_rule_from_update(rule: UpdateAutoScoreRule) -> AutoScoreRule {
+    AutoScoreRule {
+        id: rule.id,
+        name: rule.name,
+        enabled: rule.enabled,
+        student_names: rule.student_names,
+        triggers: rule.triggers,
+        actions: rule.actions,
+        last_executed: None,
+    }
+}
+
+async fn load_rules_from_settings(
+    state: &Arc<RwLock<AppState>>,
+) -> Result<Vec<AutoScoreRule>, String> {
+    let state_guard = state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await?;
+
+    let rules_json = match settings.get_value(SettingsKey::AutoScoreRules) {
+        SettingsValue::Json(value) => value,
+        _ => JsonValue::Array(vec![]),
+    };
+
+    Ok(AutoScoreService::deserialize_rules(&rules_json))
+}
+
+async fn persist_rules_to_settings(
+    state: &Arc<RwLock<AppState>>,
+    rules: &[AutoScoreRule],
+) -> Result<(), String> {
+    let rules_json = AutoScoreService::serialize_rules(rules)?;
+    let enabled = rules.iter().any(|rule| rule.enabled);
+
+    let state_guard = state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await?;
+    settings
+        .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
+        .await?;
+    settings
+        .set_value(
+            SettingsKey::AutoScoreEnabled,
+            SettingsValue::Boolean(enabled),
+        )
+        .await?;
+
+    Ok(())
+}
+
+fn replace_cached_rules(state: &Arc<RwLock<AppState>>, rules: Vec<AutoScoreRule>) {
+    let state_guard = state.read();
+    let mut auto_score_service = state_guard.auto_score.write();
+    auto_score_service.replace_rules(rules);
+}
+
+async fn sync_cached_rules(state: &Arc<RwLock<AppState>>) -> Result<Vec<AutoScoreRule>, String> {
+    let rules = load_rules_from_settings(state).await?;
+    replace_cached_rules(state, rules.clone());
+    Ok(rules)
+}
+
+fn emit_rules_changed(app_handle: &AppHandle, state: &Arc<RwLock<AppState>>) {
+    let state_guard = state.read();
+    let rules = state_guard.auto_score.read().get_rules().to_vec();
+    let _ = app_handle.emit("auto-score:rulesChanged", &rules);
+}
+
+fn emit_auto_score_status_changed(app_handle: &AppHandle, rules: &[AutoScoreRule]) {
+    let enabled = rules.iter().any(|rule| rule.enabled);
+    let _ = app_handle.emit(
+        "settings:changed",
+        serde_json::json!({
+            "key": "auto_score_enabled",
+            "value": enabled,
+        }),
+    );
+}
+
 #[tauri::command]
 pub async fn auto_score_get_rules(
     sender_id: Option<u32>,
@@ -64,9 +161,7 @@ pub async fn auto_score_get_rules(
         }
     }
 
-    let state_guard = state.read();
-    let auto_score_service = state_guard.auto_score.read();
-    let rules = auto_score_service.get_rules().to_vec();
+    let rules = sync_cached_rules(state.inner()).await?;
     Ok(IpcResponse::success(rules))
 }
 
@@ -85,39 +180,19 @@ pub async fn auto_score_add_rule(
         }
     }
 
-    let new_id = {
-        let state_guard = state.read();
-        let db_conn = state_guard.db.read().clone();
-        let mut auto_score_service = state_guard.auto_score.write();
-        let mut settings = state_guard.settings.write();
-        settings.attach_db(db_conn);
-        settings.initialize().await?;
-
-        let new_rule = AutoScoreRule {
-            id: 0,
-            name: rule.name,
-            enabled: rule.enabled,
-            student_names: rule.student_names,
-            triggers: rule.triggers,
-            actions: rule.actions,
-            last_executed: None,
-        };
-
-        let new_id = auto_score_service.add_rule(new_rule);
-
-        let rules_json = auto_score_service.get_rules_json();
-        let _ = settings
-            .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
-            .await;
-
-        new_id
+    let current_rules = sync_cached_rules(state.inner()).await?;
+    let mut working_service = AutoScoreService::from_rules(current_rules);
+    let new_id = match working_service.add_rule(build_rule_from_create(rule)) {
+        Ok(value) => value,
+        Err(message) => return Ok(IpcResponse::error(&message)),
     };
 
-    {
-        let state_guard = state.read();
-        let auto_score_service = state_guard.auto_score.read();
-        let _ = app_handle.emit("auto-score:rulesChanged", &auto_score_service.get_rules());
-    }
+    let next_rules = working_service.into_rules();
+    persist_rules_to_settings(state.inner(), &next_rules).await?;
+    replace_cached_rules(state.inner(), next_rules);
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
 
     Ok(IpcResponse::success(new_id))
 }
@@ -137,47 +212,20 @@ pub async fn auto_score_update_rule(
         }
     }
 
-    let success = {
-        let state_guard = state.read();
-        let db_conn = state_guard.db.read().clone();
-        let mut auto_score_service = state_guard.auto_score.write();
-        let mut settings = state_guard.settings.write();
-        settings.attach_db(db_conn);
-        settings.initialize().await?;
-
-        let existing = auto_score_service.get_rule_by_id(rule.id);
-        let last_executed = existing.and_then(|r| r.last_executed.clone());
-
-        let updated_rule = AutoScoreRule {
-            id: rule.id,
-            name: rule.name,
-            enabled: rule.enabled,
-            student_names: rule.student_names,
-            triggers: rule.triggers,
-            actions: rule.actions,
-            last_executed,
-        };
-
-        let success = auto_score_service.update_rule(updated_rule);
-
-        if success {
-            let rules_json = auto_score_service.get_rules_json();
-            let _ = settings
-                .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
-                .await;
-        }
-
-        success
-    };
-
-    if success {
-        let state_guard = state.read();
-        let auto_score_service = state_guard.auto_score.read();
-        let _ = app_handle.emit("auto-score:rulesChanged", &auto_score_service.get_rules());
-        Ok(IpcResponse::success(true))
-    } else {
-        Ok(IpcResponse::error("Rule not found"))
+    let current_rules = sync_cached_rules(state.inner()).await?;
+    let mut working_service = AutoScoreService::from_rules(current_rules);
+    if let Err(message) = working_service.update_rule(build_rule_from_update(rule)) {
+        return Ok(IpcResponse::error(&message));
     }
+
+    let next_rules = working_service.into_rules();
+    persist_rules_to_settings(state.inner(), &next_rules).await?;
+    replace_cached_rules(state.inner(), next_rules);
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
+
+    Ok(IpcResponse::success(true))
 }
 
 #[tauri::command]
@@ -195,34 +243,20 @@ pub async fn auto_score_delete_rule(
         }
     }
 
-    let success = {
-        let state_guard = state.read();
-        let db_conn = state_guard.db.read().clone();
-        let mut auto_score_service = state_guard.auto_score.write();
-        let mut settings = state_guard.settings.write();
-        settings.attach_db(db_conn);
-        settings.initialize().await?;
-
-        let success = auto_score_service.delete_rule(rule_id);
-
-        if success {
-            let rules_json = auto_score_service.get_rules_json();
-            let _ = settings
-                .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
-                .await;
-        }
-
-        success
-    };
-
-    if success {
-        let state_guard = state.read();
-        let auto_score_service = state_guard.auto_score.read();
-        let _ = app_handle.emit("auto-score:rulesChanged", &auto_score_service.get_rules());
-        Ok(IpcResponse::success(true))
-    } else {
-        Ok(IpcResponse::error("Rule not found"))
+    let current_rules = sync_cached_rules(state.inner()).await?;
+    let mut working_service = AutoScoreService::from_rules(current_rules);
+    if let Err(message) = working_service.delete_rule(rule_id) {
+        return Ok(IpcResponse::error(&message));
     }
+
+    let next_rules = working_service.into_rules();
+    persist_rules_to_settings(state.inner(), &next_rules).await?;
+    replace_cached_rules(state.inner(), next_rules);
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
+
+    Ok(IpcResponse::success(true))
 }
 
 #[tauri::command]
@@ -240,34 +274,20 @@ pub async fn auto_score_toggle_rule(
         }
     }
 
-    let success = {
-        let state_guard = state.read();
-        let db_conn = state_guard.db.read().clone();
-        let mut auto_score_service = state_guard.auto_score.write();
-        let mut settings = state_guard.settings.write();
-        settings.attach_db(db_conn);
-        settings.initialize().await?;
-
-        let success = auto_score_service.toggle_rule(params.rule_id, params.enabled);
-
-        if success {
-            let rules_json = auto_score_service.get_rules_json();
-            let _ = settings
-                .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
-                .await;
-        }
-
-        success
-    };
-
-    if success {
-        let state_guard = state.read();
-        let auto_score_service = state_guard.auto_score.read();
-        let _ = app_handle.emit("auto-score:rulesChanged", &auto_score_service.get_rules());
-        Ok(IpcResponse::success(true))
-    } else {
-        Ok(IpcResponse::error("Rule not found"))
+    let current_rules = sync_cached_rules(state.inner()).await?;
+    let mut working_service = AutoScoreService::from_rules(current_rules);
+    if let Err(message) = working_service.toggle_rule(params.rule_id, params.enabled) {
+        return Ok(IpcResponse::error(&message));
     }
+
+    let next_rules = working_service.into_rules();
+    persist_rules_to_settings(state.inner(), &next_rules).await?;
+    replace_cached_rules(state.inner(), next_rules);
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
+
+    Ok(IpcResponse::success(true))
 }
 
 #[tauri::command]
@@ -283,9 +303,8 @@ pub async fn auto_score_get_status(
         }
     }
 
-    let state_guard = state.read();
-    let auto_score_service = state_guard.auto_score.read();
-    let enabled = auto_score_service.is_enabled();
+    let rules = sync_cached_rules(state.inner()).await?;
+    let enabled = rules.iter().any(|rule| rule.enabled);
     Ok(IpcResponse::success(AutoScoreStatus { enabled }))
 }
 
@@ -304,27 +323,16 @@ pub async fn auto_score_sort_rules(
         }
     }
 
-    {
-        let state_guard = state.read();
-        let db_conn = state_guard.db.read().clone();
-        let mut auto_score_service = state_guard.auto_score.write();
-        let mut settings = state_guard.settings.write();
-        settings.attach_db(db_conn);
-        settings.initialize().await?;
+    let current_rules = sync_cached_rules(state.inner()).await?;
+    let mut working_service = AutoScoreService::from_rules(current_rules);
+    working_service.sort_rules(&rule_ids);
 
-        auto_score_service.sort_rules(&rule_ids);
-
-        let rules_json = auto_score_service.get_rules_json();
-        let _ = settings
-            .set_value(SettingsKey::AutoScoreRules, SettingsValue::Json(rules_json))
-            .await;
-    }
-
-    {
-        let state_guard = state.read();
-        let auto_score_service = state_guard.auto_score.read();
-        let _ = app_handle.emit("auto-score:rulesChanged", &auto_score_service.get_rules());
-    }
+    let next_rules = working_service.into_rules();
+    persist_rules_to_settings(state.inner(), &next_rules).await?;
+    replace_cached_rules(state.inner(), next_rules);
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
 
     Ok(IpcResponse::success(true))
 }

@@ -303,7 +303,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     {
       title: t("autoScore.status"),
       key: "status",
-      width: 120,
+      width: 96,
       render: (_, row) => (
         <Switch
           checked={row.enabled}
@@ -317,7 +317,8 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     {
       title: t("autoScore.applicableStudents"),
       key: "studentNames",
-      width: 220,
+      width: 150,
+      ellipsis: true,
       render: (_, row) =>
         row.studentNames.length > 0 ? (
           <Tag>{t("autoScore.studentCount", { count: row.studentNames.length })}</Tag>
@@ -328,26 +329,27 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     {
       title: t("autoScore.triggers"),
       key: "triggers",
-      width: 150,
+      width: 120,
       render: (_, row) => <Tag>{t("autoScore.triggerCount", { count: row.triggers.length })}</Tag>,
     },
     {
       title: t("autoScore.actions"),
       key: "actions",
-      width: 140,
+      width: 120,
       render: (_, row) => <Tag>{t("autoScore.actionCount", { count: row.actions.length })}</Tag>,
     },
     {
       title: t("autoScore.lastExecuted"),
       dataIndex: "lastExecuted",
       key: "lastExecuted",
-      width: 180,
+      width: 160,
+      ellipsis: true,
       render: (value: string | null | undefined) => formatLastExecuted(value),
     },
     {
       title: t("common.operation"),
       key: "operation",
-      width: 160,
+      width: 140,
       render: (_, row) => (
         <Space size={4}>
           <Button type="link" disabled={!canEdit} onClick={() => handleEdit(row)}>
@@ -440,6 +442,8 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
           columns={columns}
           dataSource={pagedRules}
           pagination={false}
+          tableLayout="fixed"
+          scroll={{ x: 880 }}
           style={{ color: "var(--ss-text-main)" }}
         />
         <div style={{ marginTop: 16, textAlign: "right" }}>

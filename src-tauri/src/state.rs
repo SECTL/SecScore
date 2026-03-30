@@ -67,7 +67,19 @@ impl AppState {
             theme.load_saved_theme(&current_theme_id);
         }
 
-        self.auto_score.write().initialize(&self.app_handle).await?;
+        let auto_score_rules = {
+            let settings = self.settings.read();
+            match settings.get_value(SettingsKey::AutoScoreRules) {
+                SettingsValue::Json(value) => value,
+                _ => serde_json::Value::Array(vec![]),
+            }
+        };
+        {
+            let mut auto_score = self.auto_score.write();
+            auto_score.load_rules(auto_score_rules);
+            auto_score.initialize(&self.app_handle).await?;
+        }
+
         Ok(())
     }
 }

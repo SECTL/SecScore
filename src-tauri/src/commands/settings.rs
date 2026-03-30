@@ -142,6 +142,13 @@ pub async fn settings_set(
             .map_err(|e| e.to_string())?;
     }
 
+    if settings_key == SettingsKey::AutoScoreRules {
+        let state_guard = state.read();
+        let mut auto_score = state_guard.auto_score.write();
+        auto_score.load_rules(value.clone());
+        let _ = app_handle.emit("auto-score:rulesChanged", auto_score.get_rules());
+    }
+
     let change = SettingChange {
         key: key.clone(),
         value,
