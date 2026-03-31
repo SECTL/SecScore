@@ -29,8 +29,8 @@ import { useTranslation } from "react-i18next"
 import { Sidebar } from "./components/Sidebar"
 import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
-import { OAuthLogin } from "./components/OAuthLogin"
-import { OAuthCallback } from "./components/OAuthCallback"
+import { OAuthLogin } from "./components/OAuth/OAuthLogin"
+import { OAuthCallback } from "./components/OAuth/OAuthCallback"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 
@@ -39,6 +39,23 @@ const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM
   0,
   4
 )
+const SYSTEM_FONT_STACK =
+  '"PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans", "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+
+const resolveFontFamily = (fontValue?: string): string => {
+  if (!fontValue || fontValue === "system") return SYSTEM_FONT_STACK
+  if (fontValue.startsWith("system-")) {
+    const family = fontValue.slice("system-".length).trim()
+    if (family) return `"${family}", ${SYSTEM_FONT_STACK}`
+  }
+  return SYSTEM_FONT_STACK
+}
+
+const applyGlobalFontFamily = (fontValue?: string) => {
+  const fontFamily = resolveFontFamily(fontValue)
+  document.documentElement.style.setProperty("--ss-font-family", fontFamily)
+  document.body.style.fontFamily = fontFamily
+}
 
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
@@ -163,6 +180,7 @@ function MainContent(): React.JSX.Element {
       const settingsRes = await (window as any).api.getAllSettings()
       if (settingsRes?.success && settingsRes.data) {
         setMobileBottomNavItems(normalizeStoredBottomKeys(settingsRes.data.mobile_bottom_nav_items))
+        applyGlobalFontFamily(settingsRes.data.font_family)
       }
     }
 
@@ -178,8 +196,13 @@ function MainContent(): React.JSX.Element {
 
     api
       .onSettingChanged((change: { key?: string; value?: unknown }) => {
-        if (change?.key !== "mobile_bottom_nav_items") return
-        setMobileBottomNavItems(normalizeStoredBottomKeys(change.value))
+        if (change?.key === "mobile_bottom_nav_items") {
+          setMobileBottomNavItems(normalizeStoredBottomKeys(change.value))
+          return
+        }
+        if (change?.key === "font_family") {
+          applyGlobalFontFamily(String(change.value || "system"))
+        }
       })
       .then((fn: () => void) => {
         if (disposed) {

@@ -48,6 +48,7 @@ export type settingsKey =
   | "window_zoom"
   | "search_keyboard_layout"
   | "disable_search_keyboard"
+  | "font_family"
   | "themes_custom"
   | "auto_score_enabled"
   | "auto_score_rules"
@@ -63,6 +64,7 @@ export interface settingsSpec {
   window_zoom: number
   search_keyboard_layout: "t9" | "qwerty26"
   disable_search_keyboard: boolean
+  font_family: string
   themes_custom: themeConfig[]
   auto_score_enabled: boolean
   auto_score_rules: autoScoreRule[]
@@ -311,6 +313,8 @@ const api = {
     key: K,
     value: settingsSpec[K]
   ): Promise<{ success: boolean }> => invoke("settings_set", { key, value }),
+  getSystemFonts: (): Promise<{ success: boolean; data: string[]; message?: string }> =>
+    invoke("settings_get_system_fonts"),
   onSettingChanged: (callback: (change: settingChange) => void): Promise<UnlistenFn> => {
     return listen<settingChange>("settings:changed", (event) => {
       callback(event.payload)

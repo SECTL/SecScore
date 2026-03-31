@@ -16,7 +16,7 @@ import {
   Typography,
 } from "antd"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
-import { OAuthLogin } from "./OAuthLogin"
+import { OAuthLogin } from "./OAuth/OAuthLogin"
 import { useTranslation } from "react-i18next"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
@@ -37,6 +37,62 @@ interface FontOption {
   value: string
   label: string
   fontFamily: string
+}
+
+const SYSTEM_FONT_STACK =
+  '"PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans", "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+
+const defaultFontOptions: FontOption[] = [
+  {
+    value: "system",
+    label: "系统默认",
+    fontFamily: SYSTEM_FONT_STACK,
+  },
+  {
+    value: "system-Microsoft YaHei UI",
+    label: "Microsoft YaHei UI",
+    fontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", sans-serif',
+  },
+  {
+    value: "system-Microsoft YaHei",
+    label: "Microsoft YaHei",
+    fontFamily: '"Microsoft YaHei", "微软雅黑", sans-serif',
+  },
+  {
+    value: "system-PingFang SC",
+    label: "PingFang SC",
+    fontFamily: '"PingFang SC", "Hiragino Sans GB", sans-serif',
+  },
+  {
+    value: "system-Noto Sans CJK SC",
+    label: "Noto Sans CJK SC",
+    fontFamily: '"Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", sans-serif',
+  },
+  {
+    value: "system-Segoe UI",
+    label: "Segoe UI",
+    fontFamily: '"Segoe UI", sans-serif',
+  },
+  {
+    value: "system-Arial",
+    label: "Arial",
+    fontFamily: "Arial, sans-serif",
+  },
+]
+
+const mergeFontOptions = (options: FontOption[]): FontOption[] => {
+  const map = new Map<string, FontOption>()
+  for (const option of options) {
+    if (!map.has(option.value)) {
+      map.set(option.value, option)
+    }
+  }
+  return Array.from(map.values())
+}
+
+const findFontOption = (options: FontOption[], value?: string): FontOption | undefined => {
+  if (!value) return options.find((item) => item.value === "system") || options[0]
+  return options.find((item) => item.value === value) || options.find((item) => item.value === "system")
 }
 
 const applyFontFamily = (fontFamily: string) => {
@@ -76,8 +132,9 @@ export const Settings: React.FC<{
     search_keyboard_layout: "qwerty26",
     disable_search_keyboard: false,
   })
-  const [fontOptions, setFontOptions] = useState<FontOption[]>([])
-  const [isLoadingFonts, setIsLoadingFonts] = useState(true)
+  const [fontOptions, setFontOptions] = useState<FontOption[]>(defaultFontOptions)
+  const [isLoadingFonts, setIsLoadingFonts] = useState(false)
+  const fontOptionsRef = useRef<FontOption[]>(defaultFontOptions)
 
   const [securityStatus, setSecurityStatus] = useState<{
     permission: permissionLevel
@@ -168,6 +225,10 @@ export const Settings: React.FC<{
     )
   }, [permission, t])
 
+  useEffect(() => {
+    fontOptionsRef.current = fontOptions
+  }, [fontOptions])
+
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
   }
@@ -187,54 +248,73 @@ export const Settings: React.FC<{
     }
   }
 
-  const loadSystemFonts = async () => {
-    if (!(window as any).api?.getSystemFonts) return
-
+  const loadSystemFonts = async (selectedFontValue?: string) => {
     setIsLoadingFonts(true)
+
+    const applySelectedFont = (options: FontOption[]) => {
+      const current = findFontOption(options, selectedFontValue || settings.font_family)
+      if (current) applyFontFamily(current.fontFamily)
+    }
+
+    const api = (window as any).api
+    if (!api?.getSystemFonts) {
+      setFontOptions(defaultFontOptions)
+      applySelectedFont(defaultFontOptions)
+      setIsLoadingFonts(false)
+      return
+    }
+
     try {
-      const res = await (window as any).api.getSystemFonts()
+      const res = await api.getSystemFonts()
       if (res.success && Array.isArray(res.data)) {
-        const fontList = res.data
-          .map((name: string) => ({
-            value: `system-${name}`,
-            label: name,
-            fontFamily: `"${name}"`,
-          })) as FontOption[]
+        const remoteOptions = res.data
+          .map((name: string) => String(name || "").trim())
+          .filter((name: string) => Boolean(name))
+          .map(
+            (name: string) =>
+              ({
+                value: `system-${name}`,
+                label: name,
+                fontFamily: `"${name}", ${SYSTEM_FONT_STACK}`,
+              }) satisfies FontOption
+          )
 
-        setFontOptions(fontList)
-
-        if (settings.font_family) {
-          const currentFontOpt = fontList.find((f) => f.value === settings.font_family)
-          if (currentFontOpt) {
-            applyFontFamily(currentFontOpt.fontFamily)
-          }
-        }
+        const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
+        setFontOptions(mergedOptions)
+        applySelectedFont(mergedOptions)
+      } else {
+        setFontOptions(defaultFontOptions)
+        applySelectedFont(defaultFontOptions)
       }
     } catch (error) {
       console.error("Failed to load system fonts:", error)
+      setFontOptions(defaultFontOptions)
+      applySelectedFont(defaultFontOptions)
     } finally {
       setIsLoadingFonts(false)
     }
   }
 
   const loadAll = async () => {
-    if (!(window as any).api) return
-    const res = await (window as any).api.getAllSettings()
+    const api = (window as any).api
+    if (!api) {
+      setFontOptions(defaultFontOptions)
+      setIsLoadingFonts(false)
+      return
+    }
+
+    let savedFontFamily = settings.font_family || "system"
+    const res = await api.getAllSettings()
     if (res.success && res.data) {
       setSettings(res.data)
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
-      if (res.data.font_family) {
-        const fontOpt = fontOptions.find((f) => f.value === res.data.font_family)
-        if (fontOpt) {
-          applyFontFamily(fontOpt.fontFamily)
-        }
-      }
+      savedFontFamily = res.data.font_family || "system"
     }
-    const authRes = await (window as any).api.authGetStatus()
+    const authRes = await api.authGetStatus()
     if (authRes.success && authRes.data) setSecurityStatus(authRes.data)
     await loadMcpStatus()
-    await loadSystemFonts()
+    await loadSystemFonts(savedFontFamily)
   }
 
   const loadAboutContent = async () => {
@@ -272,11 +352,12 @@ export const Settings: React.FC<{
           if (change?.key === "auto_score_enabled")
             return { ...prev, auto_score_enabled: change.value }
           if (change?.key === "font_family") {
-            const fontOpt = fontOptions.find((f) => f.value === change.value)
+            const value = String(change.value || "system")
+            const fontOpt = findFontOption(fontOptionsRef.current, value)
             if (fontOpt) {
               applyFontFamily(fontOpt.fontFamily)
             }
-            return { ...prev, font_family: change.value }
+            return { ...prev, font_family: value }
           }
           return prev
         })
@@ -726,12 +807,12 @@ export const Settings: React.FC<{
               <Select
                 value={settings.font_family || "system"}
                 onChange={async (v) => {
-                  const fontOpt = fontOptions.find((f) => f.value === v)
+                  const fontOpt = findFontOption(fontOptions, String(v))
                   if (!fontOpt) return
                   applyFontFamily(fontOpt.fontFamily)
-                  setSettings((prev) => ({ ...prev, font_family: v }))
+                  setSettings((prev) => ({ ...prev, font_family: String(v) }))
                   if ((window as any).api) {
-                    const res = await (window as any).api.setSetting("font_family", v)
+                    const res = await (window as any).api.setSetting("font_family", String(v))
                     if (res.success) {
                       messageApi.success(t("settings.general.saved"))
                     } else {

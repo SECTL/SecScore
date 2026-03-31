@@ -1,6 +1,8 @@
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::collections::BTreeSet;
+use std::process::Command;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
@@ -157,4 +159,136 @@ pub async fn settings_set(
     let _ = app_handle.emit("settings:changed", &change);
 
     Ok(IpcResponse::success(()))
+}
+
+fn fallback_font_families() -> Vec<String> {
+    vec![
+        "系统默认".to_string(),
+        "Microsoft YaHei UI".to_string(),
+        "Microsoft YaHei".to_string(),
+        "PingFang SC".to_string(),
+        "Noto Sans CJK SC".to_string(),
+        "Source Han Sans SC".to_string(),
+        "Segoe UI".to_string(),
+        "Arial".to_string(),
+        "Helvetica Neue".to_string(),
+    ]
+}
+
+fn normalize_font_name(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches('@')
+        .replace(" (TrueType)", "")
+        .replace(" (OpenType)", "")
+        .replace(" (All res)", "")
+        .trim()
+        .to_string()
+}
+
+#[cfg(target_os = "windows")]
+fn query_system_fonts() -> Vec<String> {
+    let output = Command::new("reg")
+        .args([
+            "query",
+            r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+        ])
+        .output();
+
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let mut families = BTreeSet::new();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if !line.contains("REG_") {
+            continue;
+        }
+        let Some((left, _)) = line.split_once("REG_") else {
+            continue;
+        };
+        let name = normalize_font_name(left);
+        if !name.is_empty() {
+            families.insert(name);
+        }
+    }
+
+    families.into_iter().collect()
+}
+
+#[cfg(target_os = "linux")]
+fn query_system_fonts() -> Vec<String> {
+    let output = Command::new("fc-list").args([":", "family"]).output();
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let mut families = BTreeSet::new();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        for part in line.split(',') {
+            let name = normalize_font_name(part);
+            if !name.is_empty() {
+                families.insert(name);
+            }
+        }
+    }
+    families.into_iter().collect()
+}
+
+#[cfg(target_os = "macos")]
+fn query_system_fonts() -> Vec<String> {
+    let output = Command::new("system_profiler")
+        .args(["SPFontsDataType", "-detailLevel", "mini"])
+        .output();
+    let Ok(output) = output else {
+        return Vec::new();
+    };
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    let mut families = BTreeSet::new();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if let Some(name) = trimmed.strip_prefix("Full Name:") {
+            let normalized = normalize_font_name(name);
+            if !normalized.is_empty() {
+                families.insert(normalized);
+            }
+        }
+    }
+    families.into_iter().collect()
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+fn query_system_fonts() -> Vec<String> {
+    Vec::new()
+}
+
+#[tauri::command]
+pub async fn settings_get_system_fonts() -> Result<IpcResponse<Vec<String>>, String> {
+    let mut fonts = query_system_fonts();
+    if fonts.is_empty() {
+        fonts = fallback_font_families();
+    } else {
+        let mut merged = BTreeSet::new();
+        for item in fallback_font_families() {
+            merged.insert(item);
+        }
+        for item in fonts {
+            merged.insert(item);
+        }
+        fonts = merged.into_iter().collect();
+    }
+
+    Ok(IpcResponse::success(fonts))
 }

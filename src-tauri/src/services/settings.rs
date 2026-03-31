@@ -10,6 +10,7 @@ pub struct SettingsSpec {
     pub window_zoom: f64,
     pub search_keyboard_layout: String,
     pub disable_search_keyboard: bool,
+    pub font_family: String,
     pub themes_custom: JsonValue,
     pub auto_score_enabled: bool,
     pub auto_score_rules: JsonValue,
@@ -28,6 +29,7 @@ impl Default for SettingsSpec {
             window_zoom: 1.0,
             search_keyboard_layout: "qwerty26".to_string(),
             disable_search_keyboard: false,
+            font_family: "system".to_string(),
             themes_custom: JsonValue::Array(vec![]),
             auto_score_enabled: false,
             auto_score_rules: JsonValue::Array(vec![]),
@@ -58,6 +60,7 @@ pub enum SettingsKey {
     WindowZoom,
     SearchKeyboardLayout,
     DisableSearchKeyboard,
+    FontFamily,
     ThemesCustom,
     AutoScoreEnabled,
     AutoScoreRules,
@@ -76,6 +79,7 @@ impl SettingsKey {
             SettingsKey::WindowZoom => "window_zoom",
             SettingsKey::SearchKeyboardLayout => "search_keyboard_layout",
             SettingsKey::DisableSearchKeyboard => "disable_search_keyboard",
+            SettingsKey::FontFamily => "font_family",
             SettingsKey::ThemesCustom => "themes_custom",
             SettingsKey::AutoScoreEnabled => "auto_score_enabled",
             SettingsKey::AutoScoreRules => "auto_score_rules",
@@ -94,6 +98,7 @@ impl SettingsKey {
             "window_zoom" => Some(SettingsKey::WindowZoom),
             "search_keyboard_layout" => Some(SettingsKey::SearchKeyboardLayout),
             "disable_search_keyboard" => Some(SettingsKey::DisableSearchKeyboard),
+            "font_family" => Some(SettingsKey::FontFamily),
             "themes_custom" => Some(SettingsKey::ThemesCustom),
             "auto_score_enabled" => Some(SettingsKey::AutoScoreEnabled),
             "auto_score_rules" => Some(SettingsKey::AutoScoreRules),
@@ -328,6 +333,22 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::FontFamily,
+            SettingDefinition {
+                kind: SettingValueKind::String,
+                default_value: SettingsValue::String("system".to_string()),
+                write_permission: PermissionRequirement::Admin,
+                validate: Some(|v| {
+                    if let SettingsValue::String(s) = v {
+                        !s.trim().is_empty()
+                    } else {
+                        false
+                    }
+                }),
+            },
+        );
+
+        defs.insert(
             SettingsKey::ThemesCustom,
             SettingDefinition {
                 kind: SettingValueKind::Json,
@@ -548,6 +569,10 @@ impl SettingsService {
             disable_search_keyboard: match self.get_value(SettingsKey::DisableSearchKeyboard) {
                 SettingsValue::Boolean(b) => b,
                 _ => false,
+            },
+            font_family: match self.get_value(SettingsKey::FontFamily) {
+                SettingsValue::String(s) => s,
+                _ => "system".to_string(),
             },
             themes_custom: match self.get_value(SettingsKey::ThemesCustom) {
                 SettingsValue::Json(j) => j,

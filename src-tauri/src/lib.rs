@@ -68,6 +68,7 @@ pub fn run() {
             settings_get_all,
             settings_get,
             settings_set,
+            settings_get_system_fonts,
             auth_get_status,
             auth_login,
             auth_logout,
@@ -155,7 +156,11 @@ fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         use tauri_plugin_deep_link::DeepLinkExt;
 
         app.deep_link().on_open_url(move |event| {
-            let url = event.urls().first().map(|u| u.to_string()).unwrap_or_default();
+            let url = event
+                .urls()
+                .first()
+                .map(|u| u.to_string())
+                .unwrap_or_default();
             if !url.is_empty() {
                 let _ = handle.emit("deep-link://new-url", url);
             }

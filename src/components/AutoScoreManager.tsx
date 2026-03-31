@@ -18,8 +18,8 @@ import { type ImmutableTree } from "@react-awesome-query-builder/antd"
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
 import { fetchAllTags } from "./TagEditorDialog"
-import { ActionEditor } from "./AutoScoreManagerPage/ActionEditor"
-import { TriggerRuleBuilder } from "./AutoScoreManagerPage/TriggerRuleBuilder"
+import { ActionEditor } from "./AutoScore/ActionEditor"
+import { TriggerRuleBuilder } from "./AutoScore/TriggerRuleBuilder"
 import {
   actionDraftsToPayload,
   actionsToDrafts,
@@ -33,7 +33,7 @@ import {
   type ActionDraft,
   type AutoScoreRule,
   type AutoScoreTagOption,
-} from "./AutoScoreManagerPage/AutoScoreUtils"
+} from "./AutoScore/AutoScoreUtils"
 
 interface StudentItem {
   id: number
