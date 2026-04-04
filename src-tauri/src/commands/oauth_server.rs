@@ -124,42 +124,99 @@ async fn handle_oauth_callback(
         <meta charset="UTF-8">
         <title>OAuth 授权完成</title>
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                height: 100vh;
-                margin: 0;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                color: #e4e4e4;
             }
             .container {
                 text-align: center;
-                padding: 40px;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 16px;
-                backdrop-filter: blur(10px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                padding: 48px 40px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 20px;
+                backdrop-filter: blur(20px);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
+                            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+                animation: slideUp 0.5s ease-out;
+            }
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .icon {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 24px;
+                background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 20px rgba(74, 222, 128, 0.4);
+                animation: scaleIn 0.5s ease-out 0.2s both;
+            }
+            @keyframes scaleIn {
+                from {
+                    opacity: 0;
+                    transform: scale(0.5);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+            .icon svg {
+                width: 40px;
+                height: 40px;
+                color: white;
             }
             h1 {
-                margin: 0 0 16px 0;
-                font-size: 24px;
+                margin: 0 0 12px 0;
+                font-size: 28px;
+                font-weight: 600;
+                background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
             p {
                 margin: 0;
-                opacity: 0.9;
-                font-size: 14px;
+                color: #a0a0a0;
+                font-size: 15px;
+                line-height: 1.6;
             }
-            .success { color: #4ade80; }
-            .error { color: #f87171; }
+            .hint {
+                margin-top: 20px;
+                font-size: 13px;
+                color: #666;
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1 class="success">✓ 授权成功</h1>
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <h1>授权成功</h1>
             <p>请返回 SecScore 应用查看登录结果</p>
-            <p style="margin-top: 16px; font-size: 12px; opacity: 0.7;">此窗口可以关闭</p>
+            <p class="hint">此窗口可以关闭</p>
         </div>
         <script>
             setTimeout(() => {
@@ -177,42 +234,99 @@ async fn handle_oauth_callback(
         <meta charset="UTF-8">
         <title>OAuth 授权失败</title>
         <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
                 display: flex;
                 justify-content: center;
                 align-items: center;
-                height: 100vh;
-                margin: 0;
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-                color: white;
+                min-height: 100vh;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+                color: #e4e4e4;
             }
             .container {
                 text-align: center;
-                padding: 40px;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 16px;
-                backdrop-filter: blur(10px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+                padding: 48px 40px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 20px;
+                backdrop-filter: blur(20px);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
+                            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+                animation: slideUp 0.5s ease-out;
+            }
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .icon {
+                width: 80px;
+                height: 80px;
+                margin: 0 auto 24px;
+                background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 20px rgba(248, 113, 113, 0.4);
+                animation: scaleIn 0.5s ease-out 0.2s both;
+            }
+            @keyframes scaleIn {
+                from {
+                    opacity: 0;
+                    transform: scale(0.5);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+            .icon svg {
+                width: 40px;
+                height: 40px;
+                color: white;
             }
             h1 {
-                margin: 0 0 16px 0;
-                font-size: 24px;
+                margin: 0 0 12px 0;
+                font-size: 28px;
+                font-weight: 600;
+                background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
             }
             p {
                 margin: 0;
-                opacity: 0.9;
-                font-size: 14px;
+                color: #a0a0a0;
+                font-size: 15px;
+                line-height: 1.6;
             }
-            .success { color: #4ade80; }
-            .error { color: #f87171; }
+            .hint {
+                margin-top: 20px;
+                font-size: 13px;
+                color: #666;
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1 class="error">✗ 授权失败</h1>
+            <div class="icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <h1>授权失败</h1>
             <p>请返回 SecScore 应用查看错误信息</p>
-            <p style="margin-top: 16px; font-size: 12px; opacity: 0.7;">此窗口可以关闭</p>
+            <p class="hint">此窗口可以关闭</p>
         </div>
     </body>
     </html>

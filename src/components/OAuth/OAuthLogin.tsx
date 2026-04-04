@@ -32,7 +32,10 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const callbackUnlistenRef = useRef<UnlistenFn | null>(null)
-  const expectedStateRef = useRef<string | null>(null)
+  // 使用 sessionStorage 存储 state，防止组件重新渲染导致丢失
+  const getExpectedState = () => sessionStorage.getItem("oauth_expected_state")
+  const setExpectedState = (state: string) => sessionStorage.setItem("oauth_expected_state", state)
+  const clearExpectedState = () => sessionStorage.removeItem("oauth_expected_state")
 
   const getOAuthConfig = (): OAuthConfig | null => {
     const api = (window as any).api
@@ -69,10 +72,11 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
       if (result.code) {
         console.log("[OAuth] 授权码:", result.code)
-        console.log("[OAuth] State:", result.state, "期望:", expectedStateRef.current)
+        console.log("[OAuth] State:", result.state, "期望:", getExpectedState())
         
         // 验证 state 防止 CSRF
-        if (expectedStateRef.current && result.state !== expectedStateRef.current) {
+        const expectedState = getExpectedState()
+        if (expectedState && result.state !== expectedState) {
           message.error("安全验证失败：state 不匹配")
           setLoading(false)
           return
@@ -103,7 +107,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         }
 
         await api.oauthStopCallbackServer()
-        expectedStateRef.current = null
+        clearExpectedState()
         onSuccess(userRes.data)
         onClose()
       }
@@ -120,6 +124,11 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         const unlisten = await listen<OAuthCallbackResult>("oauth-callback", async (event) => {
           console.log("[OAuth] Event listener 收到 payload:", event.payload)
           if (event.payload) {
+            // 立即取消监听，防止重复触发
+            if (callbackUnlistenRef.current) {
+              callbackUnlistenRef.current()
+              callbackUnlistenRef.current = null
+            }
             await handleOAuthCallback(event.payload)
           }
         })
@@ -137,7 +146,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         callbackUnlistenRef.current = null
       }
     }
-  }, []) // handleOAuthCallback 在依赖数组外，使用 ref 存储
+  }, [])
 
   const handleOAuthLogin = async () => {
     const config = getOAuthConfig()
@@ -163,8 +172,8 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
       // 生成随机 state 防止 CSRF
       const state = generateRandomState()
       console.log("[OAuth] 生成 state:", state)
-      expectedStateRef.current = state
-      console.log("[OAuth] state 已设置:", expectedStateRef.current)
+      setExpectedState(state)
+      console.log("[OAuth] state 已设置:", getExpectedState())
 
       const urlRes = await api.oauthGetAuthorizationUrl(config.platform_id, callbackUrl, state)
 

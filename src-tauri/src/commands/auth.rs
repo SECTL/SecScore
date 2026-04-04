@@ -358,19 +358,19 @@ pub async fn oauth_exchange_code(
     println!("[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}", code, platform_id, callback_url);
     
     let client = reqwest::Client::new();
-    let payload = serde_json::json!({
-        "grant_type": "authorization_code",
-        "code": code,
-        "client_id": platform_id,
-        "client_secret": platform_secret,
-        "redirect_uri": callback_url
-    });
+    let params = [
+        ("grant_type", "authorization_code"),
+        ("code", &code),
+        ("client_id", &platform_id),
+        ("client_secret", &platform_secret),
+        ("redirect_uri", &callback_url),
+    ];
     
-    println!("[OAuth] 请求体：{:?}", payload);
+    println!("[OAuth] 请求参数：{:?}", params);
     
     let response = client
         .post("https://sectl.top/api/oauth/token")
-        .json(&payload)
+        .form(&params)
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
@@ -379,10 +379,8 @@ pub async fn oauth_exchange_code(
     
     let response_text = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
     println!("[OAuth] 响应内容：{}", response_text);
-    
-    let status_success = response_text.is_empty() || !response_text.contains("error");
 
-    if !status_success {
+    if !response_text.is_empty() && response_text.contains("error") {
         return Ok(IpcResponse::error(&response_text));
     }
 
