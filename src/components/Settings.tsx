@@ -92,7 +92,9 @@ const mergeFontOptions = (options: FontOption[]): FontOption[] => {
 
 const findFontOption = (options: FontOption[], value?: string): FontOption | undefined => {
   if (!value) return options.find((item) => item.value === "system") || options[0]
-  return options.find((item) => item.value === value) || options.find((item) => item.value === "system")
+  return (
+    options.find((item) => item.value === value) || options.find((item) => item.value === "system")
+  )
 }
 
 const applyFontFamily = (fontFamily: string) => {

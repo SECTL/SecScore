@@ -19,13 +19,20 @@ interface OAuthLoginProps {
 interface OAuthConfig {
   platform_id: string
   platform_secret: string
-  callback_url: string
+}
+
+interface OAuthCallbackResult {
+  code?: string
+  state?: string
+  error?: string
+  error_description?: string
 }
 
 export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
-  const deepLinkUnlistenRef = useRef<UnlistenFn | null>(null)
+  const callbackUnlistenRef = useRef<UnlistenFn | null>(null)
+  const expectedStateRef = useRef<string | null>(null)
 
   const getOAuthConfig = (): OAuthConfig | null => {
     const api = (window as any).api
@@ -33,7 +40,6 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
     const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
     const platformSecret = import.meta.env.VITE_OAUTH_PLATFORM_SECRET
-    const callbackUrl = import.meta.env.VITE_OAUTH_CALLBACK_URL || "secscore://oauth/callback"
 
     if (!platformId || !platformSecret) {
       return null
@@ -42,32 +48,44 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     return {
       platform_id: platformId,
       platform_secret: platformSecret,
-      callback_url: callbackUrl,
     }
   }
 
-  const handleDeepLink = async (url: string) => {
+  const handleOAuthCallback = async (result: OAuthCallbackResult) => {
+    console.log("[OAuth] 收到回调:", result)
     const config = getOAuthConfig()
-    if (!config) return
+    if (!config) {
+      console.error("[OAuth] 配置不存在")
+      return
+    }
 
     try {
-      const urlObj = new URL(url)
-      const code = urlObj.searchParams.get("code")
-      const error = urlObj.searchParams.get("error")
-
-      if (error) {
-        message.error(decodeURIComponent(error))
+      if (result.error) {
+        console.error("[OAuth] 错误:", result.error, result.error_description)
+        message.error(result.error_description || result.error || "授权失败")
         setLoading(false)
         return
       }
 
-      if (code) {
+      if (result.code) {
+        console.log("[OAuth] 授权码:", result.code)
+        console.log("[OAuth] State:", result.state, "期望:", expectedStateRef.current)
+        
+        // 验证 state 防止 CSRF
+        if (expectedStateRef.current && result.state !== expectedStateRef.current) {
+          message.error("安全验证失败：state 不匹配")
+          setLoading(false)
+          return
+        }
+
         const api = (window as any).api
+        const callbackUrl = "http://127.0.0.1:16888/oauth/callback"
+
         const tokenRes = await api.oauthExchangeCode(
-          code,
+          result.code,
           config.platform_id,
           config.platform_secret,
-          config.callback_url
+          callbackUrl
         )
 
         if (!tokenRes.success) {
@@ -84,6 +102,8 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
           return
         }
 
+        await api.oauthStopCallbackServer()
+        expectedStateRef.current = null
         onSuccess(userRes.data)
         onClose()
       }
@@ -95,28 +115,29 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   }
 
   useEffect(() => {
-    const setupDeepLink = async () => {
+    const setupListener = async () => {
       try {
-        const unlisten = await listen<string>("deep-link://new-url", (event) => {
+        const unlisten = await listen<OAuthCallbackResult>("oauth-callback", async (event) => {
+          console.log("[OAuth] Event listener 收到 payload:", event.payload)
           if (event.payload) {
-            handleDeepLink(event.payload)
+            await handleOAuthCallback(event.payload)
           }
         })
-        deepLinkUnlistenRef.current = unlisten
+        callbackUnlistenRef.current = unlisten
       } catch (error) {
-        console.error("Failed to setup deep link listener:", error)
+        console.error("Failed to setup OAuth callback listener:", error)
       }
     }
 
-    setupDeepLink()
+    setupListener()
 
     return () => {
-      if (deepLinkUnlistenRef.current) {
-        deepLinkUnlistenRef.current()
-        deepLinkUnlistenRef.current = null
+      if (callbackUnlistenRef.current) {
+        callbackUnlistenRef.current()
+        callbackUnlistenRef.current = null
       }
     }
-  }, [])
+  }, []) // handleOAuthCallback 在依赖数组外，使用 ref 存储
 
   const handleOAuthLogin = async () => {
     const config = getOAuthConfig()
@@ -129,7 +150,23 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
     try {
       const api = (window as any).api
-      const urlRes = await api.oauthGetAuthorizationUrl(config.platform_id, config.callback_url)
+
+      const serverRes = await api.oauthStartCallbackServer()
+      if (!serverRes.success) {
+        message.error(serverRes.message || "启动回调服务器失败")
+        setLoading(false)
+        return
+      }
+
+      const callbackUrl = serverRes.data.url
+
+      // 生成随机 state 防止 CSRF
+      const state = generateRandomState()
+      console.log("[OAuth] 生成 state:", state)
+      expectedStateRef.current = state
+      console.log("[OAuth] state 已设置:", expectedStateRef.current)
+
+      const urlRes = await api.oauthGetAuthorizationUrl(config.platform_id, callbackUrl, state)
 
       if (!urlRes.success) {
         message.error(urlRes.message || "获取授权链接失败")
@@ -137,11 +174,21 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         return
       }
 
-      await open(urlRes.data)
+      await open(urlRes.data.url)
     } catch (error: any) {
       message.error(error.message || "登录失败")
       setLoading(false)
     }
+  }
+
+  // 生成随机 state 字符串
+  const generateRandomState = (): string => {
+    const array = new Uint8Array(32)
+    window.crypto.getRandomValues(array)
+    return btoa(String.fromCharCode(...array))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "")
   }
 
   return (
@@ -159,13 +206,13 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
             <Spin size="large" />
             <div>{t("auth.oauthLoggingIn", "正在登录...")}</div>
             <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
-              请在浏览器中完成授权
+              请在浏览器中完成授权，授权后会自动返回
             </div>
           </Space>
         ) : (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             <div style={{ color: "var(--ss-text-secondary)" }}>
-              {t("auth.oauthHint", "使用 SECTL Auth 账号登录,享受统一认证和远程退登功能")}
+              {t("auth.oauthHint", "使用 SECTL Auth 账号登录，享受统一认证和远程退登功能")}
             </div>
             <Button
               type="primary"

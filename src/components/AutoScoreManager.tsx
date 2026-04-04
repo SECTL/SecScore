@@ -436,7 +436,12 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       />
 
       <div style={{ marginBottom: "24px", display: "flex", gap: "12px" }}>
-        <Button type="primary" loading={saving} disabled={!canEdit} onClick={() => handleSubmit().catch(() => void 0)}>
+        <Button
+          type="primary"
+          loading={saving}
+          disabled={!canEdit}
+          onClick={() => handleSubmit().catch(() => void 0)}
+        >
           {editingRuleId === null ? t("autoScore.addAutomation") : t("autoScore.updateAutomation")}
         </Button>
         <Button disabled={!canEdit || saving} onClick={resetEditor}>

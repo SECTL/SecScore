@@ -54,6 +54,35 @@ pub struct OAuthUserInfo {
     pub permission: u32,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthIntrospectResponse {
+    pub active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iat: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aud: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iss: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthAuthorizationUrlResponse {
+    pub url: String,
+    pub state: String,
+}
+
 fn get_iv_hex() -> String {
     SecurityService::generate_iv_hex()
 }
@@ -300,13 +329,23 @@ pub async fn auth_clear_all(
 pub async fn oauth_get_authorization_url(
     platform_id: String,
     callback_url: String,
-) -> Result<IpcResponse<String>, String> {
+    state: Option<String>,
+) -> Result<IpcResponse<OAuthAuthorizationUrlResponse>, String> {
+    let state = state.unwrap_or_else(|| {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let random_bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &random_bytes)
+    });
+
     let url = format!(
-        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code",
+        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&state={}",
         platform_id,
-        urlencoding::encode(&callback_url)
+        urlencoding::encode(&callback_url),
+        urlencoding::encode(&state)
     );
-    Ok(IpcResponse::success(url))
+
+    Ok(IpcResponse::success(OAuthAuthorizationUrlResponse { url, state }))
 }
 
 #[tauri::command]
@@ -316,15 +355,92 @@ pub async fn oauth_exchange_code(
     platform_secret: String,
     callback_url: String,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
+    println!("[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}", code, platform_id, callback_url);
+    
     let client = reqwest::Client::new();
+    let payload = serde_json::json!({
+        "grant_type": "authorization_code",
+        "code": code,
+        "client_id": platform_id,
+        "client_secret": platform_secret,
+        "redirect_uri": callback_url
+    });
+    
+    println!("[OAuth] 请求体：{:?}", payload);
+    
     let response = client
         .post("https://sectl.top/api/oauth/token")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    println!("[OAuth] 响应状态：{}", response.status());
+    
+    let response_text = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    println!("[OAuth] 响应内容：{}", response_text);
+    
+    let status_success = response_text.is_empty() || !response_text.contains("error");
+
+    if !status_success {
+        return Ok(IpcResponse::error(&response_text));
+    }
+
+    let token_response: OAuthTokenResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(token_response))
+}
+
+#[tauri::command]
+pub async fn oauth_revoke_token(
+    token: String,
+    token_type_hint: Option<String>,
+    platform_id: String,
+    platform_secret: String,
+) -> Result<IpcResponse<()>, String> {
+    let client = reqwest::Client::new();
+    let mut payload = serde_json::json!({
+        "token": token,
+        "client_id": platform_id,
+        "client_secret": platform_secret
+    });
+
+    if let Some(hint) = token_type_hint {
+        payload["token_type_hint"] = serde_json::json!(hint);
+    }
+
+    let response = client
+        .post("https://sectl.top/api/oauth/revoke")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Ok(IpcResponse::error(&error_text));
+    }
+
+    Ok(IpcResponse::success(()))
+}
+
+#[tauri::command]
+pub async fn oauth_introspect_token(
+    token: String,
+    platform_id: String,
+    platform_secret: String,
+) -> Result<IpcResponse<OAuthIntrospectResponse>, String> {
+    let client = reqwest::Client::new();
+    let response = client
+        .post("https://sectl.top/api/oauth/introspect")
         .json(&serde_json::json!({
-            "grant_type": "authorization_code",
-            "code": code,
+            "token": token,
             "client_id": platform_id,
-            "client_secret": platform_secret,
-            "redirect_uri": callback_url
+            "client_secret": platform_secret
         }))
         .send()
         .await
@@ -338,12 +454,12 @@ pub async fn oauth_exchange_code(
         return Ok(IpcResponse::error(&error_text));
     }
 
-    let token_response: OAuthTokenResponse = response
+    let introspect_response: OAuthIntrospectResponse = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-    Ok(IpcResponse::success(token_response))
+    Ok(IpcResponse::success(introspect_response))
 }
 
 #[tauri::command]

@@ -286,7 +286,9 @@ const api = {
     actions: autoScoreAction[]
   }): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_update_rule", { rule }),
-  autoScoreDeleteRule: (ruleId: number): Promise<{ success: boolean; data?: boolean; message?: string }> =>
+  autoScoreDeleteRule: (
+    ruleId: number
+  ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_delete_rule", { ruleId }),
   autoScoreToggleRule: (params: {
     ruleId: number
@@ -300,7 +302,9 @@ const api = {
     }
     message?: string
   }> => invoke("auto_score_get_status"),
-  autoScoreSortRules: (ruleIds: number[]): Promise<{ success: boolean; data?: boolean; message?: string }> =>
+  autoScoreSortRules: (
+    ruleIds: number[]
+  ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_sort_rules", { ruleIds }),
 
   // Settings & Sync
@@ -353,9 +357,16 @@ const api = {
   // OAuth
   oauthGetAuthorizationUrl: (
     platformId: string,
-    callbackUrl: string
-  ): Promise<{ success: boolean; data: string; message?: string }> =>
-    invoke("oauth_get_authorization_url", { platformId, callbackUrl }),
+    callbackUrl: string,
+    state?: string
+  ): Promise<{
+    success: boolean
+    data: {
+      url: string
+      state: string
+    }
+    message?: string
+  }> => invoke("oauth_get_authorization_url", { platformId, callbackUrl, state }),
   oauthExchangeCode: (
     code: string,
     platformId: string,
@@ -398,6 +409,58 @@ const api = {
     }
     message?: string
   }> => invoke("oauth_refresh_token", { refreshToken, platformId, platformSecret }),
+  oauthRevokeToken: (
+    token: string,
+    tokenTypeHint: string | null,
+    platformId: string,
+    platformSecret: string
+  ): Promise<{
+    success: boolean
+    message?: string
+  }> =>
+    invoke("oauth_revoke_token", {
+      token,
+      tokenTypeHint,
+      platformId,
+      platformSecret,
+    }),
+  oauthIntrospectToken: (
+    token: string,
+    platformId: string,
+    platformSecret: string
+  ): Promise<{
+    success: boolean
+    data: {
+      active: boolean
+      scope?: string
+      client_id?: string
+      username?: string
+      token_type?: string
+      exp?: number
+      iat?: number
+      sub?: string
+      aud?: string
+      iss?: string
+    }
+    message?: string
+  }> =>
+    invoke("oauth_introspect_token", {
+      token,
+      platformId,
+      platformSecret,
+    }),
+  oauthStartCallbackServer: (): Promise<{
+    success: boolean
+    data: {
+      url: string
+      port: number
+    }
+    message?: string
+  }> => invoke("oauth_start_callback_server"),
+  oauthStopCallbackServer: (): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("oauth_stop_callback_server"),
 
   // Data import/export
   exportDataJson: (): Promise<{ success: boolean; data: string }> => invoke("data_export_json"),

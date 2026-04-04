@@ -48,7 +48,11 @@ export const TriggerRuleBuilder: React.FC<TriggerRuleBuilderProps> = ({
     >
       <div
         className="query-builder-container"
-        style={{ overflowX: "auto", pointerEvents: canEdit ? "auto" : "none", opacity: canEdit ? 1 : 0.7 }}
+        style={{
+          overflowX: "auto",
+          pointerEvents: canEdit ? "auto" : "none",
+          opacity: canEdit ? 1 : 0.7,
+        }}
       >
         <Query
           {...queryConfig}

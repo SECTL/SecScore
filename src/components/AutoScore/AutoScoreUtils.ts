@@ -8,7 +8,11 @@ import {
   type JsonRule,
 } from "@react-awesome-query-builder/antd"
 import type { TFunction } from "i18next"
-import { IntervalValueWidget, parseIntervalTriggerValue, stringifyIntervalTriggerValue } from "./IntervalValueWidget"
+import {
+  IntervalValueWidget,
+  parseIntervalTriggerValue,
+  stringifyIntervalTriggerValue,
+} from "./IntervalValueWidget"
 
 export interface AutoScoreTrigger {
   event: string
@@ -76,9 +80,7 @@ const toStringValue = (value: unknown): string => {
 }
 
 const normalizeTagValues = (values: unknown[]): string[] => {
-  const normalized = values
-    .map((value) => toStringValue(value).trim())
-    .filter(Boolean)
+  const normalized = values.map((value) => toStringValue(value).trim()).filter(Boolean)
 
   return Array.from(new Set(normalized))
 }
@@ -265,7 +267,10 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
 export const createEmptyTriggerTree = (config: Config): ImmutableTree =>
   QbUtils.checkTree(QbUtils.loadTree(buildEmptyGroup()), config)
 
-export const triggersToQueryTree = (config: Config, triggers: AutoScoreTrigger[]): ImmutableTree => {
+export const triggersToQueryTree = (
+  config: Config,
+  triggers: AutoScoreTrigger[]
+): ImmutableTree => {
   const children = triggers.map(ruleFromTrigger).filter((item): item is JsonRule => Boolean(item))
   const group: JsonGroup = {
     ...buildEmptyGroup(),
@@ -282,7 +287,8 @@ export const queryTreeToTriggers = (tree: ImmutableTree, config: Config): AutoSc
 }
 
 const hasUnsupportedLogicInGroup = (group: JsonGroup): boolean => {
-  const conjunction = typeof group.properties?.conjunction === "string" ? group.properties.conjunction : "AND"
+  const conjunction =
+    typeof group.properties?.conjunction === "string" ? group.properties.conjunction : "AND"
   const not = Boolean(group.properties?.not)
 
   if (conjunction !== "AND" || not) {

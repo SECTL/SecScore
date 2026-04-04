@@ -107,7 +107,9 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
                 allowClear
                 style={{ minWidth: 260 }}
                 placeholder={t("autoScore.tagNamePlaceholder")}
-                value={Array.isArray(action.value) ? action.value : action.value ? [action.value] : []}
+                value={
+                  Array.isArray(action.value) ? action.value : action.value ? [action.value] : []
+                }
                 disabled={!canEdit}
                 options={mergedTagOptions}
                 onChange={(nextValue) => updateAction(action.id, { value: nextValue })}
