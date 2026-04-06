@@ -335,7 +335,10 @@ pub async fn oauth_get_authorization_url(
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let random_bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
-        base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &random_bytes)
+        base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            &random_bytes,
+        )
     });
 
     let url = format!(
@@ -345,7 +348,10 @@ pub async fn oauth_get_authorization_url(
         urlencoding::encode(&state)
     );
 
-    Ok(IpcResponse::success(OAuthAuthorizationUrlResponse { url, state }))
+    Ok(IpcResponse::success(OAuthAuthorizationUrlResponse {
+        url,
+        state,
+    }))
 }
 
 #[tauri::command]
@@ -355,8 +361,11 @@ pub async fn oauth_exchange_code(
     platform_secret: String,
     callback_url: String,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
-    println!("[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}", code, platform_id, callback_url);
-    
+    println!(
+        "[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}",
+        code, platform_id, callback_url
+    );
+
     let client = reqwest::Client::new();
     let params = [
         ("grant_type", "authorization_code"),
@@ -365,9 +374,9 @@ pub async fn oauth_exchange_code(
         ("client_secret", &platform_secret),
         ("redirect_uri", &callback_url),
     ];
-    
+
     println!("[OAuth] 请求参数：{:?}", params);
-    
+
     let response = client
         .post("https://sectl.top/api/oauth/token")
         .form(&params)
@@ -376,8 +385,11 @@ pub async fn oauth_exchange_code(
         .map_err(|e| format!("Request failed: {}", e))?;
 
     println!("[OAuth] 响应状态：{}", response.status());
-    
-    let response_text = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
     println!("[OAuth] 响应内容：{}", response_text);
 
     if !response_text.is_empty() && response_text.contains("error") {

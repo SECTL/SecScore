@@ -613,6 +613,11 @@ const api = {
     folder?: "automatic" | "script"
   ): Promise<{ success: boolean; data: boolean }> =>
     invoke("fs_file_exists", { relativePath, folder }),
+  fsOpenPath: (
+    relativePath: string,
+    folder?: "automatic" | "script"
+  ): Promise<{ success: boolean; message?: string }> =>
+    invoke("fs_open_path", { relativePath, folder }),
 
   // App
   registerUrlProtocol: (): Promise<{

@@ -126,6 +126,7 @@ pub fn run() {
             fs_delete_file,
             fs_list_files,
             fs_file_exists,
+            fs_open_path,
             http_server_start,
             http_server_stop,
             http_server_status,

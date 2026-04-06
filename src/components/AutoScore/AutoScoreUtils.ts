@@ -51,6 +51,7 @@ export type ActionDraftError = "action_required" | "score_required" | "tag_requi
 
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
+const TRIGGER_FIELD_SQL = "student_sql"
 const TRIGGER_TYPE_INTERVAL = "interval_duration"
 const TRIGGER_WIDGET_INTERVAL = "interval_duration"
 const OP_EQUAL = "equal"
@@ -146,6 +147,24 @@ const ruleFromTrigger = (trigger: AutoScoreTrigger): JsonRule | null => {
     }
   }
 
+  if (
+    trigger.event === "query_sql" ||
+    trigger.event === "student_query_sql" ||
+    trigger.event === "student_sql"
+  ) {
+    const sql = toStringValue(trigger.value).trim()
+    if (!sql) return null
+    return {
+      id: QbUtils.uuid(),
+      type: "rule",
+      properties: {
+        field: TRIGGER_FIELD_SQL,
+        operator: OP_EQUAL,
+        value: [sql],
+      },
+    }
+  }
+
   return null
 }
 
@@ -175,6 +194,15 @@ const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
     }
   }
 
+  if (field === TRIGGER_FIELD_SQL) {
+    const sql = toStringValue(value).trim()
+    if (!sql) return null
+    return {
+      event: "query_sql",
+      value: sql,
+    }
+  }
+
   return null
 }
 
@@ -197,6 +225,25 @@ const collectTriggersFromItems = (items: JsonItem[] | undefined): AutoScoreTrigg
 export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagOption[]): Config =>
   ({
     ...AntdConfig,
+    conjunctions: {
+      ...AntdConfig.conjunctions,
+      AND: {
+        ...AntdConfig.conjunctions.AND,
+        label: t("autoScore.relationAnd"),
+      },
+      OR: {
+        ...AntdConfig.conjunctions.OR,
+        label: t("autoScore.relationOr"),
+      },
+    },
+    operators: {
+      ...AntdConfig.operators,
+      [OP_MULTISELECT_CONTAINS]: {
+        ...AntdConfig.operators[OP_MULTISELECT_CONTAINS],
+        label: t("autoScore.operatorContains"),
+        labelForFormat: t("autoScore.operatorContains"),
+      },
+    },
     widgets: {
       ...AntdConfig.widgets,
       [TRIGGER_WIDGET_INTERVAL]: {
@@ -250,6 +297,15 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
           showSearch: true,
         },
       },
+      [TRIGGER_FIELD_SQL]: {
+        label: t("autoScore.triggerStudentSql"),
+        type: "text",
+        operators: [OP_EQUAL],
+        valueSources: ["value"],
+        fieldSettings: {
+          placeholder: t("autoScore.triggerStudentSqlPlaceholder"),
+        },
+      },
     },
     settings: {
       ...AntdConfig.settings,
@@ -257,6 +313,7 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
       compactMode: false,
       renderSize: "medium",
       showNot: true,
+      notLabel: t("autoScore.relationNot"),
       forceShowConj: true,
       canLeaveEmptyGroup: false,
       canReorder: true,
@@ -266,6 +323,9 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
 
 export const createEmptyTriggerTree = (config: Config): ImmutableTree =>
   QbUtils.checkTree(QbUtils.loadTree(buildEmptyGroup()), config)
+
+export const normalizeTriggerTree = (tree: ImmutableTree, config: Config): ImmutableTree =>
+  QbUtils.checkTree(tree, config)
 
 export const triggersToQueryTree = (
   config: Config,

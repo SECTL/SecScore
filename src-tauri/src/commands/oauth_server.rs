@@ -4,8 +4,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::State;
-use tokio::sync::Mutex;
 use tokio::sync::oneshot;
+use tokio::sync::Mutex;
 
 use crate::state::AppState;
 
@@ -34,7 +34,7 @@ pub async fn oauth_start_callback_server(
     _state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthServerStartResult>, String> {
     let mut shutdown_tx = OAUTH_SERVER_SHUTDOWN.lock().await;
-    
+
     // 如果服务器已经在运行，直接返回 URL
     if shutdown_tx.is_some() {
         let port = 16888u16;
@@ -86,7 +86,7 @@ pub async fn oauth_stop_callback_server(
     _state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<()>, String> {
     let mut shutdown_tx = OAUTH_SERVER_SHUTDOWN.lock().await;
-    
+
     if let Some(tx) = shutdown_tx.take() {
         let _ = tx.send(());
     }
@@ -103,7 +103,10 @@ async fn handle_oauth_callback(
     let error = params.get("error").cloned();
     let error_description = params.get("error_description").cloned();
 
-    println!("[OAuth Callback] 收到回调 - code: {:?}, state: {:?}, error: {:?}", code, state, error);
+    println!(
+        "[OAuth Callback] 收到回调 - code: {:?}, state: {:?}, error: {:?}",
+        code, state, error
+    );
 
     let result = OAuthCallbackResult {
         code: code.clone(),

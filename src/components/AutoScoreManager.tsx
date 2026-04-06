@@ -27,6 +27,7 @@ import {
   createEmptyTriggerTree,
   createTriggerQueryConfig,
   hasUnsupportedTriggerLogic,
+  normalizeTriggerTree,
   normalizeActionDrafts,
   queryTreeToTriggers,
   triggersToQueryTree,
@@ -53,6 +54,8 @@ interface RuleFormValues {
 interface AutoScoreManagerProps {
   canEdit: boolean
 }
+
+const getRuleFileRelativePath = (ruleId: number) => `auto-score/rule-${ruleId}.json`
 
 function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
@@ -91,6 +94,10 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       setCurrentPage(maxPage)
     }
   }, [currentPage, pageSize, rules.length])
+
+  useEffect(() => {
+    setTriggerTree((prevTree) => normalizeTriggerTree(prevTree, triggerConfig))
+  }, [triggerConfig])
 
   const resetEditor = () => {
     setEditingRuleId(null)
@@ -262,6 +269,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
 
     const res = await api.autoScoreDeleteRule(ruleId)
     if (res.success) {
+      await api.fsDeleteFile(getRuleFileRelativePath(ruleId), "automatic").catch(() => void 0)
       messageApi.success(t("autoScore.deleteSuccess"))
       if (editingRuleId === ruleId) {
         resetEditor()
@@ -292,6 +300,38 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       messageApi.error(
         res.message || (enabled ? t("autoScore.enableFailed") : t("autoScore.disableFailed"))
       )
+    }
+  }
+
+  const handleOpenRuleFile = async (rule: AutoScoreRule) => {
+    const api = (window as any).api
+    if (!api) return
+
+    try {
+      const relativePath = getRuleFileRelativePath(rule.id)
+      const fileContent = {
+        id: rule.id,
+        name: rule.name,
+        enabled: rule.enabled,
+        studentNames: rule.studentNames,
+        triggers: rule.triggers,
+        actions: rule.actions,
+        lastExecuted: rule.lastExecuted ?? null,
+        exportedAt: new Date().toISOString(),
+      }
+
+      const writeRes = await api.fsWriteJson(relativePath, fileContent, "automatic")
+
+      if (!writeRes?.success) {
+        throw new Error("prepare rule file failed")
+      }
+
+      const openRes = await api.fsOpenPath(relativePath, "automatic")
+      if (!openRes?.success) {
+        throw new Error(openRes?.message || "open rule file failed")
+      }
+    } catch {
+      messageApi.error(t("autoScore.openFileFailed"))
     }
   }
 
@@ -358,11 +398,14 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     {
       title: t("common.operation"),
       key: "operation",
-      width: 140,
+      width: 220,
       render: (_, row) => (
         <Space size={4}>
           <Button type="link" disabled={!canEdit} onClick={() => handleEdit(row)}>
             {t("common.edit")}
+          </Button>
+          <Button type="link" onClick={() => handleOpenRuleFile(row).catch(() => void 0)}>
+            {t("autoScore.openFile")}
           </Button>
           <Popconfirm
             title={t("autoScore.deleteConfirm")}
@@ -391,7 +434,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
           type="warning"
           showIcon
           style={{ marginBottom: "16px" }}
-          message={t("autoScore.adminRequired")}
+          title={t("autoScore.adminRequired")}
         />
       )}
 
@@ -403,7 +446,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
               name="name"
               rules={[{ required: true, message: t("autoScore.nameRequired") }]}
             >
-              <Input placeholder={t("autoScore.namePlaceholder")} disabled={!canEdit} />
+              <Input placeholder={t("autoScore.namePlaceholder")} disabled={!canEdit} autoComplete="off"/>
             </Form.Item>
             <Form.Item label={t("autoScore.applicableStudents")} name="studentNames">
               <Select

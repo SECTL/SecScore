@@ -812,9 +812,11 @@
     "operationNoteLabel": "操作说明（可选）",
     "triggerIntervalTime": "间隔时间",
     "triggerStudentTag": "学生标签",
+    "triggerStudentSql": "学生 SQL 条件",
+    "triggerStudentSqlPlaceholder": "输入筛选学生的 SQL 或 WHERE 条件",
     "actionAddScore": "加分",
     "actionAddTag": "添加标签",
-    "intervalAmountPlaceholder": "请输入间隔数量",
+    "intervalAmountPlaceholder": "请输入间隔时间数值",
     "intervalUnitMonth": "个月后",
     "intervalUnitDay": "天后",
     "intervalUnitMinute": "分钟后",
@@ -824,8 +826,12 @@
     "scorePlaceholder": "请输入分数",
     "tagNamePlaceholder": "请输入标签名称",
     "reasonPlaceholder": "请输入理由",
-    "relationAnd": "并且",
-    "relationOr": "或者"
+    "relationAnd": "且",
+    "relationOr": "或",
+    "operatorContains": "包含",
+    "relationNot": "非",
+    "openFile": "打开文件",
+    "openFileFailed": "打开自动化文件失败"
   },
   "triggers": {
     "studentTag": {

@@ -814,9 +814,11 @@
     "tagNamesPlaceholder": "e.g. excellent_student,class_monitor",
     "triggerIntervalTime": "Interval Time",
     "triggerStudentTag": "Student Tag",
+    "triggerStudentSql": "Student SQL",
+    "triggerStudentSqlPlaceholder": "Enter student SQL or a WHERE condition",
     "actionAddScore": "Add Score",
     "actionAddTag": "Add Tag",
-    "intervalAmountPlaceholder": "Enter interval amount",
+    "intervalAmountPlaceholder": "Enter interval time",
     "intervalUnitMonth": "month(s) later",
     "intervalUnitDay": "day(s) later",
     "intervalUnitMinute": "minute(s) later",
@@ -827,7 +829,11 @@
     "tagNamePlaceholder": "Enter tag name",
     "reasonPlaceholder": "Enter reason",
     "relationAnd": "AND",
-    "relationOr": "OR"
+    "relationOr": "OR",
+    "operatorContains": "Contains",
+    "relationNot": "Not",
+    "openFile": "Open File",
+    "openFileFailed": "Failed to open automation file"
   },
   "triggers": {
     "studentTag": {
