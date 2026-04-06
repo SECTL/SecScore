@@ -32,6 +32,27 @@ export interface autoScoreAction {
   value?: string | null
 }
 
+export interface autoScoreExecutionConfig {
+  cooldownMinutes?: number | null
+  maxRunsPerDay?: number | null
+  maxScoreDeltaPerDay?: number | null
+}
+
+export interface autoScoreExecutionBatch {
+  id: string
+  ruleId: number
+  ruleName: string
+  runAt: string
+  affectedStudents: number
+  affectedStudentNames: string[]
+  createdEventIds: number[]
+  addedStudentTagIds: number[]
+  scoreDeltaTotal: number
+  settled: boolean
+  rolledBack: boolean
+  rollbackAt?: string | null
+}
+
 export interface autoScoreRule {
   id: number
   name: string
@@ -39,6 +60,7 @@ export interface autoScoreRule {
   studentNames: string[]
   triggers: autoScoreTrigger[]
   actions: autoScoreAction[]
+  execution?: autoScoreExecutionConfig
   lastExecuted?: string | null
 }
 
@@ -52,6 +74,7 @@ export type settingsKey =
   | "themes_custom"
   | "auto_score_enabled"
   | "auto_score_rules"
+  | "auto_score_batches"
   | "current_theme_id"
   | "dashboards_config"
   | "pg_connection_string"
@@ -68,6 +91,7 @@ export interface settingsSpec {
   themes_custom: themeConfig[]
   auto_score_enabled: boolean
   auto_score_rules: autoScoreRule[]
+  auto_score_batches: autoScoreExecutionBatch[]
   current_theme_id: string
   dashboards_config: any[]
   pg_connection_string: string
@@ -275,6 +299,7 @@ const api = {
     studentNames: string[]
     triggers: autoScoreTrigger[]
     actions: autoScoreAction[]
+    execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
     invoke("auto_score_add_rule", { rule }),
   autoScoreUpdateRule: (rule: {
@@ -284,6 +309,7 @@ const api = {
     studentNames: string[]
     triggers: autoScoreTrigger[]
     actions: autoScoreAction[]
+    execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_update_rule", { rule }),
   autoScoreDeleteRule: (
@@ -306,6 +332,15 @@ const api = {
     ruleIds: number[]
   ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
     invoke("auto_score_sort_rules", { ruleIds }),
+  autoScoreQueryBatches: (): Promise<{
+    success: boolean
+    data?: autoScoreExecutionBatch[]
+    message?: string
+  }> => invoke("auto_score_query_batches"),
+  autoScoreRollbackBatch: (params: {
+    batchId: string
+  }): Promise<{ success: boolean; data?: autoScoreExecutionBatch; message?: string }> =>
+    invoke("auto_score_rollback_batch", { params }),
 
   // Settings & Sync
   getAllSettings: (): Promise<{ success: boolean; data: settingsSpec }> =>

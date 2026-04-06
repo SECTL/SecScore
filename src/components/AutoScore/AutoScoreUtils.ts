@@ -24,6 +24,27 @@ export interface AutoScoreAction {
   value?: string | null
 }
 
+export interface AutoScoreExecutionConfig {
+  cooldownMinutes?: number | null
+  maxRunsPerDay?: number | null
+  maxScoreDeltaPerDay?: number | null
+}
+
+export interface AutoScoreExecutionBatch {
+  id: string
+  ruleId: number
+  ruleName: string
+  runAt: string
+  affectedStudents: number
+  affectedStudentNames: string[]
+  createdEventIds: number[]
+  addedStudentTagIds: number[]
+  scoreDeltaTotal: number
+  settled: boolean
+  rolledBack: boolean
+  rollbackAt?: string | null
+}
+
 export interface AutoScoreRule {
   id: number
   name: string
@@ -31,10 +52,11 @@ export interface AutoScoreRule {
   studentNames: string[]
   triggers: AutoScoreTrigger[]
   actions: AutoScoreAction[]
+  execution?: AutoScoreExecutionConfig
   lastExecuted?: string | null
 }
 
-export type ActionEvent = "add_score" | "add_tag"
+export type ActionEvent = "add_score" | "add_tag" | "settle_score"
 
 export interface AutoScoreTagOption {
   label: string
@@ -379,7 +401,7 @@ export const createDefaultActionDraft = (): ActionDraft => ({
 })
 
 const isActionEvent = (value: unknown): value is ActionEvent =>
-  value === "add_score" || value === "add_tag"
+  value === "add_score" || value === "add_tag" || value === "settle_score"
 
 export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined): ActionDraft[] => {
   if (!Array.isArray(drafts) || drafts.length === 0) {
@@ -396,7 +418,9 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
         value:
           draft.event === "add_tag"
             ? parseTagValues(draft.value)
-            : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
+            : draft.event === "settle_score"
+              ? ""
+              : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -407,12 +431,18 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
 export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
   const mapped = actions
     .map((action) => {
-      if (action.event !== "add_score" && action.event !== "add_tag") return null
+      if (action.event !== "add_score" && action.event !== "add_tag" && action.event !== "settle_score") {
+        return null
+      }
       return {
         id: QbUtils.uuid(),
         event: action.event,
         value:
-          action.event === "add_tag" ? parseTagValues(action.value) : toStringValue(action.value),
+          action.event === "add_tag"
+            ? parseTagValues(action.value)
+            : action.event === "settle_score"
+              ? ""
+              : toStringValue(action.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -436,6 +466,11 @@ export const actionDraftsToPayload = (
         return { actions: [], error: "score_required" }
       }
       actions.push({ event: draft.event, value: String(score) })
+      continue
+    }
+
+    if (draft.event === "settle_score") {
+      actions.push({ event: draft.event })
       continue
     }
 

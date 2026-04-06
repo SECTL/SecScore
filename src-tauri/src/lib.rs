@@ -96,6 +96,8 @@ pub fn run() {
             auto_score_toggle_rule,
             auto_score_get_status,
             auto_score_sort_rules,
+            auto_score_query_batches,
+            auto_score_rollback_batch,
             board_get_configs,
             board_save_configs,
             board_query_sql,

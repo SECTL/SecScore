@@ -5,6 +5,8 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
+  Modal,
   Pagination,
   Popconfirm,
   Select,
@@ -12,6 +14,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   message,
 } from "antd"
 import { type ImmutableTree } from "@react-awesome-query-builder/antd"
@@ -32,6 +35,8 @@ import {
   queryTreeToTriggers,
   triggersToQueryTree,
   type ActionDraft,
+  type AutoScoreExecutionBatch,
+  type AutoScoreExecutionConfig,
   type AutoScoreRule,
   type AutoScoreTagOption,
 } from "./AutoScore/AutoScoreUtils"
@@ -49,6 +54,7 @@ interface TagItem {
 interface RuleFormValues {
   name?: string
   studentNames?: string[]
+  execution?: AutoScoreExecutionConfig
 }
 
 interface AutoScoreManagerProps {
@@ -82,8 +88,10 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const [actionDrafts, setActionDrafts] = useState<ActionDraft[]>([createDefaultActionDraft()])
   const [students, setStudents] = useState<StudentItem[]>([])
   const [rules, setRules] = useState<AutoScoreRule[]>([])
+  const [batches, setBatches] = useState<AutoScoreExecutionBatch[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [rollingBackBatchId, setRollingBackBatchId] = useState<string | null>(null)
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -101,7 +109,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
 
   const resetEditor = () => {
     setEditingRuleId(null)
-    form.setFieldsValue({ name: "", studentNames: [] })
+    form.setFieldsValue({ name: "", studentNames: [], execution: {} })
     setTriggerTree(createEmptyTriggerTree(triggerConfig))
     setActionDrafts([createDefaultActionDraft()])
   }
@@ -156,11 +164,25 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     }
   }
 
+  const fetchBatches = async () => {
+    const api = (window as any).api
+    if (!api || !canEdit) return
+    try {
+      const res = await api.autoScoreQueryBatches()
+      if (res.success && Array.isArray(res.data)) {
+        setBatches(res.data)
+      }
+    } catch {
+      void 0
+    }
+  }
+
   useEffect(() => {
     if (!canEdit) return
     fetchTags().catch(() => void 0)
     fetchStudents().catch(() => void 0)
     fetchRules().catch(() => void 0)
+    fetchBatches().catch(() => void 0)
   }, [canEdit])
 
   const handleSubmit = async () => {
@@ -174,6 +196,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     const values = await form.validateFields()
     const name = String(values.name || "").trim()
     const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
+    const execution = values.execution || {}
 
     if (!name) {
       messageApi.warning(t("autoScore.nameRequired"))
@@ -221,6 +244,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         studentNames,
         triggers,
         actions: actionPayload.actions,
+        execution,
       }
       const res =
         editingRuleId === null
@@ -233,6 +257,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         )
         resetEditor()
         await fetchRules()
+        await fetchBatches()
         emitDataUpdated()
       } else {
         messageApi.error(
@@ -254,6 +279,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     form.setFieldsValue({
       name: rule.name,
       studentNames: rule.studentNames || [],
+      execution: rule.execution || {},
     })
     setTriggerTree(triggersToQueryTree(triggerConfig, rule.triggers || []))
     setActionDrafts(actionsToDrafts(rule.actions || []))
@@ -275,6 +301,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         resetEditor()
       }
       await fetchRules()
+      await fetchBatches()
       emitDataUpdated()
     } else {
       messageApi.error(res.message || t("autoScore.deleteFailed"))
@@ -316,6 +343,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         studentNames: rule.studentNames,
         triggers: rule.triggers,
         actions: rule.actions,
+        execution: rule.execution || {},
         lastExecuted: rule.lastExecuted ?? null,
         exportedAt: new Date().toISOString(),
       }
@@ -340,6 +368,31 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return t("autoScore.invalidTime")
     return date.toLocaleString()
+  }
+
+  const handleRollbackBatch = async (batchId: string) => {
+    const api = (window as any).api
+    if (!api || !canEdit) return
+    Modal.confirm({
+      title: t("autoScore.batchRollbackConfirm"),
+      onOk: async () => {
+        setRollingBackBatchId(batchId)
+        try {
+          const res = await api.autoScoreRollbackBatch({ batchId })
+          if (res.success) {
+            messageApi.success(t("autoScore.batchRollbackSuccess"))
+            await fetchBatches()
+            emitDataUpdated()
+          } else {
+            messageApi.error(res.message || t("autoScore.batchRollbackFailed"))
+          }
+        } catch {
+          messageApi.error(t("autoScore.batchRollbackFailed"))
+        } finally {
+          setRollingBackBatchId(null)
+        }
+      }
+    })
   }
 
   const columns: ColumnsType<AutoScoreRule> = [
@@ -370,7 +423,9 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       ellipsis: true,
       render: (_, row) =>
         row.studentNames.length > 0 ? (
-          <Tag>{t("autoScore.studentCount", { count: row.studentNames.length })}</Tag>
+          <Tooltip title={row.studentNames.join("、")}>
+            <Tag>{t("autoScore.studentCount", { count: row.studentNames.length })}</Tag>
+          </Tooltip>
         ) : (
           <Tag>{t("autoScore.allStudents")}</Tag>
         ),
@@ -422,6 +477,63 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     },
   ]
 
+  const batchColumns: ColumnsType<AutoScoreExecutionBatch> = [
+    {
+      title: t("autoScore.batchId"),
+      dataIndex: "id",
+      key: "id",
+      ellipsis: true,
+      width: 220,
+      render: (value: string) => value.slice(0, 8),
+    },
+    {
+      title: t("autoScore.name"),
+      dataIndex: "ruleName",
+      key: "ruleName",
+      ellipsis: true,
+    },
+    {
+      title: t("autoScore.lastExecuted"),
+      dataIndex: "runAt",
+      key: "runAt",
+      width: 180,
+      render: (value: string) => formatLastExecuted(value),
+    },
+    {
+      title: t("autoScore.applicableStudents"),
+      dataIndex: "affectedStudents",
+      key: "affectedStudents",
+      width: 100,
+      render: (value: number) => value,
+    },
+    {
+      title: t("autoScore.actionAddScore"),
+      dataIndex: "scoreDeltaTotal",
+      key: "scoreDeltaTotal",
+      width: 120,
+      render: (value: number) => value,
+    },
+    {
+      title: t("common.operation"),
+      key: "operation",
+      width: 180,
+      render: (_, row) =>
+        row.rolledBack ? (
+          <Tag>{t("autoScore.batchRolledBack")}</Tag>
+        ) : (
+          <Button
+            danger
+            size="small"
+            loading={rollingBackBatchId === row.id}
+            disabled={row.settled || !canEdit}
+            onClick={() => handleRollbackBatch(row.id).catch(() => void 0)}
+          >
+            {t("autoScore.batchRollback")}
+          </Button>
+        ),
+    },
+  ]
+
   const pagedRules = rules.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
@@ -459,6 +571,21 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
                   value: student.name,
                 }))}
               />
+            </Form.Item>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+            <Form.Item label={t("autoScore.cooldownMinutes")} name={["execution", "cooldownMinutes"]}>
+              <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
+            </Form.Item>
+            <Form.Item label={t("autoScore.maxRunsPerDay")} name={["execution", "maxRunsPerDay"]}>
+              <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
+            </Form.Item>
+            <Form.Item
+              label={t("autoScore.maxScoreDeltaPerDay")}
+              name={["execution", "maxScoreDeltaPerDay"]}
+            >
+              <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
             </Form.Item>
           </div>
         </Form>
@@ -516,6 +643,20 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
             }}
           />
         </div>
+      </Card>
+
+      <Card
+        title={t("autoScore.batchLogs")}
+        style={{ marginBottom: "24px", backgroundColor: "var(--ss-card-bg)" }}
+      >
+        <Table
+          rowKey="id"
+          columns={batchColumns}
+          dataSource={batches.slice(0, 50)}
+          pagination={false}
+          tableLayout="fixed"
+          scroll={{ x: 860 }}
+        />
       </Card>
     </div>
   )

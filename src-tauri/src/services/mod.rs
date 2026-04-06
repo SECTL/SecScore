@@ -8,7 +8,11 @@ pub mod settings;
 pub mod theme;
 
 pub use auth::AuthService;
-pub use auto_score::{AutoScoreAction, AutoScoreRule, AutoScoreService, AutoScoreTrigger};
+pub use auto_score::{
+    query_execution_batches, rollback_execution_batch, AutoScoreAction, AutoScoreExecutionBatch,
+    AutoScoreExecutionConfig, AutoScoreFilterConfig, AutoScoreRule, AutoScoreService,
+    AutoScoreTrigger,
+};
 pub use data::DataService;
 pub use logger::LoggerService;
 pub use permission::{PermissionLevel, PermissionService};

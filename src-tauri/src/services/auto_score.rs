@@ -31,6 +31,42 @@ pub struct AutoScoreAction {
     pub value: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoScoreExecutionConfig {
+    pub cooldown_minutes: Option<i64>,
+    pub max_runs_per_day: Option<i64>,
+    pub max_score_delta_per_day: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoScoreFilterConfig {
+    pub groups: Vec<String>,
+    pub grades: Vec<String>,
+    pub min_score: Option<i32>,
+    pub max_score: Option<i32>,
+    pub recent_event_days: Option<i64>,
+    pub min_recent_event_count: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoScoreExecutionBatch {
+    pub id: String,
+    pub rule_id: i32,
+    pub rule_name: String,
+    pub run_at: String,
+    pub affected_students: usize,
+    pub affected_student_names: Vec<String>,
+    pub created_event_ids: Vec<i32>,
+    pub added_student_tag_ids: Vec<i32>,
+    pub score_delta_total: i64,
+    pub settled: bool,
+    pub rolled_back: bool,
+    pub rollback_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 enum IntervalUnit {
@@ -54,6 +90,10 @@ pub struct AutoScoreRule {
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
     pub actions: Vec<AutoScoreAction>,
+    #[serde(default)]
+    pub execution: AutoScoreExecutionConfig,
+    #[serde(default)]
+    pub filters: AutoScoreFilterConfig,
     #[serde(rename = "lastExecuted")]
     pub last_executed: Option<String>,
 }
@@ -62,6 +102,7 @@ pub struct AutoScoreRule {
 enum PlannedAction {
     AddScore(i32),
     AddTags(Vec<String>),
+    SettleScore,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -70,11 +111,16 @@ struct StudentRefs {
     names: HashSet<String>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 struct RuleExecutionStats {
     affected_students: usize,
+    affected_student_names: Vec<String>,
     created_events: usize,
     added_tags: usize,
+    score_delta_total: i64,
+    created_event_ids: Vec<i32>,
+    added_student_tag_ids: Vec<i32>,
+    settled: bool,
 }
 
 impl StudentRefs {
@@ -98,6 +144,8 @@ impl Default for AutoScoreRule {
             student_names: Vec::new(),
             triggers: Vec::new(),
             actions: Vec::new(),
+            execution: AutoScoreExecutionConfig::default(),
+            filters: AutoScoreFilterConfig::default(),
             last_executed: None,
         }
     }
@@ -278,6 +326,7 @@ impl AutoScoreService {
 
     async fn run_scheduler_tick(app_handle: &AppHandle) -> Result<(), String> {
         let state = app_handle.state::<SafeAppState>().inner().clone();
+        let mut execution_batches = load_batches_from_settings(&state).await?;
 
         let rules_snapshot = {
             let state_guard = state.read();
@@ -307,7 +356,7 @@ impl AutoScoreService {
                 continue;
             }
 
-            match execute_rule(&conn, rule).await {
+            match execute_rule(&conn, rule, &execution_batches).await {
                 Ok(stats) => {
                     if stats.affected_students == 0 {
                         Self::log_rule_skipped(&state, rule, "no matched students");
@@ -315,7 +364,22 @@ impl AutoScoreService {
                     }
                     rule.last_executed = Some(Utc::now().to_rfc3339());
                     changed = true;
-                    Self::log_rule_executed(&state, rule, stats);
+                    Self::log_rule_executed(&state, rule, &stats);
+                    let batch = AutoScoreExecutionBatch {
+                        id: Uuid::new_v4().to_string(),
+                        rule_id: rule.id,
+                        rule_name: rule.name.clone(),
+                        run_at: now_iso(),
+                        affected_students: stats.affected_students,
+                        affected_student_names: stats.affected_student_names.clone(),
+                        created_event_ids: stats.created_event_ids.clone(),
+                        added_student_tag_ids: stats.added_student_tag_ids.clone(),
+                        score_delta_total: stats.score_delta_total,
+                        settled: stats.settled,
+                        rolled_back: false,
+                        rollback_at: None,
+                    };
+                    execution_batches.push(batch);
                 }
                 Err(error) => {
                     Self::log_rule_failed(&state, rule, &error);
@@ -328,6 +392,7 @@ impl AutoScoreService {
         }
 
         persist_rules_to_settings(&state, &next_rules).await?;
+        save_batches_to_settings(&state, &execution_batches).await?;
 
         {
             let state_guard = state.read();
@@ -348,7 +413,7 @@ impl AutoScoreService {
         Ok(())
     }
 
-    fn log_rule_executed(state: &SafeAppState, rule: &AutoScoreRule, stats: RuleExecutionStats) {
+    fn log_rule_executed(state: &SafeAppState, rule: &AutoScoreRule, stats: &RuleExecutionStats) {
         let state_guard = state.read();
         let logger = state_guard.logger.read();
         logger.info_with_meta(
@@ -359,6 +424,8 @@ impl AutoScoreService {
                 "affected_students": stats.affected_students,
                 "created_events": stats.created_events,
                 "added_tags": stats.added_tags,
+                "score_delta_total": stats.score_delta_total,
+                "settled": stats.settled,
             }),
         );
     }
@@ -411,9 +478,33 @@ fn normalize_rule(mut rule: AutoScoreRule) -> Result<AutoScoreRule, String> {
         .into_iter()
         .map(normalize_action)
         .collect::<Result<Vec<_>, _>>()?;
+    rule.execution = normalize_execution_config(rule.execution)?;
+    rule.filters = normalize_filter_config(rule.filters)?;
     rule.last_executed = normalize_last_executed(rule.last_executed);
 
     Ok(rule)
+}
+
+fn normalize_execution_config(
+    mut config: AutoScoreExecutionConfig,
+) -> Result<AutoScoreExecutionConfig, String> {
+    config.cooldown_minutes = config.cooldown_minutes.filter(|value| *value > 0);
+    config.max_runs_per_day = config.max_runs_per_day.filter(|value| *value > 0);
+    config.max_score_delta_per_day = config.max_score_delta_per_day.filter(|value| *value > 0);
+    Ok(config)
+}
+
+fn normalize_filter_config(mut config: AutoScoreFilterConfig) -> Result<AutoScoreFilterConfig, String> {
+    config.groups = dedupe_trimmed_strings(config.groups);
+    config.grades = dedupe_trimmed_strings(config.grades);
+    if let (Some(min_score), Some(max_score)) = (config.min_score, config.max_score) {
+        if min_score > max_score {
+            return Err("minScore cannot be greater than maxScore".to_string());
+        }
+    }
+    config.recent_event_days = config.recent_event_days.filter(|value| *value > 0);
+    config.min_recent_event_count = config.min_recent_event_count.filter(|value| *value >= 0);
+    Ok(config)
 }
 
 fn normalize_trigger(trigger: AutoScoreTrigger) -> Result<AutoScoreTrigger, String> {
@@ -483,6 +574,7 @@ fn normalize_action(action: AutoScoreAction) -> Result<AutoScoreAction, String> 
                 value: Some(value),
             })
         }
+        "settle_score" => Ok(AutoScoreAction { event, value: None }),
         _ => Err(format!("Unsupported action event: {}", event)),
     }
 }
@@ -780,9 +872,135 @@ async fn persist_rules_to_settings(
     Ok(())
 }
 
+fn deserialize_batches(value: &JsonValue) -> Vec<AutoScoreExecutionBatch> {
+    let JsonValue::Array(items) = value else {
+        return Vec::new();
+    };
+
+    items
+        .iter()
+        .filter_map(|item| serde_json::from_value::<AutoScoreExecutionBatch>(item.clone()).ok())
+        .collect()
+}
+
+async fn load_batches_from_settings(state: &SafeAppState) -> Result<Vec<AutoScoreExecutionBatch>, String> {
+    let state_guard = state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await?;
+    let raw = match settings.get_value(SettingsKey::AutoScoreBatches) {
+        SettingsValue::Json(value) => value,
+        _ => JsonValue::Array(vec![]),
+    };
+    Ok(deserialize_batches(&raw))
+}
+
+async fn save_batches_to_settings(
+    state: &SafeAppState,
+    batches: &[AutoScoreExecutionBatch],
+) -> Result<(), String> {
+    let encoded = serde_json::to_value(batches).map_err(|e| e.to_string())?;
+    let state_guard = state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await?;
+    settings
+        .set_value(SettingsKey::AutoScoreBatches, SettingsValue::Json(encoded))
+        .await?;
+    Ok(())
+}
+
+pub async fn query_execution_batches(state: &SafeAppState) -> Result<Vec<AutoScoreExecutionBatch>, String> {
+    let mut batches = load_batches_from_settings(state).await?;
+    batches.sort_by(|a, b| b.run_at.cmp(&a.run_at));
+    Ok(batches)
+}
+
+pub async fn rollback_execution_batch(
+    state: &SafeAppState,
+    batch_id: &str,
+) -> Result<AutoScoreExecutionBatch, String> {
+    let conn = {
+        let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
+        db_conn
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let mut batches = load_batches_from_settings(state).await?;
+    let Some(index) = batches.iter().position(|batch| batch.id == batch_id) else {
+        return Err("Execution batch not found".to_string());
+    };
+
+    if batches[index].rolled_back {
+        return Err("Execution batch already rolled back".to_string());
+    }
+    if batches[index].settled {
+        return Err("Cannot rollback settled execution batch".to_string());
+    }
+
+    let mut batch = batches[index].clone();
+    let txn = conn.begin().await.map_err(|e| e.to_string())?;
+
+    for event_id in &batch.created_event_ids {
+        let event = score_events::Entity::find_by_id(*event_id)
+            .one(&txn)
+            .await
+            .map_err(|e| e.to_string())?;
+        let Some(event) = event else {
+            continue;
+        };
+        if event.settlement_id.is_some() {
+            return Err("Cannot rollback batch containing settled events".to_string());
+        }
+        score_events::Entity::delete_by_id(*event_id)
+            .exec(&txn)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if let Some(student) = students::Entity::find()
+            .filter(students::Column::Name.eq(event.student_name.clone()))
+            .one(&txn)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            let current_score = student.score;
+            let current_reward_points = student.reward_points;
+            let mut student_active: students::ActiveModel = student.into();
+            let next_score = current_score - event.delta;
+            let next_reward = current_reward_points - event.delta;
+            student_active.score = Set(next_score);
+            student_active.reward_points = Set(next_reward);
+            student_active.updated_at = Set(now_iso());
+            student_active
+                .update(&txn)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    for link_id in &batch.added_student_tag_ids {
+        student_tags::Entity::delete_by_id(*link_id)
+            .exec(&txn)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    txn.commit().await.map_err(|e| e.to_string())?;
+
+    batch.rolled_back = true;
+    batch.rollback_at = Some(now_iso());
+    batches[index] = batch.clone();
+    save_batches_to_settings(state, &batches).await?;
+    Ok(batch)
+}
+
 async fn execute_rule(
     conn: &DatabaseConnection,
     rule: &AutoScoreRule,
+    execution_batches: &[AutoScoreExecutionBatch],
 ) -> Result<RuleExecutionStats, String> {
     let mut target_students = resolve_target_students(conn, rule).await?;
 
@@ -801,16 +1019,32 @@ async fn execute_rule(
         return Ok(RuleExecutionStats::default());
     }
 
+    if let Some(max_runs) = rule.execution.max_runs_per_day {
+        let today_runs = execution_batches
+            .iter()
+            .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+            .count() as i64;
+        if today_runs >= max_runs {
+            return Ok(RuleExecutionStats::default());
+        }
+    }
+
     let planned_actions = plan_actions(&rule.actions)?;
     if planned_actions.is_empty() {
         return Err("No executable action".to_string());
     }
+    let should_settle = planned_actions
+        .iter()
+        .any(|action| matches!(action, PlannedAction::SettleScore));
+
+    let mut daily_score_delta_used: i64 = execution_batches
+        .iter()
+        .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+        .map(|batch| batch.score_delta_total.abs())
+        .sum();
 
     let txn = conn.begin().await.map_err(|e| e.to_string())?;
-    let mut stats = RuleExecutionStats {
-        affected_students: target_students.len(),
-        ..RuleExecutionStats::default()
-    };
+    let mut stats = RuleExecutionStats::default();
 
     let mut all_action_tags = Vec::new();
     for action in &planned_actions {
@@ -827,9 +1061,28 @@ async fn execute_rule(
     }
 
     for mut student in target_students {
+        if !is_student_pass_cooldown(
+            conn,
+            execution_batches,
+            rule,
+            student.id,
+            student.name.as_str(),
+        )
+        .await?
+        {
+            continue;
+        }
+        let mut touched = false;
         for action in &planned_actions {
             match action {
                 PlannedAction::AddScore(delta) => {
+                    if let Some(max_delta) = rule.execution.max_score_delta_per_day {
+                        let next = daily_score_delta_used + (*delta as i64).abs();
+                        if next > max_delta {
+                            continue;
+                        }
+                        daily_score_delta_used = next;
+                    }
                     let now = now_iso();
                     let val_prev = student.score;
                     let val_curr = val_prev + delta;
@@ -839,15 +1092,17 @@ async fn execute_rule(
                         id: sea_orm::ActiveValue::NotSet,
                         uuid: Set(Uuid::new_v4().to_string()),
                         student_name: Set(student.name.clone()),
-                        reason_content: Set(build_auto_score_reason(&rule.name, *delta)),
+                        reason_content: Set(build_auto_score_reason(rule.id, &rule.name, *delta)),
                         delta: Set(*delta),
                         val_prev: Set(val_prev),
                         val_curr: Set(val_curr),
                         event_time: Set(now.clone()),
                         settlement_id: Set(None),
                     };
-                    event.insert(&txn).await.map_err(|e| e.to_string())?;
+                    let inserted_event = event.insert(&txn).await.map_err(|e| e.to_string())?;
                     stats.created_events += 1;
+                    stats.created_event_ids.push(inserted_event.id);
+                    stats.score_delta_total += *delta as i64;
 
                     let mut student_active: students::ActiveModel = student.clone().into();
                     student_active.score = Set(val_curr);
@@ -860,6 +1115,7 @@ async fn execute_rule(
 
                     student.score = val_curr;
                     student.reward_points = reward_points;
+                    touched = true;
                 }
                 PlannedAction::AddTags(tag_names) => {
                     for tag_name in tag_names {
@@ -868,23 +1124,34 @@ async fn execute_rule(
                         };
                         let inserted =
                             attach_tag_to_student_if_missing(&txn, student.id, tag_id).await?;
-                        if inserted {
+                        if let Some(link_id) = inserted {
                             stats.added_tags += 1;
+                            stats.added_student_tag_ids.push(link_id);
+                            touched = true;
                         }
                     }
                 }
+                PlannedAction::SettleScore => {}
             }
+        }
+        if touched {
+            stats.affected_students += 1;
+            stats.affected_student_names.push(student.name.clone());
         }
     }
 
     txn.commit().await.map_err(|e| e.to_string())?;
+    if should_settle {
+        execute_settlement(conn).await?;
+        stats.settled = true;
+    }
     Ok(stats)
 }
 
 fn plan_actions(actions: &[AutoScoreAction]) -> Result<Vec<PlannedAction>, String> {
-    let mut planned = Vec::new();
-    for action in actions {
-        match action.event.as_str() {
+  let mut planned = Vec::new();
+  for action in actions {
+    match action.event.as_str() {
             "add_score" => {
                 let delta = action
                     .value
@@ -901,15 +1168,142 @@ fn plan_actions(actions: &[AutoScoreAction]) -> Result<Vec<PlannedAction>, Strin
                 }
                 planned.push(PlannedAction::AddTags(tags));
             }
+            "settle_score" => {
+                planned.push(PlannedAction::SettleScore);
+            }
             _ => {}
-        }
     }
-    Ok(planned)
+  }
+  Ok(planned)
+}
+
+async fn execute_settlement(conn: &DatabaseConnection) -> Result<(), String> {
+  let backend = conn.get_database_backend();
+  let count_stmt = Statement::from_string(
+    backend,
+    "SELECT COUNT(*) AS cnt FROM score_events WHERE settlement_id IS NULL",
+  );
+  let count_row = conn.query_one(count_stmt).await.map_err(|e| e.to_string())?;
+  let Some(count_row) = count_row else {
+    return Ok(());
+  };
+  let unsettled_count = try_get_i64(&count_row, "cnt").unwrap_or(0);
+  if unsettled_count <= 0 {
+    return Ok(());
+  }
+
+  let last_end_sql = match backend {
+    sea_orm::DatabaseBackend::Sqlite => {
+      "SELECT end_time AS end_time FROM settlements ORDER BY julianday(end_time) DESC LIMIT 1"
+    }
+    sea_orm::DatabaseBackend::Postgres => {
+      "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1"
+    }
+    _ => "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1",
+  };
+  let min_event_sql =
+    "SELECT MIN(event_time) AS min_event_time FROM score_events WHERE settlement_id IS NULL";
+
+  let last_end = conn
+    .query_one(Statement::from_string(backend, last_end_sql))
+    .await
+    .map_err(|e| e.to_string())?
+    .and_then(|row| try_get_string(&row, "end_time"));
+
+  let min_event_time = conn
+    .query_one(Statement::from_string(backend, min_event_sql))
+    .await
+    .map_err(|e| e.to_string())?
+    .and_then(|row| try_get_string(&row, "min_event_time"));
+
+  let end_time = now_iso();
+  let start_time = last_end.or(min_event_time).unwrap_or_else(|| end_time.clone());
+  let created_at = end_time.clone();
+
+  match backend {
+    sea_orm::DatabaseBackend::Postgres => {
+      let insert_stmt = Statement::from_string(
+        backend,
+        format!(
+          "INSERT INTO settlements (start_time, end_time, created_at) VALUES ('{}', '{}', '{}') RETURNING id",
+          start_time.replace('\'', "''"),
+          end_time.replace('\'', "''"),
+          created_at.replace('\'', "''")
+        ),
+      );
+      let row = conn
+        .query_one(insert_stmt)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Failed to create settlement".to_string())?;
+      let settlement_id = try_get_i32(&row, "id")
+        .ok_or_else(|| "Failed to read settlement id".to_string())?;
+
+      let update_events_stmt = Statement::from_string(
+        backend,
+        format!(
+          "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
+          settlement_id
+        ),
+      );
+      conn.execute(update_events_stmt).await.map_err(|e| e.to_string())?;
+
+      let update_students_stmt = Statement::from_string(
+        backend,
+        format!(
+          "UPDATE students SET score = 0, updated_at = '{}' ",
+          end_time.replace('\'', "''")
+        ),
+      );
+      conn.execute(update_students_stmt).await.map_err(|e| e.to_string())?;
+    }
+    _ => {
+      let insert_stmt = Statement::from_string(
+        backend,
+        format!(
+          "INSERT INTO settlements (start_time, end_time, created_at) VALUES ('{}', '{}', '{}')",
+          start_time.replace('\'', "''"),
+          end_time.replace('\'', "''"),
+          created_at.replace('\'', "''")
+        ),
+      );
+      conn.execute(insert_stmt).await.map_err(|e| e.to_string())?;
+
+      let id_stmt = Statement::from_string(backend, "SELECT last_insert_rowid() AS id");
+      let row = conn
+        .query_one(id_stmt)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Failed to read settlement id".to_string())?;
+      let settlement_id = try_get_i32(&row, "id")
+        .ok_or_else(|| "Failed to read settlement id".to_string())?;
+
+      let update_events_stmt = Statement::from_string(
+        backend,
+        format!(
+          "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
+          settlement_id
+        ),
+      );
+      conn.execute(update_events_stmt).await.map_err(|e| e.to_string())?;
+
+      let update_students_stmt = Statement::from_string(
+        backend,
+        format!(
+          "UPDATE students SET score = 0, updated_at = '{}'",
+          end_time.replace('\'', "''")
+        ),
+      );
+      conn.execute(update_students_stmt).await.map_err(|e| e.to_string())?;
+    }
+  }
+
+  Ok(())
 }
 
 async fn resolve_target_students(
-    conn: &DatabaseConnection,
-    rule: &AutoScoreRule,
+  conn: &DatabaseConnection,
+  rule: &AutoScoreRule,
 ) -> Result<Vec<students::Model>, String> {
     let explicit_sql_values: Vec<String> = rule
         .triggers
@@ -985,6 +1379,57 @@ async fn resolve_target_students(
         .map_err(|e| e.to_string())
 }
 
+
+async fn is_student_pass_cooldown(
+    conn: &DatabaseConnection,
+    execution_batches: &[AutoScoreExecutionBatch],
+    rule: &AutoScoreRule,
+    student_id: i32,
+    student_name: &str,
+) -> Result<bool, String> {
+    let Some(cooldown_minutes) = rule.execution.cooldown_minutes else {
+        return Ok(true);
+    };
+    if cooldown_minutes <= 0 {
+        return Ok(true);
+    }
+
+    let _ = student_id;
+    let cutoff = Utc::now() - chrono::Duration::minutes(cooldown_minutes);
+    for batch in execution_batches
+        .iter()
+        .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back)
+    {
+        let run_at = DateTime::parse_from_rfc3339(batch.run_at.as_str())
+            .map(|value| value.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now() - chrono::Duration::days(3650));
+        if run_at >= cutoff && batch.affected_student_names.iter().any(|name| name == student_name)
+        {
+            return Ok(false);
+        }
+    }
+
+    let prefix = format!("{}#{}:", AUTO_SCORE_REASON_PREFIX, rule.id);
+    let since = cutoff
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string();
+
+    let exists = score_events::Entity::find()
+        .filter(score_events::Column::StudentName.eq(student_name.to_string()))
+        .filter(score_events::Column::ReasonContent.like(format!("{}%", prefix)))
+        .filter(score_events::Column::EventTime.gte(since))
+        .one(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(exists.is_none())
+}
+
+fn is_same_utc_day(timestamp: &str) -> bool {
+    DateTime::parse_from_rfc3339(timestamp)
+        .map(|value| value.with_timezone(&Utc).date_naive() == Utc::now().date_naive())
+        .unwrap_or(false)
+}
+
 async fn query_student_refs_by_sql(
     conn: &DatabaseConnection,
     sql_or_expression: &str,
@@ -1051,6 +1496,21 @@ fn try_get_i32(row: &sea_orm::QueryResult, column: &str) -> Option<i32> {
         })
 }
 
+fn try_get_i64(row: &sea_orm::QueryResult, column: &str) -> Option<i64> {
+    row.try_get::<i64>("", column)
+        .ok()
+        .or_else(|| {
+            row.try_get::<i32>("", column)
+                .ok()
+                .map(|value| value as i64)
+        })
+        .or_else(|| {
+            row.try_get::<String>("", column)
+                .ok()
+                .and_then(|value| value.trim().parse::<i64>().ok())
+        })
+}
+
 fn try_get_string(row: &sea_orm::QueryResult, column: &str) -> Option<String> {
     row.try_get::<String>("", column).ok().and_then(|value| {
         let trimmed = value.trim().to_string();
@@ -1093,7 +1553,7 @@ async fn attach_tag_to_student_if_missing(
     txn: &sea_orm::DatabaseTransaction,
     student_id: i32,
     tag_id: i32,
-) -> Result<bool, String> {
+) -> Result<Option<i32>, String> {
     let existing = student_tags::Entity::find()
         .filter(student_tags::Column::StudentId.eq(student_id))
         .filter(student_tags::Column::TagId.eq(tag_id))
@@ -1102,11 +1562,11 @@ async fn attach_tag_to_student_if_missing(
         .map_err(|e| e.to_string())?;
 
     if existing.is_some() {
-        return Ok(false);
+        return Ok(None);
     }
 
     let now = now_iso();
-    student_tags::ActiveModel {
+    let inserted = student_tags::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         student_id: Set(student_id),
         tag_id: Set(tag_id),
@@ -1116,17 +1576,23 @@ async fn attach_tag_to_student_if_missing(
     .await
     .map_err(|e| e.to_string())?;
 
-    Ok(true)
+    Ok(Some(inserted.id))
 }
 
 fn now_iso() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
-fn build_auto_score_reason(rule_name: &str, delta: i32) -> String {
+fn build_auto_score_reason(rule_id: i32, rule_name: &str, delta: i32) -> String {
     if delta > 0 {
-        format!("{}: {} (+{})", AUTO_SCORE_REASON_PREFIX, rule_name, delta)
+        format!(
+            "{}#{}: {} (+{})",
+            AUTO_SCORE_REASON_PREFIX, rule_id, rule_name, delta
+        )
     } else {
-        format!("{}: {} ({})", AUTO_SCORE_REASON_PREFIX, rule_name, delta)
+        format!(
+            "{}#{}: {} ({})",
+            AUTO_SCORE_REASON_PREFIX, rule_id, rule_name, delta
+        )
     }
 }
