@@ -51,6 +51,7 @@ export interface AutoScoreRule {
   enabled: boolean
   studentNames: string[]
   triggers: AutoScoreTrigger[]
+  triggerTree?: JsonGroup | null
   actions: AutoScoreAction[]
   execution?: AutoScoreExecutionConfig
   lastExecuted?: string | null
@@ -366,6 +367,70 @@ export const queryTreeToTriggers = (tree: ImmutableTree, config: Config): AutoSc
   const jsonTree = QbUtils.getTree(checkedTree, false, true)
   if (!jsonTree || jsonTree.type !== "group") return []
   return collectTriggersFromItems(jsonTree.children1)
+}
+
+export const queryTreeToJson = (tree: ImmutableTree, config: Config): JsonGroup | null => {
+  const checkedTree = QbUtils.checkTree(tree, config)
+  const jsonTree = QbUtils.getTree(checkedTree, false, true)
+  if (!jsonTree || jsonTree.type !== "group") return null
+  return jsonTree as JsonGroup
+}
+
+const hydrateTriggerTreeNode = (
+  node: JsonItem,
+  fallbackTriggers: AutoScoreTrigger[],
+  fallbackIndex: { current: number }
+): JsonItem | null => {
+  if (node.type === "group") {
+    const children = Array.isArray(node.children1)
+      ? node.children1
+          .map((child) => hydrateTriggerTreeNode(child, fallbackTriggers, fallbackIndex))
+          .filter((child): child is JsonItem => Boolean(child))
+      : []
+    return {
+      ...node,
+      children1: children,
+    }
+  }
+
+  if (node.type !== "rule") {
+    return node
+  }
+
+  const fallbackTrigger = fallbackTriggers[fallbackIndex.current]
+  fallbackIndex.current += 1
+  const parsed = triggerFromRule(node)
+  if (parsed) {
+    return node
+  }
+
+  if (!fallbackTrigger) {
+    return node
+  }
+
+  const fallbackRule = ruleFromTrigger(fallbackTrigger)
+  if (!fallbackRule) {
+    return node
+  }
+
+  return {
+    ...node,
+    properties: fallbackRule.properties,
+  }
+}
+
+export const triggerTreeJsonToQueryTree = (
+  config: Config,
+  triggerTree?: JsonGroup | null,
+  fallbackTriggers: AutoScoreTrigger[] = []
+): ImmutableTree => {
+  if (triggerTree && triggerTree.type === "group") {
+    const hydratedTree = hydrateTriggerTreeNode(triggerTree, fallbackTriggers, { current: 0 })
+    if (hydratedTree && hydratedTree.type === "group") {
+      return QbUtils.checkTree(QbUtils.loadTree(hydratedTree), config)
+    }
+  }
+  return triggersToQueryTree(config, fallbackTriggers)
 }
 
 const hasUnsupportedLogicInGroup = (group: JsonGroup): boolean => {

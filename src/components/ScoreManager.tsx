@@ -274,17 +274,19 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <h2 style={{ marginBottom: "24px", color: "var(--ss-text-main)" }}>{t("score.title")}</h2>
 
       <Card style={{ marginBottom: "24px", backgroundColor: "var(--ss-card-bg)" }}>
-        <Form form={form} layout="vertical" initialValues={{ type: "add" }}>
+        <Form form={form} layout="vertical" initialValues={{ type: "add", student_name: [] }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-            <Form.Item label={t("score.student")} name="student_name">
-              <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Select
-                  mode="multiple"
-                  showSearch
-                  placeholder={t("score.pleaseSelectStudent")}
-                  filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
-                  options={students.map((s) => ({ label: s.name, value: s.name }))}
-                />
+            <Form.Item label={t("score.student")}>
+              <Space orientation="vertical" size={8} style={{ width: "100%" }}>
+                <Form.Item name="student_name" noStyle>
+                  <Select
+                    mode="multiple"
+                    showSearch
+                    placeholder={t("score.pleaseSelectStudent")}
+                    filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
+                    options={students.map((s) => ({ label: s.name, value: s.name }))}
+                  />
+                </Form.Item>
                 <Space size={8} wrap>
                   <Button
                     size="small"

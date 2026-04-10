@@ -1,11 +1,11 @@
 use chrono::{DateTime, Months, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
     QueryFilter, Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::{interval, Duration};
 use uuid::Uuid;
@@ -75,10 +75,10 @@ enum IntervalUnit {
     Month,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct IntervalTriggerValue {
-    amount: i64,
-    unit: IntervalUnit,
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum IntervalTriggerValue {
+    Legacy { amount: i64, unit: IntervalUnit },
+    Composite { days: i64, hours: i64, minutes: i64 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -89,6 +89,8 @@ pub struct AutoScoreRule {
     #[serde(rename = "studentNames")]
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
+    #[serde(rename = "triggerTree", default)]
+    pub trigger_tree: Option<JsonValue>,
     pub actions: Vec<AutoScoreAction>,
     #[serde(default)]
     pub execution: AutoScoreExecutionConfig,
@@ -123,18 +125,6 @@ struct RuleExecutionStats {
     settled: bool,
 }
 
-impl StudentRefs {
-    fn is_empty(&self) -> bool {
-        self.ids.is_empty() && self.names.is_empty()
-    }
-
-    fn intersect(mut self, other: StudentRefs) -> StudentRefs {
-        self.ids.retain(|id| other.ids.contains(id));
-        self.names.retain(|name| other.names.contains(name));
-        self
-    }
-}
-
 impl Default for AutoScoreRule {
     fn default() -> Self {
         Self {
@@ -143,6 +133,7 @@ impl Default for AutoScoreRule {
             enabled: true,
             student_names: Vec::new(),
             triggers: Vec::new(),
+            trigger_tree: None,
             actions: Vec::new(),
             execution: AutoScoreExecutionConfig::default(),
             filters: AutoScoreFilterConfig::default(),
@@ -461,18 +452,30 @@ fn normalize_rule(mut rule: AutoScoreRule) -> Result<AutoScoreRule, String> {
     rule.name = normalize_required_string(rule.name, "automation name")?;
     rule.student_names = dedupe_trimmed_strings(rule.student_names);
 
-    if rule.triggers.is_empty() {
+    if rule.triggers.is_empty() && rule.trigger_tree.is_none() {
         return Err("At least one trigger is required".to_string());
     }
     if rule.actions.is_empty() {
         return Err("At least one action is required".to_string());
     }
 
-    rule.triggers = rule
+    let normalized_triggers = rule
         .triggers
         .into_iter()
         .map(normalize_trigger)
         .collect::<Result<Vec<_>, _>>()?;
+    let normalized_tree = if let Some(tree) = rule.trigger_tree.take() {
+        normalize_trigger_tree(tree)?
+    } else {
+        build_trigger_tree_from_triggers(&normalized_triggers)
+    };
+    let tree_triggers = collect_triggers_from_tree(&normalized_tree)?;
+    if tree_triggers.is_empty() {
+        return Err("At least one trigger is required".to_string());
+    }
+
+    rule.triggers = tree_triggers;
+    rule.trigger_tree = Some(normalized_tree);
     rule.actions = rule
         .actions
         .into_iter()
@@ -505,6 +508,285 @@ fn normalize_filter_config(mut config: AutoScoreFilterConfig) -> Result<AutoScor
     config.recent_event_days = config.recent_event_days.filter(|value| *value > 0);
     config.min_recent_event_count = config.min_recent_event_count.filter(|value| *value >= 0);
     Ok(config)
+}
+
+fn build_trigger_tree_from_triggers(triggers: &[AutoScoreTrigger]) -> JsonValue {
+    JsonValue::Object(
+        [
+            ("id".to_string(), JsonValue::String(Uuid::new_v4().to_string())),
+            ("type".to_string(), JsonValue::String("group".to_string())),
+            (
+                "properties".to_string(),
+                json!({
+                    "conjunction": "AND"
+                }),
+            ),
+            (
+                "children1".to_string(),
+                JsonValue::Array(
+                    triggers
+                        .iter()
+                        .map(build_trigger_rule_node)
+                        .collect::<Vec<JsonValue>>(),
+                ),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    )
+}
+
+fn build_trigger_rule_node(trigger: &AutoScoreTrigger) -> JsonValue {
+    let (field, operator, value) = match trigger.event.as_str() {
+        "interval_time_passed" => (
+            "interval_minutes",
+            "equal",
+            JsonValue::Array(vec![JsonValue::String(
+                trigger.value.clone().unwrap_or_default(),
+            )]),
+        ),
+        "student_has_tag" => {
+            let tag_values = parse_tag_values(trigger.value.as_deref())
+                .into_iter()
+                .map(JsonValue::String)
+                .collect::<Vec<JsonValue>>();
+            (
+                "student_tag",
+                "multiselect_contains",
+                JsonValue::Array(vec![JsonValue::Array(tag_values)]),
+            )
+        }
+        "query_sql" | "student_query_sql" | "student_sql" => (
+            "student_sql",
+            "equal",
+            JsonValue::Array(vec![JsonValue::String(
+                trigger.value.clone().unwrap_or_default(),
+            )]),
+        ),
+        _ => (
+            "student_sql",
+            "equal",
+            JsonValue::Array(vec![JsonValue::String(
+                trigger.value.clone().unwrap_or_default(),
+            )]),
+        ),
+    };
+
+    JsonValue::Object(
+        [
+            ("id".to_string(), JsonValue::String(Uuid::new_v4().to_string())),
+            ("type".to_string(), JsonValue::String("rule".to_string())),
+            (
+                "properties".to_string(),
+                json!({
+                    "field": field,
+                    "operator": operator,
+                    "value": value,
+                }),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    )
+}
+
+fn normalize_trigger_tree(tree: JsonValue) -> Result<JsonValue, String> {
+    let normalized = normalize_trigger_tree_node(tree)?;
+    if !matches!(
+        normalized
+            .get("type")
+            .and_then(JsonValue::as_str)
+            .unwrap_or_default(),
+        "group"
+    ) {
+        return Err("Trigger tree root must be a group".to_string());
+    }
+    Ok(normalized)
+}
+
+fn normalize_trigger_tree_node(node: JsonValue) -> Result<JsonValue, String> {
+    let Some(node_type) = node.get("type").and_then(JsonValue::as_str) else {
+        return Err("Trigger tree node type is required".to_string());
+    };
+
+    match node_type {
+        "group" => normalize_trigger_tree_group(node),
+        "rule" => normalize_trigger_tree_rule(node),
+        _ => Err(format!("Unsupported trigger tree node type: {}", node_type)),
+    }
+}
+
+fn normalize_trigger_tree_group(node: JsonValue) -> Result<JsonValue, String> {
+    let conjunction = node
+        .get("properties")
+        .and_then(|value| value.get("conjunction"))
+        .and_then(JsonValue::as_str)
+        .unwrap_or("AND")
+        .to_uppercase();
+    if conjunction != "AND" && conjunction != "OR" {
+        return Err("Trigger tree group conjunction must be AND or OR".to_string());
+    }
+
+    let not = node
+        .get("properties")
+        .and_then(|value| value.get("not"))
+        .and_then(JsonValue::as_bool)
+        .unwrap_or(false);
+
+    let children = node
+        .get("children1")
+        .and_then(JsonValue::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if children.is_empty() {
+        return Err("Trigger tree group must contain at least one child".to_string());
+    }
+
+    let normalized_children = children
+        .into_iter()
+        .map(normalize_trigger_tree_node)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(JsonValue::Object(
+        [
+            (
+                "id".to_string(),
+                JsonValue::String(
+                    node.get("id")
+                        .and_then(JsonValue::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                        .map(str::to_string)
+                        .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                ),
+            ),
+            ("type".to_string(), JsonValue::String("group".to_string())),
+            (
+                "properties".to_string(),
+                json!({
+                    "conjunction": conjunction,
+                    "not": not,
+                }),
+            ),
+            ("children1".to_string(), JsonValue::Array(normalized_children)),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+}
+
+fn normalize_trigger_tree_rule(node: JsonValue) -> Result<JsonValue, String> {
+    let trigger = trigger_from_rule_node(&node)?;
+
+    Ok(JsonValue::Object(
+        [
+            (
+                "id".to_string(),
+                JsonValue::String(
+                    node.get("id")
+                        .and_then(JsonValue::as_str)
+                        .filter(|value| !value.trim().is_empty())
+                        .map(str::to_string)
+                        .unwrap_or_else(|| Uuid::new_v4().to_string()),
+                ),
+            ),
+            ("type".to_string(), JsonValue::String("rule".to_string())),
+            (
+                "properties".to_string(),
+                build_trigger_rule_node(&trigger)
+                    .get("properties")
+                    .cloned()
+                    .unwrap_or_else(|| json!({})),
+            ),
+        ]
+        .into_iter()
+        .collect(),
+    ))
+}
+
+fn collect_triggers_from_tree(tree: &JsonValue) -> Result<Vec<AutoScoreTrigger>, String> {
+    let mut collected = Vec::new();
+    collect_triggers_from_tree_node(tree, &mut collected)?;
+    Ok(collected)
+}
+
+fn collect_triggers_from_tree_node(
+    node: &JsonValue,
+    collected: &mut Vec<AutoScoreTrigger>,
+) -> Result<(), String> {
+    let Some(node_type) = node.get("type").and_then(JsonValue::as_str) else {
+        return Err("Trigger tree node type is required".to_string());
+    };
+
+    match node_type {
+        "group" => {
+            let children = node
+                .get("children1")
+                .and_then(JsonValue::as_array)
+                .ok_or_else(|| "Trigger tree group children1 must be an array".to_string())?;
+            for child in children {
+                collect_triggers_from_tree_node(child, collected)?;
+            }
+            Ok(())
+        }
+        "rule" => {
+            collected.push(trigger_from_rule_node(node)?);
+            Ok(())
+        }
+        _ => Err(format!("Unsupported trigger tree node type: {}", node_type)),
+    }
+}
+
+fn trigger_from_rule_node(node: &JsonValue) -> Result<AutoScoreTrigger, String> {
+    let field = node
+        .get("properties")
+        .and_then(|value| value.get("field"))
+        .and_then(JsonValue::as_str)
+        .unwrap_or_default();
+    let first_value = node
+        .get("properties")
+        .and_then(|value| value.get("value"))
+        .and_then(JsonValue::as_array)
+        .and_then(|values| values.first())
+        .cloned();
+
+    match field {
+        "interval_minutes" => {
+            let trigger = AutoScoreTrigger {
+                event: "interval_time_passed".to_string(),
+                value: first_value
+                    .as_ref()
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_string),
+            };
+            normalize_trigger(trigger)
+        }
+        "student_tag" => {
+            let tags = match first_value {
+                Some(JsonValue::Array(items)) => items
+                    .into_iter()
+                    .filter_map(|item| item.as_str().map(str::to_string))
+                    .collect::<Vec<String>>(),
+                Some(JsonValue::String(value)) => vec![value],
+                _ => Vec::new(),
+            };
+            let trigger = AutoScoreTrigger {
+                event: "student_has_tag".to_string(),
+                value: stringify_tag_values(&tags),
+            };
+            normalize_trigger(trigger)
+        }
+        "student_sql" => {
+            let trigger = AutoScoreTrigger {
+                event: "query_sql".to_string(),
+                value: first_value
+                    .as_ref()
+                    .and_then(JsonValue::as_str)
+                    .map(str::to_string),
+            };
+            normalize_trigger(trigger)
+        }
+        _ => Err(format!("Unsupported trigger tree field: {}", field)),
+    }
 }
 
 fn normalize_trigger(trigger: AutoScoreTrigger) -> Result<AutoScoreTrigger, String> {
@@ -657,6 +939,22 @@ fn normalize_last_executed(value: Option<String>) -> Option<String> {
         .map(|parsed| parsed.with_timezone(&Utc).to_rfc3339())
 }
 
+fn parse_positive_i64(value: &JsonValue) -> Option<i64> {
+    match value {
+        JsonValue::Number(number) => number.as_i64().filter(|parsed| *parsed > 0),
+        JsonValue::String(text) => text.trim().parse::<i64>().ok().filter(|parsed| *parsed > 0),
+        _ => None,
+    }
+}
+
+fn parse_non_negative_i64(value: &JsonValue) -> Option<i64> {
+    match value {
+        JsonValue::Number(number) => number.as_i64().filter(|parsed| *parsed >= 0),
+        JsonValue::String(text) => text.trim().parse::<i64>().ok().filter(|parsed| *parsed >= 0),
+        _ => None,
+    }
+}
+
 fn parse_interval_trigger_value(value: Option<&str>) -> Option<IntervalTriggerValue> {
     let raw_value = value.map(str::trim)?;
     if raw_value.is_empty() {
@@ -665,29 +963,75 @@ fn parse_interval_trigger_value(value: Option<&str>) -> Option<IntervalTriggerVa
 
     if let Ok(minutes) = raw_value.parse::<i64>() {
         if minutes > 0 {
-            return Some(IntervalTriggerValue {
+            return Some(IntervalTriggerValue::Legacy {
                 amount: minutes,
                 unit: IntervalUnit::Minute,
             });
         }
     }
 
-    let parsed_value = serde_json::from_str::<IntervalTriggerValue>(raw_value).ok()?;
-    if parsed_value.amount <= 0 {
-        return None;
+    let parsed_value = serde_json::from_str::<JsonValue>(raw_value).ok()?;
+    let object = parsed_value.as_object()?;
+
+    if let (Some(days), Some(hours), Some(minutes)) = (
+        object.get("days").and_then(parse_non_negative_i64),
+        object.get("hours").and_then(parse_non_negative_i64),
+        object.get("minutes").and_then(parse_non_negative_i64),
+    ) {
+        if days > 0 || hours > 0 || minutes > 0 {
+            return Some(IntervalTriggerValue::Composite {
+                days,
+                hours,
+                minutes,
+            });
+        }
     }
 
-    Some(parsed_value)
+    let amount = object.get("amount").and_then(parse_positive_i64)?;
+    let unit = match object.get("unit").and_then(JsonValue::as_str) {
+        Some("minute") => IntervalUnit::Minute,
+        Some("day") => IntervalUnit::Day,
+        Some("month") => IntervalUnit::Month,
+        _ => return None,
+    };
+
+    Some(IntervalTriggerValue::Legacy { amount, unit })
 }
 
 fn stringify_interval_trigger_value(value: &IntervalTriggerValue) -> Option<String> {
-    if value.amount <= 0 {
-        return None;
-    }
+    match value {
+        IntervalTriggerValue::Legacy { amount, unit } => {
+            if *amount <= 0 {
+                return None;
+            }
 
-    match value.unit {
-        IntervalUnit::Minute => Some(value.amount.to_string()),
-        IntervalUnit::Day | IntervalUnit::Month => serde_json::to_string(value).ok(),
+            match unit {
+                IntervalUnit::Minute => Some(amount.to_string()),
+                IntervalUnit::Day | IntervalUnit::Month => serde_json::to_string(
+                    &json!({
+                        "amount": amount,
+                        "unit": unit,
+                    }),
+                )
+                .ok(),
+            }
+        }
+        IntervalTriggerValue::Composite {
+            days,
+            hours,
+            minutes,
+        } => {
+            if *days <= 0 && *hours <= 0 && *minutes <= 0 {
+                return None;
+            }
+
+            serde_json::to_string(&json!({
+                "days": days,
+                "hours": hours,
+                "minutes": minutes,
+            }))
+            .ok()
+        }
     }
 }
 
@@ -695,48 +1039,73 @@ fn add_interval_to_time(
     base_time: DateTime<Utc>,
     interval: &IntervalTriggerValue,
 ) -> Option<DateTime<Utc>> {
-    match interval.unit {
-        IntervalUnit::Minute => {
-            base_time.checked_add_signed(chrono::Duration::minutes(interval.amount))
-        }
-        IntervalUnit::Day => base_time.checked_add_signed(chrono::Duration::days(interval.amount)),
-        IntervalUnit::Month => {
-            let months = u32::try_from(interval.amount).ok()?;
-            base_time.checked_add_months(Months::new(months))
+    match interval {
+        IntervalTriggerValue::Legacy { amount, unit } => match unit {
+            IntervalUnit::Minute => {
+                base_time.checked_add_signed(chrono::Duration::minutes(*amount))
+            }
+            IntervalUnit::Day => {
+                base_time.checked_add_signed(chrono::Duration::days(*amount))
+            }
+            IntervalUnit::Month => {
+                let months = u32::try_from(*amount).ok()?;
+                base_time.checked_add_months(Months::new(months))
+            }
+        },
+        IntervalTriggerValue::Composite {
+            days,
+            hours,
+            minutes,
+        } => {
+            let total_minutes = days
+                .saturating_mul(24 * 60)
+                .saturating_add(hours.saturating_mul(60))
+                .saturating_add(*minutes);
+            if total_minutes <= 0 {
+                return None;
+            }
+            base_time.checked_add_signed(chrono::Duration::minutes(total_minutes))
         }
     }
 }
 
 fn check_interval_trigger(rule: &AutoScoreRule) -> Option<i64> {
-    let now = Utc::now();
+    let delays = rule
+        .triggers
+        .iter()
+        .filter(|trigger| trigger.event == "interval_time_passed")
+        .map(|trigger| get_interval_delay_ms(rule, trigger.value.as_deref()))
+        .collect::<Vec<Option<i64>>>();
 
-    for trigger in &rule.triggers {
-        if trigger.event != "interval_time_passed" {
-            continue;
-        }
-
-        let interval = parse_interval_trigger_value(trigger.value.as_deref()).unwrap_or(
-            IntervalTriggerValue {
-                amount: DEFAULT_INTERVAL_MINUTES,
-                unit: IntervalUnit::Minute,
-            },
-        );
-
-        let Some(base_time) = rule
-            .last_executed
-            .as_ref()
-            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-            .map(|value| value.with_timezone(&Utc))
-        else {
-            return Some(0);
-        };
-
-        let next_execute_time = add_interval_to_time(base_time, &interval)?;
-        let delay_ms = (next_execute_time - now).num_milliseconds();
-        return Some(delay_ms.max(0));
+    if delays.is_empty() {
+        return None;
     }
 
-    None
+    delays.into_iter().flatten().min()
+}
+
+fn get_interval_delay_ms(rule: &AutoScoreRule, value: Option<&str>) -> Option<i64> {
+    let now = Utc::now();
+    let interval = parse_interval_trigger_value(value).unwrap_or(IntervalTriggerValue::Legacy {
+        amount: DEFAULT_INTERVAL_MINUTES,
+        unit: IntervalUnit::Minute,
+    });
+
+    let Some(base_time) = rule
+        .last_executed
+        .as_ref()
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|parsed| parsed.with_timezone(&Utc))
+    else {
+        return Some(0);
+    };
+
+    let next_execute_time = add_interval_to_time(base_time, &interval)?;
+    Some((next_execute_time - now).num_milliseconds().max(0))
+}
+
+fn is_interval_due(rule: &AutoScoreRule, value: Option<&str>) -> bool {
+    get_interval_delay_ms(rule, value).unwrap_or(0) <= 0
 }
 
 fn contains_forbidden_keyword(sql: &str) -> bool {
@@ -1301,82 +1670,198 @@ async fn execute_settlement(conn: &DatabaseConnection) -> Result<(), String> {
   Ok(())
 }
 
-async fn resolve_target_students(
-  conn: &DatabaseConnection,
-  rule: &AutoScoreRule,
-) -> Result<Vec<students::Model>, String> {
-    let explicit_sql_values: Vec<String> = rule
-        .triggers
-        .iter()
-        .filter(|trigger| {
-            matches!(
+#[derive(Debug, Default)]
+struct TriggerEvalContext {
+    student_tags_by_id: HashMap<i32, HashSet<String>>,
+    sql_refs_by_query: HashMap<String, StudentRefs>,
+}
+
+fn collect_sql_queries_from_tree(node: &JsonValue, queries: &mut Vec<String>) -> Result<(), String> {
+    let Some(node_type) = node.get("type").and_then(JsonValue::as_str) else {
+        return Err("Trigger tree node type is required".to_string());
+    };
+
+    match node_type {
+        "group" => {
+            let children = node
+                .get("children1")
+                .and_then(JsonValue::as_array)
+                .ok_or_else(|| "Trigger tree group children1 must be an array".to_string())?;
+            for child in children {
+                collect_sql_queries_from_tree(child, queries)?;
+            }
+            Ok(())
+        }
+        "rule" => {
+            let trigger = trigger_from_rule_node(node)?;
+            if matches!(
                 trigger.event.as_str(),
                 "query_sql" | "student_query_sql" | "student_sql"
-            )
-        })
-        .filter_map(|trigger| trigger.value.as_deref())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string)
-        .collect();
-
-    if !explicit_sql_values.is_empty() {
-        let mut refs: Option<StudentRefs> = None;
-        for sql_value in explicit_sql_values {
-            let next_refs = query_student_refs_by_sql(conn, &sql_value).await?;
-            refs = Some(match refs {
-                None => next_refs,
-                Some(existing) => existing.intersect(next_refs),
-            });
+            ) {
+                if let Some(sql) = trigger.value.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+                    queries.push(sql.to_string());
+                }
+            }
+            Ok(())
         }
-
-        let refs = refs.unwrap_or_default();
-        if refs.is_empty() {
-            return Ok(vec![]);
-        }
-        return load_students_from_refs(conn, refs).await;
+        _ => Err(format!("Unsupported trigger tree node type: {}", node_type)),
     }
+}
 
-    let tag_filters: Vec<String> = rule
-        .triggers
-        .iter()
-        .filter(|trigger| trigger.event == "student_has_tag")
-        .flat_map(|trigger| parse_tag_values(trigger.value.as_deref()))
-        .collect();
-
-    let tag_filters = dedupe_trimmed_strings(tag_filters);
-    if tag_filters.is_empty() {
-        return students::Entity::find()
-            .all(conn)
-            .await
-            .map_err(|e| e.to_string());
-    }
-
+async fn load_student_tags_by_student_id(
+    conn: &DatabaseConnection,
+) -> Result<HashMap<i32, HashSet<String>>, String> {
     let tag_models = tags::Entity::find()
-        .filter(tags::Column::Name.is_in(tag_filters))
         .all(conn)
         .await
         .map_err(|e| e.to_string())?;
     if tag_models.is_empty() {
-        return Ok(vec![]);
+        return Ok(HashMap::new());
     }
 
-    let tag_ids: Vec<i32> = tag_models.iter().map(|tag| tag.id).collect();
+    let tag_name_by_id: HashMap<i32, String> = tag_models
+        .into_iter()
+        .map(|tag| (tag.id, tag.name))
+        .collect();
     let links = student_tags::Entity::find()
-        .filter(student_tags::Column::TagId.is_in(tag_ids))
         .all(conn)
         .await
         .map_err(|e| e.to_string())?;
-    if links.is_empty() {
+
+    let mut student_tags_by_id: HashMap<i32, HashSet<String>> = HashMap::new();
+    for link in links {
+        let Some(tag_name) = tag_name_by_id.get(&link.tag_id) else {
+            continue;
+        };
+        student_tags_by_id
+            .entry(link.student_id)
+            .or_default()
+            .insert(tag_name.clone());
+    }
+
+    Ok(student_tags_by_id)
+}
+
+fn evaluate_trigger_tree_for_student(
+    node: &JsonValue,
+    student: &students::Model,
+    rule: &AutoScoreRule,
+    ctx: &TriggerEvalContext,
+) -> Result<bool, String> {
+    let Some(node_type) = node.get("type").and_then(JsonValue::as_str) else {
+        return Err("Trigger tree node type is required".to_string());
+    };
+
+    match node_type {
+        "group" => {
+            let conjunction = node
+                .get("properties")
+                .and_then(|value| value.get("conjunction"))
+                .and_then(JsonValue::as_str)
+                .unwrap_or("AND")
+                .to_uppercase();
+            let not = node
+                .get("properties")
+                .and_then(|value| value.get("not"))
+                .and_then(JsonValue::as_bool)
+                .unwrap_or(false);
+            let children = node
+                .get("children1")
+                .and_then(JsonValue::as_array)
+                .ok_or_else(|| "Trigger tree group children1 must be an array".to_string())?;
+            if children.is_empty() {
+                return Ok(false);
+            }
+
+            let base = if conjunction == "OR" {
+                children.iter().try_fold(false, |matched, child| {
+                    if matched {
+                        return Ok(true);
+                    }
+                    evaluate_trigger_tree_for_student(child, student, rule, ctx)
+                })?
+            } else {
+                children.iter().try_fold(true, |matched, child| {
+                    if !matched {
+                        return Ok(false);
+                    }
+                    evaluate_trigger_tree_for_student(child, student, rule, ctx)
+                })?
+            };
+
+            Ok(if not { !base } else { base })
+        }
+        "rule" => {
+            let trigger = trigger_from_rule_node(node)?;
+            let matched = match trigger.event.as_str() {
+                "interval_time_passed" => is_interval_due(rule, trigger.value.as_deref()),
+                "student_has_tag" => {
+                    let required_tags = parse_tag_values(trigger.value.as_deref());
+                    let student_tags = ctx.student_tags_by_id.get(&student.id);
+                    required_tags.iter().any(|tag| {
+                        student_tags
+                            .map(|values| values.contains(tag))
+                            .unwrap_or(false)
+                    })
+                }
+                "query_sql" | "student_query_sql" | "student_sql" => {
+                    let sql = trigger
+                        .value
+                        .as_deref()
+                        .map(str::trim)
+                        .unwrap_or_default()
+                        .to_string();
+                    ctx.sql_refs_by_query
+                        .get(&sql)
+                        .map(|refs| refs.ids.contains(&student.id) || refs.names.contains(&student.name))
+                        .unwrap_or(false)
+                }
+                _ => false,
+            };
+            Ok(matched)
+        }
+        _ => Err(format!("Unsupported trigger tree node type: {}", node_type)),
+    }
+}
+
+async fn resolve_target_students(
+  conn: &DatabaseConnection,
+  rule: &AutoScoreRule,
+) -> Result<Vec<students::Model>, String> {
+    let all_students = students::Entity::find()
+        .all(conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    if all_students.is_empty() {
         return Ok(vec![]);
     }
 
-    let student_ids: HashSet<i32> = links.iter().map(|link| link.student_id).collect();
-    students::Entity::find()
-        .filter(students::Column::Id.is_in(student_ids))
-        .all(conn)
-        .await
-        .map_err(|e| e.to_string())
+    let fallback_tree = build_trigger_tree_from_triggers(&rule.triggers);
+    let trigger_tree = rule.trigger_tree.as_ref().unwrap_or(&fallback_tree);
+
+    let mut sql_queries = Vec::new();
+    collect_sql_queries_from_tree(trigger_tree, &mut sql_queries)?;
+    let sql_queries = dedupe_trimmed_strings(sql_queries);
+
+    let mut sql_refs_by_query = HashMap::new();
+    for sql in sql_queries {
+        let refs = query_student_refs_by_sql(conn, &sql).await?;
+        sql_refs_by_query.insert(sql, refs);
+    }
+
+    let ctx = TriggerEvalContext {
+        student_tags_by_id: load_student_tags_by_student_id(conn).await?,
+        sql_refs_by_query,
+    };
+
+    let mut matched = Vec::new();
+    for student in all_students {
+        if evaluate_trigger_tree_for_student(trigger_tree, &student, rule, &ctx)? {
+            matched.push(student);
+        }
+    }
+
+    Ok(matched)
 }
 
 
@@ -1456,29 +1941,6 @@ async fn query_student_refs_by_sql(
     }
 
     Ok(refs)
-}
-
-async fn load_students_from_refs(
-    conn: &DatabaseConnection,
-    refs: StudentRefs,
-) -> Result<Vec<students::Model>, String> {
-    if refs.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let mut condition = Condition::any();
-    if !refs.ids.is_empty() {
-        condition = condition.add(students::Column::Id.is_in(refs.ids));
-    }
-    if !refs.names.is_empty() {
-        condition = condition.add(students::Column::Name.is_in(refs.names));
-    }
-
-    students::Entity::find()
-        .filter(condition)
-        .all(conn)
-        .await
-        .map_err(|e| e.to_string())
 }
 
 fn try_get_i32(row: &sea_orm::QueryResult, column: &str) -> Option<i32> {

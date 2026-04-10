@@ -59,6 +59,7 @@ export interface autoScoreRule {
   enabled: boolean
   studentNames: string[]
   triggers: autoScoreTrigger[]
+  triggerTree?: any | null
   actions: autoScoreAction[]
   execution?: autoScoreExecutionConfig
   lastExecuted?: string | null
@@ -255,17 +256,34 @@ const api = {
   queryEvents: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
     invoke("event_query", { params }),
   createEvent: (data: {
-    studentName: string
-    reasonContent: string
+    student_name?: string
+    reason_content?: string
     delta: number
-  }): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("event_create", { data }),
+    studentName?: string
+    reasonContent?: string
+  }): Promise<{ success: boolean; data?: number; message?: string }> => {
+    const normalized = {
+      student_name: String(data.student_name ?? data.studentName ?? "").trim(),
+      reason_content: String(data.reason_content ?? data.reasonContent ?? "").trim(),
+      delta: Number(data.delta),
+    }
+    return invoke("event_create", { data: normalized })
+  },
   deleteEvent: (uuid: string): Promise<{ success: boolean }> => invoke("event_delete", { uuid }),
   queryEventsByStudent: (params: {
-    studentName: string
+    student_name?: string
     limit?: number
+    start_time?: string
+    studentName?: string
     startTime?: string
-  }): Promise<{ success: boolean; data: any[] }> => invoke("event_query_by_student", { params }),
+  }): Promise<{ success: boolean; data: any[] }> =>
+    invoke("event_query_by_student", {
+      params: {
+        student_name: String(params.student_name ?? params.studentName ?? "").trim(),
+        limit: params.limit,
+        start_time: params.start_time ?? params.startTime,
+      },
+    }),
   queryLeaderboard: (params: {
     range: "today" | "week" | "month"
   }): Promise<{ success: boolean; data: { startTime: string; rows: any[] } }> =>
@@ -298,6 +316,7 @@ const api = {
     enabled: boolean
     studentNames: string[]
     triggers: autoScoreTrigger[]
+    triggerTree?: any | null
     actions: autoScoreAction[]
     execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
@@ -308,6 +327,7 @@ const api = {
     enabled: boolean
     studentNames: string[]
     triggers: autoScoreTrigger[]
+    triggerTree?: any | null
     actions: autoScoreAction[]
     execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: boolean; message?: string }> =>

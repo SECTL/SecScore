@@ -22,6 +22,7 @@ import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
 import { fetchAllTags } from "./TagEditorDialog"
 import { ActionEditor } from "./AutoScore/ActionEditor"
+import { parseIntervalTriggerValue } from "./AutoScore/IntervalValueCodec"
 import { TriggerRuleBuilder } from "./AutoScore/TriggerRuleBuilder"
 import {
   actionDraftsToPayload,
@@ -29,11 +30,11 @@ import {
   createDefaultActionDraft,
   createEmptyTriggerTree,
   createTriggerQueryConfig,
-  hasUnsupportedTriggerLogic,
   normalizeTriggerTree,
+  queryTreeToJson,
   normalizeActionDrafts,
   queryTreeToTriggers,
-  triggersToQueryTree,
+  triggerTreeJsonToQueryTree,
   type ActionDraft,
   type AutoScoreExecutionBatch,
   type AutoScoreExecutionConfig,
@@ -203,14 +204,14 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       return
     }
 
-    if (hasUnsupportedTriggerLogic(triggerTree, triggerConfig)) {
-      messageApi.warning(t("autoScore.unsupportedLogic"))
-      return
-    }
-
     const triggers = queryTreeToTriggers(triggerTree, triggerConfig)
+    const triggerTreeJson = queryTreeToJson(triggerTree, triggerConfig)
     if (triggers.length === 0) {
       messageApi.warning(t("autoScore.triggerRequired"))
+      return
+    }
+    if (!triggers.some((trigger) => trigger.event === "interval_time_passed")) {
+      messageApi.warning(t("autoScore.intervalTriggerRequired"))
       return
     }
 
@@ -243,6 +244,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         enabled: true,
         studentNames,
         triggers,
+        triggerTree: triggerTreeJson,
         actions: actionPayload.actions,
         execution,
       }
@@ -281,7 +283,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       studentNames: rule.studentNames || [],
       execution: rule.execution || {},
     })
-    setTriggerTree(triggersToQueryTree(triggerConfig, rule.triggers || []))
+    setTriggerTree(triggerTreeJsonToQueryTree(triggerConfig, rule.triggerTree, rule.triggers || []))
     setActionDrafts(actionsToDrafts(rule.actions || []))
   }
 
@@ -342,6 +344,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         enabled: rule.enabled,
         studentNames: rule.studentNames,
         triggers: rule.triggers,
+        triggerTree: rule.triggerTree ?? null,
         actions: rule.actions,
         execution: rule.execution || {},
         lastExecuted: rule.lastExecuted ?? null,
@@ -368,6 +371,44 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return t("autoScore.invalidTime")
     return date.toLocaleString()
+  }
+
+  const formatTriggerSummary = (trigger: AutoScoreRule["triggers"][number]) => {
+    if (trigger.event === "interval_time_passed") {
+      const intervalValue = parseIntervalTriggerValue(trigger.value)
+      if (!intervalValue) {
+        return `${t("autoScore.triggerIntervalTime")}: -`
+      }
+      return `${t("autoScore.triggerIntervalTime")}: ${intervalValue.days}${t(
+        "autoScore.intervalPartDay"
+      )} ${intervalValue.hours}${t("autoScore.intervalPartHour")} ${intervalValue.minutes}${t(
+        "autoScore.intervalPartMinute"
+      )}`
+    }
+    if (trigger.event === "student_has_tag") {
+      return `${t("autoScore.triggerStudentTag")}: ${String(trigger.value || "").trim() || "-"}`
+    }
+    if (
+      trigger.event === "query_sql" ||
+      trigger.event === "student_query_sql" ||
+      trigger.event === "student_sql"
+    ) {
+      return `${t("autoScore.triggerStudentSql")}: ${String(trigger.value || "").trim() || "-"}`
+    }
+    return `${trigger.event}: ${String(trigger.value || "").trim() || "-"}`
+  }
+
+  const formatActionSummary = (action: AutoScoreRule["actions"][number]) => {
+    if (action.event === "add_score") {
+      return `${t("autoScore.actionAddScore")}: ${String(action.value || "").trim() || "-"}`
+    }
+    if (action.event === "add_tag") {
+      return `${t("autoScore.actionAddTag")}: ${String(action.value || "").trim() || "-"}`
+    }
+    if (action.event === "settle_score") {
+      return `${t("autoScore.actionSettleScore")}: ${t("autoScore.actionSettleScoreHint")}`
+    }
+    return `${action.event}: ${String(action.value || "").trim() || "-"}`
   }
 
   const handleRollbackBatch = async (batchId: string) => {
@@ -434,13 +475,21 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       title: t("autoScore.triggers"),
       key: "triggers",
       width: 120,
-      render: (_, row) => <Tag>{t("autoScore.triggerCount", { count: row.triggers.length })}</Tag>,
+      render: (_, row) => (
+        <Tooltip title={row.triggers.map(formatTriggerSummary).join("\n") || "-"}>
+          <Tag>{t("autoScore.triggerCount", { count: row.triggers.length })}</Tag>
+        </Tooltip>
+      ),
     },
     {
       title: t("autoScore.actions"),
       key: "actions",
       width: 120,
-      render: (_, row) => <Tag>{t("autoScore.actionCount", { count: row.actions.length })}</Tag>,
+      render: (_, row) => (
+        <Tooltip title={row.actions.map(formatActionSummary).join("\n") || "-"}>
+          <Tag>{t("autoScore.actionCount", { count: row.actions.length })}</Tag>
+        </Tooltip>
+      ),
     },
     {
       title: t("autoScore.lastExecuted"),

@@ -28,6 +28,8 @@ pub struct CreateAutoScoreRule {
     #[serde(rename = "studentNames")]
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
+    #[serde(rename = "triggerTree", default)]
+    pub trigger_tree: Option<JsonValue>,
     pub actions: Vec<AutoScoreAction>,
     #[serde(default)]
     pub execution: AutoScoreExecutionConfig,
@@ -43,6 +45,8 @@ pub struct UpdateAutoScoreRule {
     #[serde(rename = "studentNames")]
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
+    #[serde(rename = "triggerTree", default)]
+    pub trigger_tree: Option<JsonValue>,
     pub actions: Vec<AutoScoreAction>,
     #[serde(default)]
     pub execution: AutoScoreExecutionConfig,
@@ -75,6 +79,7 @@ fn build_rule_from_create(rule: CreateAutoScoreRule) -> AutoScoreRule {
         enabled: rule.enabled,
         student_names: rule.student_names,
         triggers: rule.triggers,
+        trigger_tree: rule.trigger_tree,
         actions: rule.actions,
         execution: rule.execution,
         filters: rule.filters,
@@ -89,6 +94,7 @@ fn build_rule_from_update(rule: UpdateAutoScoreRule) -> AutoScoreRule {
         enabled: rule.enabled,
         student_names: rule.student_names,
         triggers: rule.triggers,
+        trigger_tree: rule.trigger_tree,
         actions: rule.actions,
         execution: rule.execution,
         filters: rule.filters,
