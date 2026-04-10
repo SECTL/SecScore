@@ -354,10 +354,12 @@ pub async fn oauth_exchange_code(
     platform_id: String,
     platform_secret: String,
     callback_url: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     println!("[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}", code, platform_id, callback_url);
     
-    let client = reqwest::Client::new();
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
     let params = [
         ("grant_type", "authorization_code"),
         ("code", &code),
@@ -396,8 +398,11 @@ pub async fn oauth_revoke_token(
     token_type_hint: Option<String>,
     platform_id: String,
     platform_secret: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<()>, String> {
-    let client = reqwest::Client::new();
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+    
     let mut payload = serde_json::json!({
         "token": token,
         "client_id": platform_id,
@@ -431,8 +436,11 @@ pub async fn oauth_introspect_token(
     token: String,
     platform_id: String,
     platform_secret: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthIntrospectResponse>, String> {
-    let client = reqwest::Client::new();
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+    
     let response = client
         .post("https://sectl.top/api/oauth/introspect")
         .json(&serde_json::json!({
@@ -463,8 +471,11 @@ pub async fn oauth_introspect_token(
 #[tauri::command]
 pub async fn oauth_get_user_info(
     access_token: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthUserInfo>, String> {
-    let client = reqwest::Client::new();
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+    
     let response = client
         .get("https://sectl.top/api/oauth/userinfo")
         .header("Authorization", format!("Bearer {}", access_token))
@@ -493,8 +504,11 @@ pub async fn oauth_refresh_token(
     refresh_token: String,
     platform_id: String,
     platform_secret: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
-    let client = reqwest::Client::new();
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+    
     let response = client
         .post("https://sectl.top/api/oauth/token")
         .json(&serde_json::json!({
