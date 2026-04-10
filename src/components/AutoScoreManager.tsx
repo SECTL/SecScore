@@ -96,6 +96,8 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const [editingRuleId, setEditingRuleId] = useState<number | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [batchCurrentPage, setBatchCurrentPage] = useState(1)
+  const [batchPageSize, setBatchPageSize] = useState(10)
 
   useEffect(() => {
     const maxPage = Math.max(1, Math.ceil(rules.length / pageSize))
@@ -103,6 +105,13 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       setCurrentPage(maxPage)
     }
   }, [currentPage, pageSize, rules.length])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(batches.length / batchPageSize))
+    if (batchCurrentPage > maxPage) {
+      setBatchCurrentPage(maxPage)
+    }
+  }, [batchCurrentPage, batchPageSize, batches.length])
 
   useEffect(() => {
     setTriggerTree((prevTree) => normalizeTriggerTree(prevTree, triggerConfig))
@@ -584,6 +593,10 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   ]
 
   const pagedRules = rules.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const pagedBatches = batches.slice(
+    (batchCurrentPage - 1) * batchPageSize,
+    batchCurrentPage * batchPageSize
+  )
 
   return (
     <div style={{ padding: "24px" }}>
@@ -701,11 +714,24 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         <Table
           rowKey="id"
           columns={batchColumns}
-          dataSource={batches.slice(0, 50)}
+          dataSource={pagedBatches}
           pagination={false}
           tableLayout="fixed"
           scroll={{ x: 860 }}
         />
+        <div style={{ marginTop: 16, textAlign: "right" }}>
+          <Pagination
+            current={batchCurrentPage}
+            pageSize={batchPageSize}
+            total={batches.length}
+            showSizeChanger
+            showTotal={(total) => t("common.total", { count: total })}
+            onChange={(page, size) => {
+              setBatchCurrentPage(page)
+              setBatchPageSize(size)
+            }}
+          />
+        </div>
       </Card>
     </div>
   )

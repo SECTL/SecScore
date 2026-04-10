@@ -814,6 +814,8 @@
     "operationNoteLabel": "操作说明（可选）",
     "triggerIntervalTime": "间隔时间",
     "triggerStudentTag": "学生标签",
+    "triggerStudentScore": "学生分数",
+    "triggerStudentScoreGreater": "学生分数大于",
     "triggerStudentSql": "自定义 SQL 条件",
     "triggerStudentSqlPlaceholder": "输入筛选学生的 SQL 或 WHERE 条件",
     "actionAddScore": "加分",

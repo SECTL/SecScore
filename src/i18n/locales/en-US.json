@@ -816,6 +816,8 @@
     "tagNamesPlaceholder": "e.g. excellent_student,class_monitor",
     "triggerIntervalTime": "Interval Time",
     "triggerStudentTag": "Student Tag",
+    "triggerStudentScore": "Student Score",
+    "triggerStudentScoreGreater": "Student Score Greater Than",
     "triggerStudentSql": "Custom SQL Condition",
     "triggerStudentSqlPlaceholder": "Enter student SQL or a WHERE condition",
     "actionAddScore": "Add Score",

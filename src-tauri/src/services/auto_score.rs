@@ -563,6 +563,20 @@ fn build_trigger_rule_node(trigger: &AutoScoreTrigger) -> JsonValue {
                 trigger.value.clone().unwrap_or_default(),
             )]),
         ),
+        "student_score_gt" => (
+            "student_score",
+            "greater",
+            JsonValue::Array(vec![JsonValue::String(
+                trigger.value.clone().unwrap_or_default(),
+            )]),
+        ),
+        "student_score_lt" => (
+            "student_score",
+            "less",
+            JsonValue::Array(vec![JsonValue::String(
+                trigger.value.clone().unwrap_or_default(),
+            )]),
+        ),
         _ => (
             "student_sql",
             "equal",
@@ -742,6 +756,11 @@ fn trigger_from_rule_node(node: &JsonValue) -> Result<AutoScoreTrigger, String> 
         .and_then(|value| value.get("field"))
         .and_then(JsonValue::as_str)
         .unwrap_or_default();
+    let operator = node
+        .get("properties")
+        .and_then(|value| value.get("operator"))
+        .and_then(JsonValue::as_str)
+        .unwrap_or_default();
     let first_value = node
         .get("properties")
         .and_then(|value| value.get("value"))
@@ -782,6 +801,23 @@ fn trigger_from_rule_node(node: &JsonValue) -> Result<AutoScoreTrigger, String> 
                     .as_ref()
                     .and_then(JsonValue::as_str)
                     .map(str::to_string),
+            };
+            normalize_trigger(trigger)
+        }
+        "student_score" | "student_score_gt" | "student_score_lt" => {
+            let score = match first_value {
+                Some(JsonValue::Number(value)) => value.to_string(),
+                Some(JsonValue::String(value)) => value,
+                _ => String::new(),
+            };
+            let event = if operator.eq_ignore_ascii_case("less") || field == "student_score_lt" {
+                "student_score_lt"
+            } else {
+                "student_score_gt"
+            };
+            let trigger = AutoScoreTrigger {
+                event: event.to_string(),
+                value: if score.trim().is_empty() { None } else { Some(score) },
             };
             normalize_trigger(trigger)
         }
@@ -827,6 +863,14 @@ fn normalize_trigger(trigger: AutoScoreTrigger) -> Result<AutoScoreTrigger, Stri
             Ok(AutoScoreTrigger {
                 event,
                 value: Some(raw_sql),
+            })
+        }
+        "student_score_gt" | "student_score_lt" => {
+            let threshold = normalize_integer_string(trigger.value.as_deref())
+                .ok_or_else(|| "Student score trigger requires an integer value".to_string())?;
+            Ok(AutoScoreTrigger {
+                event,
+                value: Some(threshold),
             })
         }
         _ => Err(format!("Unsupported trigger event: {}", event)),
@@ -929,6 +973,15 @@ fn normalize_non_zero_integer_string(value: Option<&str>) -> Option<String> {
         return None;
     }
 
+    Some(parsed.to_string())
+}
+
+fn normalize_integer_string(value: Option<&str>) -> Option<String> {
+    let normalized = value?.trim();
+    if normalized.is_empty() {
+        return None;
+    }
+    let parsed = normalized.parse::<i32>().ok()?;
     Some(parsed.to_string())
 }
 
@@ -1816,6 +1869,18 @@ fn evaluate_trigger_tree_for_student(
                         .map(|refs| refs.ids.contains(&student.id) || refs.names.contains(&student.name))
                         .unwrap_or(false)
                 }
+                "student_score_gt" => trigger
+                    .value
+                    .as_deref()
+                    .and_then(|value| value.trim().parse::<i32>().ok())
+                    .map(|threshold| student.score > threshold)
+                    .unwrap_or(false),
+                "student_score_lt" => trigger
+                    .value
+                    .as_deref()
+                    .and_then(|value| value.trim().parse::<i32>().ok())
+                    .map(|threshold| student.score < threshold)
+                    .unwrap_or(false),
                 _ => false,
             };
             Ok(matched)

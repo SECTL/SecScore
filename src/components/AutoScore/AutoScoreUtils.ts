@@ -75,9 +75,13 @@ export type ActionDraftError = "action_required" | "score_required" | "tag_requi
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
 const TRIGGER_FIELD_SQL = "student_sql"
+const TRIGGER_FIELD_SCORE = "student_score"
+const TRIGGER_FIELD_SCORE_GT = "student_score_gt"
 const TRIGGER_TYPE_INTERVAL = "interval_duration"
 const TRIGGER_WIDGET_INTERVAL = "interval_duration"
 const OP_EQUAL = "equal"
+const OP_GREATER = "greater"
+const OP_LESS = "less"
 const OP_MULTISELECT_CONTAINS = "multiselect_contains"
 
 const buildEmptyGroup = (): JsonGroup => ({
@@ -188,11 +192,26 @@ const ruleFromTrigger = (trigger: AutoScoreTrigger): JsonRule | null => {
     }
   }
 
+  if (trigger.event === "student_score_gt" || trigger.event === "student_score_lt") {
+    const score = toFiniteNumber(trigger.value)
+    if (score === null) return null
+    return {
+      id: QbUtils.uuid(),
+      type: "rule",
+      properties: {
+        field: TRIGGER_FIELD_SCORE,
+        operator: trigger.event === "student_score_lt" ? OP_LESS : OP_GREATER,
+        value: [score],
+      },
+    }
+  }
+
   return null
 }
 
 const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
   const field = typeof rule.properties?.field === "string" ? rule.properties.field : ""
+  const operator = typeof rule.properties?.operator === "string" ? rule.properties.operator : ""
   const value = Array.isArray(rule.properties?.value) ? rule.properties.value[0] : undefined
 
   if (field === TRIGGER_FIELD_INTERVAL) {
@@ -223,6 +242,15 @@ const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
     return {
       event: "query_sql",
       value: sql,
+    }
+  }
+
+  if (field === TRIGGER_FIELD_SCORE || field === TRIGGER_FIELD_SCORE_GT) {
+    const score = toFiniteNumber(value)
+    if (score === null) return null
+    return {
+      event: operator === OP_LESS ? "student_score_lt" : "student_score_gt",
+      value: String(score),
     }
   }
 
@@ -261,6 +289,16 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
     },
     operators: {
       ...AntdConfig.operators,
+      [OP_GREATER]: {
+        ...AntdConfig.operators[OP_GREATER],
+        label: ">",
+        labelForFormat: ">",
+      },
+      [OP_LESS]: {
+        ...AntdConfig.operators[OP_LESS],
+        label: "<",
+        labelForFormat: "<",
+      },
       [OP_MULTISELECT_CONTAINS]: {
         ...AntdConfig.operators[OP_MULTISELECT_CONTAINS],
         label: t("autoScore.operatorContains"),
@@ -329,6 +367,13 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
           placeholder: t("autoScore.triggerStudentSqlPlaceholder"),
         },
       },
+      [TRIGGER_FIELD_SCORE]: {
+        label: t("autoScore.triggerStudentScore"),
+        type: "number",
+        defaultOperator: OP_GREATER,
+        operators: [OP_GREATER, OP_LESS],
+        valueSources: ["value"],
+      },
     },
     settings: {
       ...AntdConfig.settings,
@@ -341,6 +386,7 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
       canLeaveEmptyGroup: false,
       canReorder: true,
       canRegroup: true,
+      setOpOnChangeField: ["default"],
     },
   }) as Config
 
@@ -401,7 +447,14 @@ const hydrateTriggerTreeNode = (
   fallbackIndex.current += 1
   const parsed = triggerFromRule(node)
   if (parsed) {
-    return node
+    const normalizedRule = ruleFromTrigger(parsed)
+    if (!normalizedRule) {
+      return node
+    }
+    return {
+      ...node,
+      properties: normalizedRule.properties,
+    }
   }
 
   if (!fallbackTrigger) {
