@@ -11,6 +11,7 @@ import {
   UploadOutlined,
   AppstoreAddOutlined,
   ApartmentOutlined,
+  CrownOutlined,
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -194,6 +195,12 @@ export function Sidebar({
       key: "reasons",
       icon: <UnorderedListOutlined />,
       label: t("sidebar.reasons"),
+      disabled: permission !== "admin",
+    },
+    {
+      key: "plugins",
+      icon: <CrownOutlined />,
+      label: t("sidebar.plugins"),
       disabled: permission !== "admin",
     },
     {

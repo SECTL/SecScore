@@ -22,6 +22,7 @@ import {
   UpOutlined,
   DownOutlined,
   HolderOutlined,
+  CrownOutlined,
 } from "@ant-design/icons"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
@@ -34,6 +35,7 @@ import { OAuthCallback } from "./components/OAuth/OAuthCallback"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
+import { getPluginRuntime } from "./plugins/runtime"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(
@@ -129,6 +131,7 @@ function MainContent(): React.JSX.Element {
   const syncCheckingRef = useRef(false)
   const syncApplyLoadingRef = useRef(false)
   const lastLocalMutationAtRef = useRef(0)
+  const pluginRuntimeRef = useRef(getPluginRuntime())
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -141,8 +144,35 @@ function MainContent(): React.JSX.Element {
     if (p.startsWith("/reasons")) return "reasons"
     if (p.startsWith("/auto-score")) return "auto-score"
     if (p.startsWith("/reward-settings")) return "reward-settings"
+    if (p.startsWith("/plugins")) return "plugins"
     if (p.startsWith("/settings")) return "settings"
     return "home"
+  }, [location.pathname])
+
+  useEffect(() => {
+    const runtime = pluginRuntimeRef.current
+    runtime.start().catch((error) => {
+      console.error("Failed to start plugin runtime:", error)
+    })
+
+    const handlePluginsUpdated = () => {
+      runtime.reload().catch((error) => {
+        console.error("Failed to reload plugin runtime:", error)
+      })
+    }
+    window.addEventListener("ss:plugins-updated", handlePluginsUpdated)
+
+    return () => {
+      window.removeEventListener("ss:plugins-updated", handlePluginsUpdated)
+      runtime.stop().catch((error) => {
+        console.error("Failed to stop plugin runtime:", error)
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    const normalizedPath = location.pathname === "/" ? "/home" : location.pathname
+    window.dispatchEvent(new CustomEvent("ss:route-changed", { detail: { path: normalizedPath } }))
   }, [location.pathname])
 
   useEffect(() => {
@@ -429,12 +459,13 @@ function MainContent(): React.JSX.Element {
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
     if (key === "score") navigate("/score")
+    if (key === "auto-score") navigate("/auto-score")
+    if (key === "reward-settings") navigate("/reward-settings")
     if (key === "boards") navigate("/boards")
     if (key === "leaderboard") navigate("/leaderboard")
     if (key === "settlements") navigate("/settlements")
     if (key === "reasons") navigate("/reasons")
-    if (key === "auto-score") navigate("/auto-score")
-    if (key === "reward-settings") navigate("/reward-settings")
+    if (key === "plugins") navigate("/plugins")
     if (key === "settings") navigate("/settings")
   }
 
@@ -481,6 +512,7 @@ function MainContent(): React.JSX.Element {
     leaderboard: <UnorderedListOutlined style={{ fontSize: "18px" }} />,
     settlements: <FileTextOutlined style={{ fontSize: "18px" }} />,
     reasons: <UnorderedListOutlined style={{ fontSize: "18px" }} />,
+    plugins: <CrownOutlined style={{ fontSize: "18px" }} />,
     settings: <SettingOutlined style={{ fontSize: "18px" }} />,
   }
 

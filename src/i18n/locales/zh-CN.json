@@ -369,7 +369,8 @@
     "syncFailed": "同步失败",
     "getDbStatusFailed": "获取数据库状态失败",
     "notRemoteMode": "当前不是远程数据库模式，请重启应用后重试",
-    "dbNotConnected": "数据库未连接"
+    "dbNotConnected": "数据库未连接",
+    "plugins": "插件管理"
   },
   "auth": {
     "unlock": "权限解锁",
@@ -937,5 +938,35 @@
     "export": "导出文本文件",
     "exportHint": "建议导出后离线保存，遗失将无法找回。",
     "hint": "建议导出后离线保存，遗失将无法找回。"
+  },
+  "plugin": {
+    "title": "插件管理",
+    "name": "插件名称",
+    "author": "作者",
+    "description": "描述",
+    "version": "版本",
+    "status": "状态",
+    "enabled": "已启用",
+    "disabled": "已禁用",
+    "operation": "操作",
+    "install": "安装插件",
+    "uninstall": "卸载",
+    "uninstallConfirm": "确认卸载插件？",
+    "uninstallDescription": "卸载后会移除已安装到应用目录中的插件副本。",
+    "installSuccess": "插件安装成功",
+    "installFailed": "插件安装失败",
+    "uninstallSuccess": "插件卸载成功",
+    "uninstallFailed": "插件卸载失败",
+    "toggleFailed": "切换插件状态失败",
+    "invalidManifest": "无效的插件清单文件",
+    "pluginFolder": "插件文件夹",
+    "folderPlaceholder": "选择包含 manifest.json 的文件夹",
+    "installHint": "选择一个包含 manifest.json 的文件夹来安装插件。",
+    "selectFolder": "请选择插件文件夹",
+    "totalPlugins": "插件总数",
+    "enabledPlugins": "已启用",
+    "disabledPlugins": "已禁用",
+    "noPlugins": "暂无已安装的插件",
+    "installedAt": "安装时间"
   }
 }

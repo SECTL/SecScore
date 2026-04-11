@@ -118,6 +118,17 @@ export interface settingsSpec {
   mobile_bottom_nav_items: string[]
 }
 
+export interface pluginRuntimeModule {
+  id: string
+  name: string
+  version: string
+  description?: string | null
+  author?: string | null
+  main: string
+  code: string
+  permissions: string[]
+}
+
 const api = {
   // Theme
   getThemes: (): Promise<{ success: boolean; data: themeConfig[] }> => invoke("theme_list"),
@@ -700,6 +711,60 @@ const api = {
   }> => invoke("register_url_protocol"),
   appQuit: (): Promise<void> => invoke("app_quit"),
   appRestart: (): Promise<void> => invoke("app_restart"),
+
+  // Plugin
+  pluginGetAll: (): Promise<{
+    success: boolean
+    data?: any[]
+    message?: string
+  }> => invoke("plugin_get_all"),
+  pluginGet: (pluginId: string): Promise<{
+    success: boolean
+    data?: any
+    message?: string
+  }> => invoke("plugin_get", { pluginId }),
+  pluginGetStats: (): Promise<{
+    success: boolean
+    data?: {
+      total_plugins: number
+      enabled_plugins: number
+      disabled_plugins: number
+    }
+    message?: string
+  }> => invoke("plugin_get_stats"),
+  pluginToggle: (pluginId: string, enabled: boolean): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("plugin_toggle", { pluginId, enabled }),
+  pluginInstall: (manifest: any, pluginDir: string): Promise<{
+    success: boolean
+    data?: any
+    message?: string
+  }> => invoke("plugin_install", { manifest, pluginDir }),
+  pluginUninstall: (pluginId: string): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("plugin_uninstall", { pluginId }),
+  pluginLoadManifest: (path: string): Promise<{
+    success: boolean
+    data?: any
+    message?: string
+  }> => invoke("plugin_load_manifest", { path }),
+  pluginGetDir: (pluginId: string): Promise<{
+    success: boolean
+    data?: string
+    message?: string
+  }> => invoke("plugin_get_dir", { pluginId }),
+  pluginGetList: (): Promise<{
+    success: boolean
+    data?: any[]
+    message?: string
+  }> => invoke("plugin_get_list"),
+  pluginGetRuntimeModules: (): Promise<{
+    success: boolean
+    data?: pluginRuntimeModule[]
+    message?: string
+  }> => invoke("plugin_get_runtime_modules"),
 
   // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
   invoke: async (channel: string, ..._args: any[]): Promise<any> => {

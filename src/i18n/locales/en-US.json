@@ -369,7 +369,8 @@
     "syncFailed": "Sync failed",
     "getDbStatusFailed": "Failed to get database status",
     "notRemoteMode": "Not in remote database mode, please restart application",
-    "dbNotConnected": "Database not connected"
+    "dbNotConnected": "Database not connected",
+    "plugins": "Plugins"
   },
   "auth": {
     "unlock": "Unlock Permission",
@@ -947,5 +948,35 @@
     "export": "Export Text File",
     "exportHint": "It is recommended to export and store offline. If lost, it cannot be recovered.",
     "hint": "Recommended to save offline after export, cannot be recovered if lost."
+  },
+  "plugin": {
+    "title": "Plugin Manager",
+    "name": "Plugin Name",
+    "author": "Author",
+    "description": "Description",
+    "version": "Version",
+    "status": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "operation": "Operation",
+    "install": "Install Plugin",
+    "uninstall": "Uninstall",
+    "uninstallConfirm": "Confirm uninstall plugin?",
+    "uninstallDescription": "Uninstall removes the plugin copy installed inside the app plugin directory.",
+    "installSuccess": "Plugin installed successfully",
+    "installFailed": "Plugin installation failed",
+    "uninstallSuccess": "Plugin uninstalled successfully",
+    "uninstallFailed": "Plugin uninstallation failed",
+    "toggleFailed": "Failed to toggle plugin status",
+    "invalidManifest": "Invalid plugin manifest file",
+    "pluginFolder": "Plugin Folder",
+    "folderPlaceholder": "Select folder containing manifest.json",
+    "installHint": "Select a folder containing manifest.json to install the plugin.",
+    "selectFolder": "Please select plugin folder",
+    "totalPlugins": "Total Plugins",
+    "enabledPlugins": "Enabled",
+    "disabledPlugins": "Disabled",
+    "noPlugins": "No plugins installed",
+    "installedAt": "Installed At"
   }
 }

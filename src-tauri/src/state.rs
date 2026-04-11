@@ -6,8 +6,8 @@ use tauri::AppHandle;
 
 use crate::services::{
     auth::AuthService, auto_score::AutoScoreService, data::DataService, logger::LoggerService,
-    permission::PermissionService, security::SecurityService, settings::SettingsService,
-    theme::ThemeService, SettingsKey, SettingsValue,
+    permission::PermissionService, plugin::PluginService, security::SecurityService,
+    settings::SettingsService, theme::ThemeService, SettingsKey, SettingsValue,
 };
 
 pub struct AppState {
@@ -20,6 +20,7 @@ pub struct AppState {
     pub auto_score: Arc<RwLock<AutoScoreService>>,
     pub logger: Arc<RwLock<LoggerService>>,
     pub data: Arc<RwLock<DataService>>,
+    pub plugins: Arc<RwLock<PluginService>>,
     pub http_client: Client,
     pub app_handle: AppHandle,
 }
@@ -34,6 +35,7 @@ impl AppState {
         let auto_score = Arc::new(RwLock::new(AutoScoreService::new()));
         let logger = Arc::new(RwLock::new(LoggerService::new()));
         let data = Arc::new(RwLock::new(DataService::new()));
+        let plugins = Arc::new(RwLock::new(PluginService::new()));
         let db = Arc::new(RwLock::new(None));
 
         let http_client = Client::builder()
@@ -51,6 +53,7 @@ impl AppState {
             auto_score,
             logger,
             data,
+            plugins,
             http_client,
             app_handle,
         }
@@ -86,6 +89,11 @@ impl AppState {
             let mut auto_score = self.auto_score.write();
             auto_score.load_rules(auto_score_rules);
             auto_score.initialize(&self.app_handle).await?;
+        }
+
+        {
+            let mut plugins = self.plugins.write();
+            plugins.initialize(&self.app_handle)?;
         }
 
         Ok(())
