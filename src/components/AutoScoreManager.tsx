@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Form,
   Input,
   InputNumber,
@@ -19,6 +20,7 @@ import {
 } from "antd"
 import { type ImmutableTree } from "@react-awesome-query-builder/antd"
 import type { ColumnsType } from "antd/es/table"
+import dayjs from "dayjs"
 import { useTranslation } from "react-i18next"
 import { fetchAllTags } from "./TagEditorDialog"
 import { ActionEditor } from "./AutoScore/ActionEditor"
@@ -63,6 +65,81 @@ interface AutoScoreManagerProps {
 }
 
 const getRuleFileRelativePath = (ruleId: number) => `auto-score/rule-${ruleId}.json`
+const AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE = 500
+
+interface BackfillPlanItem {
+  ruleId: number
+  runs: number
+  ruleName: string
+}
+
+const buildOfflineBackfillPlan = (rules: AutoScoreRule[]): {
+  items: BackfillPlanItem[]
+  totalRuns: number
+  from: dayjs.Dayjs | null
+  to: dayjs.Dayjs
+  truncatedRules: number
+} => {
+  const now = dayjs()
+  const items: BackfillPlanItem[] = []
+  let from: dayjs.Dayjs | null = null
+  let truncatedRules = 0
+
+  for (const rule of rules) {
+    if (!rule.enabled) continue
+    const intervalTrigger = rule.triggers.find((trigger) => trigger.event === "interval_time_passed")
+    if (!intervalTrigger) continue
+
+    const intervalValue = parseIntervalTriggerValue(intervalTrigger.value)
+    if (!intervalValue) continue
+    const intervalMinutes = intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
+    if (intervalMinutes <= 0) continue
+
+    const startAt = rule.execution?.startAt ? dayjs(rule.execution.startAt) : null
+    const lastExecuted = rule.lastExecuted ? dayjs(rule.lastExecuted) : null
+    const validStartAt = startAt && startAt.isValid() ? startAt : null
+    const validLastExecuted = lastExecuted && lastExecuted.isValid() ? lastExecuted : null
+
+    const baseTime =
+      validStartAt && validLastExecuted
+        ? validStartAt.isAfter(validLastExecuted)
+          ? validStartAt
+          : validLastExecuted
+        : validStartAt || validLastExecuted
+
+    if (!baseTime) continue
+    if (!now.isAfter(baseTime)) continue
+
+    const elapsedMinutes = now.diff(baseTime, "minute")
+    if (elapsedMinutes < intervalMinutes) continue
+
+    const rawRuns = Math.floor(elapsedMinutes / intervalMinutes)
+    if (rawRuns <= 0) continue
+
+    const runs = Math.min(rawRuns, AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE)
+    if (runs < rawRuns) {
+      truncatedRules += 1
+    }
+
+    items.push({
+      ruleId: rule.id,
+      ruleName: rule.name,
+      runs,
+    })
+
+    if (!from || baseTime.isBefore(from)) {
+      from = baseTime
+    }
+  }
+
+  return {
+    items,
+    totalRuns: items.reduce((sum, item) => sum + item.runs, 0),
+    from,
+    to: now,
+    truncatedRules,
+  }
+}
 
 function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element {
   const { t, i18n } = useTranslation()
@@ -98,6 +175,8 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const [pageSize, setPageSize] = useState(10)
   const [batchCurrentPage, setBatchCurrentPage] = useState(1)
   const [batchPageSize, setBatchPageSize] = useState(10)
+  const [executionStartAt, setExecutionStartAt] = useState<string | null>(null)
+  const [backfillPrompted, setBackfillPrompted] = useState(false)
 
   useEffect(() => {
     const maxPage = Math.max(1, Math.ceil(rules.length / pageSize))
@@ -117,11 +196,58 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     setTriggerTree((prevTree) => normalizeTriggerTree(prevTree, triggerConfig))
   }, [triggerConfig])
 
+  const intervalElapsedHint = useMemo(() => {
+    if (!executionStartAt) {
+      return t("autoScore.startAtHint")
+    }
+
+    const startAt = dayjs(executionStartAt)
+    if (!startAt.isValid()) {
+      return t("autoScore.startAtHint")
+    }
+
+    const intervalTrigger = queryTreeToTriggers(triggerTree, triggerConfig).find(
+      (trigger) => trigger.event === "interval_time_passed"
+    )
+    if (!intervalTrigger) {
+      return t("autoScore.startAtHint")
+    }
+
+    const intervalValue = parseIntervalTriggerValue(intervalTrigger.value)
+    if (!intervalValue) {
+      return t("autoScore.startAtHint")
+    }
+
+    const intervalMinutes = intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
+    if (intervalMinutes <= 0) {
+      return t("autoScore.startAtHint")
+    }
+
+    const now = dayjs()
+    if (now.isBefore(startAt)) {
+      return t("autoScore.startAtWaitHint", { minutes: startAt.diff(now, "minute") })
+    }
+
+    const elapsedMinutes = now.diff(startAt, "minute")
+    const remainder = elapsedMinutes % intervalMinutes
+    const remainMinutes =
+      elapsedMinutes < intervalMinutes
+        ? intervalMinutes - elapsedMinutes
+        : remainder === 0
+          ? 0
+          : intervalMinutes - remainder
+    return t("autoScore.startAtElapsedHint", {
+      elapsed: elapsedMinutes,
+      remain: remainMinutes,
+    })
+  }, [executionStartAt, t, triggerConfig, triggerTree])
+
   const resetEditor = () => {
     setEditingRuleId(null)
     form.setFieldsValue({ name: "", studentNames: [], execution: {} })
     setTriggerTree(createEmptyTriggerTree(triggerConfig))
     setActionDrafts([createDefaultActionDraft()])
+    setExecutionStartAt(null)
   }
 
   const emitDataUpdated = () => {
@@ -195,6 +321,70 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     fetchBatches().catch(() => void 0)
   }, [canEdit])
 
+  useEffect(() => {
+    const api = (window as any).api
+    if (!canEdit || !api || backfillPrompted || rules.length === 0) return
+
+    const plan = buildOfflineBackfillPlan(rules)
+    setBackfillPrompted(true)
+    if (plan.items.length === 0 || plan.totalRuns <= 0) return
+
+    const fromText = plan.from ? plan.from.format("YYYY-MM-DD HH:mm:ss") : "-"
+    const toText = plan.to.format("YYYY-MM-DD HH:mm:ss")
+    const previewLines = plan.items
+      .slice(0, 5)
+      .map((item) => t("autoScore.backfillPreviewLine", { name: item.ruleName, runs: item.runs }))
+      .join("\n")
+
+    Modal.confirm({
+      title: t("autoScore.backfillConfirmTitle"),
+      content: (
+        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
+          {t("autoScore.backfillConfirmSummary", {
+            from: fromText,
+            to: toText,
+            runs: plan.totalRuns,
+            rules: plan.items.length,
+          })}
+          {previewLines ? `\n${previewLines}` : ""}
+          {plan.items.length > 5
+            ? `\n${t("autoScore.backfillPreviewMore", { count: plan.items.length - 5 })}`
+            : ""}
+          {plan.truncatedRules > 0
+            ? `\n${t("autoScore.backfillPreviewTruncated", {
+                count: plan.truncatedRules,
+                max: AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE,
+              })}`
+            : ""}
+        </div>
+      ),
+      onOk: async () => {
+        try {
+          const res = await api.autoScoreApplyBackfill({
+            items: plan.items.map((item) => ({ ruleId: item.ruleId, runs: item.runs })),
+          })
+          if (!res?.success) {
+            messageApi.error(res?.message || t("autoScore.backfillApplyFailed"))
+            return
+          }
+
+          const result = res.data
+          messageApi.success(
+            t("autoScore.backfillApplySuccess", {
+              runs: result?.appliedRuns ?? 0,
+              events: result?.createdEvents ?? 0,
+            })
+          )
+          await fetchRules()
+          await fetchBatches()
+          emitDataUpdated()
+        } catch {
+          messageApi.error(t("autoScore.backfillApplyFailed"))
+        }
+      },
+    })
+  }, [backfillPrompted, canEdit, messageApi, rules, t])
+
   const handleSubmit = async () => {
     const api = (window as any).api
     if (!api) return
@@ -206,7 +396,14 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     const values = await form.validateFields()
     const name = String(values.name || "").trim()
     const studentNames = Array.isArray(values.studentNames) ? values.studentNames : []
-    const execution = values.execution || {}
+    const executionFromForm = values.execution || {}
+    const execution: AutoScoreExecutionConfig = {
+      ...executionFromForm,
+      startAt:
+        executionStartAt && dayjs(executionStartAt).isValid()
+          ? dayjs(executionStartAt).toISOString()
+          : null,
+    }
 
     if (!name) {
       messageApi.warning(t("autoScore.nameRequired"))
@@ -286,12 +483,14 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   }
 
   const handleEdit = (rule: AutoScoreRule) => {
+    const { startAt, ...executionWithoutStartAt } = rule.execution || {}
     setEditingRuleId(rule.id)
     form.setFieldsValue({
       name: rule.name,
       studentNames: rule.studentNames || [],
-      execution: rule.execution || {},
+      execution: executionWithoutStartAt,
     })
+    setExecutionStartAt(startAt ?? null)
     setTriggerTree(triggerTreeJsonToQueryTree(triggerConfig, rule.triggerTree, rule.triggers || []))
     setActionDrafts(actionsToDrafts(rule.actions || []))
   }
@@ -648,6 +847,24 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
               name={["execution", "maxScoreDeltaPerDay"]}
             >
               <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
+            </Form.Item>
+            <Form.Item label={t("autoScore.startAt")} extra={intervalElapsedHint}>
+              <DatePicker
+                showTime
+                allowClear
+                format="YYYY-MM-DD HH:mm:ss"
+                placeholder={t("autoScore.startAtPlaceholder")}
+                disabled={!canEdit}
+                style={{ width: "100%" }}
+                value={
+                  executionStartAt && dayjs(executionStartAt).isValid()
+                    ? dayjs(executionStartAt)
+                    : null
+                }
+                onChange={(value) => {
+                  setExecutionStartAt(value ? value.toISOString() : null)
+                }}
+              />
             </Form.Item>
           </div>
         </Form>

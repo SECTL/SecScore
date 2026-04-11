@@ -36,6 +36,7 @@ export interface autoScoreExecutionConfig {
   cooldownMinutes?: number | null
   maxRunsPerDay?: number | null
   maxScoreDeltaPerDay?: number | null
+  startAt?: string | null
 }
 
 export interface autoScoreExecutionBatch {
@@ -51,6 +52,19 @@ export interface autoScoreExecutionBatch {
   settled: boolean
   rolledBack: boolean
   rollbackAt?: string | null
+}
+
+export interface autoScoreBackfillItem {
+  ruleId: number
+  runs: number
+}
+
+export interface autoScoreBackfillResult {
+  appliedRules: number
+  appliedRuns: number
+  affectedStudents: number
+  createdEvents: number
+  scoreDeltaTotal: number
 }
 
 export interface autoScoreRule {
@@ -361,6 +375,10 @@ const api = {
     batchId: string
   }): Promise<{ success: boolean; data?: autoScoreExecutionBatch; message?: string }> =>
     invoke("auto_score_rollback_batch", { params }),
+  autoScoreApplyBackfill: (params: {
+    items: autoScoreBackfillItem[]
+  }): Promise<{ success: boolean; data?: autoScoreBackfillResult; message?: string }> =>
+    invoke("auto_score_apply_backfill", { params }),
 
   // Settings & Sync
   getAllSettings: (): Promise<{ success: boolean; data: settingsSpec }> =>

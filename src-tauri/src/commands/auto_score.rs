@@ -5,7 +5,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::services::{
-    query_execution_batches, rollback_execution_batch, AutoScoreAction, AutoScoreExecutionBatch,
+    apply_offline_backfill, query_execution_batches, rollback_execution_batch, AutoScoreAction,
+    AutoScoreBackfillItem, AutoScoreBackfillResult, AutoScoreExecutionBatch,
     AutoScoreExecutionConfig, AutoScoreFilterConfig, AutoScoreRule, AutoScoreService,
     AutoScoreTrigger, PermissionLevel, SettingsKey, SettingsValue,
 };
@@ -65,6 +66,11 @@ pub struct ToggleRuleParams {
     #[serde(rename = "ruleId")]
     pub rule_id: i32,
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApplyBackfillParams {
+    pub items: Vec<AutoScoreBackfillItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -395,4 +401,26 @@ pub async fn auto_score_rollback_batch(
 
     let batch = rollback_execution_batch(state.inner(), &params.batch_id).await?;
     Ok(IpcResponse::success(batch))
+}
+
+#[tauri::command]
+pub async fn auto_score_apply_backfill(
+    params: ApplyBackfillParams,
+    sender_id: Option<u32>,
+    app_handle: AppHandle,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<AutoScoreBackfillResult>, String> {
+    {
+        let state_guard = state.read();
+        let mut permissions = state_guard.permissions.write();
+        if !check_admin_permission(&mut permissions, sender_id) {
+            return Ok(IpcResponse::error("Permission denied: admin required"));
+        }
+    }
+
+    let result = apply_offline_backfill(state.inner(), &params.items).await?;
+    let rules = state.read().auto_score.read().get_rules().to_vec();
+    emit_auto_score_status_changed(&app_handle, &rules);
+    emit_rules_changed(&app_handle, state.inner());
+    Ok(IpcResponse::success(result))
 }

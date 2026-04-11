@@ -824,6 +824,11 @@
     "actionAddTag": "Add Tag",
     "actionSettleScore": "Settle Score",
     "actionSettleScoreHint": "No parameters required",
+    "startAt": "Start Time",
+    "startAtPlaceholder": "Select start time (empty means start now)",
+    "startAtHint": "Empty means start immediately; when set, interval will use this as base time",
+    "startAtWaitHint": "{{minutes}} minutes until start",
+    "startAtElapsedHint": "{{elapsed}} minutes elapsed since start, about {{remain}} minutes to next run",
     "cooldownMinutes": "Cooldown (minutes)",
     "maxStudentsPerRun": "Max Students Per Run",
     "maxRunsPerDay": "Max Runs Per Day",
@@ -859,7 +864,14 @@
     "operatorContains": "Contains",
     "relationNot": "Not",
     "openFile": "Open File",
-    "openFileFailed": "Failed to open automation file"
+    "openFileFailed": "Failed to open automation file",
+    "backfillConfirmTitle": "Offline automation replay available",
+    "backfillConfirmSummary": "From {{from}} to {{to}}, about {{runs}} automation runs ({{rules}} rules) can be replayed. Replay now?",
+    "backfillPreviewLine": "{{name}}: {{runs}} run(s)",
+    "backfillPreviewMore": "{{count}} more rules not shown",
+    "backfillPreviewTruncated": "{{count}} rules are capped to at most {{max}} replay runs",
+    "backfillApplySuccess": "Replay completed: {{runs}} runs applied, {{events}} score records created",
+    "backfillApplyFailed": "Failed to replay offline auto score runs"
   },
   "triggers": {
     "studentTag": {

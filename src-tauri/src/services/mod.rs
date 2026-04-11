@@ -9,7 +9,8 @@ pub mod theme;
 
 pub use auth::AuthService;
 pub use auto_score::{
-    query_execution_batches, rollback_execution_batch, AutoScoreAction, AutoScoreExecutionBatch,
+    apply_offline_backfill, query_execution_batches, rollback_execution_batch, AutoScoreAction,
+    AutoScoreBackfillItem, AutoScoreBackfillResult, AutoScoreExecutionBatch,
     AutoScoreExecutionConfig, AutoScoreFilterConfig, AutoScoreRule, AutoScoreService,
     AutoScoreTrigger,
 };
