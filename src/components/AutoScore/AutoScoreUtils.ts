@@ -28,6 +28,7 @@ export interface AutoScoreExecutionConfig {
   cooldownMinutes?: number | null
   maxRunsPerDay?: number | null
   maxScoreDeltaPerDay?: number | null
+  startAt?: string | null
 }
 
 export interface AutoScoreExecutionBatch {

@@ -822,6 +822,11 @@
     "actionAddTag": "添加标签",
     "actionSettleScore": "结算分数",
     "actionSettleScoreHint": "无需参数",
+    "startAt": "开始时间",
+    "startAtPlaceholder": "请选择开始时间（留空立即开始）",
+    "startAtHint": "留空表示立即开始；设置后将以该时间为基准按间隔触发",
+    "startAtWaitHint": "距离开始还有 {{minutes}} 分钟",
+    "startAtElapsedHint": "自开始已过去 {{elapsed}} 分钟，距离下一次触发约 {{remain}} 分钟",
     "cooldownMinutes": "冷却时间(分钟)",
     "maxStudentsPerRun": "单次最多学生数",
     "maxRunsPerDay": "每日最多执行次数",
@@ -857,7 +862,14 @@
     "operatorContains": "包含",
     "relationNot": "非",
     "openFile": "打开文件",
-    "openFileFailed": "打开自动化文件失败"
+    "openFileFailed": "打开自动化文件失败",
+    "backfillConfirmTitle": "检测到关闭期间可补回的自动化",
+    "backfillConfirmSummary": "在 {{from}} 到 {{to}} 期间，预计有 {{runs}} 次自动化执行（共 {{rules}} 条规则）可补回，是否现在补回？",
+    "backfillPreviewLine": "{{name}}：{{runs}} 次",
+    "backfillPreviewMore": "其余 {{count}} 条规则未展开",
+    "backfillPreviewTruncated": "{{count}} 条规则补回次数已截断到最多 {{max}} 次",
+    "backfillApplySuccess": "补回完成：执行 {{runs}} 次，新增 {{events}} 条积分记录",
+    "backfillApplyFailed": "补回自动加分失败"
   },
   "triggers": {
     "studentTag": {

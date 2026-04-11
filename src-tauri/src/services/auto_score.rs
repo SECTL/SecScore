@@ -18,6 +18,7 @@ const DEFAULT_INTERVAL_MINUTES: i64 = 30;
 const AUTO_SCORE_TICK_SECONDS: u64 = 15;
 const AUTO_SCORE_SQL_LIMIT: u64 = 5000;
 const AUTO_SCORE_REASON_PREFIX: &str = "自动化";
+const AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE: i64 = 500;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AutoScoreTrigger {
@@ -37,6 +38,7 @@ pub struct AutoScoreExecutionConfig {
     pub cooldown_minutes: Option<i64>,
     pub max_runs_per_day: Option<i64>,
     pub max_score_delta_per_day: Option<i64>,
+    pub start_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -65,6 +67,23 @@ pub struct AutoScoreExecutionBatch {
     pub settled: bool,
     pub rolled_back: bool,
     pub rollback_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoScoreBackfillItem {
+    pub rule_id: i32,
+    pub runs: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoScoreBackfillResult {
+    pub applied_rules: usize,
+    pub applied_runs: i64,
+    pub affected_students: usize,
+    pub created_events: usize,
+    pub score_delta_total: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -105,6 +124,12 @@ enum PlannedAction {
     AddScore(i32),
     AddTags(Vec<String>),
     SettleScore,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExecutionMode {
+    Normal,
+    Backfill,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -347,7 +372,7 @@ impl AutoScoreService {
                 continue;
             }
 
-            match execute_rule(&conn, rule, &execution_batches).await {
+            match execute_rule(&conn, rule, &execution_batches, ExecutionMode::Normal).await {
                 Ok(stats) => {
                     if stats.affected_students == 0 {
                         Self::log_rule_skipped(&state, rule, "no matched students");
@@ -494,6 +519,7 @@ fn normalize_execution_config(
     config.cooldown_minutes = config.cooldown_minutes.filter(|value| *value > 0);
     config.max_runs_per_day = config.max_runs_per_day.filter(|value| *value > 0);
     config.max_score_delta_per_day = config.max_score_delta_per_day.filter(|value| *value > 0);
+    config.start_at = normalize_datetime_rfc3339(config.start_at);
     Ok(config)
 }
 
@@ -1000,11 +1026,15 @@ fn normalize_integer_string(value: Option<&str>) -> Option<String> {
     Some(parsed.to_string())
 }
 
-fn normalize_last_executed(value: Option<String>) -> Option<String> {
+fn normalize_datetime_rfc3339(value: Option<String>) -> Option<String> {
     value
         .as_deref()
         .and_then(|raw_value| DateTime::parse_from_rfc3339(raw_value).ok())
         .map(|parsed| parsed.with_timezone(&Utc).to_rfc3339())
+}
+
+fn normalize_last_executed(value: Option<String>) -> Option<String> {
+    normalize_datetime_rfc3339(value)
 }
 
 fn parse_positive_i64(value: &JsonValue) -> Option<i64> {
@@ -1159,12 +1189,26 @@ fn get_interval_delay_ms(rule: &AutoScoreRule, value: Option<&str>) -> Option<i6
         unit: IntervalUnit::Minute,
     });
 
-    let Some(base_time) = rule
+    let last_executed = rule
         .last_executed
         .as_ref()
         .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
-        .map(|parsed| parsed.with_timezone(&Utc))
-    else {
+        .map(|parsed| parsed.with_timezone(&Utc));
+    let start_at = rule
+        .execution
+        .start_at
+        .as_ref()
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|parsed| parsed.with_timezone(&Utc));
+
+    let base_time = match (last_executed, start_at) {
+        (Some(last), Some(start)) => Some(if last > start { last } else { start }),
+        (Some(last), None) => Some(last),
+        (None, Some(start)) => Some(start),
+        (None, None) => None,
+    };
+
+    let Some(base_time) = base_time else {
         return Some(0);
     };
 
@@ -1438,10 +1482,184 @@ pub async fn rollback_execution_batch(
     Ok(batch)
 }
 
+fn interval_base_time(rule: &AutoScoreRule) -> Option<DateTime<Utc>> {
+    let last_executed = rule
+        .last_executed
+        .as_ref()
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|parsed| parsed.with_timezone(&Utc));
+    let start_at = rule
+        .execution
+        .start_at
+        .as_ref()
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|parsed| parsed.with_timezone(&Utc));
+
+    match (last_executed, start_at) {
+        (Some(last), Some(start)) => Some(if last > start { last } else { start }),
+        (Some(last), None) => Some(last),
+        (None, Some(start)) => Some(start),
+        (None, None) => None,
+    }
+}
+
+fn interval_value_for_backfill(rule: &AutoScoreRule) -> Option<IntervalTriggerValue> {
+    let value = rule
+        .triggers
+        .iter()
+        .find(|trigger| trigger.event == "interval_time_passed")
+        .and_then(|trigger| trigger.value.as_deref());
+
+    parse_interval_trigger_value(value)
+}
+
+fn calculate_rule_backfill_runs(rule: &AutoScoreRule, now: DateTime<Utc>) -> i64 {
+    if !rule.enabled {
+        return 0;
+    }
+
+    let Some(base_time) = interval_base_time(rule) else {
+        return 0;
+    };
+    if base_time >= now {
+        return 0;
+    }
+
+    let Some(interval) = interval_value_for_backfill(rule) else {
+        return 0;
+    };
+
+    let Some(mut next) = add_interval_to_time(base_time, &interval) else {
+        return 0;
+    };
+
+    let mut runs = 0_i64;
+    while next <= now {
+        runs += 1;
+        if runs >= AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE {
+            break;
+        }
+        let Some(next_value) = add_interval_to_time(next, &interval) else {
+            break;
+        };
+        next = next_value;
+    }
+
+    runs
+}
+
+pub async fn apply_offline_backfill(
+    state: &SafeAppState,
+    items: &[AutoScoreBackfillItem],
+) -> Result<AutoScoreBackfillResult, String> {
+    if items.is_empty() {
+        return Ok(AutoScoreBackfillResult::default());
+    }
+
+    let mut requested_runs_by_rule: HashMap<i32, i64> = HashMap::new();
+    for item in items {
+        if item.runs <= 0 {
+            continue;
+        }
+        let capped = item.runs.min(AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE);
+        if capped <= 0 {
+            continue;
+        }
+        requested_runs_by_rule
+            .entry(item.rule_id)
+            .and_modify(|value| *value = (*value + capped).min(AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE))
+            .or_insert(capped);
+    }
+    if requested_runs_by_rule.is_empty() {
+        return Ok(AutoScoreBackfillResult::default());
+    }
+
+    let conn = {
+        let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
+        db_conn
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let mut execution_batches = load_batches_from_settings(state).await?;
+    let rules_snapshot = {
+        let state_guard = state.read();
+        let auto_score = state_guard.auto_score.read();
+        auto_score.get_rules().to_vec()
+    };
+    let mut next_rules = rules_snapshot.clone();
+    let mut result = AutoScoreBackfillResult::default();
+    let now = Utc::now();
+    let mut changed = false;
+
+    for rule in next_rules.iter_mut().filter(|rule| rule.enabled) {
+        let Some(requested_runs) = requested_runs_by_rule.get(&rule.id).copied() else {
+            continue;
+        };
+        if requested_runs <= 0 {
+            continue;
+        }
+
+        let available_runs = calculate_rule_backfill_runs(rule, now);
+        let replay_runs = requested_runs.min(available_runs);
+        if replay_runs <= 0 {
+            continue;
+        }
+
+        result.applied_rules += 1;
+        changed = true;
+
+        for _ in 0..replay_runs {
+            let stats = execute_rule(&conn, rule, &execution_batches, ExecutionMode::Backfill).await?;
+            result.applied_runs += 1;
+            result.affected_students += stats.affected_students;
+            result.created_events += stats.created_events;
+            result.score_delta_total += stats.score_delta_total;
+
+            if stats.affected_students == 0 {
+                continue;
+            }
+
+            let batch = AutoScoreExecutionBatch {
+                id: Uuid::new_v4().to_string(),
+                rule_id: rule.id,
+                rule_name: rule.name.clone(),
+                run_at: now_iso(),
+                affected_students: stats.affected_students,
+                affected_student_names: stats.affected_student_names.clone(),
+                created_event_ids: stats.created_event_ids.clone(),
+                added_student_tag_ids: stats.added_student_tag_ids.clone(),
+                score_delta_total: stats.score_delta_total,
+                settled: stats.settled,
+                rolled_back: false,
+                rollback_at: None,
+            };
+            execution_batches.push(batch);
+        }
+
+        rule.last_executed = Some(Utc::now().to_rfc3339());
+    }
+
+    if !changed {
+        return Ok(result);
+    }
+
+    persist_rules_to_settings(state, &next_rules).await?;
+    save_batches_to_settings(state, &execution_batches).await?;
+    {
+        let state_guard = state.read();
+        let mut auto_score = state_guard.auto_score.write();
+        auto_score.replace_rules(next_rules);
+    }
+
+    Ok(result)
+}
+
 async fn execute_rule(
     conn: &DatabaseConnection,
     rule: &AutoScoreRule,
     execution_batches: &[AutoScoreExecutionBatch],
+    mode: ExecutionMode,
 ) -> Result<RuleExecutionStats, String> {
     let mut target_students = resolve_target_students(conn, rule).await?;
 
@@ -1460,15 +1678,15 @@ async fn execute_rule(
         return Ok(RuleExecutionStats::default());
     }
 
-    if let Some(max_runs) = rule.execution.max_runs_per_day {
-        let today_runs = execution_batches
-            .iter()
-            .filter(|batch| {
-                batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at)
-            })
-            .count() as i64;
-        if today_runs >= max_runs {
-            return Ok(RuleExecutionStats::default());
+    if mode == ExecutionMode::Normal {
+        if let Some(max_runs) = rule.execution.max_runs_per_day {
+            let today_runs = execution_batches
+                .iter()
+                .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+                .count() as i64;
+            if today_runs >= max_runs {
+                return Ok(RuleExecutionStats::default());
+            }
         }
     }
 
@@ -1482,9 +1700,7 @@ async fn execute_rule(
 
     let mut daily_score_delta_used: i64 = execution_batches
         .iter()
-        .filter(|batch| {
-            batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at)
-        })
+        .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
         .map(|batch| batch.score_delta_total.abs())
         .sum();
 
@@ -1506,27 +1722,31 @@ async fn execute_rule(
     }
 
     for mut student in target_students {
-        if !is_student_pass_cooldown(
-            conn,
-            execution_batches,
-            rule,
-            student.id,
-            student.name.as_str(),
-        )
-        .await?
-        {
-            continue;
+        if mode == ExecutionMode::Normal {
+            if !is_student_pass_cooldown(
+                conn,
+                execution_batches,
+                rule,
+                student.id,
+                student.name.as_str(),
+            )
+            .await?
+            {
+                continue;
+            }
         }
         let mut touched = false;
         for action in &planned_actions {
             match action {
                 PlannedAction::AddScore(delta) => {
-                    if let Some(max_delta) = rule.execution.max_score_delta_per_day {
-                        let next = daily_score_delta_used + (*delta as i64).abs();
-                        if next > max_delta {
-                            continue;
+                    if mode == ExecutionMode::Normal {
+                        if let Some(max_delta) = rule.execution.max_score_delta_per_day {
+                            let next = daily_score_delta_used + (*delta as i64).abs();
+                            if next > max_delta {
+                                continue;
+                            }
+                            daily_score_delta_used = next;
                         }
-                        daily_score_delta_used = next;
                     }
                     let now = now_iso();
                     let val_prev = student.score;
