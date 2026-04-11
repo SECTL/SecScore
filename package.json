@@ -23,6 +23,7 @@
     "@tauri-apps/plugin-shell": "^2.3.5",
     "antd": "^6.3.1",
     "appwrite": "^24.0.0",
+    "crypto-js": "^4.2.0",
     "dayjs": "^1.11.20",
     "i18next": "^25.8.14",
     "json-rules-engine": "^7.3.1",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",
+    "@types/crypto-js": "^4.2.2",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

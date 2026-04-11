@@ -2,10 +2,10 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::BTreeSet;
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter, State};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::process::Command;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
 #[cfg(target_os = "windows")]
 use winreg::enums::HKEY_LOCAL_MACHINE;
 #[cfg(target_os = "windows")]

@@ -1,4 +1,5 @@
 use parking_lot::RwLock;
+use reqwest::Client;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -19,6 +20,7 @@ pub struct AppState {
     pub auto_score: Arc<RwLock<AutoScoreService>>,
     pub logger: Arc<RwLock<LoggerService>>,
     pub data: Arc<RwLock<DataService>>,
+    pub http_client: Client,
     pub app_handle: AppHandle,
 }
 
@@ -34,6 +36,11 @@ impl AppState {
         let data = Arc::new(RwLock::new(DataService::new()));
         let db = Arc::new(RwLock::new(None));
 
+        let http_client = Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to create HTTP client");
+
         Self {
             db,
             settings,
@@ -44,6 +51,7 @@ impl AppState {
             auto_score,
             logger,
             data,
+            http_client,
             app_handle,
         }
     }

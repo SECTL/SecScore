@@ -73,7 +73,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
       if (result.code) {
         console.log("[OAuth] 授权码:", result.code)
         console.log("[OAuth] State:", result.state, "期望:", getExpectedState())
-        
+
         // 验证 state 防止 CSRF
         const expectedState = getExpectedState()
         if (expectedState && result.state !== expectedState) {

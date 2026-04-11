@@ -1,7 +1,7 @@
 use chrono::{DateTime, Months, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
-    QueryFilter, Set, Statement, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    Set, Statement, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
@@ -523,7 +523,9 @@ fn normalize_execution_config(
     Ok(config)
 }
 
-fn normalize_filter_config(mut config: AutoScoreFilterConfig) -> Result<AutoScoreFilterConfig, String> {
+fn normalize_filter_config(
+    mut config: AutoScoreFilterConfig,
+) -> Result<AutoScoreFilterConfig, String> {
     config.groups = dedupe_trimmed_strings(config.groups);
     config.grades = dedupe_trimmed_strings(config.grades);
     if let (Some(min_score), Some(max_score)) = (config.min_score, config.max_score) {
@@ -539,7 +541,10 @@ fn normalize_filter_config(mut config: AutoScoreFilterConfig) -> Result<AutoScor
 fn build_trigger_tree_from_triggers(triggers: &[AutoScoreTrigger]) -> JsonValue {
     JsonValue::Object(
         [
-            ("id".to_string(), JsonValue::String(Uuid::new_v4().to_string())),
+            (
+                "id".to_string(),
+                JsonValue::String(Uuid::new_v4().to_string()),
+            ),
             ("type".to_string(), JsonValue::String("group".to_string())),
             (
                 "properties".to_string(),
@@ -614,7 +619,10 @@ fn build_trigger_rule_node(trigger: &AutoScoreTrigger) -> JsonValue {
 
     JsonValue::Object(
         [
-            ("id".to_string(), JsonValue::String(Uuid::new_v4().to_string())),
+            (
+                "id".to_string(),
+                JsonValue::String(Uuid::new_v4().to_string()),
+            ),
             ("type".to_string(), JsonValue::String("rule".to_string())),
             (
                 "properties".to_string(),
@@ -707,7 +715,10 @@ fn normalize_trigger_tree_group(node: JsonValue) -> Result<JsonValue, String> {
                     "not": not,
                 }),
             ),
-            ("children1".to_string(), JsonValue::Array(normalized_children)),
+            (
+                "children1".to_string(),
+                JsonValue::Array(normalized_children),
+            ),
         ]
         .into_iter()
         .collect(),
@@ -843,7 +854,11 @@ fn trigger_from_rule_node(node: &JsonValue) -> Result<AutoScoreTrigger, String> 
             };
             let trigger = AutoScoreTrigger {
                 event: event.to_string(),
-                value: if score.trim().is_empty() { None } else { Some(score) },
+                value: if score.trim().is_empty() {
+                    None
+                } else {
+                    Some(score)
+                },
             };
             normalize_trigger(trigger)
         }
@@ -1033,7 +1048,11 @@ fn parse_positive_i64(value: &JsonValue) -> Option<i64> {
 fn parse_non_negative_i64(value: &JsonValue) -> Option<i64> {
     match value {
         JsonValue::Number(number) => number.as_i64().filter(|parsed| *parsed >= 0),
-        JsonValue::String(text) => text.trim().parse::<i64>().ok().filter(|parsed| *parsed >= 0),
+        JsonValue::String(text) => text
+            .trim()
+            .parse::<i64>()
+            .ok()
+            .filter(|parsed| *parsed >= 0),
         _ => None,
     }
 }
@@ -1090,12 +1109,10 @@ fn stringify_interval_trigger_value(value: &IntervalTriggerValue) -> Option<Stri
 
             match unit {
                 IntervalUnit::Minute => Some(amount.to_string()),
-                IntervalUnit::Day | IntervalUnit::Month => serde_json::to_string(
-                    &json!({
-                        "amount": amount,
-                        "unit": unit,
-                    }),
-                )
+                IntervalUnit::Day | IntervalUnit::Month => serde_json::to_string(&json!({
+                    "amount": amount,
+                    "unit": unit,
+                }))
                 .ok(),
             }
         }
@@ -1127,9 +1144,7 @@ fn add_interval_to_time(
             IntervalUnit::Minute => {
                 base_time.checked_add_signed(chrono::Duration::minutes(*amount))
             }
-            IntervalUnit::Day => {
-                base_time.checked_add_signed(chrono::Duration::days(*amount))
-            }
+            IntervalUnit::Day => base_time.checked_add_signed(chrono::Duration::days(*amount)),
             IntervalUnit::Month => {
                 let months = u32::try_from(*amount).ok()?;
                 base_time.checked_add_months(Months::new(months))
@@ -1349,7 +1364,9 @@ fn deserialize_batches(value: &JsonValue) -> Vec<AutoScoreExecutionBatch> {
         .collect()
 }
 
-async fn load_batches_from_settings(state: &SafeAppState) -> Result<Vec<AutoScoreExecutionBatch>, String> {
+async fn load_batches_from_settings(
+    state: &SafeAppState,
+) -> Result<Vec<AutoScoreExecutionBatch>, String> {
     let state_guard = state.read();
     let db_conn = state_guard.db.read().clone();
     let mut settings = state_guard.settings.write();
@@ -1378,7 +1395,9 @@ async fn save_batches_to_settings(
     Ok(())
 }
 
-pub async fn query_execution_batches(state: &SafeAppState) -> Result<Vec<AutoScoreExecutionBatch>, String> {
+pub async fn query_execution_batches(
+    state: &SafeAppState,
+) -> Result<Vec<AutoScoreExecutionBatch>, String> {
     let mut batches = load_batches_from_settings(state).await?;
     batches.sort_by(|a, b| b.run_at.cmp(&a.run_at));
     Ok(batches)
@@ -1679,15 +1698,11 @@ async fn execute_rule(
         .iter()
         .any(|action| matches!(action, PlannedAction::SettleScore));
 
-    let mut daily_score_delta_used: i64 = if mode == ExecutionMode::Normal {
-        execution_batches
-            .iter()
-            .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
-            .map(|batch| batch.score_delta_total.abs())
-            .sum()
-    } else {
-        0
-    };
+    let mut daily_score_delta_used: i64 = execution_batches
+        .iter()
+        .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+        .map(|batch| batch.score_delta_total.abs())
+        .sum();
 
     let txn = conn.begin().await.map_err(|e| e.to_string())?;
     let mut stats = RuleExecutionStats::default();
@@ -1799,9 +1814,9 @@ async fn execute_rule(
 }
 
 fn plan_actions(actions: &[AutoScoreAction]) -> Result<Vec<PlannedAction>, String> {
-  let mut planned = Vec::new();
-  for action in actions {
-    match action.event.as_str() {
+    let mut planned = Vec::new();
+    for action in actions {
+        match action.event.as_str() {
             "add_score" => {
                 let delta = action
                     .value
@@ -1822,57 +1837,62 @@ fn plan_actions(actions: &[AutoScoreAction]) -> Result<Vec<PlannedAction>, Strin
                 planned.push(PlannedAction::SettleScore);
             }
             _ => {}
+        }
     }
-  }
-  Ok(planned)
+    Ok(planned)
 }
 
 async fn execute_settlement(conn: &DatabaseConnection) -> Result<(), String> {
-  let backend = conn.get_database_backend();
-  let count_stmt = Statement::from_string(
-    backend,
-    "SELECT COUNT(*) AS cnt FROM score_events WHERE settlement_id IS NULL",
-  );
-  let count_row = conn.query_one(count_stmt).await.map_err(|e| e.to_string())?;
-  let Some(count_row) = count_row else {
-    return Ok(());
-  };
-  let unsettled_count = try_get_i64(&count_row, "cnt").unwrap_or(0);
-  if unsettled_count <= 0 {
-    return Ok(());
-  }
-
-  let last_end_sql = match backend {
-    sea_orm::DatabaseBackend::Sqlite => {
-      "SELECT end_time AS end_time FROM settlements ORDER BY julianday(end_time) DESC LIMIT 1"
+    let backend = conn.get_database_backend();
+    let count_stmt = Statement::from_string(
+        backend,
+        "SELECT COUNT(*) AS cnt FROM score_events WHERE settlement_id IS NULL",
+    );
+    let count_row = conn
+        .query_one(count_stmt)
+        .await
+        .map_err(|e| e.to_string())?;
+    let Some(count_row) = count_row else {
+        return Ok(());
+    };
+    let unsettled_count = try_get_i64(&count_row, "cnt").unwrap_or(0);
+    if unsettled_count <= 0 {
+        return Ok(());
     }
-    sea_orm::DatabaseBackend::Postgres => {
-      "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1"
-    }
-    _ => "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1",
-  };
-  let min_event_sql =
-    "SELECT MIN(event_time) AS min_event_time FROM score_events WHERE settlement_id IS NULL";
 
-  let last_end = conn
-    .query_one(Statement::from_string(backend, last_end_sql))
-    .await
-    .map_err(|e| e.to_string())?
-    .and_then(|row| try_get_string(&row, "end_time"));
+    let last_end_sql = match backend {
+        sea_orm::DatabaseBackend::Sqlite => {
+            "SELECT end_time AS end_time FROM settlements ORDER BY julianday(end_time) DESC LIMIT 1"
+        }
+        sea_orm::DatabaseBackend::Postgres => {
+            "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1"
+        }
+        _ => "SELECT end_time AS end_time FROM settlements ORDER BY end_time DESC LIMIT 1",
+    };
+    let min_event_sql =
+        "SELECT MIN(event_time) AS min_event_time FROM score_events WHERE settlement_id IS NULL";
 
-  let min_event_time = conn
-    .query_one(Statement::from_string(backend, min_event_sql))
-    .await
-    .map_err(|e| e.to_string())?
-    .and_then(|row| try_get_string(&row, "min_event_time"));
+    let last_end = conn
+        .query_one(Statement::from_string(backend, last_end_sql))
+        .await
+        .map_err(|e| e.to_string())?
+        .and_then(|row| try_get_string(&row, "end_time"));
 
-  let end_time = now_iso();
-  let start_time = last_end.or(min_event_time).unwrap_or_else(|| end_time.clone());
-  let created_at = end_time.clone();
+    let min_event_time = conn
+        .query_one(Statement::from_string(backend, min_event_sql))
+        .await
+        .map_err(|e| e.to_string())?
+        .and_then(|row| try_get_string(&row, "min_event_time"));
 
-  match backend {
-    sea_orm::DatabaseBackend::Postgres => {
-      let insert_stmt = Statement::from_string(
+    let end_time = now_iso();
+    let start_time = last_end
+        .or(min_event_time)
+        .unwrap_or_else(|| end_time.clone());
+    let created_at = end_time.clone();
+
+    match backend {
+        sea_orm::DatabaseBackend::Postgres => {
+            let insert_stmt = Statement::from_string(
         backend,
         format!(
           "INSERT INTO settlements (start_time, end_time, created_at) VALUES ('{}', '{}', '{}') RETURNING id",
@@ -1881,74 +1901,82 @@ async fn execute_settlement(conn: &DatabaseConnection) -> Result<(), String> {
           created_at.replace('\'', "''")
         ),
       );
-      let row = conn
-        .query_one(insert_stmt)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Failed to create settlement".to_string())?;
-      let settlement_id = try_get_i32(&row, "id")
-        .ok_or_else(|| "Failed to read settlement id".to_string())?;
+            let row = conn
+                .query_one(insert_stmt)
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "Failed to create settlement".to_string())?;
+            let settlement_id = try_get_i32(&row, "id")
+                .ok_or_else(|| "Failed to read settlement id".to_string())?;
 
-      let update_events_stmt = Statement::from_string(
-        backend,
-        format!(
-          "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
-          settlement_id
-        ),
-      );
-      conn.execute(update_events_stmt).await.map_err(|e| e.to_string())?;
+            let update_events_stmt = Statement::from_string(
+                backend,
+                format!(
+                    "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
+                    settlement_id
+                ),
+            );
+            conn.execute(update_events_stmt)
+                .await
+                .map_err(|e| e.to_string())?;
 
-      let update_students_stmt = Statement::from_string(
-        backend,
-        format!(
-          "UPDATE students SET score = 0, updated_at = '{}' ",
-          end_time.replace('\'', "''")
-        ),
-      );
-      conn.execute(update_students_stmt).await.map_err(|e| e.to_string())?;
-    }
-    _ => {
-      let insert_stmt = Statement::from_string(
-        backend,
-        format!(
+            let update_students_stmt = Statement::from_string(
+                backend,
+                format!(
+                    "UPDATE students SET score = 0, updated_at = '{}' ",
+                    end_time.replace('\'', "''")
+                ),
+            );
+            conn.execute(update_students_stmt)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        _ => {
+            let insert_stmt = Statement::from_string(
+                backend,
+                format!(
           "INSERT INTO settlements (start_time, end_time, created_at) VALUES ('{}', '{}', '{}')",
           start_time.replace('\'', "''"),
           end_time.replace('\'', "''"),
           created_at.replace('\'', "''")
         ),
-      );
-      conn.execute(insert_stmt).await.map_err(|e| e.to_string())?;
+            );
+            conn.execute(insert_stmt).await.map_err(|e| e.to_string())?;
 
-      let id_stmt = Statement::from_string(backend, "SELECT last_insert_rowid() AS id");
-      let row = conn
-        .query_one(id_stmt)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Failed to read settlement id".to_string())?;
-      let settlement_id = try_get_i32(&row, "id")
-        .ok_or_else(|| "Failed to read settlement id".to_string())?;
+            let id_stmt = Statement::from_string(backend, "SELECT last_insert_rowid() AS id");
+            let row = conn
+                .query_one(id_stmt)
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "Failed to read settlement id".to_string())?;
+            let settlement_id = try_get_i32(&row, "id")
+                .ok_or_else(|| "Failed to read settlement id".to_string())?;
 
-      let update_events_stmt = Statement::from_string(
-        backend,
-        format!(
-          "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
-          settlement_id
-        ),
-      );
-      conn.execute(update_events_stmt).await.map_err(|e| e.to_string())?;
+            let update_events_stmt = Statement::from_string(
+                backend,
+                format!(
+                    "UPDATE score_events SET settlement_id = {} WHERE settlement_id IS NULL",
+                    settlement_id
+                ),
+            );
+            conn.execute(update_events_stmt)
+                .await
+                .map_err(|e| e.to_string())?;
 
-      let update_students_stmt = Statement::from_string(
-        backend,
-        format!(
-          "UPDATE students SET score = 0, updated_at = '{}'",
-          end_time.replace('\'', "''")
-        ),
-      );
-      conn.execute(update_students_stmt).await.map_err(|e| e.to_string())?;
+            let update_students_stmt = Statement::from_string(
+                backend,
+                format!(
+                    "UPDATE students SET score = 0, updated_at = '{}'",
+                    end_time.replace('\'', "''")
+                ),
+            );
+            conn.execute(update_students_stmt)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
     }
-  }
 
-  Ok(())
+    Ok(())
 }
 
 #[derive(Debug, Default)]
@@ -1957,7 +1985,10 @@ struct TriggerEvalContext {
     sql_refs_by_query: HashMap<String, StudentRefs>,
 }
 
-fn collect_sql_queries_from_tree(node: &JsonValue, queries: &mut Vec<String>) -> Result<(), String> {
+fn collect_sql_queries_from_tree(
+    node: &JsonValue,
+    queries: &mut Vec<String>,
+) -> Result<(), String> {
     let Some(node_type) = node.get("type").and_then(JsonValue::as_str) else {
         return Err("Trigger tree node type is required".to_string());
     };
@@ -1979,7 +2010,12 @@ fn collect_sql_queries_from_tree(node: &JsonValue, queries: &mut Vec<String>) ->
                 trigger.event.as_str(),
                 "query_sql" | "student_query_sql" | "student_sql"
             ) {
-                if let Some(sql) = trigger.value.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+                if let Some(sql) = trigger
+                    .value
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                {
                     queries.push(sql.to_string());
                 }
             }
@@ -2094,7 +2130,9 @@ fn evaluate_trigger_tree_for_student(
                         .to_string();
                     ctx.sql_refs_by_query
                         .get(&sql)
-                        .map(|refs| refs.ids.contains(&student.id) || refs.names.contains(&student.name))
+                        .map(|refs| {
+                            refs.ids.contains(&student.id) || refs.names.contains(&student.name)
+                        })
                         .unwrap_or(false)
                 }
                 "student_score_gt" => trigger
@@ -2118,8 +2156,8 @@ fn evaluate_trigger_tree_for_student(
 }
 
 async fn resolve_target_students(
-  conn: &DatabaseConnection,
-  rule: &AutoScoreRule,
+    conn: &DatabaseConnection,
+    rule: &AutoScoreRule,
 ) -> Result<Vec<students::Model>, String> {
     let all_students = students::Entity::find()
         .all(conn)
@@ -2157,7 +2195,6 @@ async fn resolve_target_students(
     Ok(matched)
 }
 
-
 async fn is_student_pass_cooldown(
     conn: &DatabaseConnection,
     execution_batches: &[AutoScoreExecutionBatch],
@@ -2181,16 +2218,18 @@ async fn is_student_pass_cooldown(
         let run_at = DateTime::parse_from_rfc3339(batch.run_at.as_str())
             .map(|value| value.with_timezone(&Utc))
             .unwrap_or_else(|_| Utc::now() - chrono::Duration::days(3650));
-        if run_at >= cutoff && batch.affected_student_names.iter().any(|name| name == student_name)
+        if run_at >= cutoff
+            && batch
+                .affected_student_names
+                .iter()
+                .any(|name| name == student_name)
         {
             return Ok(false);
         }
     }
 
     let prefix = format!("{}#{}:", AUTO_SCORE_REASON_PREFIX, rule.id);
-    let since = cutoff
-        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-        .to_string();
+    let since = cutoff.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
 
     let exists = score_events::Entity::find()
         .filter(score_events::Column::StudentName.eq(student_name.to_string()))
