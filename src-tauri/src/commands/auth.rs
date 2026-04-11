@@ -362,8 +362,11 @@ pub async fn oauth_exchange_code(
     callback_url: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
-    println!("[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}", code, platform_id, callback_url);
-    
+    println!(
+        "[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}",
+        code, platform_id, callback_url
+    );
+
     let state_guard = state.read();
     let client = &state_guard.http_client;
     let params = [
@@ -411,7 +414,7 @@ pub async fn oauth_revoke_token(
 ) -> Result<IpcResponse<()>, String> {
     let state_guard = state.read();
     let client = &state_guard.http_client;
-    
+
     let mut payload = serde_json::json!({
         "token": token,
         "client_id": platform_id,
@@ -449,7 +452,7 @@ pub async fn oauth_introspect_token(
 ) -> Result<IpcResponse<OAuthIntrospectResponse>, String> {
     let state_guard = state.read();
     let client = &state_guard.http_client;
-    
+
     let response = client
         .post("https://sectl.top/api/oauth/introspect")
         .json(&serde_json::json!({
@@ -484,7 +487,7 @@ pub async fn oauth_get_user_info(
 ) -> Result<IpcResponse<OAuthUserInfo>, String> {
     let state_guard = state.read();
     let client = &state_guard.http_client;
-    
+
     let response = client
         .get("https://sectl.top/api/oauth/userinfo")
         .header("Authorization", format!("Bearer {}", access_token))
@@ -517,7 +520,7 @@ pub async fn oauth_refresh_token(
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     let state_guard = state.read();
     let client = &state_guard.http_client;
-    
+
     let response = client
         .post("https://sectl.top/api/oauth/token")
         .json(&serde_json::json!({

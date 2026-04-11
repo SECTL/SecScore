@@ -35,7 +35,7 @@ impl AppState {
         let logger = Arc::new(RwLock::new(LoggerService::new()));
         let data = Arc::new(RwLock::new(DataService::new()));
         let db = Arc::new(RwLock::new(None));
-        
+
         let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
