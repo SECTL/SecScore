@@ -14,6 +14,7 @@ pub struct SettingsSpec {
     pub themes_custom: JsonValue,
     pub auto_score_enabled: bool,
     pub auto_score_rules: JsonValue,
+    pub auto_score_batches: JsonValue,
     pub current_theme_id: String,
     pub dashboards_config: JsonValue,
     pub pg_connection_string: String,
@@ -33,6 +34,7 @@ impl Default for SettingsSpec {
             themes_custom: JsonValue::Array(vec![]),
             auto_score_enabled: false,
             auto_score_rules: JsonValue::Array(vec![]),
+            auto_score_batches: JsonValue::Array(vec![]),
             current_theme_id: "light-default".to_string(),
             dashboards_config: JsonValue::Array(vec![]),
             pg_connection_string: String::new(),
@@ -64,6 +66,7 @@ pub enum SettingsKey {
     ThemesCustom,
     AutoScoreEnabled,
     AutoScoreRules,
+    AutoScoreBatches,
     CurrentThemeId,
     DashboardsConfig,
     PgConnectionString,
@@ -83,6 +86,7 @@ impl SettingsKey {
             SettingsKey::ThemesCustom => "themes_custom",
             SettingsKey::AutoScoreEnabled => "auto_score_enabled",
             SettingsKey::AutoScoreRules => "auto_score_rules",
+            SettingsKey::AutoScoreBatches => "auto_score_batches",
             SettingsKey::CurrentThemeId => "current_theme_id",
             SettingsKey::DashboardsConfig => "dashboards_config",
             SettingsKey::PgConnectionString => "pg_connection_string",
@@ -102,6 +106,7 @@ impl SettingsKey {
             "themes_custom" => Some(SettingsKey::ThemesCustom),
             "auto_score_enabled" => Some(SettingsKey::AutoScoreEnabled),
             "auto_score_rules" => Some(SettingsKey::AutoScoreRules),
+            "auto_score_batches" => Some(SettingsKey::AutoScoreBatches),
             "current_theme_id" => Some(SettingsKey::CurrentThemeId),
             "dashboards_config" => Some(SettingsKey::DashboardsConfig),
             "pg_connection_string" => Some(SettingsKey::PgConnectionString),
@@ -379,6 +384,16 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::AutoScoreBatches,
+            SettingDefinition {
+                kind: SettingValueKind::Json,
+                default_value: SettingsValue::Json(JsonValue::Array(vec![])),
+                write_permission: PermissionRequirement::Admin,
+                validate: None,
+            },
+        );
+
+        defs.insert(
             SettingsKey::CurrentThemeId,
             SettingDefinition {
                 kind: SettingValueKind::String,
@@ -583,6 +598,10 @@ impl SettingsService {
                 _ => false,
             },
             auto_score_rules: match self.get_value(SettingsKey::AutoScoreRules) {
+                SettingsValue::Json(j) => j,
+                _ => JsonValue::Array(vec![]),
+            },
+            auto_score_batches: match self.get_value(SettingsKey::AutoScoreBatches) {
                 SettingsValue::Json(j) => j,
                 _ => JsonValue::Array(vec![]),
             },

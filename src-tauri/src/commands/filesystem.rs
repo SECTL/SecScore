@@ -3,6 +3,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Arc;
 use tauri::State;
 
@@ -283,4 +284,56 @@ pub async fn fs_file_exists(
     let file_path = folder_path.join(&relative_path);
 
     Ok(IpcResponse::success(file_path.exists()))
+}
+
+#[tauri::command]
+pub async fn fs_open_path(
+    relative_path: String,
+    folder: String,
+    _state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<()>, String> {
+    let folder_type = ConfigFolder::from_str(&folder)
+        .ok_or_else(|| format!("Invalid folder type: {}", folder))?;
+
+    let folder_path = ensure_folder_exists(&folder_type)?;
+    let file_path = folder_path.join(&relative_path);
+
+    if !file_path.exists() {
+        return Ok(IpcResponse::error("File not found"));
+    }
+
+    open_path_with_system(&file_path)?;
+    Ok(IpcResponse::success_empty())
+}
+
+fn open_path_with_system(path: &PathBuf) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/C", "start", "", path.to_string_lossy().as_ref()])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    #[allow(unreachable_code)]
+    Err("Unsupported platform".to_string())
 }

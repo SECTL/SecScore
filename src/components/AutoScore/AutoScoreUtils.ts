@@ -24,17 +24,40 @@ export interface AutoScoreAction {
   value?: string | null
 }
 
+export interface AutoScoreExecutionConfig {
+  cooldownMinutes?: number | null
+  maxRunsPerDay?: number | null
+  maxScoreDeltaPerDay?: number | null
+}
+
+export interface AutoScoreExecutionBatch {
+  id: string
+  ruleId: number
+  ruleName: string
+  runAt: string
+  affectedStudents: number
+  affectedStudentNames: string[]
+  createdEventIds: number[]
+  addedStudentTagIds: number[]
+  scoreDeltaTotal: number
+  settled: boolean
+  rolledBack: boolean
+  rollbackAt?: string | null
+}
+
 export interface AutoScoreRule {
   id: number
   name: string
   enabled: boolean
   studentNames: string[]
   triggers: AutoScoreTrigger[]
+  triggerTree?: JsonGroup | null
   actions: AutoScoreAction[]
+  execution?: AutoScoreExecutionConfig
   lastExecuted?: string | null
 }
 
-export type ActionEvent = "add_score" | "add_tag"
+export type ActionEvent = "add_score" | "add_tag" | "settle_score"
 
 export interface AutoScoreTagOption {
   label: string
@@ -51,9 +74,14 @@ export type ActionDraftError = "action_required" | "score_required" | "tag_requi
 
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
+const TRIGGER_FIELD_SQL = "student_sql"
+const TRIGGER_FIELD_SCORE = "student_score"
+const TRIGGER_FIELD_SCORE_GT = "student_score_gt"
 const TRIGGER_TYPE_INTERVAL = "interval_duration"
 const TRIGGER_WIDGET_INTERVAL = "interval_duration"
 const OP_EQUAL = "equal"
+const OP_GREATER = "greater"
+const OP_LESS = "less"
 const OP_MULTISELECT_CONTAINS = "multiselect_contains"
 
 const buildEmptyGroup = (): JsonGroup => ({
@@ -146,11 +174,44 @@ const ruleFromTrigger = (trigger: AutoScoreTrigger): JsonRule | null => {
     }
   }
 
+  if (
+    trigger.event === "query_sql" ||
+    trigger.event === "student_query_sql" ||
+    trigger.event === "student_sql"
+  ) {
+    const sql = toStringValue(trigger.value).trim()
+    if (!sql) return null
+    return {
+      id: QbUtils.uuid(),
+      type: "rule",
+      properties: {
+        field: TRIGGER_FIELD_SQL,
+        operator: OP_EQUAL,
+        value: [sql],
+      },
+    }
+  }
+
+  if (trigger.event === "student_score_gt" || trigger.event === "student_score_lt") {
+    const score = toFiniteNumber(trigger.value)
+    if (score === null) return null
+    return {
+      id: QbUtils.uuid(),
+      type: "rule",
+      properties: {
+        field: TRIGGER_FIELD_SCORE,
+        operator: trigger.event === "student_score_lt" ? OP_LESS : OP_GREATER,
+        value: [score],
+      },
+    }
+  }
+
   return null
 }
 
 const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
   const field = typeof rule.properties?.field === "string" ? rule.properties.field : ""
+  const operator = typeof rule.properties?.operator === "string" ? rule.properties.operator : ""
   const value = Array.isArray(rule.properties?.value) ? rule.properties.value[0] : undefined
 
   if (field === TRIGGER_FIELD_INTERVAL) {
@@ -172,6 +233,24 @@ const triggerFromRule = (rule: JsonRule): AutoScoreTrigger | null => {
     return {
       event: "student_has_tag",
       value: serializedValue,
+    }
+  }
+
+  if (field === TRIGGER_FIELD_SQL) {
+    const sql = toStringValue(value).trim()
+    if (!sql) return null
+    return {
+      event: "query_sql",
+      value: sql,
+    }
+  }
+
+  if (field === TRIGGER_FIELD_SCORE || field === TRIGGER_FIELD_SCORE_GT) {
+    const score = toFiniteNumber(value)
+    if (score === null) return null
+    return {
+      event: operator === OP_LESS ? "student_score_lt" : "student_score_gt",
+      value: String(score),
     }
   }
 
@@ -197,6 +276,35 @@ const collectTriggersFromItems = (items: JsonItem[] | undefined): AutoScoreTrigg
 export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagOption[]): Config =>
   ({
     ...AntdConfig,
+    conjunctions: {
+      ...AntdConfig.conjunctions,
+      AND: {
+        ...AntdConfig.conjunctions.AND,
+        label: t("autoScore.relationAnd"),
+      },
+      OR: {
+        ...AntdConfig.conjunctions.OR,
+        label: t("autoScore.relationOr"),
+      },
+    },
+    operators: {
+      ...AntdConfig.operators,
+      [OP_GREATER]: {
+        ...AntdConfig.operators[OP_GREATER],
+        label: ">",
+        labelForFormat: ">",
+      },
+      [OP_LESS]: {
+        ...AntdConfig.operators[OP_LESS],
+        label: "<",
+        labelForFormat: "<",
+      },
+      [OP_MULTISELECT_CONTAINS]: {
+        ...AntdConfig.operators[OP_MULTISELECT_CONTAINS],
+        label: t("autoScore.operatorContains"),
+        labelForFormat: t("autoScore.operatorContains"),
+      },
+    },
     widgets: {
       ...AntdConfig.widgets,
       [TRIGGER_WIDGET_INTERVAL]: {
@@ -250,6 +358,22 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
           showSearch: true,
         },
       },
+      [TRIGGER_FIELD_SQL]: {
+        label: t("autoScore.triggerStudentSql"),
+        type: "text",
+        operators: [OP_EQUAL],
+        valueSources: ["value"],
+        fieldSettings: {
+          placeholder: t("autoScore.triggerStudentSqlPlaceholder"),
+        },
+      },
+      [TRIGGER_FIELD_SCORE]: {
+        label: t("autoScore.triggerStudentScore"),
+        type: "number",
+        defaultOperator: OP_GREATER,
+        operators: [OP_GREATER, OP_LESS],
+        valueSources: ["value"],
+      },
     },
     settings: {
       ...AntdConfig.settings,
@@ -257,15 +381,20 @@ export const createTriggerQueryConfig = (t: TFunction, tagOptions: AutoScoreTagO
       compactMode: false,
       renderSize: "medium",
       showNot: true,
+      notLabel: t("autoScore.relationNot"),
       forceShowConj: true,
       canLeaveEmptyGroup: false,
       canReorder: true,
       canRegroup: true,
+      setOpOnChangeField: ["default"],
     },
   }) as Config
 
 export const createEmptyTriggerTree = (config: Config): ImmutableTree =>
   QbUtils.checkTree(QbUtils.loadTree(buildEmptyGroup()), config)
+
+export const normalizeTriggerTree = (tree: ImmutableTree, config: Config): ImmutableTree =>
+  QbUtils.checkTree(tree, config)
 
 export const triggersToQueryTree = (
   config: Config,
@@ -284,6 +413,77 @@ export const queryTreeToTriggers = (tree: ImmutableTree, config: Config): AutoSc
   const jsonTree = QbUtils.getTree(checkedTree, false, true)
   if (!jsonTree || jsonTree.type !== "group") return []
   return collectTriggersFromItems(jsonTree.children1)
+}
+
+export const queryTreeToJson = (tree: ImmutableTree, config: Config): JsonGroup | null => {
+  const checkedTree = QbUtils.checkTree(tree, config)
+  const jsonTree = QbUtils.getTree(checkedTree, false, true)
+  if (!jsonTree || jsonTree.type !== "group") return null
+  return jsonTree as JsonGroup
+}
+
+const hydrateTriggerTreeNode = (
+  node: JsonItem,
+  fallbackTriggers: AutoScoreTrigger[],
+  fallbackIndex: { current: number }
+): JsonItem | null => {
+  if (node.type === "group") {
+    const children = Array.isArray(node.children1)
+      ? node.children1
+          .map((child) => hydrateTriggerTreeNode(child, fallbackTriggers, fallbackIndex))
+          .filter((child): child is JsonItem => Boolean(child))
+      : []
+    return {
+      ...node,
+      children1: children,
+    }
+  }
+
+  if (node.type !== "rule") {
+    return node
+  }
+
+  const fallbackTrigger = fallbackTriggers[fallbackIndex.current]
+  fallbackIndex.current += 1
+  const parsed = triggerFromRule(node)
+  if (parsed) {
+    const normalizedRule = ruleFromTrigger(parsed)
+    if (!normalizedRule) {
+      return node
+    }
+    return {
+      ...node,
+      properties: normalizedRule.properties,
+    }
+  }
+
+  if (!fallbackTrigger) {
+    return node
+  }
+
+  const fallbackRule = ruleFromTrigger(fallbackTrigger)
+  if (!fallbackRule) {
+    return node
+  }
+
+  return {
+    ...node,
+    properties: fallbackRule.properties,
+  }
+}
+
+export const triggerTreeJsonToQueryTree = (
+  config: Config,
+  triggerTree?: JsonGroup | null,
+  fallbackTriggers: AutoScoreTrigger[] = []
+): ImmutableTree => {
+  if (triggerTree && triggerTree.type === "group") {
+    const hydratedTree = hydrateTriggerTreeNode(triggerTree, fallbackTriggers, { current: 0 })
+    if (hydratedTree && hydratedTree.type === "group") {
+      return QbUtils.checkTree(QbUtils.loadTree(hydratedTree), config)
+    }
+  }
+  return triggersToQueryTree(config, fallbackTriggers)
 }
 
 const hasUnsupportedLogicInGroup = (group: JsonGroup): boolean => {
@@ -319,7 +519,7 @@ export const createDefaultActionDraft = (): ActionDraft => ({
 })
 
 const isActionEvent = (value: unknown): value is ActionEvent =>
-  value === "add_score" || value === "add_tag"
+  value === "add_score" || value === "add_tag" || value === "settle_score"
 
 export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined): ActionDraft[] => {
   if (!Array.isArray(drafts) || drafts.length === 0) {
@@ -336,7 +536,9 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
         value:
           draft.event === "add_tag"
             ? parseTagValues(draft.value)
-            : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
+            : draft.event === "settle_score"
+              ? ""
+              : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -347,12 +549,18 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
 export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
   const mapped = actions
     .map((action) => {
-      if (action.event !== "add_score" && action.event !== "add_tag") return null
+      if (action.event !== "add_score" && action.event !== "add_tag" && action.event !== "settle_score") {
+        return null
+      }
       return {
         id: QbUtils.uuid(),
         event: action.event,
         value:
-          action.event === "add_tag" ? parseTagValues(action.value) : toStringValue(action.value),
+          action.event === "add_tag"
+            ? parseTagValues(action.value)
+            : action.event === "settle_score"
+              ? ""
+              : toStringValue(action.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -376,6 +584,11 @@ export const actionDraftsToPayload = (
         return { actions: [], error: "score_required" }
       }
       actions.push({ event: draft.event, value: String(score) })
+      continue
+    }
+
+    if (draft.event === "settle_score") {
+      actions.push({ event: draft.event })
       continue
     }
 

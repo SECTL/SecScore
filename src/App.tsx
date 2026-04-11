@@ -33,26 +33,15 @@ import { OAuthLogin } from "./components/OAuth/OAuthLogin"
 import { OAuthCallback } from "./components/OAuth/OAuthCallback"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
+import { resolveStoredFontFamily } from "./shared/fontFamily"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(
   0,
   4
 )
-const SYSTEM_FONT_STACK =
-  '"PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans", "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
-
-const resolveFontFamily = (fontValue?: string): string => {
-  if (!fontValue || fontValue === "system") return SYSTEM_FONT_STACK
-  if (fontValue.startsWith("system-")) {
-    const family = fontValue.slice("system-".length).trim()
-    if (family) return `"${family}", ${SYSTEM_FONT_STACK}`
-  }
-  return SYSTEM_FONT_STACK
-}
-
 const applyGlobalFontFamily = (fontValue?: string) => {
-  const fontFamily = resolveFontFamily(fontValue)
+  const fontFamily = resolveStoredFontFamily(fontValue)
   document.documentElement.style.setProperty("--ss-font-family", fontFamily)
   document.body.style.fontFamily = fontFamily
 }

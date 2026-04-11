@@ -5,8 +5,9 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::services::{
-    AutoScoreAction, AutoScoreRule, AutoScoreService, AutoScoreTrigger, PermissionLevel,
-    SettingsKey, SettingsValue,
+    query_execution_batches, rollback_execution_batch, AutoScoreAction, AutoScoreExecutionBatch,
+    AutoScoreExecutionConfig, AutoScoreFilterConfig, AutoScoreRule, AutoScoreService,
+    AutoScoreTrigger, PermissionLevel, SettingsKey, SettingsValue,
 };
 use crate::state::AppState;
 
@@ -27,7 +28,13 @@ pub struct CreateAutoScoreRule {
     #[serde(rename = "studentNames")]
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
+    #[serde(rename = "triggerTree", default)]
+    pub trigger_tree: Option<JsonValue>,
     pub actions: Vec<AutoScoreAction>,
+    #[serde(default)]
+    pub execution: AutoScoreExecutionConfig,
+    #[serde(default)]
+    pub filters: AutoScoreFilterConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +45,19 @@ pub struct UpdateAutoScoreRule {
     #[serde(rename = "studentNames")]
     pub student_names: Vec<String>,
     pub triggers: Vec<AutoScoreTrigger>,
+    #[serde(rename = "triggerTree", default)]
+    pub trigger_tree: Option<JsonValue>,
     pub actions: Vec<AutoScoreAction>,
+    #[serde(default)]
+    pub execution: AutoScoreExecutionConfig,
+    #[serde(default)]
+    pub filters: AutoScoreFilterConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RollbackBatchParams {
+    #[serde(rename = "batchId")]
+    pub batch_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,7 +79,10 @@ fn build_rule_from_create(rule: CreateAutoScoreRule) -> AutoScoreRule {
         enabled: rule.enabled,
         student_names: rule.student_names,
         triggers: rule.triggers,
+        trigger_tree: rule.trigger_tree,
         actions: rule.actions,
+        execution: rule.execution,
+        filters: rule.filters,
         last_executed: None,
     }
 }
@@ -72,7 +94,10 @@ fn build_rule_from_update(rule: UpdateAutoScoreRule) -> AutoScoreRule {
         enabled: rule.enabled,
         student_names: rule.student_names,
         triggers: rule.triggers,
+        trigger_tree: rule.trigger_tree,
         actions: rule.actions,
+        execution: rule.execution,
+        filters: rule.filters,
         last_executed: None,
     }
 }
@@ -335,4 +360,39 @@ pub async fn auto_score_sort_rules(
     emit_rules_changed(&app_handle, state.inner());
 
     Ok(IpcResponse::success(true))
+}
+
+#[tauri::command]
+pub async fn auto_score_query_batches(
+    sender_id: Option<u32>,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<Vec<AutoScoreExecutionBatch>>, String> {
+    {
+        let state_guard = state.read();
+        let mut permissions = state_guard.permissions.write();
+        if !check_admin_permission(&mut permissions, sender_id) {
+            return Ok(IpcResponse::error("Permission denied: admin required"));
+        }
+    }
+
+    let batches = query_execution_batches(state.inner()).await?;
+    Ok(IpcResponse::success(batches))
+}
+
+#[tauri::command]
+pub async fn auto_score_rollback_batch(
+    params: RollbackBatchParams,
+    sender_id: Option<u32>,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<AutoScoreExecutionBatch>, String> {
+    {
+        let state_guard = state.read();
+        let mut permissions = state_guard.permissions.write();
+        if !check_admin_permission(&mut permissions, sender_id) {
+            return Ok(IpcResponse::error("Permission denied: admin required"));
+        }
+    }
+
+    let batch = rollback_execution_batch(state.inner(), &params.batch_id).await?;
+    Ok(IpcResponse::success(batch))
 }

@@ -32,7 +32,9 @@ pub struct ScoreEvent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateScoreEvent {
+    #[serde(alias = "studentName")]
     pub student_name: String,
+    #[serde(alias = "reasonContent")]
     pub reason_content: String,
     pub delta: i32,
 }
@@ -44,8 +46,10 @@ pub struct QueryEventParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QueryByStudentParams {
+    #[serde(alias = "studentName")]
     pub student_name: String,
     pub limit: Option<i32>,
+    #[serde(alias = "startTime")]
     pub start_time: Option<String>,
 }
 

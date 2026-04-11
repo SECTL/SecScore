@@ -18,8 +18,14 @@ import {
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
 import { useTranslation } from "react-i18next"
+import { pinyin } from "pinyin-pro"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
+import {
+  buildSystemFontFamily,
+  buildSystemFontValue,
+  SYSTEM_FONT_STACK,
+} from "../shared/fontFamily"
 
 const { Text, Paragraph } = Typography
 
@@ -37,46 +43,33 @@ interface FontOption {
   value: string
   label: string
   fontFamily: string
+  searchText: string
 }
 
-const SYSTEM_FONT_STACK =
-  '"PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Hiragino Sans", "STHeiti", "Heiti SC", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+const CHINESE_FONT_CHAR_PATTERN = /[\u3400-\u9fff]/
+const CHINESE_FONT_SEGMENT_PATTERN = /[\u3400-\u9fff]+/g
+
+const toPascalCasePinyin = (value: string): string =>
+  pinyin(value, { toneType: "none" })
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    .join("")
+
+const formatFontDisplayName = (name: string): string => {
+  if (!CHINESE_FONT_CHAR_PATTERN.test(name)) return name
+  return name.replace(CHINESE_FONT_SEGMENT_PATTERN, (segment) => toPascalCasePinyin(segment))
+}
+
+const buildFontSearchText = (name: string, label: string): string =>
+  `${name} ${label}`.toLowerCase()
 
 const defaultFontOptions: FontOption[] = [
   {
     value: "system",
     label: "系统默认",
     fontFamily: SYSTEM_FONT_STACK,
-  },
-  {
-    value: "system-Microsoft YaHei UI",
-    label: "Microsoft YaHei UI",
-    fontFamily: '"Microsoft YaHei UI", "Microsoft YaHei", "微软雅黑", sans-serif',
-  },
-  {
-    value: "system-Microsoft YaHei",
-    label: "Microsoft YaHei",
-    fontFamily: '"Microsoft YaHei", "微软雅黑", sans-serif',
-  },
-  {
-    value: "system-PingFang SC",
-    label: "PingFang SC",
-    fontFamily: '"PingFang SC", "Hiragino Sans GB", sans-serif',
-  },
-  {
-    value: "system-Noto Sans CJK SC",
-    label: "Noto Sans CJK SC",
-    fontFamily: '"Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", sans-serif',
-  },
-  {
-    value: "system-Segoe UI",
-    label: "Segoe UI",
-    fontFamily: '"Segoe UI", sans-serif',
-  },
-  {
-    value: "system-Arial",
-    label: "Arial",
-    fontFamily: "Arial, sans-serif",
+    searchText: "系统默认 system default",
   },
 ]
 
@@ -272,13 +265,17 @@ export const Settings: React.FC<{
         const remoteOptions = res.data
           .map((name: string) => String(name || "").trim())
           .filter((name: string) => Boolean(name))
-          .map(
-            (name: string) =>
-              ({
-                value: `system-${name}`,
-                label: name,
-                fontFamily: `"${name}", ${SYSTEM_FONT_STACK}`,
-              }) satisfies FontOption
+          .map((name: string) => {
+            const label = formatFontDisplayName(name)
+            return {
+              value: buildSystemFontValue(name),
+              label,
+              fontFamily: buildSystemFontFamily(name),
+              searchText: buildFontSearchText(name, label),
+            } satisfies FontOption
+          })
+          .sort((a: FontOption, b: FontOption) =>
+            a.label.localeCompare(b.label, "zh-Hans-CN-u-co-pinyin")
           )
 
         const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
@@ -829,10 +826,13 @@ export const Settings: React.FC<{
                 options={fontOptions.map((opt) => ({
                   value: opt.value,
                   label: opt.label,
+                  searchText: opt.searchText,
                 }))}
                 showSearch
                 filterOption={(input, option) =>
-                  (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                  String(option?.searchText ?? option?.label ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
                 }
               />
               <div

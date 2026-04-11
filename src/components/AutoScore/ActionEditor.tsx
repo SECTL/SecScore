@@ -32,6 +32,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
     () => [
       { value: "add_score", label: t("autoScore.actionAddScore") },
       { value: "add_tag", label: t("autoScore.actionAddTag") },
+      { value: "settle_score", label: t("autoScore.actionSettleScore") },
     ],
     [t]
   )
@@ -86,7 +87,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
               onChange={(event: ActionEvent) =>
                 updateAction(action.id, {
                   event,
-                  value: event === "add_score" ? "1" : [],
+                  value: event === "add_score" ? "1" : event === "add_tag" ? [] : "",
                 })
               }
             />
@@ -100,7 +101,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
                   updateAction(action.id, { value: nextValue === null ? "" : String(nextValue) })
                 }
               />
-            ) : (
+            ) : action.event === "add_tag" ? (
               <Select
                 mode="multiple"
                 showSearch
@@ -114,6 +115,10 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
                 options={mergedTagOptions}
                 onChange={(nextValue) => updateAction(action.id, { value: nextValue })}
               />
+            ) : (
+              <div style={{ minWidth: 260, color: "var(--ss-text-secondary)" }}>
+                {t("autoScore.actionSettleScoreHint")}
+              </div>
             )}
             <Button
               danger

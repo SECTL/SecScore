@@ -84,11 +84,20 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [events, setEvents] = useState<scoreEvent[]>([])
+  const [recordCurrentPage, setRecordCurrentPage] = useState(1)
+  const [recordPageSize, setRecordPageSize] = useState(10)
   const [loading, setLoading] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
   const selectedStudentNames = Form.useWatch("student_name", form) as string[] | undefined
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(events.length / recordPageSize))
+    if (recordCurrentPage > maxPage) {
+      setRecordCurrentPage(maxPage)
+    }
+  }, [events.length, recordCurrentPage, recordPageSize])
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -102,7 +111,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         const [stuRes, reaRes, eveRes] = await Promise.all([
           (window as any).api.queryStudents({}),
           (window as any).api.queryReasons(),
-          (window as any).api.queryEvents({ limit: 10 }),
+          (window as any).api.queryEvents({ limit: 100 }),
         ])
 
         if (stuRes.success) setStudents(stuRes.data)
@@ -231,12 +240,12 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const columns: ColumnsType<scoreEvent> = [
-    { title: t("score.student"), dataIndex: "student_name", key: "student_name", width: 100 },
+    { title: t("score.student"), dataIndex: "student_name", key: "student_name", width: 120 },
     {
       title: t("score.change"),
       dataIndex: "delta",
       key: "delta",
-      width: 80,
+      width: 92,
       render: (delta: number) => (
         <Tag color={delta > 0 ? "success" : "error"}>{delta > 0 ? `+${delta}` : delta}</Tag>
       ),
@@ -245,6 +254,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       title: t("score.reason"),
       dataIndex: "reason_content",
       key: "reason_content",
+      width: 280,
       ellipsis: true,
     },
     {
@@ -257,7 +267,7 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     {
       title: t("common.operation"),
       key: "operation",
-      width: 80,
+      width: 96,
       render: (_, row) => (
         <Popconfirm title={t("score.undoConfirm")} onConfirm={() => handleUndo(row.uuid)}>
           <Button type="link" danger disabled={!canEdit} icon={<UndoOutlined />}>
@@ -274,17 +284,19 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <h2 style={{ marginBottom: "24px", color: "var(--ss-text-main)" }}>{t("score.title")}</h2>
 
       <Card style={{ marginBottom: "24px", backgroundColor: "var(--ss-card-bg)" }}>
-        <Form form={form} layout="vertical" initialValues={{ type: "add" }}>
+        <Form form={form} layout="vertical" initialValues={{ type: "add", student_name: [] }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}>
-            <Form.Item label={t("score.student")} name="student_name">
-              <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                <Select
-                  mode="multiple"
-                  showSearch
-                  placeholder={t("score.pleaseSelectStudent")}
-                  filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
-                  options={students.map((s) => ({ label: s.name, value: s.name }))}
-                />
+            <Form.Item label={t("score.student")}>
+              <Space orientation="vertical" size={8} style={{ width: "100%" }}>
+                <Form.Item name="student_name" noStyle>
+                  <Select
+                    mode="multiple"
+                    showSearch
+                    placeholder={t("score.pleaseSelectStudent")}
+                    filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
+                    options={students.map((s) => ({ label: s.name, value: s.name }))}
+                  />
+                </Form.Item>
                 <Space size={8} wrap>
                   <Button
                     size="small"
@@ -386,8 +398,19 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           columns={columns}
           rowKey="uuid"
           loading={loading}
-          size="small"
-          pagination={{ pageSize: 5, total: events.length, defaultCurrent: 1 }}
+          pagination={{
+            current: recordCurrentPage,
+            pageSize: recordPageSize,
+            total: events.length,
+            showSizeChanger: true,
+            showTotal: (total) => t("common.total", { count: total }),
+            onChange: (page, size) => {
+              setRecordCurrentPage(page)
+              setRecordPageSize(size)
+            },
+          }}
+          tableLayout="fixed"
+          scroll={{ x: 860 }}
           style={{ color: "var(--ss-text-main)" }}
         />
       </Card>
