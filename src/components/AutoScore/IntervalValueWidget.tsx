@@ -27,11 +27,7 @@ const buildNextIntervalValue = (
 const getDisplayValue = (value: number | undefined, fallback = 0) =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback
 
-export const IntervalValueWidget: React.FC<WidgetProps> = ({
-  value,
-  setValue,
-  readonly,
-}) => {
+export const IntervalValueWidget: React.FC<WidgetProps> = ({ value, setValue, readonly }) => {
   const { t } = useTranslation()
   const parsedValue = parseIntervalTriggerValue(value)
 

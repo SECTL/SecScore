@@ -369,19 +369,19 @@ pub async fn oauth_exchange_code(
 
     let state_guard = state.read();
     let client = &state_guard.http_client;
-    let params = [
-        ("grant_type", "authorization_code"),
-        ("code", &code),
-        ("client_id", &platform_id),
-        ("client_secret", &platform_secret),
-        ("redirect_uri", &callback_url),
-    ];
+    let payload = serde_json::json!({
+        "grant_type": "authorization_code",
+        "code": &code,
+        "client_id": &platform_id,
+        "client_secret": &platform_secret,
+        "redirect_uri": &callback_url,
+    });
 
-    println!("[OAuth] 请求参数：{:?}", params);
+    println!("[OAuth] 请求参数：{:?}", payload);
 
     let response = client
-        .post("https://sectl.top/api/oauth/token")
-        .form(&params)
+        .post("https://appwrite.sectl.top/api/oauth/token")
+        .json(&payload)
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
@@ -426,7 +426,7 @@ pub async fn oauth_revoke_token(
     }
 
     let response = client
-        .post("https://sectl.top/api/oauth/revoke")
+        .post("https://appwrite.sectl.top/api/oauth/revoke")
         .json(&payload)
         .send()
         .await
@@ -454,7 +454,7 @@ pub async fn oauth_introspect_token(
     let client = &state_guard.http_client;
 
     let response = client
-        .post("https://sectl.top/api/oauth/introspect")
+        .post("https://appwrite.sectl.top/api/oauth/introspect")
         .json(&serde_json::json!({
             "token": token,
             "client_id": platform_id,
@@ -489,7 +489,7 @@ pub async fn oauth_get_user_info(
     let client = &state_guard.http_client;
 
     let response = client
-        .get("https://sectl.top/api/oauth/userinfo")
+        .get("https://appwrite.sectl.top/api/oauth/userinfo")
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await
@@ -522,7 +522,7 @@ pub async fn oauth_refresh_token(
     let client = &state_guard.http_client;
 
     let response = client
-        .post("https://sectl.top/api/oauth/token")
+        .post("https://appwrite.sectl.top/api/oauth/token")
         .json(&serde_json::json!({
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,

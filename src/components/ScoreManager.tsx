@@ -293,7 +293,9 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     mode="multiple"
                     showSearch
                     placeholder={t("score.pleaseSelectStudent")}
-                    filterOption={(input, option) => matchStudentName(getOptionLabel(option), input)}
+                    filterOption={(input, option) =>
+                      matchStudentName(getOptionLabel(option), input)
+                    }
                     options={students.map((s) => ({ label: s.name, value: s.name }))}
                   />
                 </Form.Item>

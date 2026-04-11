@@ -549,7 +549,11 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
 export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
   const mapped = actions
     .map((action) => {
-      if (action.event !== "add_score" && action.event !== "add_tag" && action.event !== "settle_score") {
+      if (
+        action.event !== "add_score" &&
+        action.event !== "add_tag" &&
+        action.event !== "settle_score"
+      ) {
         return null
       }
       return {

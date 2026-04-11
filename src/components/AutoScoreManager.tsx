@@ -441,7 +441,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         } finally {
           setRollingBackBatchId(null)
         }
-      }
+      },
     })
   }
 
@@ -620,7 +620,11 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
               name="name"
               rules={[{ required: true, message: t("autoScore.nameRequired") }]}
             >
-              <Input placeholder={t("autoScore.namePlaceholder")} disabled={!canEdit} autoComplete="off"/>
+              <Input
+                placeholder={t("autoScore.namePlaceholder")}
+                disabled={!canEdit}
+                autoComplete="off"
+              />
             </Form.Item>
             <Form.Item label={t("autoScore.applicableStudents")} name="studentNames">
               <Select
@@ -637,7 +641,10 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
-            <Form.Item label={t("autoScore.cooldownMinutes")} name={["execution", "cooldownMinutes"]}>
+            <Form.Item
+              label={t("autoScore.cooldownMinutes")}
+              name={["execution", "cooldownMinutes"]}
+            >
               <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
             </Form.Item>
             <Form.Item label={t("autoScore.maxRunsPerDay")} name={["execution", "maxRunsPerDay"]}>
