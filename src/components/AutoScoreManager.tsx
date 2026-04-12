@@ -18,6 +18,7 @@ import {
   Tooltip,
   message,
 } from "antd"
+import { InfoCircleOutlined } from "@ant-design/icons"
 import { type ImmutableTree } from "@react-awesome-query-builder/antd"
 import type { ColumnsType } from "antd/es/table"
 import dayjs from "dayjs"
@@ -861,7 +862,18 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
             >
               <InputNumber min={1} style={{ width: "100%" }} disabled={!canEdit} />
             </Form.Item>
-            <Form.Item label={t("autoScore.startAt")} extra={intervalElapsedHint}>
+            <Form.Item
+              label={
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span>{t("autoScore.startAt")}</span>
+                  <Tooltip title={intervalElapsedHint} trigger={["hover", "click"]}>
+                    <InfoCircleOutlined
+                      style={{ color: "var(--ss-text-secondary)", cursor: "pointer" }}
+                    />
+                  </Tooltip>
+                </span>
+              }
+            >
               <DatePicker
                 showTime
                 allowClear

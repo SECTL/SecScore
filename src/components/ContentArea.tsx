@@ -22,6 +22,7 @@ const loadLeaderboard = () => import("./Leaderboard")
 const loadSettlementHistory = () => import("./SettlementHistory")
 const loadRewardSettings = () => import("./RewardSettings")
 const loadBoardManager = () => import("./BoardManager")
+const loadPluginManager = () => import("./PluginManager")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
@@ -35,6 +36,7 @@ const SettlementHistory = lazy(() =>
 )
 const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
 const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
+const PluginManager = lazy(() => loadPluginManager().then((m) => ({ default: m.PluginManager })))
 
 const warmupRouteChunks = () =>
   Promise.allSettled([
@@ -48,6 +50,7 @@ const warmupRouteChunks = () =>
     loadSettlementHistory(),
     loadRewardSettings(),
     loadBoardManager(),
+    loadPluginManager(),
   ])
 
 const { Content } = Layout
@@ -110,6 +113,7 @@ export function ContentArea({
     if (normalizedPath.startsWith("/settlements")) return t("sidebar.settlements")
     if (normalizedPath.startsWith("/reasons")) return t("sidebar.reasons")
     if (normalizedPath.startsWith("/reward-settings")) return t("sidebar.rewardSettings")
+    if (normalizedPath.startsWith("/plugins")) return t("sidebar.plugins")
     if (normalizedPath.startsWith("/settings")) return t("sidebar.settings")
     return "SecScore"
   })()
@@ -380,6 +384,7 @@ export function ContentArea({
                 path="/reward-settings"
                 element={<RewardSettings canEdit={permission === "admin"} />}
               />
+              <Route path="/plugins" element={<PluginManager canEdit={permission === "admin"} />} />
               <Route path="/settings" element={<Settings permission={permission} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

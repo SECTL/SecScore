@@ -8,6 +8,7 @@ export const MOBILE_NAV_ALL_KEYS = [
   "leaderboard",
   "settlements",
   "reasons",
+  "plugins",
   "settings",
 ] as const
 
@@ -35,6 +36,7 @@ export const MOBILE_NAV_ITEMS: MobileNavItemConfig[] = [
   { key: "leaderboard", path: "/leaderboard", labelKey: "sidebar.leaderboard" },
   { key: "settlements", path: "/settlements", labelKey: "sidebar.settlements" },
   { key: "reasons", path: "/reasons", labelKey: "sidebar.reasons", adminOnly: true },
+  { key: "plugins", path: "/plugins", labelKey: "sidebar.plugins", adminOnly: true },
   { key: "settings", path: "/settings", labelKey: "sidebar.settings" },
 ]
 
