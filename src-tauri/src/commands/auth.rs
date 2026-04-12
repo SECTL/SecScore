@@ -81,6 +81,7 @@ pub struct OAuthIntrospectResponse {
 pub struct OAuthAuthorizationUrlResponse {
     pub url: String,
     pub state: String,
+    pub code_verifier: String,
 }
 
 fn get_iv_hex() -> String {
@@ -325,6 +326,29 @@ pub async fn auth_clear_all(
     }
 }
 
+/// 生成 PKCE code_verifier
+fn generate_code_verifier() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let random_bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+    base64::Engine::encode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        &random_bytes,
+    )
+}
+
+/// 生成 PKCE code_challenge (S256)
+fn generate_code_challenge(verifier: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+    let result = hasher.finalize();
+    base64::Engine::encode(
+        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+        &result,
+    )
+}
+
 #[tauri::command]
 pub async fn oauth_get_authorization_url(
     platform_id: String,
@@ -341,16 +365,22 @@ pub async fn oauth_get_authorization_url(
         )
     });
 
+    // 生成 PKCE 参数
+    let code_verifier = generate_code_verifier();
+    let code_challenge = generate_code_challenge(&code_verifier);
+
     let url = format!(
-        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&state={}",
+        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&state={}&code_challenge={}&code_challenge_method=S256",
         platform_id,
         urlencoding::encode(&callback_url),
-        urlencoding::encode(&state)
+        urlencoding::encode(&state),
+        urlencoding::encode(&code_challenge)
     );
 
     Ok(IpcResponse::success(OAuthAuthorizationUrlResponse {
         url,
         state,
+        code_verifier,
     }))
 }
 
@@ -360,6 +390,7 @@ pub async fn oauth_exchange_code(
     platform_id: String,
     platform_secret: String,
     callback_url: String,
+    code_verifier: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     println!(
@@ -375,6 +406,7 @@ pub async fn oauth_exchange_code(
         "client_id": &platform_id,
         "client_secret": &platform_secret,
         "redirect_uri": &callback_url,
+        "code_verifier": &code_verifier,
     });
 
     println!("[OAuth] 请求参数：{:?}", payload);
@@ -485,6 +517,11 @@ pub async fn oauth_get_user_info(
     access_token: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthUserInfo>, String> {
+    println!(
+        "[OAuth] 获取用户信息 - access_token: {}...",
+        &access_token[..20.min(access_token.len())]
+    );
+
     let state_guard = state.read();
     let client = &state_guard.http_client;
 
@@ -495,17 +532,36 @@ pub async fn oauth_get_user_info(
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
+    println!("[OAuth] 用户信息响应状态: {}", response.status());
+
     if !response.status().is_success() {
         let error_text = response
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
-        return Ok(IpcResponse::error(&error_text));
+        println!("[OAuth] 用户信息响应错误: {}", error_text);
+        // 尝试解析 JSON 错误，提取 error_description 或 error
+        let error_message =
+            if let Ok(json_err) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                json_err
+                    .get("error_description")
+                    .or_else(|| json_err.get("error"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&error_text)
+                    .to_string()
+            } else {
+                error_text
+            };
+        return Ok(IpcResponse::error(&error_message));
     }
 
-    let user_info: OAuthUserInfo = response
-        .json()
+    let response_text = response
+        .text()
         .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+    println!("[OAuth] 用户信息响应内容: {}", response_text);
+
+    let user_info: OAuthUserInfo = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     Ok(IpcResponse::success(user_info))

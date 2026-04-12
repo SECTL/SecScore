@@ -76,60 +76,58 @@ export const Leaderboard: React.FC = () => {
   }
 
   const handleExport = () => {
-    setTimeout(() => {
-      const title =
-        timeRange === "today"
-          ? t("leaderboard.today")
-          : timeRange === "week"
-            ? t("leaderboard.week")
-            : t("leaderboard.month")
+    const title =
+      timeRange === "today"
+        ? t("leaderboard.today")
+        : timeRange === "week"
+          ? t("leaderboard.week")
+          : t("leaderboard.month")
 
-      const sanitizeCell = (v: unknown) => {
-        if (typeof v !== "string") return v
-        if (/^[=+\-@]/.test(v)) return `'${v}`
-        return v
-      }
+    const sanitizeCell = (v: unknown) => {
+      if (typeof v !== "string") return v
+      if (/^[=+\-@]/.test(v)) return `'${v}`
+      return v
+    }
 
-      const sheetData = [
-        [
-          t("leaderboard.rank"),
-          t("leaderboard.name"),
-          t("leaderboard.totalScore"),
-          `${title}${t("leaderboard.change")}`,
-        ],
-        ...data.map((item, index) => [
-          index + 1,
-          sanitizeCell(item.name),
-          item.score,
-          item.range_change,
-        ]),
-      ]
+    const sheetData = [
+      [
+        t("leaderboard.rank"),
+        t("leaderboard.name"),
+        t("leaderboard.totalScore"),
+        `${title}${t("leaderboard.change")}`,
+      ],
+      ...data.map((item, index) => [
+        index + 1,
+        sanitizeCell(item.name),
+        item.score,
+        item.range_change,
+      ]),
+    ]
 
-      const ws = XLSX.utils.aoa_to_sheet(sheetData)
-      ws["!cols"] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
+    const ws = XLSX.utils.aoa_to_sheet(sheetData)
+    ws["!cols"] = [{ wch: 6 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
 
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, t("leaderboard.title"))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, t("leaderboard.title"))
 
-      const xlsxBytes = XLSX.write(wb, { bookType: "xlsx", type: "array" })
-      const blob = new Blob([xlsxBytes], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      })
+    const xlsxBytes = XLSX.write(wb, { bookType: "xlsx", type: "array" })
+    const blob = new Blob([xlsxBytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    })
 
-      const link = document.createElement("a")
-      const url = URL.createObjectURL(blob)
-      link.setAttribute("href", url)
-      link.setAttribute(
-        "download",
-        `${t("leaderboard.title")}_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
-      )
-      link.style.visibility = "hidden"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      messageApi.success(t("leaderboard.exportSuccess"))
-    }, 0)
+    const link = document.createElement("a")
+    const url = URL.createObjectURL(blob)
+    link.setAttribute("href", url)
+    link.setAttribute(
+      "download",
+      `${t("leaderboard.title")}_${timeRange}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    )
+    link.style.visibility = "hidden"
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    messageApi.success(t("leaderboard.exportSuccess"))
   }
 
   const columns: ColumnsType<studentRank> = [

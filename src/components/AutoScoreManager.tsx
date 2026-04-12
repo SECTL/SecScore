@@ -73,7 +73,9 @@ interface BackfillPlanItem {
   ruleName: string
 }
 
-const buildOfflineBackfillPlan = (rules: AutoScoreRule[]): {
+const buildOfflineBackfillPlan = (
+  rules: AutoScoreRule[]
+): {
   items: BackfillPlanItem[]
   totalRuns: number
   from: dayjs.Dayjs | null
@@ -87,12 +89,15 @@ const buildOfflineBackfillPlan = (rules: AutoScoreRule[]): {
 
   for (const rule of rules) {
     if (!rule.enabled) continue
-    const intervalTrigger = rule.triggers.find((trigger) => trigger.event === "interval_time_passed")
+    const intervalTrigger = rule.triggers.find(
+      (trigger) => trigger.event === "interval_time_passed"
+    )
     if (!intervalTrigger) continue
 
     const intervalValue = parseIntervalTriggerValue(intervalTrigger.value)
     if (!intervalValue) continue
-    const intervalMinutes = intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
+    const intervalMinutes =
+      intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
     if (intervalMinutes <= 0) continue
 
     const startAt = rule.execution?.startAt ? dayjs(rule.execution.startAt) : null
@@ -218,7 +223,8 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       return t("autoScore.startAtHint")
     }
 
-    const intervalMinutes = intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
+    const intervalMinutes =
+      intervalValue.days * 24 * 60 + intervalValue.hours * 60 + intervalValue.minutes
     if (intervalMinutes <= 0) {
       return t("autoScore.startAtHint")
     }

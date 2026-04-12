@@ -437,6 +437,7 @@ const api = {
     data: {
       url: string
       state: string
+      code_verifier: string
     }
     message?: string
   }> => invoke("oauth_get_authorization_url", { platformId, callbackUrl, state }),
@@ -444,7 +445,8 @@ const api = {
     code: string,
     platformId: string,
     platformSecret: string,
-    callbackUrl: string
+    callbackUrl: string,
+    codeVerifier: string
   ): Promise<{
     success: boolean
     data: {
@@ -454,7 +456,8 @@ const api = {
       expires_in: number
     }
     message?: string
-  }> => invoke("oauth_exchange_code", { code, platformId, platformSecret, callbackUrl }),
+  }> =>
+    invoke("oauth_exchange_code", { code, platformId, platformSecret, callbackUrl, codeVerifier }),
   oauthGetUserInfo: (
     accessToken: string
   ): Promise<{

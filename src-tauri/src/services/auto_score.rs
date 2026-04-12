@@ -1567,7 +1567,9 @@ pub async fn apply_offline_backfill(
         }
         requested_runs_by_rule
             .entry(item.rule_id)
-            .and_modify(|value| *value = (*value + capped).min(AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE))
+            .and_modify(|value| {
+                *value = (*value + capped).min(AUTO_SCORE_BACKFILL_MAX_RUNS_PER_RULE)
+            })
             .or_insert(capped);
     }
     if requested_runs_by_rule.is_empty() {
@@ -1610,7 +1612,8 @@ pub async fn apply_offline_backfill(
         changed = true;
 
         for _ in 0..replay_runs {
-            let stats = execute_rule(&conn, rule, &execution_batches, ExecutionMode::Backfill).await?;
+            let stats =
+                execute_rule(&conn, rule, &execution_batches, ExecutionMode::Backfill).await?;
             result.applied_runs += 1;
             result.affected_students += stats.affected_students;
             result.created_events += stats.created_events;
@@ -1682,7 +1685,9 @@ async fn execute_rule(
         if let Some(max_runs) = rule.execution.max_runs_per_day {
             let today_runs = execution_batches
                 .iter()
-                .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+                .filter(|batch| {
+                    batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at)
+                })
                 .count() as i64;
             if today_runs >= max_runs {
                 return Ok(RuleExecutionStats::default());
@@ -1700,7 +1705,9 @@ async fn execute_rule(
 
     let mut daily_score_delta_used: i64 = execution_batches
         .iter()
-        .filter(|batch| batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at))
+        .filter(|batch| {
+            batch.rule_id == rule.id && !batch.rolled_back && is_same_utc_day(&batch.run_at)
+        })
         .map(|batch| batch.score_delta_total.abs())
         .sum();
 
