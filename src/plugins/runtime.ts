@@ -151,7 +151,9 @@ export class PluginRuntime {
       typeof (defaultExport as Record<string, unknown>).setup === "function"
     ) {
       return {
-        setup: ((defaultExport as Record<string, unknown>).setup as PluginSetup).bind(defaultExport),
+        setup: ((defaultExport as Record<string, unknown>).setup as PluginSetup).bind(
+          defaultExport
+        ),
       }
     }
 
@@ -173,7 +175,10 @@ export class PluginRuntime {
     runtimeModule: pluginRuntimeModule,
     disposers: Array<() => void>
   ): PluginContext {
-    const registerEvent = (event: PluginHostEvent, handler: (detail: any) => void): (() => void) => {
+    const registerEvent = (
+      event: PluginHostEvent,
+      handler: (detail: any) => void
+    ): (() => void) => {
       const eventName = PLUGIN_EVENT_MAP[event]
       const listener = (nativeEvent: Event) => {
         handler((nativeEvent as CustomEvent<any>)?.detail)

@@ -11,6 +11,81 @@ use crate::state::AppState;
 
 use super::response::IpcResponse;
 
+/// 生成标准 UUID v4
+fn generate_uuid() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut bytes = [0u8; 16];
+    rng.fill(&mut bytes);
+
+    // UUID v4 版本和变体位设置
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // 版本 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // 变体 10
+
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5],
+        bytes[6], bytes[7],
+        bytes[8], bytes[9],
+        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+    )
+}
+
+/// 获取设备 UUID（从存储或生成新的）
+fn get_or_create_device_uuid() -> String {
+    // 尝试从存储中读取
+    if let Ok(uuid) = std::fs::read_to_string(get_device_uuid_file_path()) {
+        let uuid = uuid.trim();
+        if is_valid_uuid(uuid) {
+            return uuid.to_string();
+        }
+    }
+
+    // 生成新的 UUID
+    let new_uuid = generate_uuid();
+
+    // 保存到文件
+    let _ = std::fs::write(get_device_uuid_file_path(), &new_uuid);
+
+    new_uuid
+}
+
+/// 获取设备 UUID 文件路径
+fn get_device_uuid_file_path() -> std::path::PathBuf {
+    let app_dir = dirs::config_dir()
+        .map(|p| p.join("secscore"))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    // 确保目录存在
+    let _ = std::fs::create_dir_all(&app_dir);
+    app_dir.join("device_uuid")
+}
+
+/// 验证 UUID 格式
+fn is_valid_uuid(uuid: &str) -> bool {
+    uuid.len() == 36
+        && uuid.chars().nth(8) == Some('-')
+        && uuid.chars().nth(13) == Some('-')
+        && uuid.chars().nth(18) == Some('-')
+        && uuid.chars().nth(23) == Some('-')
+}
+
+/// 获取本机 IP 地址
+async fn get_local_ip() -> Result<String, String> {
+    // 尝试通过外部服务获取公网 IP
+    match reqwest::get("https://api.ipify.org").await {
+        Ok(response) => {
+            if let Ok(ip) = response.text().await {
+                return Ok(ip.trim().to_string());
+            }
+        }
+        Err(_) => {}
+    }
+
+    // 备用：返回本地主机名
+    Ok("127.0.0.1".to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthStatusResponse {
     pub permission: String,
@@ -42,7 +117,7 @@ pub struct OAuthTokenResponse {
     pub access_token: String,
     pub refresh_token: String,
     pub token_type: String,
-    pub expires_in: u64,
+    pub expires_in: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -398,6 +473,12 @@ pub async fn oauth_exchange_code(
         code, platform_id, callback_url
     );
 
+    // 获取设备 UUID 和 IP 地址
+    let device_uuid = get_or_create_device_uuid();
+    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+
+    println!("[OAuth] 设备 UUID: {}, IP: {}", device_uuid, ip_address);
+
     let state_guard = state.read();
     let client = &state_guard.http_client;
     let payload = serde_json::json!({
@@ -407,6 +488,8 @@ pub async fn oauth_exchange_code(
         "client_secret": &platform_secret,
         "redirect_uri": &callback_url,
         "code_verifier": &code_verifier,
+        "device_uuid": &device_uuid,
+        "ip_address": &ip_address,
     });
 
     println!("[OAuth] 请求参数：{:?}", payload);
@@ -430,8 +513,21 @@ pub async fn oauth_exchange_code(
         return Ok(IpcResponse::error(&response_text));
     }
 
-    let token_response: OAuthTokenResponse = serde_json::from_str(&response_text)
+    let mut token_response: OAuthTokenResponse = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // 处理 access_token 格式: JWT|refresh_token
+    // 服务器返回的 access_token 包含 JWT 和 refresh_token，用 | 分隔
+    // 我们只保留 JWT 部分用于后续请求
+    if token_response.access_token.contains('|') {
+        let parts: Vec<&str> = token_response.access_token.split('|').collect();
+        if !parts.is_empty() {
+            println!("[OAuth] 拆分 access_token，使用 JWT 部分");
+            token_response.access_token = parts[0].to_string();
+        }
+    }
+
+    println!("[OAuth] Token 处理完成，access_token 长度: {}", token_response.access_token.len());
 
     Ok(IpcResponse::success(token_response))
 }
@@ -603,4 +699,74 @@ pub async fn oauth_refresh_token(
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
     Ok(IpcResponse::success(token_response))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnlineStatusResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn oauth_report_online(
+    platform_id: String,
+    device_type: String,
+    custom_data: Option<serde_json::Value>,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<OnlineStatusResponse>, String> {
+    let device_uuid = get_or_create_device_uuid();
+    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+
+    println!(
+        "[OAuth] 上报在线状态 - platform_id: {}, device_uuid: {}, device_type: {}",
+        platform_id, device_uuid, device_type
+    );
+
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+
+    let mut payload = serde_json::json!({
+        "platform_id": platform_id,
+        "device_uuid": device_uuid,
+        "device_type": device_type,
+        "ip_address": ip_address,
+        "country": "CN",
+        "province": "Unknown",
+        "city": "Unknown",
+        "district": "Unknown",
+    });
+
+    if let Some(data) = custom_data {
+        payload["custom_data"] = data;
+    }
+
+    let response = client
+        .post("https://appwrite.sectl.top/api/stats/online")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    println!("[OAuth] 在线状态上报响应: {}", response.status());
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Ok(IpcResponse::error(&error_text));
+    }
+
+    let result: OnlineStatusResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(result))
+}
+
+#[tauri::command]
+pub async fn oauth_get_device_uuid() -> Result<IpcResponse<String>, String> {
+    let device_uuid = get_or_create_device_uuid();
+    Ok(IpcResponse::success(device_uuid))
 }

@@ -84,6 +84,8 @@ pub fn run() {
             oauth_introspect_token,
             oauth_start_callback_server,
             oauth_stop_callback_server,
+            oauth_report_online,
+            oauth_get_device_uuid,
             theme_list,
             theme_current,
             theme_set,

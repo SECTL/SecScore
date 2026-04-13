@@ -548,6 +548,23 @@ const api = {
     success: boolean
     message?: string
   }> => invoke("oauth_stop_callback_server"),
+  oauthReportOnline: (
+    platformId: string,
+    deviceType: string,
+    customData?: any
+  ): Promise<{
+    success: boolean
+    data: {
+      success: boolean
+      message: string
+    }
+    message?: string
+  }> => invoke("oauth_report_online", { platformId, deviceType, customData }),
+  oauthGetDeviceUuid: (): Promise<{
+    success: boolean
+    data: string
+    message?: string
+  }> => invoke("oauth_get_device_uuid"),
 
   // Data import/export
   exportDataJson: (): Promise<{ success: boolean; data: string }> => invoke("data_export_json"),
@@ -721,7 +738,9 @@ const api = {
     data?: any[]
     message?: string
   }> => invoke("plugin_get_all"),
-  pluginGet: (pluginId: string): Promise<{
+  pluginGet: (
+    pluginId: string
+  ): Promise<{
     success: boolean
     data?: any
     message?: string
@@ -735,25 +754,37 @@ const api = {
     }
     message?: string
   }> => invoke("plugin_get_stats"),
-  pluginToggle: (pluginId: string, enabled: boolean): Promise<{
+  pluginToggle: (
+    pluginId: string,
+    enabled: boolean
+  ): Promise<{
     success: boolean
     message?: string
   }> => invoke("plugin_toggle", { pluginId, enabled }),
-  pluginInstall: (manifest: any, pluginDir: string): Promise<{
+  pluginInstall: (
+    manifest: any,
+    pluginDir: string
+  ): Promise<{
     success: boolean
     data?: any
     message?: string
   }> => invoke("plugin_install", { manifest, pluginDir }),
-  pluginUninstall: (pluginId: string): Promise<{
+  pluginUninstall: (
+    pluginId: string
+  ): Promise<{
     success: boolean
     message?: string
   }> => invoke("plugin_uninstall", { pluginId }),
-  pluginLoadManifest: (path: string): Promise<{
+  pluginLoadManifest: (
+    path: string
+  ): Promise<{
     success: boolean
     data?: any
     message?: string
   }> => invoke("plugin_load_manifest", { path }),
-  pluginGetDir: (pluginId: string): Promise<{
+  pluginGetDir: (
+    pluginId: string
+  ): Promise<{
     success: boolean
     data?: string
     message?: string

@@ -39,7 +39,11 @@ interface PluginStats {
 export const PluginManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const { t } = useTranslation()
   const [data, setData] = useState<Plugin[]>([])
-  const [stats, setStats] = useState<PluginStats>({ total_plugins: 0, enabled_plugins: 0, disabled_plugins: 0 })
+  const [stats, setStats] = useState<PluginStats>({
+    total_plugins: 0,
+    enabled_plugins: 0,
+    disabled_plugins: 0,
+  })
   const [loading, setLoading] = useState(false)
   const [installModalVisible, setInstallModalVisible] = useState(false)
   const [installLoading, setInstallLoading] = useState(false)
@@ -180,7 +184,15 @@ export const PluginManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       key: "description",
       render: (desc?: string) => (
         <Tooltip title={desc}>
-          <span style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+          <span
+            style={{
+              maxWidth: 200,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              display: "block",
+            }}
+          >
             {desc || "-"}
           </span>
         </Tooltip>
