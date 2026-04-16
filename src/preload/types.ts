@@ -565,6 +565,41 @@ const api = {
     data: string
     message?: string
   }> => invoke("oauth_get_device_uuid"),
+  oauthSaveLoginState: (state: {
+    access_token: string
+    refresh_token: string
+    token_type: string
+    expires_in: number
+    user_id: string
+    email: string
+    name: string
+    github_username?: string
+    permission: number
+    login_time: string
+  }): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("oauth_save_login_state", { stateData: state }),
+  oauthLoadLoginState: (): Promise<{
+    success: boolean
+    data?: {
+      access_token: string
+      refresh_token: string
+      token_type: string
+      expires_in: number
+      user_id: string
+      email: string
+      name: string
+      github_username?: string
+      permission: number
+      login_time: string
+    } | null
+    message?: string
+  }> => invoke("oauth_load_login_state"),
+  oauthClearLoginState: (): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("oauth_clear_login_state"),
 
   // Data import/export
   exportDataJson: (): Promise<{ success: boolean; data: string }> => invoke("data_export_json"),

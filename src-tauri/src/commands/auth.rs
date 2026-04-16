@@ -770,3 +770,131 @@ pub async fn oauth_get_device_uuid() -> Result<IpcResponse<String>, String> {
     let device_uuid = get_or_create_device_uuid();
     Ok(IpcResponse::success(device_uuid))
 }
+
+/// OAuth 登录状态文件路径
+fn get_oauth_state_file_path() -> std::path::PathBuf {
+    let app_dir = dirs::config_dir()
+        .map(|p| p.join("secscore"))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let _ = std::fs::create_dir_all(&app_dir);
+    app_dir.join("oauth_state.json")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthState {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub token_type: String,
+    pub expires_in: i64,
+    pub user_id: String,
+    pub email: String,
+    pub name: String,
+    pub github_username: Option<String>,
+    pub permission: u32,
+    pub login_time: String,
+}
+
+#[tauri::command]
+pub async fn oauth_save_login_state(state_data: OAuthState) -> Result<IpcResponse<()>, String> {
+    println!("[OAuth] 保存登录状态 - user_id: {}", state_data.user_id);
+
+    let file_path = get_oauth_state_file_path();
+    let json = serde_json::to_string_pretty(&state_data)
+        .map_err(|e| format!("序列化失败: {}", e))?;
+
+    std::fs::write(&file_path, json)
+        .map_err(|e| format!("写入文件失败: {}", e))?;
+
+    println!("[OAuth] 登录状态已保存到: {:?}", file_path);
+    Ok(IpcResponse::success(()))
+}
+
+#[tauri::command]
+pub async fn oauth_load_login_state() -> Result<IpcResponse<Option<OAuthState>>, String> {
+    let file_path = get_oauth_state_file_path();
+
+    if !file_path.exists() {
+        println!("[OAuth] 登录状态文件不存在");
+        return Ok(IpcResponse::success(None));
+    }
+
+    let json = std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("读取文件失败: {}", e))?;
+
+    let state: OAuthState = serde_json::from_str(&json)
+        .map_err(|e| format!("解析 JSON 失败: {}", e))?;
+
+    println!("[OAuth] 登录状态已加载 - user_id: {}", state.user_id);
+    Ok(IpcResponse::success(Some(state)))
+}
+
+#[tauri::command]
+pub async fn oauth_clear_login_state() -> Result<IpcResponse<()>, String> {
+    let file_path = get_oauth_state_file_path();
+
+    if file_path.exists() {
+        std::fs::remove_file(&file_path)
+            .map_err(|e| format!("删除文件失败: {}", e))?;
+        println!("[OAuth] 登录状态已清除");
+    }
+
+    Ok(IpcResponse::success(()))
+}
+
+#[tauri::command]
+pub async fn oauth_refresh_access_token(
+    refresh_token: String,
+    platform_id: String,
+    platform_secret: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<OAuthTokenResponse>, String> {
+    println!("[OAuth] 刷新 access_token");
+
+    let device_uuid = get_or_create_device_uuid();
+    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+
+    let payload = serde_json::json!({
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": platform_id,
+        "client_secret": platform_secret,
+        "device_uuid": device_uuid,
+        "ip_address": ip_address,
+    });
+
+    println!("[OAuth] 刷新 token 请求参数: {:?}", payload);
+
+    let response = client
+        .post("https://appwrite.sectl.top/api/oauth/token")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("请求失败: {}", e))?;
+
+    println!("[OAuth] 刷新 token 响应状态: {}", response.status());
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+
+    if !response_text.is_empty() && response_text.contains("error") {
+        return Ok(IpcResponse::error(&response_text));
+    }
+
+    let mut token_response: OAuthTokenResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!("解析响应失败: {}", e))?;
+
+    // 处理 access_token 格式: JWT|refresh_token
+    if token_response.access_token.contains('|') {
+        let parts: Vec<&str> = token_response.access_token.split('|').collect();
+        if !parts.is_empty() {
+            token_response.access_token = parts[0].to_string();
+        }
+    }
+
+    Ok(IpcResponse::success(token_response))
+}

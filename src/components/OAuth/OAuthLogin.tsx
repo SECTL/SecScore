@@ -131,7 +131,30 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
           return
         }
 
-        console.log("[OAuth] 登录成功，清理资源...")
+        console.log("[OAuth] 登录成功，保存登录状态...")
+
+        // 保存登录状态到本地
+        const loginState = {
+          access_token: tokenRes.data.access_token,
+          refresh_token: tokenRes.data.refresh_token,
+          token_type: tokenRes.data.token_type,
+          expires_in: tokenRes.data.expires_in,
+          user_id: userRes.data.user_id,
+          email: userRes.data.email,
+          name: userRes.data.name,
+          github_username: userRes.data.github_username,
+          permission: userRes.data.permission,
+          login_time: new Date().toISOString(),
+        }
+
+        try {
+          await api.oauthSaveLoginState(loginState)
+          console.log("[OAuth] 登录状态已保存")
+        } catch (saveError) {
+          console.error("[OAuth] 保存登录状态失败:", saveError)
+        }
+
+        console.log("[OAuth] 清理资源...")
         await api.oauthStopCallbackServer()
         clearExpectedState()
         sessionStorage.removeItem("oauth_code_verifier")
