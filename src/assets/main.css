@@ -229,6 +229,80 @@ html.platform-macos #root {
   overflow: hidden;
 }
 
+.ss-reward-morph-modal {
+  --ss-modal-from-x: 0px;
+  --ss-modal-from-y: 0px;
+  --ss-modal-scale-x: 1;
+  --ss-modal-scale-y: 1;
+}
+
+.ss-reward-morph-modal.is-preparing {
+  opacity: 0;
+}
+
+.ss-reward-morph-modal .ant-modal-content {
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.ss-reward-morph-wrap.ss-reward-noop-motion-enter,
+.ss-reward-morph-wrap.ss-reward-noop-motion-appear,
+.ss-reward-morph-wrap.ss-reward-noop-motion-leave,
+.ss-reward-morph-wrap.ss-reward-noop-motion-enter-active,
+.ss-reward-morph-wrap.ss-reward-noop-motion-appear-active,
+.ss-reward-morph-wrap.ss-reward-noop-motion-leave-active,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-enter,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-appear,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-leave,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-enter-active,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-appear-active,
+.ss-reward-morph-root .ss-reward-morph-modal.ss-reward-noop-motion-leave-active {
+  animation: none !important;
+  transition: none !important;
+}
+
+.ss-reward-morph-modal.is-enter .ant-modal-content {
+  animation: ss-reward-modal-morph-in 300ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
+}
+
+.ss-home-operation-morph-modal .ant-modal-content {
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.ss-operation-mask-fade-enter,
+.ss-operation-mask-fade-appear {
+  opacity: 0 !important;
+}
+
+.ss-operation-mask-fade-enter-active,
+.ss-operation-mask-fade-appear-active {
+  opacity: 1 !important;
+  transition: opacity 260ms cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+.ss-operation-mask-fade-leave {
+  opacity: 1 !important;
+}
+
+.ss-operation-mask-fade-leave-active {
+  opacity: 0 !important;
+  transition: opacity 220ms cubic-bezier(0.4, 0, 1, 1) !important;
+}
+
+@keyframes ss-reward-modal-morph-in {
+  from {
+    transform: translate3d(var(--ss-modal-from-x), var(--ss-modal-from-y), 0)
+      scale(var(--ss-modal-scale-x), var(--ss-modal-scale-y));
+    opacity: 0.94;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0) scale(1, 1);
+    opacity: 1;
+  }
+}
+
 .ss-immersive-sidebar {
   --ss-sidebar-width: 200px;
   height: 100%;

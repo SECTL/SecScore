@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
 import {
   Card,
   Space,
@@ -127,6 +127,7 @@ export const Home: React.FC<HomeProps> = ({
   const [batchMode, setBatchMode] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [operationVisible, setOperationVisible] = useState(false)
+  const [operationOriginRect, setOperationOriginRect] = useState<DOMRect | null>(null)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
@@ -141,6 +142,13 @@ export const Home: React.FC<HomeProps> = ({
   const longPressTimerRef = useRef<number | null>(null)
   const suppressClickRef = useRef(false)
   const fetchRequestIdRef = useRef(0)
+  const operationMorphAnimationRef = useRef<Animation | null>(null)
+  const operationMaskAnimationRef = useRef<Animation | null>(null)
+  const operationMorphRafRef = useRef<number | null>(null)
+  const operationClosingRef = useRef(false)
+  const operationCloseTokenRef = useRef(0)
+  const operationModalRootClass = "ss-home-operation-morph-root"
+  const operationModalClass = "ss-home-operation-morph-modal"
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -589,7 +597,7 @@ export const Home: React.FC<HomeProps> = ({
     }
   }
 
-  const openOperation = (student: student) => {
+  const openOperation = (student: student, sourceEl?: HTMLElement | null) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -605,11 +613,276 @@ export const Home: React.FC<HomeProps> = ({
       )
       return
     }
+
+    const cardEl = sourceEl?.querySelector(".ant-card") as HTMLElement | null
+    const sourceRect = (cardEl ?? sourceEl)?.getBoundingClientRect() ?? null
+    logHome("operation:morph:open", {
+      student: student.name,
+      hasSourceEl: Boolean(sourceEl),
+      hasCardEl: Boolean(cardEl),
+      sourceRect: sourceRect
+        ? {
+            left: sourceRect.left,
+            top: sourceRect.top,
+            width: sourceRect.width,
+            height: sourceRect.height,
+          }
+        : null,
+    })
+    setOperationOriginRect(sourceRect)
+    operationClosingRef.current = false
+    operationCloseTokenRef.current += 1
+    operationMorphAnimationRef.current?.cancel()
+    operationMaskAnimationRef.current?.cancel()
+
     setSelectedStudent(student)
     setCustomScore(undefined)
     setReasonContent("")
     setOperationVisible(true)
   }
+
+  const playOperationMorph = useCallback((attempt = 0) => {
+    if (isPortraitMode || !operationOriginRect) return false
+    const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
+    if (!modalEl) {
+      const byClassCount = document.querySelectorAll(`.${operationModalClass}`).length
+      const byRootCount = document.querySelectorAll(`.${operationModalRootClass}`).length
+      const modalCount = document.querySelectorAll(".ant-modal").length
+      const rootExists = Boolean(document.querySelector(`.${operationModalRootClass}`))
+      logHome("operation:morph:modal-miss", {
+        attempt,
+        rootExists,
+        byClassCount,
+        byRootCount,
+        modalCount,
+      })
+      return false
+    }
+
+    // Clear any leftover transform from previous close animation before measuring.
+    operationMorphAnimationRef.current?.cancel()
+    for (const animation of modalEl.getAnimations()) {
+      animation.cancel()
+    }
+    modalEl.style.transform = ""
+    modalEl.style.opacity = ""
+    modalEl.style.visibility = ""
+    const maskEl = document.querySelector(`.${operationModalRootClass} .ant-modal-mask`) as
+      | HTMLElement
+      | null
+    if (maskEl) {
+      operationMaskAnimationRef.current?.cancel()
+      maskEl.style.opacity = ""
+      maskEl.style.visibility = ""
+      operationMaskAnimationRef.current = maskEl.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 220,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+        fill: "both",
+      })
+    }
+    const modalRect = modalEl.getBoundingClientRect()
+    if (modalRect.width <= 0 || modalRect.height <= 0) {
+      logHome("operation:morph:modal-rect-invalid", {
+        attempt,
+        width: modalRect.width,
+        height: modalRect.height,
+      })
+      return false
+    }
+    const fromX = operationOriginRect.left - modalRect.left
+    const fromY = operationOriginRect.top - modalRect.top
+    const scaleX = operationOriginRect.width / modalRect.width
+    const scaleY = operationOriginRect.height / modalRect.height
+
+    logHome("operation:morph:computed", {
+      modalRect: {
+        left: modalRect.left,
+        top: modalRect.top,
+        width: modalRect.width,
+        height: modalRect.height,
+      },
+      fromX,
+      fromY,
+      scaleX,
+      scaleY,
+      expectedStartRect: {
+        left: modalRect.left + fromX,
+        top: modalRect.top + fromY,
+        width: modalRect.width * scaleX,
+        height: modalRect.height * scaleY,
+      },
+      animateSupported: typeof modalEl.animate === "function",
+    })
+
+    modalEl.style.transformOrigin = "top left"
+    modalEl.style.willChange = "transform, opacity"
+    operationMorphAnimationRef.current = modalEl.animate(
+      [
+        {
+          transform: `translate3d(${fromX}px, ${fromY}px, 0) scale(${scaleX}, ${scaleY})`,
+          opacity: 0.86,
+        },
+        {
+          transform: "translate3d(0, 0, 0) scale(1, 1)",
+          opacity: 1,
+        },
+      ],
+      {
+        duration: 480,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        fill: "both",
+      }
+    )
+    logHome("operation:morph:animation-start", {
+      attempt,
+      currentTime: operationMorphAnimationRef.current.currentTime,
+      playState: operationMorphAnimationRef.current.playState,
+    })
+    operationMorphAnimationRef.current.onfinish = () => {
+      logHome("operation:morph:animation-finish")
+    }
+    operationMorphAnimationRef.current.oncancel = () => {
+      logHome("operation:morph:animation-cancel")
+    }
+    return true
+  }, [isPortraitMode, operationOriginRect, operationModalClass, operationModalRootClass])
+
+  useLayoutEffect(() => {
+    if (isPortraitMode || !operationVisible) return
+
+    logHome("operation:morph:layout-open", {
+      hasOriginRect: Boolean(operationOriginRect),
+    })
+    let attempt = 0
+    const maxAttempts = 120
+
+    const run = () => {
+      operationMorphRafRef.current = null
+      const done = playOperationMorph(attempt)
+      if (done) return
+      if (attempt >= maxAttempts) {
+        logHome("operation:morph:retry-exhausted", { attempts: attempt + 1 })
+        return
+      }
+      attempt += 1
+      operationMorphRafRef.current = window.requestAnimationFrame(run)
+    }
+    operationMorphRafRef.current = window.requestAnimationFrame(run)
+
+    return () => {
+      if (operationMorphRafRef.current !== null) {
+        window.cancelAnimationFrame(operationMorphRafRef.current)
+        operationMorphRafRef.current = null
+      }
+    }
+  }, [isPortraitMode, operationVisible, operationOriginRect, playOperationMorph])
+
+  const finishCloseOperationModal = useCallback((skipCancelMorph = false, skipCancelMask = false) => {
+    if (!skipCancelMorph) {
+      operationMorphAnimationRef.current?.cancel()
+    }
+    operationMorphAnimationRef.current = null
+    if (!skipCancelMask) {
+      operationMaskAnimationRef.current?.cancel()
+    }
+    operationMaskAnimationRef.current = null
+    if (operationMorphRafRef.current !== null) {
+      window.cancelAnimationFrame(operationMorphRafRef.current)
+      operationMorphRafRef.current = null
+    }
+    operationClosingRef.current = false
+    setOperationVisible(false)
+    setOperationOriginRect(null)
+  }, [])
+
+  const closeOperationModal = useCallback(() => {
+    logHome("operation:morph:close", {
+      hasAnimation: Boolean(operationMorphAnimationRef.current),
+      playState: operationMorphAnimationRef.current?.playState,
+      currentTime: operationMorphAnimationRef.current?.currentTime,
+    })
+    if (operationMorphRafRef.current !== null) {
+      window.cancelAnimationFrame(operationMorphRafRef.current)
+      operationMorphRafRef.current = null
+    }
+    if (
+      !isPortraitMode &&
+      operationVisible &&
+      operationOriginRect &&
+      !operationClosingRef.current
+    ) {
+      const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
+      if (modalEl) {
+        const modalRect = modalEl.getBoundingClientRect()
+        if (modalRect.width > 0 && modalRect.height > 0) {
+          const toX = operationOriginRect.left - modalRect.left
+          const toY = operationOriginRect.top - modalRect.top
+          const toScaleX = operationOriginRect.width / modalRect.width
+          const toScaleY = operationOriginRect.height / modalRect.height
+          const closeToken = ++operationCloseTokenRef.current
+          operationClosingRef.current = true
+          operationMorphAnimationRef.current?.cancel()
+          operationMaskAnimationRef.current?.cancel()
+          modalEl.style.transformOrigin = "top left"
+          modalEl.style.willChange = "transform, opacity"
+          const maskEl = document.querySelector(
+            `.${operationModalRootClass} .ant-modal-mask`
+          ) as HTMLElement | null
+          if (maskEl) {
+            operationMaskAnimationRef.current = maskEl.animate([{ opacity: 1 }, { opacity: 0 }], {
+              duration: 320,
+              easing: "cubic-bezier(0.4, 0, 1, 1)",
+              fill: "both",
+            })
+          }
+          operationMorphAnimationRef.current = modalEl.animate(
+            [
+              { transform: "translate3d(0, 0, 0) scale(1, 1)", opacity: 1 },
+              {
+                transform: `translate3d(${toX}px, ${toY}px, 0) scale(${toScaleX}, ${toScaleY})`,
+                opacity: 0,
+              },
+            ],
+            {
+              duration: 320,
+              easing: "cubic-bezier(0.4, 0, 1, 1)",
+              fill: "both",
+            }
+          )
+          operationMorphAnimationRef.current.onfinish = () => {
+            if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) {
+              logHome("operation:morph:close-animation-finish:stale", { closeToken })
+              return
+            }
+            logHome("operation:morph:close-animation-finish")
+            modalEl.style.opacity = "0"
+            modalEl.style.visibility = "hidden"
+            if (maskEl) {
+              maskEl.style.opacity = "0"
+              maskEl.style.visibility = "hidden"
+            }
+            finishCloseOperationModal(true, true)
+          }
+          operationMorphAnimationRef.current.oncancel = () => {
+            if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) {
+              logHome("operation:morph:close-animation-cancel:stale", { closeToken })
+              return
+            }
+            logHome("operation:morph:close-animation-cancel")
+            finishCloseOperationModal()
+          }
+          return
+        }
+      }
+    }
+    finishCloseOperationModal()
+  }, [
+    finishCloseOperationModal,
+    isPortraitMode,
+    operationModalClass,
+    operationOriginRect,
+    operationVisible,
+  ])
 
   const handleToggleRewardMode = () => {
     if (!canEdit) {
@@ -623,7 +896,7 @@ export const Home: React.FC<HomeProps> = ({
     setRewardMode((prev) => !prev)
     setBatchMode(false)
     setSelectedStudentIds([])
-    setOperationVisible(false)
+    closeOperationModal()
     setQuickActionStudentId(null)
     setRewardStudent(null)
     setRewardModalVisible(false)
@@ -717,7 +990,7 @@ export const Home: React.FC<HomeProps> = ({
       setSelectedStudentIds([])
       setBatchMode(false)
       setSelectedStudent(null)
-      setOperationVisible(false)
+      closeOperationModal()
       setCustomScore(undefined)
       setReasonContent("")
       setQuickActionStudentId(null)
@@ -846,7 +1119,7 @@ export const Home: React.FC<HomeProps> = ({
     }
     setBatchMode(true)
     setSelectedStudent(null)
-    setOperationVisible(false)
+    closeOperationModal()
     setQuickActionStudentId(null)
   }
 
@@ -895,7 +1168,7 @@ export const Home: React.FC<HomeProps> = ({
             e.stopPropagation()
             return
           }
-          openOperation(student)
+          openOperation(student, e.currentTarget as HTMLElement)
         }}
         onMouseDown={(e) => {
           if (batchMode) return
@@ -1113,7 +1386,7 @@ export const Home: React.FC<HomeProps> = ({
             e.stopPropagation()
             return
           }
-          openOperation(student)
+          openOperation(student, e.currentTarget as HTMLElement)
         }}
         onMouseDown={(e) => {
           if (batchMode) return
@@ -1280,7 +1553,7 @@ export const Home: React.FC<HomeProps> = ({
             e.stopPropagation()
             return
           }
-          openOperation(student)
+          openOperation(student, e.currentTarget as HTMLElement)
         }}
         onMouseDown={(e) => {
           if (batchMode) return
@@ -2705,7 +2978,7 @@ export const Home: React.FC<HomeProps> = ({
           placement="bottom"
           height="100%"
           open={operationVisible}
-          onClose={() => setOperationVisible(false)}
+          onClose={closeOperationModal}
           afterOpenChange={applyDrawerDragRegion}
           destroyOnClose
           styles={{
@@ -2713,7 +2986,7 @@ export const Home: React.FC<HomeProps> = ({
           }}
           footer={
             <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button onClick={() => setOperationVisible(false)}>{t("common.cancel")}</Button>
+              <Button onClick={closeOperationModal}>{t("common.cancel")}</Button>
               <Button type="primary" onClick={handleSubmit} loading={submitLoading}>
                 {t("home.submitOperation")}
               </Button>
@@ -2730,13 +3003,18 @@ export const Home: React.FC<HomeProps> = ({
               : t("home.operationTitle", { name: selectedStudent?.name })
           }
           open={operationVisible}
-          onCancel={() => setOperationVisible(false)}
+          onCancel={closeOperationModal}
           onOk={handleSubmit}
           confirmLoading={submitLoading}
           okText={t("home.submitOperation")}
           cancelText={t("common.cancel")}
           width={560}
           centered
+          forceRender
+          transitionName=""
+          maskTransitionName=""
+          rootClassName={operationModalRootClass}
+          className={operationModalClass}
           styles={{
             body: {
               maxHeight: "calc(100vh - 220px)",
