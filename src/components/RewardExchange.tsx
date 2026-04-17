@@ -35,6 +35,14 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [exchangeMode, setExchangeMode] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<StudentItem | null>(null)
   const [chooseRewardVisible, setChooseRewardVisible] = useState(false)
+  const [modalMorphStage, setModalMorphStage] = useState<"idle" | "measuring" | "enter">("idle")
+  const [modalMorphVars, setModalMorphVars] = useState<{
+    fromX: number
+    fromY: number
+    scaleX: number
+    scaleY: number
+  } | null>(null)
+  const [originCardRect, setOriginCardRect] = useState<DOMRect | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
 
   const emitDataUpdated = () => {
@@ -90,15 +98,74 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return rewards.filter((r) => r.cost_points <= selectedStudent.reward_points)
   }, [rewards, selectedStudent])
 
-  const handleStudentClick = (student: StudentItem) => {
+  const handleStudentClick = (student: StudentItem, event: React.MouseEvent<HTMLDivElement>) => {
     if (!exchangeMode) return
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
     }
+
+    const cardBody = event.currentTarget.querySelector(".ant-card-body") as HTMLElement | null
+    const sourceRect = (cardBody ?? event.currentTarget).getBoundingClientRect()
+    setOriginCardRect(sourceRect)
+    setModalMorphVars(null)
+    setModalMorphStage("measuring")
     setSelectedStudent(student)
     setChooseRewardVisible(true)
   }
+
+  useEffect(() => {
+    if (!chooseRewardVisible || !originCardRect || modalMorphStage !== "measuring") {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const modalEl = document.querySelector(".ss-reward-morph-modal.ant-modal") as HTMLElement | null
+      if (!modalEl) {
+        setModalMorphStage("idle")
+        return
+      }
+
+      const modalRect = modalEl.getBoundingClientRect()
+      const fromX =
+        originCardRect.left + originCardRect.width / 2 - (modalRect.left + modalRect.width / 2)
+      const fromY =
+        originCardRect.top + originCardRect.height / 2 - (modalRect.top + modalRect.height / 2)
+      const scaleX = Math.min(Math.max(originCardRect.width / modalRect.width, 0.28), 1)
+      const scaleY = Math.min(Math.max(originCardRect.height / modalRect.height, 0.2), 1)
+
+      setModalMorphVars({ fromX, fromY, scaleX, scaleY })
+      window.requestAnimationFrame(() => {
+        setModalMorphStage("enter")
+      })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [chooseRewardVisible, modalMorphStage, originCardRect])
+
+  const resetModalState = () => {
+    setChooseRewardVisible(false)
+    setSelectedStudent(null)
+    setModalMorphStage("idle")
+    setModalMorphVars(null)
+    setOriginCardRect(null)
+  }
+
+  const modalClassName =
+    modalMorphStage === "measuring"
+      ? "ss-reward-morph-modal is-preparing"
+      : modalMorphStage === "enter"
+        ? "ss-reward-morph-modal is-enter"
+        : "ss-reward-morph-modal"
+
+  const modalStyle = {
+    "--ss-modal-from-x": `${modalMorphVars?.fromX ?? 0}px`,
+    "--ss-modal-from-y": `${modalMorphVars?.fromY ?? 0}px`,
+    "--ss-modal-scale-x": `${modalMorphVars?.scaleX ?? 1}`,
+    "--ss-modal-scale-y": `${modalMorphVars?.scaleY ?? 1}`,
+  } as React.CSSProperties
 
   const handleRedeem = async (reward: RewardItem) => {
     if (!(window as any).api || !selectedStudent) return
@@ -120,8 +187,7 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           points: reward.cost_points,
         })
       )
-      setChooseRewardVisible(false)
-      setSelectedStudent(null)
+      resetModalState()
       setExchangeMode(false)
       fetchData()
       emitDataUpdated()
@@ -199,7 +265,7 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             <Card
               key={student.id}
               hoverable={exchangeMode}
-              onClick={() => handleStudentClick(student)}
+              onClick={(event) => handleStudentClick(student, event)}
               style={{
                 cursor: exchangeMode ? "pointer" : "default",
                 border: exchangeMode
@@ -234,11 +300,14 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       <Modal
         title={t("rewardExchange.chooseRewardTitle", { name: selectedStudent?.name || "" })}
         open={chooseRewardVisible}
-        onCancel={() => {
-          setChooseRewardVisible(false)
-          setSelectedStudent(null)
-        }}
+        onCancel={resetModalState}
         footer={null}
+        className={modalClassName}
+        rootClassName="ss-reward-morph-root"
+        wrapClassName="ss-reward-morph-wrap"
+        style={modalStyle}
+        transitionName="ss-reward-noop-motion"
+        maskTransitionName="ss-reward-noop-motion"
         destroyOnHidden
       >
         {!selectedStudent ? null : (
