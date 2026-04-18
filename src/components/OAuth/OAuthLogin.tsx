@@ -1,5 +1,5 @@
 import { Button, message, Modal, Space, Spin } from "antd"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { open } from "@tauri-apps/plugin-shell"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
@@ -28,18 +28,28 @@ interface OAuthCallbackResult {
   error_description?: string
 }
 
-// 全局锁，确保同一时间只有一个回调在处理
-let isProcessingCallback = false
-// 全局监听器引用，确保只有一个监听器
-let globalUnlisten: UnlistenFn | null = null
+const OAUTH_EXPECTED_STATE_KEY = "oauth_expected_state"
+const OAUTH_CODE_VERIFIER_KEY = "oauth_code_verifier"
+const OAUTH_CALLBACK_URL_KEY = "oauth_callback_url"
+const DEFAULT_CALLBACK_URL = "http://127.0.0.1:16888/oauth/callback"
+
+const getExpectedState = () => sessionStorage.getItem(OAUTH_EXPECTED_STATE_KEY)
+const setExpectedState = (state: string) => sessionStorage.setItem(OAUTH_EXPECTED_STATE_KEY, state)
+const clearExpectedState = () => sessionStorage.removeItem(OAUTH_EXPECTED_STATE_KEY)
+
+const getCodeVerifier = () => sessionStorage.getItem(OAUTH_CODE_VERIFIER_KEY)
+const setCodeVerifier = (codeVerifier: string) =>
+  sessionStorage.setItem(OAUTH_CODE_VERIFIER_KEY, codeVerifier)
+const clearCodeVerifier = () => sessionStorage.removeItem(OAUTH_CODE_VERIFIER_KEY)
+
+const getCallbackUrl = () => sessionStorage.getItem(OAUTH_CALLBACK_URL_KEY) || DEFAULT_CALLBACK_URL
+const setCallbackUrl = (callbackUrl: string) => sessionStorage.setItem(OAUTH_CALLBACK_URL_KEY, callbackUrl)
+const clearCallbackUrl = () => sessionStorage.removeItem(OAUTH_CALLBACK_URL_KEY)
 
 export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
-  // 使用 sessionStorage 存储 state，防止组件重新渲染导致丢失
-  const getExpectedState = () => sessionStorage.getItem("oauth_expected_state")
-  const setExpectedState = (state: string) => sessionStorage.setItem("oauth_expected_state", state)
-  const clearExpectedState = () => sessionStorage.removeItem("oauth_expected_state")
+  const isProcessingCallbackRef = useRef(false)
 
   const getOAuthConfig = (): OAuthConfig | null => {
     const api = (window as any).api
@@ -58,53 +68,72 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     }
   }
 
-  const handleOAuthCallback = async (result: OAuthCallbackResult) => {
-    // 全局锁检查，防止重复处理
-    if (isProcessingCallback) {
-      console.log("[OAuth] 回调正在处理中，跳过")
-      return
-    }
-
-    console.log("[OAuth] 收到回调:", result)
-    const config = getOAuthConfig()
-    if (!config) {
-      console.error("[OAuth] 配置不存在")
-      return
-    }
-
+  const stopCallbackServer = useCallback(async () => {
+    const api = (window as any).api
+    if (!api?.oauthStopCallbackServer) return
     try {
-      isProcessingCallback = true
+      await api.oauthStopCallbackServer()
+    } catch (error) {
+      console.error("[OAuth] 停止回调服务器失败:", error)
+    }
+  }, [])
 
-      if (result.error) {
-        console.error("[OAuth] 错误:", result.error, result.error_description)
-        message.error(result.error_description || result.error || "授权失败")
+  const clearOAuthTempState = useCallback(() => {
+    clearExpectedState()
+    clearCodeVerifier()
+    clearCallbackUrl()
+  }, [])
+
+  const handleOAuthCallback = useCallback(
+    async (result: OAuthCallbackResult) => {
+      if (isProcessingCallbackRef.current) {
+        console.log("[OAuth] 回调正在处理中，跳过")
+        return
+      }
+
+      console.log("[OAuth] 收到回调:", result)
+      const config = getOAuthConfig()
+      if (!config) {
+        console.error("[OAuth] 配置不存在")
+        message.error("OAuth 配置未设置")
         setLoading(false)
         return
       }
 
-      if (result.code) {
+      const api = (window as any).api
+      if (!api) {
+        message.error("API 不可用")
+        setLoading(false)
+        return
+      }
+
+      try {
+        isProcessingCallbackRef.current = true
+
+        if (result.error) {
+          console.error("[OAuth] 错误:", result.error, result.error_description)
+          message.error(result.error_description || result.error || "授权失败")
+          return
+        }
+
+        if (!result.code) return
+
         console.log("[OAuth] 授权码:", result.code)
         console.log("[OAuth] State:", result.state, "期望:", getExpectedState())
 
-        // 验证 state 防止 CSRF
         const expectedState = getExpectedState()
         if (expectedState && result.state !== expectedState) {
           message.error("安全验证失败：state 不匹配")
-          setLoading(false)
           return
         }
 
-        const api = (window as any).api
-        const callbackUrl = "http://127.0.0.1:16888/oauth/callback"
-
-        // 获取存储的 code_verifier
-        const codeVerifier = sessionStorage.getItem("oauth_code_verifier")
+        const codeVerifier = getCodeVerifier()
         if (!codeVerifier) {
           message.error("安全验证失败：缺少 code_verifier")
-          setLoading(false)
           return
         }
 
+        const callbackUrl = getCallbackUrl()
         console.log("[OAuth] 开始换取 token...")
         const tokenRes = await api.oauthExchangeCode(
           result.code,
@@ -117,7 +146,6 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
         if (!tokenRes.success) {
           message.error(tokenRes.message || "获取访问令牌失败")
-          setLoading(false)
           return
         }
 
@@ -127,13 +155,11 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
         if (!userRes.success) {
           message.error(userRes.message || "获取用户信息失败")
-          setLoading(false)
           return
         }
 
         console.log("[OAuth] 登录成功，保存登录状态...")
 
-        // 保存登录状态到本地
         const loginState = {
           access_token: tokenRes.data.access_token,
           refresh_token: tokenRes.data.refresh_token,
@@ -154,57 +180,60 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
           console.error("[OAuth] 保存登录状态失败:", saveError)
         }
 
-        console.log("[OAuth] 清理资源...")
-        await api.oauthStopCallbackServer()
-        clearExpectedState()
-        sessionStorage.removeItem("oauth_code_verifier")
         console.log("[OAuth] 调用 onSuccess...")
         onSuccess(userRes.data)
         console.log("[OAuth] 调用 onClose...")
         onClose()
+      } catch (error: any) {
+        console.error("[OAuth] 处理回调时发生错误:", error)
+        message.error(error.message || "登录失败")
+      } finally {
+        await stopCallbackServer()
+        clearOAuthTempState()
+        setLoading(false)
+        window.setTimeout(() => {
+          isProcessingCallbackRef.current = false
+          console.log("[OAuth] 局部锁已释放")
+        }, 300)
       }
-    } catch (error: any) {
-      console.error("[OAuth] 处理回调时发生错误:", error)
-      message.error(error.message || "登录失败")
-    } finally {
-      console.log("[OAuth] 回调处理完成，重置状态")
-      setLoading(false)
-      // 延迟释放锁，确保其他可能的重复事件被忽略
-      setTimeout(() => {
-        isProcessingCallback = false
-        console.log("[OAuth] 全局锁已释放")
-      }, 1000)
-    }
-  }
+    },
+    [clearOAuthTempState, onClose, onSuccess, stopCallbackServer]
+  )
 
   useEffect(() => {
-    const setupListener = async () => {
-      // 如果已经有全局监听器，不再创建新的
-      if (globalUnlisten) {
-        console.log("[OAuth] 全局监听器已存在，跳过创建")
-        return
-      }
+    if (!visible) return
 
+    let unlisten: UnlistenFn | null = null
+    let disposed = false
+
+    const setupListener = async () => {
       try {
-        const unlisten = await listen<OAuthCallbackResult>("oauth-callback", async (event) => {
+        unlisten = await listen<OAuthCallbackResult>("oauth-callback", async (event) => {
           console.log("[OAuth] Event listener 收到 payload:", event.payload)
           if (event.payload) {
             await handleOAuthCallback(event.payload)
           }
         })
-        globalUnlisten = unlisten
-        console.log("[OAuth] 全局监听器已创建")
+
+        if (disposed) {
+          unlisten?.()
+          unlisten = null
+        }
       } catch (error) {
         console.error("Failed to setup OAuth callback listener:", error)
       }
     }
 
-    setupListener()
+    void setupListener()
 
-    // 组件卸载时不取消监听，保持全局监听
-    // 只在应用完全关闭时才清理
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return () => {
+      disposed = true
+      if (unlisten) {
+        unlisten()
+        unlisten = null
+      }
+    }
+  }, [handleOAuthCallback, visible])
 
   const handleOAuthLogin = async () => {
     const config = getOAuthConfig()
@@ -226,8 +255,8 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
       }
 
       const callbackUrl = serverRes.data.url
+      setCallbackUrl(callbackUrl)
 
-      // 生成随机 state 防止 CSRF
       const state = generateRandomState()
       console.log("[OAuth] 生成 state:", state)
       setExpectedState(state)
@@ -241,8 +270,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         return
       }
 
-      // 存储 code_verifier 用于后续换取 token
-      sessionStorage.setItem("oauth_code_verifier", urlRes.data.code_verifier)
+      setCodeVerifier(urlRes.data.code_verifier)
       console.log("[OAuth] code_verifier 已存储")
 
       await open(urlRes.data.url)
@@ -252,7 +280,13 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     }
   }
 
-  // 生成随机 state 字符串
+  const handleModalClose = () => {
+    setLoading(false)
+    clearOAuthTempState()
+    void stopCallbackServer()
+    onClose()
+  }
+
   const generateRandomState = (): string => {
     const array = new Uint8Array(32)
     window.crypto.getRandomValues(array)
@@ -266,7 +300,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     <Modal
       title={t("auth.oauthLogin", "SECTL Auth 登录")}
       open={visible}
-      onCancel={onClose}
+      onCancel={handleModalClose}
       footer={null}
       width={400}
       centered

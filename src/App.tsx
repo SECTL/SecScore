@@ -48,6 +48,14 @@ const applyGlobalFontFamily = (fontValue?: string) => {
   document.body.style.fontFamily = fontFamily
 }
 
+const mapOAuthPermissionToAppPermission = (
+  oauthPermission: number
+): "admin" | "points" | "view" => {
+  if (oauthPermission >= 18) return "admin"
+  if (oauthPermission >= 1) return "points"
+  return "view"
+}
+
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -188,15 +196,32 @@ function MainContent(): React.JSX.Element {
 
   useEffect(() => {
     const loadAuthAndSettings = async () => {
-      if (!(window as any).api) return
-      const authRes = await (window as any).api.authGetStatus()
+      const api = (window as any).api
+      if (!api) return
+
+      const [authRes, oauthRes, settingsRes] = await Promise.all([
+        api.authGetStatus(),
+        api.oauthLoadLoginState(),
+        api.getAllSettings(),
+      ])
+
+      const oauthPermission =
+        oauthRes?.success && oauthRes.data
+          ? mapOAuthPermissionToAppPermission(oauthRes.data.permission)
+          : null
+
       if (authRes?.success && authRes.data) {
-        setPermission(authRes.data.permission)
         const anyPwd = Boolean(authRes.data.hasAdminPassword || authRes.data.hasPointsPassword)
         setHasAnyPassword(anyPwd)
-        if (anyPwd && authRes.data.permission === "view") setAuthVisible(true)
+
+        const finalPermission = oauthPermission ?? authRes.data.permission
+        setPermission(finalPermission)
+        setAuthVisible(anyPwd && finalPermission === "view")
+      } else if (oauthPermission) {
+        setPermission(oauthPermission)
+        setAuthVisible(false)
       }
-      const settingsRes = await (window as any).api.getAllSettings()
+
       if (settingsRes?.success && settingsRes.data) {
         setMobileBottomNavItems(normalizeStoredBottomKeys(settingsRes.data.mobile_bottom_nav_items))
         applyGlobalFontFamily(settingsRes.data.font_family)
@@ -425,8 +450,17 @@ function MainContent(): React.JSX.Element {
   }
 
   const logout = async () => {
-    if (!(window as any).api) return
-    const res = await (window as any).api.authLogout()
+    const api = (window as any).api
+    if (!api) return
+
+    // 退出时同时清理 OAuth 持久化状态，避免刷新后又自动恢复权限
+    try {
+      await api.oauthClearLoginState()
+    } catch (error) {
+      console.error("Failed to clear OAuth login state:", error)
+    }
+
+    const res = await api.authLogout()
     if (res?.success && res.data) {
       setPermission(res.data.permission)
       messageApi.success(t("auth.logout"))
@@ -440,14 +474,8 @@ function MainContent(): React.JSX.Element {
     github_username?: string
     permission: number
   }) => {
-    let newPermission: "admin" | "points" | "view" = "view"
-    if (userInfo.permission >= 18) {
-      newPermission = "admin"
-    } else if (userInfo.permission >= 1) {
-      newPermission = "points"
-    }
-
-    setPermission(newPermission)
+    setPermission(mapOAuthPermissionToAppPermission(userInfo.permission))
+    setAuthVisible(false)
     messageApi.success(t("auth.oauthSuccess", "登录成功"))
   }
 
@@ -984,7 +1012,7 @@ function MainContent(): React.JSX.Element {
           footer={null}
           closable={!syncApplyLoading}
           maskClosable={false}
-          destroyOnClose
+          destroyOnHidden
         >
           <div
             style={{ marginBottom: "10px", color: "var(--ss-text-secondary)", fontSize: "12px" }}
