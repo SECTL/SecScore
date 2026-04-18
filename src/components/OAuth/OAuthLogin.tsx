@@ -180,6 +180,11 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
           console.error("[OAuth] 保存登录状态失败:", saveError)
         }
 
+        window.dispatchEvent(
+          new CustomEvent("ss:oauth-user-updated", {
+            detail: { user: userRes.data },
+          })
+        )
         console.log("[OAuth] 调用 onSuccess...")
         onSuccess(userRes.data)
         console.log("[OAuth] 调用 onClose...")

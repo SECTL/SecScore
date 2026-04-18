@@ -346,6 +346,7 @@ export const Settings: React.FC<{
     try {
       await api.oauthClearLoginState()
       setOAuthUserInfo(null)
+      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
       messageApi.success(t("auth.logout"))
     } catch (error: any) {
       messageApi.error(error?.message || t("common.error"))
@@ -409,6 +410,42 @@ export const Settings: React.FC<{
     return () => {
       disposed = true
       if (unlisten) unlisten()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleOAuthUserUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        user?:
+          | {
+              user_id?: string
+              email?: string
+              name?: string
+              github_username?: string
+              permission?: number
+            }
+          | null
+      }>
+      const user = customEvent?.detail?.user
+      if (user?.user_id && user.email && user.name && typeof user.permission === "number") {
+        setOAuthUserInfo({
+          user_id: user.user_id,
+          email: user.email,
+          name: user.name,
+          github_username: user.github_username,
+          permission: user.permission,
+        })
+      } else {
+        setOAuthUserInfo(null)
+      }
+    }
+
+    window.addEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
+    return () => {
+      window.removeEventListener(
+        "ss:oauth-user-updated",
+        handleOAuthUserUpdated as EventListener
+      )
     }
   }, [])
 
