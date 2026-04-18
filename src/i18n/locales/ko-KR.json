@@ -430,7 +430,8 @@
     },
     "layoutBy": {
       "grouped": "그룹화된 목록",
-      "squareGrid": "정사각형 그리드"
+      "squareGrid": "정사각형 그리드",
+      "largeAvatar": "대형 아바타"
     },
     "noStudents": "학생 데이터가 없습니다. 학생 관리에서 추가해 주세요",
     "noMatch": "일치하는 학생이 없습니다",

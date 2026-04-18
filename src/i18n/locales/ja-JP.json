@@ -430,7 +430,8 @@
     },
     "layoutBy": {
       "grouped": "グループリスト",
-      "squareGrid": "正方形グリッド"
+      "squareGrid": "正方形グリッド",
+      "largeAvatar": "大型アバター"
     },
     "noStudents": "生徒データがありません。生徒管理で追加してください",
     "noMatch": "一致する生徒が見つかりません",
@@ -574,7 +575,11 @@
     "avatarSaveFailed": "アバターの保存に失敗しました",
     "avatarInvalidFile": "画像ファイルを選択してください",
     "avatarTooLarge": "画像は2MB以下にしてください",
-    "avatarReadFailed": "画像の読み取りに失敗しました"
+    "avatarReadFailed": "画像の読み取りに失敗しました",
+    "avatarClipboardImport": "クリップボードから取り込み",
+    "avatarClipboardUnsupported": "この環境ではクリップボード画像を読み取れません",
+    "avatarClipboardNoImage": "クリップボードに画像がありません",
+    "avatarClipboardReadFailed": "クリップボード画像の読み取りに失敗しました"
   },
   "score": {
     "title": "ポイント管理",
@@ -693,7 +698,8 @@
     "viewModes": {
       "list": "リスト表示",
       "card": "カード表示",
-      "grid": "グリッド表示"
+      "grid": "グリッド表示",
+      "largeAvatar": "大型アバター表示"
     },
     "scoreDisplayModes": {
       "total": "合計スコアを表示",

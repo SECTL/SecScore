@@ -11,11 +11,12 @@ import {
   message,
   InputNumber,
   Divider,
+  Dropdown,
 } from "antd"
-import { SearchOutlined, DeleteOutlined, UndoOutlined } from "@ant-design/icons"
+import { SearchOutlined, DeleteOutlined, UndoOutlined, UploadOutlined, CopyOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
-import { getAvatarFromExtraJson } from "../utils/studentAvatar"
+import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 import { useResponsive } from "../hooks/useResponsive"
 
 interface student {
@@ -56,7 +57,7 @@ interface rewardSetting {
 }
 
 type SortType = "alphabet" | "surname" | "group" | "score"
-type LayoutType = "grouped" | "squareGrid"
+type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 
 const T9_KEY_MAP: Record<string, string> = {
@@ -139,6 +140,15 @@ export const Home: React.FC<HomeProps> = ({
   const [rewardStudent, setRewardStudent] = useState<student | null>(null)
   const [rewardModalVisible, setRewardModalVisible] = useState(false)
   const [redeemLoading, setRedeemLoading] = useState(false)
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [renameSaving, setRenameSaving] = useState(false)
+  const [renameStudent, setRenameStudent] = useState<student | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false)
+  const [avatarEditorSaving, setAvatarEditorSaving] = useState(false)
+  const [avatarEditorStudent, setAvatarEditorStudent] = useState<student | null>(null)
+  const [avatarEditorValue, setAvatarEditorValue] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const longPressTimerRef = useRef<number | null>(null)
   const suppressClickRef = useRef(false)
   const fetchRequestIdRef = useRef(0)
@@ -1143,6 +1153,140 @@ export const Home: React.FC<HomeProps> = ({
     setOperationVisible(true)
   }
 
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result === "string") resolve(result)
+        else reject(new Error("invalid-result"))
+      }
+      reader.onerror = () => reject(reader.error || new Error("read-failed"))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleAvatarEditorFileChange = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      messageApi.error(t("students.avatarInvalidFile"))
+      return
+    }
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      messageApi.error(t("students.avatarTooLarge"))
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setAvatarEditorValue(dataUrl)
+    } catch {
+      messageApi.error(t("students.avatarReadFailed"))
+    }
+  }
+
+  const handleAvatarPasteFromClipboard = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.read) {
+      messageApi.error(t("students.avatarClipboardUnsupported"))
+      return
+    }
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"))
+        if (!imageType) continue
+        const blob = await item.getType(imageType)
+        const ext = imageType.split("/")[1] || "png"
+        const file = new File([blob], `avatar-clipboard.${ext}`, { type: imageType })
+        await handleAvatarEditorFileChange(file)
+        return
+      }
+      messageApi.warning(t("students.avatarClipboardNoImage"))
+    } catch {
+      messageApi.error(t("students.avatarClipboardReadFailed"))
+    }
+  }
+
+  const openRenameStudent = (target: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setRenameStudent(target)
+    setRenameValue(target.name)
+    setRenameVisible(true)
+  }
+
+  const handleRenameStudent = async () => {
+    if (!renameStudent || !(window as any).api) return
+    const nextName = renameValue.trim()
+    if (!nextName) {
+      messageApi.warning(`${t("common.pleaseEnter")} ${t("common.name")}`)
+      return
+    }
+    if (nextName === renameStudent.name) {
+      setRenameVisible(false)
+      setRenameStudent(null)
+      setRenameValue("")
+      return
+    }
+    setRenameSaving(true)
+    try {
+      const res = await (window as any).api.updateStudent(renameStudent.id, { name: nextName })
+      if (res?.success) {
+        messageApi.success(t("common.success"))
+        setRenameVisible(false)
+        setRenameStudent(null)
+        setRenameValue("")
+        await fetchData(true)
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("home.submitFailed"))
+      }
+    } catch {
+      messageApi.error(t("home.submitFailed"))
+    } finally {
+      setRenameSaving(false)
+    }
+  }
+
+  const openAvatarEditor = (target: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setAvatarEditorStudent(target)
+    setAvatarEditorValue(target.avatarUrl || null)
+    setAvatarEditorVisible(true)
+  }
+
+  const handleSaveAvatarEditor = async () => {
+    if (!avatarEditorStudent || !(window as any).api) return
+    setAvatarEditorSaving(true)
+    try {
+      const latest =
+        students.find((item) => item.id === avatarEditorStudent.id) || avatarEditorStudent
+      const payload = setAvatarInExtraJson(latest.extra_json, avatarEditorValue)
+      const res = await (window as any).api.updateStudent(avatarEditorStudent.id, {
+        extra_json: payload,
+      })
+      if (res?.success) {
+        messageApi.success(t("students.avatarSaveSuccess"))
+        setAvatarEditorVisible(false)
+        setAvatarEditorStudent(null)
+        setAvatarEditorValue(null)
+        await fetchData(true)
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.avatarSaveFailed"))
+      }
+    } catch {
+      messageApi.error(t("students.avatarSaveFailed"))
+    } finally {
+      setAvatarEditorSaving(false)
+    }
+  }
+
   const renderStudentCard = (student: student, index: number) => {
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
@@ -1749,6 +1893,271 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  const renderStudentLargeAvatarCard = (student: student, index: number) => {
+    const avatarText = getDisplayText(student.name)
+    const avatarColor = getAvatarColor(student.name)
+    const isQuickActionMode = quickActionStudentId === student.id
+    const isSelected = selectedStudentIds.includes(student.id)
+    const displayPoints = getDisplayPoints(student)
+    const scoreColor = displayPoints > 0 ? "#52c41a" : displayPoints < 0 ? "#ff4d4f" : "#595959"
+
+    let rankBadge: string | null = null
+    if (sortType === "score" && !searchKeyword) {
+      if (index === 0) rankBadge = "🥇"
+      else if (index === 1) rankBadge = "🥈"
+      else if (index === 2) rankBadge = "🥉"
+    }
+
+    return (
+      <div
+        key={student.id}
+        data-student-quick-card="true"
+        onClick={(e) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          openOperation(student, e.currentTarget as HTMLElement)
+        }}
+        onMouseDown={(e) => {
+          if (batchMode) return
+          if (e.button !== 0) return
+          startLongPress(student)
+        }}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={() => {
+          if (batchMode) return
+          startLongPress(student)
+        }}
+        onTouchEnd={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          if (batchMode) return
+          e.preventDefault()
+          openQuickAction(student)
+        }}
+        style={{
+          cursor: "pointer",
+          position: "relative",
+          aspectRatio: "1.2 / 1",
+        }}
+        ref={(el) => {
+          groupedStudents.forEach((group) => {
+            if (group.key === "all") return
+            if (firstStudentIdByGroup.get(group.key) === student.id) {
+              groupRefs.current[group.key] = el
+            }
+          })
+        }}
+      >
+        <Card
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "var(--ss-card-bg)",
+            transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
+            border: isQuickActionMode
+              ? "1px solid var(--ant-color-primary, #1677ff)"
+              : isSelected
+                ? "1px solid var(--ant-color-primary, #1677ff)"
+                : "1px solid var(--ss-border-color)",
+            overflow: "hidden",
+            borderRadius: "18px",
+            boxShadow:
+              isQuickActionMode || isSelected ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
+          }}
+          styles={{ body: { height: "100%", padding: 0 } }}
+        >
+          <div style={{ position: "relative", width: "100%", height: "100%" }}>
+            {student.avatarUrl ? (
+              <img
+                src={student.avatarUrl}
+                alt={student.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: `linear-gradient(140deg, ${avatarColor} 0%, ${avatarColor}aa 100%)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "rgba(255,255,255,0.95)",
+                  fontWeight: 700,
+                  fontSize: avatarText.length > 1 ? "46px" : "56px",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {avatarText}
+              </div>
+            )}
+
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0) 56%, rgba(255,255,255,0.72) 84%, rgba(255,255,255,0.95) 100%)",
+                pointerEvents: "none",
+              }}
+            />
+
+            {rankBadge && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 10,
+                  fontSize: "24px",
+                  lineHeight: 1,
+                  zIndex: 2,
+                }}
+              >
+                {rankBadge}
+              </div>
+            )}
+
+            {isSelected && (
+              <Tag
+                color="processing"
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  left: 8,
+                  marginInlineEnd: 0,
+                  zIndex: 2,
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                {t("home.selected")}
+              </Tag>
+            )}
+
+            {isQuickActionMode ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  zIndex: 3,
+                  background: "rgba(0, 0, 0, 0.18)",
+                }}
+              >
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, 1)
+                  }}
+                  style={{
+                    minWidth: "52px",
+                    height: "32px",
+                    borderRadius: "16px",
+                    fontWeight: 700,
+                    paddingInline: "10px",
+                  }}
+                >
+                  +1
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, -1)
+                  }}
+                  style={{
+                    minWidth: "52px",
+                    height: "32px",
+                    borderRadius: "16px",
+                    fontWeight: 700,
+                    paddingInline: "10px",
+                  }}
+                >
+                  -1
+                </Button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  zIndex: 2,
+                }}
+              >
+                <Dropdown
+                  trigger={["contextMenu"]}
+                  menu={{
+                    items: [
+                      { key: "rename", label: "改名", disabled: !canEdit },
+                      { key: "avatar", label: t("students.editAvatar"), disabled: !canEdit },
+                    ],
+                    onClick: ({ key, domEvent }) => {
+                      domEvent.stopPropagation()
+                      if (key === "rename") openRenameStudent(student)
+                      if (key === "avatar") openAvatarEditor(student)
+                    },
+                  }}
+                >
+                  <div
+                    onContextMenu={(e) => e.stopPropagation()}
+                    style={{
+                      maxWidth: "65%",
+                      fontWeight: 700,
+                      fontSize: "22px",
+                      lineHeight: 1,
+                      color: "#111",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      background: "rgba(255,255,255,0.62)",
+                      border: "1px solid rgba(255,255,255,0.82)",
+                      borderRadius: "8px",
+                      padding: "3px 9px",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                </Dropdown>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "28px",
+                    lineHeight: 1,
+                    color: scoreColor,
+                    background: "rgba(255,255,255,0.62)",
+                    border: "1px solid rgba(255,255,255,0.82)",
+                    borderRadius: "8px",
+                    padding: "2px 9px",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  {displayPoints > 0 ? `+${displayPoints}` : displayPoints}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
   const renderGroupedCards = () => {
     if (layoutType === "squareGrid") {
       return (
@@ -1760,6 +2169,20 @@ export const Home: React.FC<HomeProps> = ({
           }}
         >
           {sortedStudents.map((student, idx) => renderStudentSquareCard(student, idx))}
+        </div>
+      )
+    }
+
+    if (layoutType === "largeAvatar") {
+      return (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: isPortraitMode ? "10px" : "14px",
+          }}
+        >
+          {sortedStudents.map((student, idx) => renderStudentLargeAvatarCard(student, idx))}
         </div>
       )
     }
@@ -2667,6 +3090,7 @@ export const Home: React.FC<HomeProps> = ({
                 options={[
                   { value: "grouped", label: t("home.layoutBy.grouped") },
                   { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+                  { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
                 ]}
               />
               <Button
@@ -2795,6 +3219,114 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </Modal>
 
+      <Modal
+        title={`${t("common.edit")} ${t("common.name")} - ${renameStudent?.name || ""}`}
+        open={renameVisible}
+        onCancel={() => {
+          setRenameVisible(false)
+          setRenameStudent(null)
+          setRenameValue("")
+        }}
+        onOk={handleRenameStudent}
+        okButtonProps={{ loading: renameSaving, disabled: !renameValue.trim() }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <Input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          placeholder={`${t("common.pleaseEnter")} ${t("common.name")}`}
+          maxLength={32}
+          autoFocus
+          onPressEnter={() => {
+            if (!renameSaving && renameValue.trim()) handleRenameStudent()
+          }}
+        />
+      </Modal>
+
+      <Modal
+        title={t("students.editAvatarTitle", { name: avatarEditorStudent?.name || "" })}
+        open={avatarEditorVisible}
+        onCancel={() => {
+          setAvatarEditorVisible(false)
+          setAvatarEditorStudent(null)
+          setAvatarEditorValue(null)
+        }}
+        onOk={handleSaveAvatarEditor}
+        okButtonProps={{ loading: avatarEditorSaving, disabled: !avatarEditorStudent }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+            {avatarEditorValue ? (
+              <img
+                src={avatarEditorValue}
+                alt={avatarEditorStudent?.name || "avatar"}
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "1px solid var(--ss-border-color)",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  border: "1px dashed var(--ss-border-color)",
+                  backgroundColor: "var(--ss-bg-color)",
+                  color: "var(--ss-text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {t("students.noAvatar")}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={!canEdit}
+            >
+              {t("students.avatarUpload")}
+            </Button>
+            <Button
+              icon={<CopyOutlined />}
+              onClick={handleAvatarPasteFromClipboard}
+              disabled={!canEdit}
+            >
+              {t("students.avatarClipboardImport")}
+            </Button>
+            <Button onClick={() => setAvatarEditorValue(null)} disabled={!canEdit}>
+              {t("students.avatarClear")}
+            </Button>
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              handleAvatarEditorFileChange(file)
+              if (avatarInputRef.current) avatarInputRef.current.value = ""
+            }}
+          />
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.avatarTip")}
+          </div>
+        </div>
+      </Modal>
+
       <div
         ref={immersiveToolbarRef}
         data-immersive-toolbar="true"
@@ -2872,6 +3404,7 @@ export const Home: React.FC<HomeProps> = ({
             options={[
               { value: "grouped", label: t("home.layoutBy.grouped") },
               { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+              { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
             ]}
           />
           <Button

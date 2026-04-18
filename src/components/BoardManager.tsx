@@ -18,7 +18,7 @@ import {
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 
-type BoardStudentViewMode = "list" | "card" | "grid"
+type BoardStudentViewMode = "list" | "card" | "grid" | "largeAvatar"
 type BoardScoreDisplayMode = "total" | "split"
 type SplitDirection = "horizontal" | "vertical"
 
@@ -68,6 +68,7 @@ interface BoardManagerProps {
 interface BoardStudentCardData {
   key: string
   name: string
+  avatarUrl?: string
   score?: number
   addScore?: number
   deductScore?: number
@@ -221,7 +222,10 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
                 typeof list?.name === "string" && list.name.trim() ? list.name.trim() : "学生列表",
               sql: typeof list?.sql === "string" && list.sql.trim() ? list.sql : getDefaultSql(),
               viewMode:
-                list?.viewMode === "list" || list?.viewMode === "card" || list?.viewMode === "grid"
+                list?.viewMode === "list" ||
+                list?.viewMode === "card" ||
+                list?.viewMode === "grid" ||
+                list?.viewMode === "largeAvatar"
                   ? list.viewMode
                   : "card",
               scoreDisplayMode:
@@ -347,6 +351,11 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
     cards.push({
       key: `${name}-${index}`,
       name,
+      avatarUrl:
+        typeof (data.avatar_url ?? data.avatarUrl ?? data.avatar) === "string" &&
+        String(data.avatar_url ?? data.avatarUrl ?? data.avatar).trim()
+          ? String(data.avatar_url ?? data.avatarUrl ?? data.avatar).trim()
+          : undefined,
       score: parseNumber(data.score),
       addScore,
       deductScore,
@@ -851,6 +860,8 @@ ORDER BY reward_points DESC, score DESC`,
           gridTemplateColumns:
             list.viewMode === "grid"
               ? "repeat(auto-fill, minmax(102px, 1fr))"
+              : list.viewMode === "largeAvatar"
+                ? "repeat(auto-fill, minmax(180px, 1fr))"
               : list.viewMode === "list"
                 ? "1fr"
                 : "repeat(auto-fill, minmax(220px, 1fr))",
@@ -897,11 +908,22 @@ ORDER BY reward_points DESC, score DESC`,
                     : item.answeredCount !== undefined
                       ? { label: t("board.metrics.todayAnswered"), value: item.answeredCount }
                       : null
+          const metricValueText = primaryMetric
+            ? primaryMetric.value > 0
+              ? `+${primaryMetric.value}`
+              : String(primaryMetric.value)
+            : null
 
           return (
             <div
               key={item.key}
-              style={{ ...(list.viewMode === "grid" ? { aspectRatio: "1 / 1" } : null) }}
+              style={{
+                ...(list.viewMode === "grid"
+                  ? { aspectRatio: "1 / 1" }
+                  : list.viewMode === "largeAvatar"
+                    ? { aspectRatio: "1.2 / 1" }
+                    : null),
+              }}
             >
               <Card
                 style={{
@@ -917,10 +939,15 @@ ORDER BY reward_points DESC, score DESC`,
                     padding:
                       list.viewMode === "grid"
                         ? "8px"
+                        : list.viewMode === "largeAvatar"
+                          ? 0
                         : list.viewMode === "list"
                           ? "10px 12px"
                           : "12px 14px",
-                    height: list.viewMode === "grid" ? "100%" : undefined,
+                    height:
+                      list.viewMode === "grid" || list.viewMode === "largeAvatar"
+                        ? "100%"
+                        : undefined,
                   },
                 }}
               >
@@ -1003,6 +1030,96 @@ ORDER BY reward_points DESC, score DESC`,
                             ? `+${primaryMetric.value}`
                             : primaryMetric.value}
                         </Tag>
+                      )}
+                    </div>
+                  </div>
+                ) : list.viewMode === "largeAvatar" ? (
+                  <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                    {item.avatarUrl ? (
+                      <img
+                        src={item.avatarUrl}
+                        alt={item.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: `linear-gradient(140deg, ${avatarColor} 0%, ${avatarColor}aa 100%)`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "rgba(255,255,255,0.95)",
+                          fontWeight: 700,
+                          fontSize: avatarText.length > 1 ? "46px" : "56px",
+                          letterSpacing: "0.02em",
+                        }}
+                      >
+                        {avatarText}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                          "linear-gradient(180deg, rgba(255,255,255,0) 56%, rgba(255,255,255,0.72) 84%, rgba(255,255,255,0.95) 100%)",
+                        pointerEvents: "none",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 8,
+                        right: 8,
+                        bottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          maxWidth: "65%",
+                          fontWeight: 700,
+                          fontSize: 22,
+                          lineHeight: 1,
+                          color: "#111",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          background: "rgba(255,255,255,0.62)",
+                          border: "1px solid rgba(255,255,255,0.82)",
+                          borderRadius: 8,
+                          padding: "3px 9px",
+                          backdropFilter: "blur(4px)",
+                        }}
+                      >
+                        {item.name}
+                      </div>
+                      {metricValueText !== null && (
+                        <div
+                          style={{
+                            fontWeight: 800,
+                            fontSize: 28,
+                            lineHeight: 1,
+                            color:
+                              primaryMetric && primaryMetric.value >= 0
+                                ? "#52c41a"
+                                : "#ff4d4f",
+                            background: "rgba(255,255,255,0.62)",
+                            border: "1px solid rgba(255,255,255,0.82)",
+                            borderRadius: 8,
+                            padding: "2px 9px",
+                            backdropFilter: "blur(4px)",
+                          }}
+                        >
+                          {metricValueText}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1407,6 +1524,7 @@ ORDER BY reward_points DESC, score DESC`,
                   { value: "list", label: t("board.viewModes.list") },
                   { value: "card", label: t("board.viewModes.card") },
                   { value: "grid", label: t("board.viewModes.grid") },
+                  { value: "largeAvatar", label: t("board.viewModes.largeAvatar") },
                 ]}
                 disabled={!canManage}
               />

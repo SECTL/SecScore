@@ -430,7 +430,8 @@
     },
     "layoutBy": {
       "grouped": "Gruppierte Liste",
-      "squareGrid": "Quadratisches Raster"
+      "squareGrid": "Quadratisches Raster",
+      "largeAvatar": "Großer Avatar"
     },
     "noStudents": "Keine Schülerdaten vorhanden, bitte in der Schülerverwaltung hinzufügen",
     "noMatch": "Keine übereinstimmenden Schüler gefunden",
