@@ -56,7 +56,7 @@ interface rewardSetting {
 }
 
 type SortType = "alphabet" | "surname" | "group" | "score"
-type LayoutType = "grouped" | "squareGrid"
+type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 
 const T9_KEY_MAP: Record<string, string> = {
@@ -1749,6 +1749,255 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  const renderStudentLargeAvatarCard = (student: student, index: number) => {
+    const avatarText = getDisplayText(student.name)
+    const avatarColor = getAvatarColor(student.name)
+    const isQuickActionMode = quickActionStudentId === student.id
+    const isSelected = selectedStudentIds.includes(student.id)
+    const displayPoints = getDisplayPoints(student)
+    const scoreColor = displayPoints > 0 ? "#52c41a" : displayPoints < 0 ? "#ff4d4f" : "#595959"
+
+    let rankBadge: string | null = null
+    if (sortType === "score" && !searchKeyword) {
+      if (index === 0) rankBadge = "🥇"
+      else if (index === 1) rankBadge = "🥈"
+      else if (index === 2) rankBadge = "🥉"
+    }
+
+    return (
+      <div
+        key={student.id}
+        data-student-quick-card="true"
+        onClick={(e) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          openOperation(student, e.currentTarget as HTMLElement)
+        }}
+        onMouseDown={(e) => {
+          if (batchMode) return
+          if (e.button !== 0) return
+          startLongPress(student)
+        }}
+        onMouseUp={cancelLongPress}
+        onMouseLeave={cancelLongPress}
+        onTouchStart={() => {
+          if (batchMode) return
+          startLongPress(student)
+        }}
+        onTouchEnd={cancelLongPress}
+        onTouchCancel={cancelLongPress}
+        onContextMenu={(e) => {
+          if (batchMode) return
+          e.preventDefault()
+          openQuickAction(student)
+        }}
+        style={{
+          cursor: "pointer",
+          position: "relative",
+          aspectRatio: "1.2 / 1",
+        }}
+        ref={(el) => {
+          groupedStudents.forEach((group) => {
+            if (group.key === "all") return
+            if (firstStudentIdByGroup.get(group.key) === student.id) {
+              groupRefs.current[group.key] = el
+            }
+          })
+        }}
+      >
+        <Card
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "var(--ss-card-bg)",
+            transition: "all 0.2s cubic-bezier(0.38, 0, 0.24, 1)",
+            border: isQuickActionMode
+              ? "1px solid var(--ant-color-primary, #1677ff)"
+              : isSelected
+                ? "1px solid var(--ant-color-primary, #1677ff)"
+                : "1px solid var(--ss-border-color)",
+            overflow: "hidden",
+            borderRadius: "18px",
+            boxShadow:
+              isQuickActionMode || isSelected ? "0 8px 18px rgba(22, 119, 255, 0.18)" : undefined,
+          }}
+          styles={{ body: { height: "100%", padding: 0 } }}
+        >
+          <div style={{ position: "relative", width: "100%", height: "100%" }}>
+            {student.avatarUrl ? (
+              <img
+                src={student.avatarUrl}
+                alt={student.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  background: `linear-gradient(140deg, ${avatarColor} 0%, ${avatarColor}aa 100%)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "rgba(255,255,255,0.95)",
+                  fontWeight: 700,
+                  fontSize: avatarText.length > 1 ? "46px" : "56px",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                {avatarText}
+              </div>
+            )}
+
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0) 56%, rgba(255,255,255,0.72) 84%, rgba(255,255,255,0.95) 100%)",
+                pointerEvents: "none",
+              }}
+            />
+
+            {rankBadge && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 10,
+                  fontSize: "24px",
+                  lineHeight: 1,
+                  zIndex: 2,
+                }}
+              >
+                {rankBadge}
+              </div>
+            )}
+
+            {isSelected && (
+              <Tag
+                color="processing"
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  left: 8,
+                  marginInlineEnd: 0,
+                  zIndex: 2,
+                  backdropFilter: "blur(4px)",
+                }}
+              >
+                {t("home.selected")}
+              </Tag>
+            )}
+
+            {isQuickActionMode ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  zIndex: 3,
+                  background: "rgba(0, 0, 0, 0.18)",
+                }}
+              >
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, 1)
+                  }}
+                  style={{
+                    minWidth: "52px",
+                    height: "32px",
+                    borderRadius: "16px",
+                    fontWeight: 700,
+                    paddingInline: "10px",
+                  }}
+                >
+                  +1
+                </Button>
+                <Button
+                  danger
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleQuickAdjust(student, -1)
+                  }}
+                  style={{
+                    minWidth: "52px",
+                    height: "32px",
+                    borderRadius: "16px",
+                    fontWeight: 700,
+                    paddingInline: "10px",
+                  }}
+                >
+                  -1
+                </Button>
+              </div>
+            ) : (
+              <div
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  zIndex: 2,
+                }}
+              >
+                <div
+                  style={{
+                    maxWidth: "65%",
+                    fontWeight: 700,
+                    fontSize: "22px",
+                    lineHeight: 1,
+                    color: "#111",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    background: "rgba(255,255,255,0.62)",
+                    border: "1px solid rgba(255,255,255,0.82)",
+                    borderRadius: "8px",
+                    padding: "3px 9px",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  {student.name}
+                </div>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "28px",
+                    lineHeight: 1,
+                    color: scoreColor,
+                    background: "rgba(255,255,255,0.62)",
+                    border: "1px solid rgba(255,255,255,0.82)",
+                    borderRadius: "8px",
+                    padding: "2px 9px",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  {displayPoints > 0 ? `+${displayPoints}` : displayPoints}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
   const renderGroupedCards = () => {
     if (layoutType === "squareGrid") {
       return (
@@ -1760,6 +2009,20 @@ export const Home: React.FC<HomeProps> = ({
           }}
         >
           {sortedStudents.map((student, idx) => renderStudentSquareCard(student, idx))}
+        </div>
+      )
+    }
+
+    if (layoutType === "largeAvatar") {
+      return (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: isPortraitMode ? "10px" : "14px",
+          }}
+        >
+          {sortedStudents.map((student, idx) => renderStudentLargeAvatarCard(student, idx))}
         </div>
       )
     }
@@ -2667,6 +2930,7 @@ export const Home: React.FC<HomeProps> = ({
                 options={[
                   { value: "grouped", label: t("home.layoutBy.grouped") },
                   { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+                  { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
                 ]}
               />
               <Button
@@ -2872,6 +3136,7 @@ export const Home: React.FC<HomeProps> = ({
             options={[
               { value: "grouped", label: t("home.layoutBy.grouped") },
               { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+              { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
             ]}
           />
           <Button

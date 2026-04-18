@@ -430,7 +430,8 @@
     },
     "layoutBy": {
       "grouped": "Lista agrupada",
-      "squareGrid": "Cuadrícula cuadrada"
+      "squareGrid": "Cuadrícula cuadrada",
+      "largeAvatar": "Avatar grande"
     },
     "noStudents": "Sin datos de estudiantes, por favor añada en gestión de estudiantes",
     "noMatch": "Sin estudiantes coincidentes encontrados",
