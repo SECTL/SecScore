@@ -568,7 +568,11 @@
     "avatarSaveFailed": "Failed to save avatar",
     "avatarInvalidFile": "Please choose an image file",
     "avatarTooLarge": "Image must be smaller than 2MB",
-    "avatarReadFailed": "Failed to read image"
+    "avatarReadFailed": "Failed to read image",
+    "avatarClipboardImport": "Import from Clipboard",
+    "avatarClipboardUnsupported": "Clipboard image read is not supported",
+    "avatarClipboardNoImage": "No image found in clipboard",
+    "avatarClipboardReadFailed": "Failed to read clipboard image"
   },
   "score": {
     "title": "Points Management",

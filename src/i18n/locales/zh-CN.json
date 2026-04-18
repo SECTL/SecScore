@@ -568,7 +568,11 @@
     "avatarSaveFailed": "头像保存失败",
     "avatarInvalidFile": "请选择图片文件",
     "avatarTooLarge": "图片不能超过 2MB",
-    "avatarReadFailed": "读取图片失败"
+    "avatarReadFailed": "读取图片失败",
+    "avatarClipboardImport": "从剪贴板导入",
+    "avatarClipboardUnsupported": "当前环境不支持读取剪贴板图片",
+    "avatarClipboardNoImage": "剪贴板中没有图片",
+    "avatarClipboardReadFailed": "读取剪贴板图片失败"
   },
   "score": {
     "title": "积分管理",
