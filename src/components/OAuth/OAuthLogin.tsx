@@ -32,6 +32,8 @@ interface OAuthCallbackResult {
 let isProcessingCallback = false
 // 全局监听器引用，确保只有一个监听器
 let globalUnlisten: UnlistenFn | null = null
+// 已处理事件ID集合，用于精确去重
+const processedEventIds = new Set<string>()
 
 export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
@@ -59,7 +61,18 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   }
 
   const handleOAuthCallback = async (result: OAuthCallbackResult) => {
-    // 全局锁检查，防止重复处理
+    // 生成事件唯一标识（使用code和state的组合，如果没有则使用时间戳）
+    const eventId = result.code && result.state
+      ? `${result.code}_${result.state}`
+      : `error_${result.error}_${Date.now()}`
+
+    // 检查事件是否已被处理
+    if (processedEventIds.has(eventId)) {
+      console.log("[OAuth] 事件已被处理，跳过:", eventId)
+      return
+    }
+
+    // 全局锁检查，防止并发处理
     if (isProcessingCallback) {
       console.log("[OAuth] 回调正在处理中，跳过")
       return
@@ -74,6 +87,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
     try {
       isProcessingCallback = true
+      processedEventIds.add(eventId)
 
       if (result.error) {
         console.error("[OAuth] 错误:", result.error, result.error_description)
@@ -169,11 +183,15 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     } finally {
       console.log("[OAuth] 回调处理完成，重置状态")
       setLoading(false)
-      // 延迟释放锁，确保其他可能的重复事件被忽略
+      // 立即释放锁，无需延迟
+      isProcessingCallback = false
+      console.log("[OAuth] 全局锁已释放")
+
+      // 5分钟后清理该事件ID，防止内存泄漏
       setTimeout(() => {
-        isProcessingCallback = false
-        console.log("[OAuth] 全局锁已释放")
-      }, 1000)
+        processedEventIds.delete(eventId)
+        console.log("[OAuth] 事件ID已清理:", eventId)
+      }, 5 * 60 * 1000)
     }
   }
 
