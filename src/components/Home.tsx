@@ -11,11 +11,12 @@ import {
   message,
   InputNumber,
   Divider,
+  Dropdown,
 } from "antd"
-import { SearchOutlined, DeleteOutlined, UndoOutlined } from "@ant-design/icons"
+import { SearchOutlined, DeleteOutlined, UndoOutlined, UploadOutlined, CopyOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
-import { getAvatarFromExtraJson } from "../utils/studentAvatar"
+import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 import { useResponsive } from "../hooks/useResponsive"
 
 interface student {
@@ -139,6 +140,15 @@ export const Home: React.FC<HomeProps> = ({
   const [rewardStudent, setRewardStudent] = useState<student | null>(null)
   const [rewardModalVisible, setRewardModalVisible] = useState(false)
   const [redeemLoading, setRedeemLoading] = useState(false)
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [renameSaving, setRenameSaving] = useState(false)
+  const [renameStudent, setRenameStudent] = useState<student | null>(null)
+  const [renameValue, setRenameValue] = useState("")
+  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false)
+  const [avatarEditorSaving, setAvatarEditorSaving] = useState(false)
+  const [avatarEditorStudent, setAvatarEditorStudent] = useState<student | null>(null)
+  const [avatarEditorValue, setAvatarEditorValue] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const longPressTimerRef = useRef<number | null>(null)
   const suppressClickRef = useRef(false)
   const fetchRequestIdRef = useRef(0)
@@ -1143,6 +1153,140 @@ export const Home: React.FC<HomeProps> = ({
     setOperationVisible(true)
   }
 
+  const readFileAsDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result === "string") resolve(result)
+        else reject(new Error("invalid-result"))
+      }
+      reader.onerror = () => reject(reader.error || new Error("read-failed"))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleAvatarEditorFileChange = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      messageApi.error(t("students.avatarInvalidFile"))
+      return
+    }
+    const maxSize = 2 * 1024 * 1024
+    if (file.size > maxSize) {
+      messageApi.error(t("students.avatarTooLarge"))
+      return
+    }
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setAvatarEditorValue(dataUrl)
+    } catch {
+      messageApi.error(t("students.avatarReadFailed"))
+    }
+  }
+
+  const handleAvatarPasteFromClipboard = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.read) {
+      messageApi.error(t("students.avatarClipboardUnsupported"))
+      return
+    }
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"))
+        if (!imageType) continue
+        const blob = await item.getType(imageType)
+        const ext = imageType.split("/")[1] || "png"
+        const file = new File([blob], `avatar-clipboard.${ext}`, { type: imageType })
+        await handleAvatarEditorFileChange(file)
+        return
+      }
+      messageApi.warning(t("students.avatarClipboardNoImage"))
+    } catch {
+      messageApi.error(t("students.avatarClipboardReadFailed"))
+    }
+  }
+
+  const openRenameStudent = (target: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setRenameStudent(target)
+    setRenameValue(target.name)
+    setRenameVisible(true)
+  }
+
+  const handleRenameStudent = async () => {
+    if (!renameStudent || !(window as any).api) return
+    const nextName = renameValue.trim()
+    if (!nextName) {
+      messageApi.warning(`${t("common.pleaseEnter")} ${t("common.name")}`)
+      return
+    }
+    if (nextName === renameStudent.name) {
+      setRenameVisible(false)
+      setRenameStudent(null)
+      setRenameValue("")
+      return
+    }
+    setRenameSaving(true)
+    try {
+      const res = await (window as any).api.updateStudent(renameStudent.id, { name: nextName })
+      if (res?.success) {
+        messageApi.success(t("common.success"))
+        setRenameVisible(false)
+        setRenameStudent(null)
+        setRenameValue("")
+        await fetchData(true)
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("home.submitFailed"))
+      }
+    } catch {
+      messageApi.error(t("home.submitFailed"))
+    } finally {
+      setRenameSaving(false)
+    }
+  }
+
+  const openAvatarEditor = (target: student) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setAvatarEditorStudent(target)
+    setAvatarEditorValue(target.avatarUrl || null)
+    setAvatarEditorVisible(true)
+  }
+
+  const handleSaveAvatarEditor = async () => {
+    if (!avatarEditorStudent || !(window as any).api) return
+    setAvatarEditorSaving(true)
+    try {
+      const latest =
+        students.find((item) => item.id === avatarEditorStudent.id) || avatarEditorStudent
+      const payload = setAvatarInExtraJson(latest.extra_json, avatarEditorValue)
+      const res = await (window as any).api.updateStudent(avatarEditorStudent.id, {
+        extra_json: payload,
+      })
+      if (res?.success) {
+        messageApi.success(t("students.avatarSaveSuccess"))
+        setAvatarEditorVisible(false)
+        setAvatarEditorStudent(null)
+        setAvatarEditorValue(null)
+        await fetchData(true)
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.avatarSaveFailed"))
+      }
+    } catch {
+      messageApi.error(t("students.avatarSaveFailed"))
+    } finally {
+      setAvatarEditorSaving(false)
+    }
+  }
+
   const renderStudentCard = (student: student, index: number) => {
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
@@ -1956,25 +2100,41 @@ export const Home: React.FC<HomeProps> = ({
                   zIndex: 2,
                 }}
               >
-                <div
-                  style={{
-                    maxWidth: "65%",
-                    fontWeight: 700,
-                    fontSize: "22px",
-                    lineHeight: 1,
-                    color: "#111",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    background: "rgba(255,255,255,0.62)",
-                    border: "1px solid rgba(255,255,255,0.82)",
-                    borderRadius: "8px",
-                    padding: "3px 9px",
-                    backdropFilter: "blur(4px)",
+                <Dropdown
+                  trigger={["contextMenu"]}
+                  menu={{
+                    items: [
+                      { key: "rename", label: "改名", disabled: !canEdit },
+                      { key: "avatar", label: t("students.editAvatar"), disabled: !canEdit },
+                    ],
+                    onClick: ({ key, domEvent }) => {
+                      domEvent.stopPropagation()
+                      if (key === "rename") openRenameStudent(student)
+                      if (key === "avatar") openAvatarEditor(student)
+                    },
                   }}
                 >
-                  {student.name}
-                </div>
+                  <div
+                    onContextMenu={(e) => e.stopPropagation()}
+                    style={{
+                      maxWidth: "65%",
+                      fontWeight: 700,
+                      fontSize: "22px",
+                      lineHeight: 1,
+                      color: "#111",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      background: "rgba(255,255,255,0.62)",
+                      border: "1px solid rgba(255,255,255,0.82)",
+                      borderRadius: "8px",
+                      padding: "3px 9px",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                </Dropdown>
                 <div
                   style={{
                     fontWeight: 800,
@@ -3057,6 +3217,114 @@ export const Home: React.FC<HomeProps> = ({
             )}
           </>
         )}
+      </Modal>
+
+      <Modal
+        title={`${t("common.edit")} ${t("common.name")} - ${renameStudent?.name || ""}`}
+        open={renameVisible}
+        onCancel={() => {
+          setRenameVisible(false)
+          setRenameStudent(null)
+          setRenameValue("")
+        }}
+        onOk={handleRenameStudent}
+        okButtonProps={{ loading: renameSaving, disabled: !renameValue.trim() }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <Input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          placeholder={`${t("common.pleaseEnter")} ${t("common.name")}`}
+          maxLength={32}
+          autoFocus
+          onPressEnter={() => {
+            if (!renameSaving && renameValue.trim()) handleRenameStudent()
+          }}
+        />
+      </Modal>
+
+      <Modal
+        title={t("students.editAvatarTitle", { name: avatarEditorStudent?.name || "" })}
+        open={avatarEditorVisible}
+        onCancel={() => {
+          setAvatarEditorVisible(false)
+          setAvatarEditorStudent(null)
+          setAvatarEditorValue(null)
+        }}
+        onOk={handleSaveAvatarEditor}
+        okButtonProps={{ loading: avatarEditorSaving, disabled: !avatarEditorStudent }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "center", padding: "8px 0" }}>
+            {avatarEditorValue ? (
+              <img
+                src={avatarEditorValue}
+                alt={avatarEditorStudent?.name || "avatar"}
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  border: "1px solid var(--ss-border-color)",
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "50%",
+                  border: "1px dashed var(--ss-border-color)",
+                  backgroundColor: "var(--ss-bg-color)",
+                  color: "var(--ss-text-secondary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {t("students.noAvatar")}
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={!canEdit}
+            >
+              {t("students.avatarUpload")}
+            </Button>
+            <Button
+              icon={<CopyOutlined />}
+              onClick={handleAvatarPasteFromClipboard}
+              disabled={!canEdit}
+            >
+              {t("students.avatarClipboardImport")}
+            </Button>
+            <Button onClick={() => setAvatarEditorValue(null)} disabled={!canEdit}>
+              {t("students.avatarClear")}
+            </Button>
+          </div>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              handleAvatarEditorFileChange(file)
+              if (avatarInputRef.current) avatarInputRef.current.value = ""
+            }}
+          />
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.avatarTip")}
+          </div>
+        </div>
       </Modal>
 
       <div
