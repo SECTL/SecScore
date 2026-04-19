@@ -14,7 +14,7 @@ import {
   Select,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { UploadOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons"
+import { UploadOutlined, MoreOutlined, PlusOutlined, CopyOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
@@ -717,6 +717,28 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       setAvatarValue(dataUrl)
     } catch {
       messageApi.error(t("students.avatarReadFailed"))
+    }
+  }
+
+  const handleAvatarPasteFromClipboard = async () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.read) {
+      messageApi.error(t("students.avatarClipboardUnsupported"))
+      return
+    }
+    try {
+      const clipboardItems = await navigator.clipboard.read()
+      for (const item of clipboardItems) {
+        const imageType = item.types.find((type) => type.startsWith("image/"))
+        if (!imageType) continue
+        const blob = await item.getType(imageType)
+        const ext = imageType.split("/")[1] || "png"
+        const file = new File([blob], `avatar-clipboard.${ext}`, { type: imageType })
+        await handleAvatarFileChange(file)
+        return
+      }
+      messageApi.warning(t("students.avatarClipboardNoImage"))
+    } catch {
+      messageApi.error(t("students.avatarClipboardReadFailed"))
     }
   }
 
@@ -2196,6 +2218,13 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               disabled={!canEdit}
             >
               {t("students.avatarUpload")}
+            </Button>
+            <Button
+              icon={<CopyOutlined />}
+              onClick={handleAvatarPasteFromClipboard}
+              disabled={!canEdit}
+            >
+              {t("students.avatarClipboardImport")}
             </Button>
             <Button onClick={() => setAvatarValue(null)} disabled={!canEdit}>
               {t("students.avatarClear")}

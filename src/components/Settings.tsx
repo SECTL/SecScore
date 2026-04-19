@@ -206,6 +206,12 @@ export const Settings: React.FC<{
     permission: number
   } | null>(null)
 
+  const getOAuthPermissionLabel = (oauthPermission: number) => {
+    if (oauthPermission >= 18) return t("permissions.admin")
+    if (oauthPermission >= 1) return t("permissions.points")
+    return t("permissions.view")
+  }
+
   const permissionTag = useMemo(() => {
     return (
       <Tag
@@ -312,8 +318,39 @@ export const Settings: React.FC<{
     }
     const authRes = await api.authGetStatus()
     if (authRes.success && authRes.data) setSecurityStatus(authRes.data)
+
+    const oauthStateRes = await api.oauthLoadLoginState()
+    if (oauthStateRes?.success && oauthStateRes.data) {
+      setOAuthUserInfo({
+        user_id: oauthStateRes.data.user_id,
+        email: oauthStateRes.data.email,
+        name: oauthStateRes.data.name,
+        github_username: oauthStateRes.data.github_username,
+        permission: oauthStateRes.data.permission,
+      })
+    } else {
+      setOAuthUserInfo(null)
+    }
+
     await loadMcpStatus()
     await loadSystemFonts(savedFontFamily)
+  }
+
+  const handleOAuthLogout = async () => {
+    const api = (window as any).api
+    if (!api) {
+      setOAuthUserInfo(null)
+      return
+    }
+
+    try {
+      await api.oauthClearLoginState()
+      setOAuthUserInfo(null)
+      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+      messageApi.success(t("auth.logout"))
+    } catch (error: any) {
+      messageApi.error(error?.message || t("common.error"))
+    }
   }
 
   const loadAboutContent = async () => {
@@ -373,6 +410,42 @@ export const Settings: React.FC<{
     return () => {
       disposed = true
       if (unlisten) unlisten()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleOAuthUserUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        user?:
+          | {
+              user_id?: string
+              email?: string
+              name?: string
+              github_username?: string
+              permission?: number
+            }
+          | null
+      }>
+      const user = customEvent?.detail?.user
+      if (user?.user_id && user.email && user.name && typeof user.permission === "number") {
+        setOAuthUserInfo({
+          user_id: user.user_id,
+          email: user.email,
+          name: user.name,
+          github_username: user.github_username,
+          permission: user.permission,
+        })
+      } else {
+        setOAuthUserInfo(null)
+      }
+    }
+
+    window.addEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
+    return () => {
+      window.removeEventListener(
+        "ss:oauth-user-updated",
+        handleOAuthUserUpdated as EventListener
+      )
     }
   }, [])
 
@@ -1098,17 +1171,13 @@ export const Settings: React.FC<{
                 <div>
                   <Text type="secondary">{t("settings.account.permission")}:</Text>
                   <Tag color="blue" style={{ marginLeft: "8px" }}>
-                    {oauthUserInfo.permission === 1
-                      ? t("permissions.admin")
-                      : oauthUserInfo.permission === 2
-                        ? t("permissions.points")
-                        : t("permissions.view")}
+                    {getOAuthPermissionLabel(oauthUserInfo.permission)}
                   </Tag>
                 </div>
 
                 <Divider />
 
-                <Button danger onClick={() => setOAuthUserInfo(null)}>
+                <Button danger onClick={handleOAuthLogout}>
                   {t("settings.account.logout")}
                 </Button>
               </div>

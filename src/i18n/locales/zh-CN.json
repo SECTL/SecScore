@@ -423,7 +423,8 @@
     },
     "layoutBy": {
       "grouped": "分组列表",
-      "squareGrid": "正方形网格"
+      "squareGrid": "正方形网格",
+      "largeAvatar": "大头像"
     },
     "noStudents": "暂无学生数据，请前往学生管理添加",
     "noMatch": "未找到匹配的学生",
@@ -567,7 +568,11 @@
     "avatarSaveFailed": "头像保存失败",
     "avatarInvalidFile": "请选择图片文件",
     "avatarTooLarge": "图片不能超过 2MB",
-    "avatarReadFailed": "读取图片失败"
+    "avatarReadFailed": "读取图片失败",
+    "avatarClipboardImport": "从剪贴板导入",
+    "avatarClipboardUnsupported": "当前环境不支持读取剪贴板图片",
+    "avatarClipboardNoImage": "剪贴板中没有图片",
+    "avatarClipboardReadFailed": "读取剪贴板图片失败"
   },
   "score": {
     "title": "积分管理",
@@ -686,7 +691,8 @@
     "viewModes": {
       "list": "列表视图",
       "card": "卡片视图",
-      "grid": "网格视图"
+      "grid": "网格视图",
+      "largeAvatar": "大头像视图"
     },
     "scoreDisplayModes": {
       "total": "显示总分",

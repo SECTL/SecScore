@@ -430,7 +430,8 @@
     },
     "layoutBy": {
       "grouped": "Lista agrupada",
-      "squareGrid": "Grade quadrada"
+      "squareGrid": "Grade quadrada",
+      "largeAvatar": "Avatar grande"
     },
     "noStudents": "Sem dados de alunos, por favor adicione em gerenciamento de alunos",
     "noMatch": "Nenhum aluno correspondente encontrado",

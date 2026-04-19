@@ -423,7 +423,8 @@
     },
     "layoutBy": {
       "grouped": "Grouped List",
-      "squareGrid": "Square Grid"
+      "squareGrid": "Square Grid",
+      "largeAvatar": "Large Avatar"
     },
     "noStudents": "No student data, please add in Student Management",
     "noMatch": "No matching students found",
@@ -567,7 +568,11 @@
     "avatarSaveFailed": "Failed to save avatar",
     "avatarInvalidFile": "Please choose an image file",
     "avatarTooLarge": "Image must be smaller than 2MB",
-    "avatarReadFailed": "Failed to read image"
+    "avatarReadFailed": "Failed to read image",
+    "avatarClipboardImport": "Import from Clipboard",
+    "avatarClipboardUnsupported": "Clipboard image read is not supported",
+    "avatarClipboardNoImage": "No image found in clipboard",
+    "avatarClipboardReadFailed": "Failed to read clipboard image"
   },
   "score": {
     "title": "Points Management",
@@ -686,7 +691,8 @@
     "viewModes": {
       "list": "List View",
       "card": "Card View",
-      "grid": "Grid View"
+      "grid": "Grid View",
+      "largeAvatar": "Large Avatar"
     },
     "scoreDisplayModes": {
       "total": "Show Total Score",

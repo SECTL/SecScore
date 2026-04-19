@@ -24,7 +24,7 @@ import {
   HolderOutlined,
   CrownOutlined,
 } from "@ant-design/icons"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Sidebar } from "./components/Sidebar"
@@ -46,6 +46,14 @@ const applyGlobalFontFamily = (fontValue?: string) => {
   const fontFamily = resolveStoredFontFamily(fontValue)
   document.documentElement.style.setProperty("--ss-font-family", fontFamily)
   document.body.style.fontFamily = fontFamily
+}
+
+const mapOAuthPermissionToAppPermission = (
+  oauthPermission: number
+): "admin" | "points" | "view" => {
+  if (oauthPermission >= 18) return "admin"
+  if (oauthPermission >= 1) return "points"
+  return "view"
 }
 
 function MainContent(): React.JSX.Element {
@@ -107,6 +115,7 @@ function MainContent(): React.JSX.Element {
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
   const [oauthVisible, setOAuthVisible] = useState(false)
+  const [oauthUserName, setOAuthUserName] = useState<string | null>(null)
   const [mobileBottomNavItems, setMobileBottomNavItems] = useState<MobileNavKey[]>(
     DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
   )
@@ -132,6 +141,18 @@ function MainContent(): React.JSX.Element {
   const syncApplyLoadingRef = useRef(false)
   const lastLocalMutationAtRef = useRef(0)
   const pluginRuntimeRef = useRef(getPluginRuntime())
+  const refreshPermissionFromAuth = useCallback(async () => {
+    const api = (window as any).api
+    if (!api) return
+
+    const authRes = await api.authGetStatus()
+    if (authRes?.success && authRes.data) {
+      const anyPwd = Boolean(authRes.data.hasAdminPassword || authRes.data.hasPointsPassword)
+      setHasAnyPassword(anyPwd)
+      setPermission(authRes.data.permission)
+      setAuthVisible(anyPwd && authRes.data.permission === "view")
+    }
+  }, [])
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -188,15 +209,37 @@ function MainContent(): React.JSX.Element {
 
   useEffect(() => {
     const loadAuthAndSettings = async () => {
-      if (!(window as any).api) return
-      const authRes = await (window as any).api.authGetStatus()
+      const api = (window as any).api
+      if (!api) return
+
+      const [authRes, oauthRes, settingsRes] = await Promise.all([
+        api.authGetStatus(),
+        api.oauthLoadLoginState(),
+        api.getAllSettings(),
+      ])
+
+      const oauthPermission =
+        oauthRes?.success && oauthRes.data
+          ? mapOAuthPermissionToAppPermission(oauthRes.data.permission)
+          : null
+      if (oauthRes?.success && oauthRes.data?.name) {
+        setOAuthUserName(String(oauthRes.data.name))
+      } else {
+        setOAuthUserName(null)
+      }
+
       if (authRes?.success && authRes.data) {
-        setPermission(authRes.data.permission)
         const anyPwd = Boolean(authRes.data.hasAdminPassword || authRes.data.hasPointsPassword)
         setHasAnyPassword(anyPwd)
-        if (anyPwd && authRes.data.permission === "view") setAuthVisible(true)
+
+        const finalPermission = oauthPermission ?? authRes.data.permission
+        setPermission(finalPermission)
+        setAuthVisible(anyPwd && finalPermission === "view")
+      } else if (oauthPermission) {
+        setPermission(oauthPermission)
+        setAuthVisible(false)
       }
-      const settingsRes = await (window as any).api.getAllSettings()
+
       if (settingsRes?.success && settingsRes.data) {
         setMobileBottomNavItems(normalizeStoredBottomKeys(settingsRes.data.mobile_bottom_nav_items))
         applyGlobalFontFamily(settingsRes.data.font_family)
@@ -205,6 +248,31 @@ function MainContent(): React.JSX.Element {
 
     loadAuthAndSettings()
   }, [])
+
+  useEffect(() => {
+    const handleOAuthUserUpdated = (
+      event: Event
+    ) => {
+      const customEvent = event as CustomEvent<{
+        user?: { name?: string } | null
+      }>
+      const userName = customEvent?.detail?.user?.name
+      if (typeof userName === "string" && userName.trim()) {
+        setOAuthUserName(userName)
+      } else {
+        setOAuthUserName(null)
+        void refreshPermissionFromAuth()
+      }
+    }
+
+    window.addEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
+    return () => {
+      window.removeEventListener(
+        "ss:oauth-user-updated",
+        handleOAuthUserUpdated as EventListener
+      )
+    }
+  }, [refreshPermissionFromAuth])
 
   useEffect(() => {
     const api = (window as any).api
@@ -425,13 +493,39 @@ function MainContent(): React.JSX.Element {
   }
 
   const logout = async () => {
-    if (!(window as any).api) return
-    const res = await (window as any).api.authLogout()
+    const api = (window as any).api
+    if (!api) return
+
+    // 退出时同时清理 OAuth 持久化状态，避免刷新后又自动恢复权限
+    try {
+      await api.oauthClearLoginState()
+      setOAuthUserName(null)
+      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+    } catch (error) {
+      console.error("Failed to clear OAuth login state:", error)
+    }
+
+    const res = await api.authLogout()
     if (res?.success && res.data) {
       setPermission(res.data.permission)
       messageApi.success(t("auth.logout"))
     }
   }
+
+  const logoutOAuthFromHeader = useCallback(async () => {
+    const api = (window as any).api
+    if (!api) return
+
+    try {
+      await api.oauthClearLoginState()
+      setOAuthUserName(null)
+      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+      await refreshPermissionFromAuth()
+      messageApi.success("已退出云账号")
+    } catch (error: any) {
+      messageApi.error(error?.message || t("common.error"))
+    }
+  }, [messageApi, refreshPermissionFromAuth, t])
 
   const handleOAuthSuccess = (userInfo: {
     user_id: string
@@ -440,14 +534,9 @@ function MainContent(): React.JSX.Element {
     github_username?: string
     permission: number
   }) => {
-    let newPermission: "admin" | "points" | "view" = "view"
-    if (userInfo.permission >= 18) {
-      newPermission = "admin"
-    } else if (userInfo.permission >= 1) {
-      newPermission = "points"
-    }
-
-    setPermission(newPermission)
+    setPermission(mapOAuthPermissionToAppPermission(userInfo.permission))
+    setAuthVisible(false)
+    setOAuthUserName(userInfo.name || null)
     messageApi.success(t("auth.oauthSuccess", "登录成功"))
   }
 
@@ -643,6 +732,8 @@ function MainContent(): React.JSX.Element {
         )}
         <ContentArea
           permission={permission}
+          oauthUserName={oauthUserName}
+          onOAuthLogout={logoutOAuthFromHeader}
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
@@ -984,7 +1075,7 @@ function MainContent(): React.JSX.Element {
           footer={null}
           closable={!syncApplyLoading}
           maskClosable={false}
-          destroyOnClose
+          destroyOnHidden
         >
           <div
             style={{ marginBottom: "10px", color: "var(--ss-text-secondary)", fontSize: "12px" }}
