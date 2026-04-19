@@ -167,7 +167,7 @@ export function ContentArea({
         : permission === "points"
           ? t("permissions.points")
           : t("permissions.view")}
-      </Tag>
+    </Tag>
   )
   const fallbackDisplayName =
     permission === "admin"
@@ -371,7 +371,9 @@ export function ContentArea({
         }}
       >
         <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>最近同步时间</div>
-        <div style={{ fontSize: "12px", color: "var(--ss-text-main)" }}>{formattedLastSyncTime}</div>
+        <div style={{ fontSize: "12px", color: "var(--ss-text-main)" }}>
+          {formattedLastSyncTime}
+        </div>
       </div>
       <div style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>云空间用量</div>
       {storageUsageLoading ? (

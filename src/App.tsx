@@ -250,9 +250,7 @@ function MainContent(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
-    const handleOAuthUserUpdated = (
-      event: Event
-    ) => {
+    const handleOAuthUserUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<{
         user?: { name?: string } | null
       }>
@@ -267,10 +265,7 @@ function MainContent(): React.JSX.Element {
 
     window.addEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
     return () => {
-      window.removeEventListener(
-        "ss:oauth-user-updated",
-        handleOAuthUserUpdated as EventListener
-      )
+      window.removeEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
     }
   }, [refreshPermissionFromAuth])
 

@@ -416,15 +416,13 @@ export const Settings: React.FC<{
   useEffect(() => {
     const handleOAuthUserUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<{
-        user?:
-          | {
-              user_id?: string
-              email?: string
-              name?: string
-              github_username?: string
-              permission?: number
-            }
-          | null
+        user?: {
+          user_id?: string
+          email?: string
+          name?: string
+          github_username?: string
+          permission?: number
+        } | null
       }>
       const user = customEvent?.detail?.user
       if (user?.user_id && user.email && user.name && typeof user.permission === "number") {
@@ -442,10 +440,7 @@ export const Settings: React.FC<{
 
     window.addEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
     return () => {
-      window.removeEventListener(
-        "ss:oauth-user-updated",
-        handleOAuthUserUpdated as EventListener
-      )
+      window.removeEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
     }
   }, [])
 

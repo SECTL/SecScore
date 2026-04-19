@@ -13,7 +13,13 @@ import {
   Divider,
   Dropdown,
 } from "antd"
-import { SearchOutlined, DeleteOutlined, UndoOutlined, UploadOutlined, CopyOutlined } from "@ant-design/icons"
+import {
+  SearchOutlined,
+  DeleteOutlined,
+  UndoOutlined,
+  UploadOutlined,
+  CopyOutlined,
+} from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
@@ -651,111 +657,114 @@ export const Home: React.FC<HomeProps> = ({
     setOperationVisible(true)
   }
 
-  const playOperationMorph = useCallback((attempt = 0) => {
-    if (isPortraitMode || !operationOriginRect) return false
-    const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
-    if (!modalEl) {
-      const byClassCount = document.querySelectorAll(`.${operationModalClass}`).length
-      const byRootCount = document.querySelectorAll(`.${operationModalRootClass}`).length
-      const modalCount = document.querySelectorAll(".ant-modal").length
-      const rootExists = Boolean(document.querySelector(`.${operationModalRootClass}`))
-      logHome("operation:morph:modal-miss", {
-        attempt,
-        rootExists,
-        byClassCount,
-        byRootCount,
-        modalCount,
-      })
-      return false
-    }
-
-    // Clear any leftover transform from previous close animation before measuring.
-    operationMorphAnimationRef.current?.cancel()
-    for (const animation of modalEl.getAnimations()) {
-      animation.cancel()
-    }
-    modalEl.style.transform = ""
-    modalEl.style.opacity = ""
-    modalEl.style.visibility = ""
-    const maskEl = document.querySelector(`.${operationModalRootClass} .ant-modal-mask`) as
-      | HTMLElement
-      | null
-    if (maskEl) {
-      operationMaskAnimationRef.current?.cancel()
-      maskEl.style.opacity = ""
-      maskEl.style.visibility = ""
-      operationMaskAnimationRef.current = maskEl.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: 220,
-        easing: "cubic-bezier(0.2, 0, 0, 1)",
-        fill: "both",
-      })
-    }
-    const modalRect = modalEl.getBoundingClientRect()
-    if (modalRect.width <= 0 || modalRect.height <= 0) {
-      logHome("operation:morph:modal-rect-invalid", {
-        attempt,
-        width: modalRect.width,
-        height: modalRect.height,
-      })
-      return false
-    }
-    const fromX = operationOriginRect.left - modalRect.left
-    const fromY = operationOriginRect.top - modalRect.top
-    const scaleX = operationOriginRect.width / modalRect.width
-    const scaleY = operationOriginRect.height / modalRect.height
-
-    logHome("operation:morph:computed", {
-      modalRect: {
-        left: modalRect.left,
-        top: modalRect.top,
-        width: modalRect.width,
-        height: modalRect.height,
-      },
-      fromX,
-      fromY,
-      scaleX,
-      scaleY,
-      expectedStartRect: {
-        left: modalRect.left + fromX,
-        top: modalRect.top + fromY,
-        width: modalRect.width * scaleX,
-        height: modalRect.height * scaleY,
-      },
-      animateSupported: typeof modalEl.animate === "function",
-    })
-
-    modalEl.style.transformOrigin = "top left"
-    modalEl.style.willChange = "transform, opacity"
-    operationMorphAnimationRef.current = modalEl.animate(
-      [
-        {
-          transform: `translate3d(${fromX}px, ${fromY}px, 0) scale(${scaleX}, ${scaleY})`,
-          opacity: 0.86,
-        },
-        {
-          transform: "translate3d(0, 0, 0) scale(1, 1)",
-          opacity: 1,
-        },
-      ],
-      {
-        duration: 480,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-        fill: "both",
+  const playOperationMorph = useCallback(
+    (attempt = 0) => {
+      if (isPortraitMode || !operationOriginRect) return false
+      const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
+      if (!modalEl) {
+        const byClassCount = document.querySelectorAll(`.${operationModalClass}`).length
+        const byRootCount = document.querySelectorAll(`.${operationModalRootClass}`).length
+        const modalCount = document.querySelectorAll(".ant-modal").length
+        const rootExists = Boolean(document.querySelector(`.${operationModalRootClass}`))
+        logHome("operation:morph:modal-miss", {
+          attempt,
+          rootExists,
+          byClassCount,
+          byRootCount,
+          modalCount,
+        })
+        return false
       }
-    )
-    logHome("operation:morph:animation-start", {
-      attempt,
-      currentTime: operationMorphAnimationRef.current.currentTime,
-      playState: operationMorphAnimationRef.current.playState,
-    })
-    operationMorphAnimationRef.current.onfinish = () => {
-      logHome("operation:morph:animation-finish")
-    }
-    operationMorphAnimationRef.current.oncancel = () => {
-      logHome("operation:morph:animation-cancel")
-    }
-    return true
-  }, [isPortraitMode, operationOriginRect, operationModalClass, operationModalRootClass])
+
+      // Clear any leftover transform from previous close animation before measuring.
+      operationMorphAnimationRef.current?.cancel()
+      for (const animation of modalEl.getAnimations()) {
+        animation.cancel()
+      }
+      modalEl.style.transform = ""
+      modalEl.style.opacity = ""
+      modalEl.style.visibility = ""
+      const maskEl = document.querySelector(
+        `.${operationModalRootClass} .ant-modal-mask`
+      ) as HTMLElement | null
+      if (maskEl) {
+        operationMaskAnimationRef.current?.cancel()
+        maskEl.style.opacity = ""
+        maskEl.style.visibility = ""
+        operationMaskAnimationRef.current = maskEl.animate([{ opacity: 0 }, { opacity: 1 }], {
+          duration: 220,
+          easing: "cubic-bezier(0.2, 0, 0, 1)",
+          fill: "both",
+        })
+      }
+      const modalRect = modalEl.getBoundingClientRect()
+      if (modalRect.width <= 0 || modalRect.height <= 0) {
+        logHome("operation:morph:modal-rect-invalid", {
+          attempt,
+          width: modalRect.width,
+          height: modalRect.height,
+        })
+        return false
+      }
+      const fromX = operationOriginRect.left - modalRect.left
+      const fromY = operationOriginRect.top - modalRect.top
+      const scaleX = operationOriginRect.width / modalRect.width
+      const scaleY = operationOriginRect.height / modalRect.height
+
+      logHome("operation:morph:computed", {
+        modalRect: {
+          left: modalRect.left,
+          top: modalRect.top,
+          width: modalRect.width,
+          height: modalRect.height,
+        },
+        fromX,
+        fromY,
+        scaleX,
+        scaleY,
+        expectedStartRect: {
+          left: modalRect.left + fromX,
+          top: modalRect.top + fromY,
+          width: modalRect.width * scaleX,
+          height: modalRect.height * scaleY,
+        },
+        animateSupported: typeof modalEl.animate === "function",
+      })
+
+      modalEl.style.transformOrigin = "top left"
+      modalEl.style.willChange = "transform, opacity"
+      operationMorphAnimationRef.current = modalEl.animate(
+        [
+          {
+            transform: `translate3d(${fromX}px, ${fromY}px, 0) scale(${scaleX}, ${scaleY})`,
+            opacity: 0.86,
+          },
+          {
+            transform: "translate3d(0, 0, 0) scale(1, 1)",
+            opacity: 1,
+          },
+        ],
+        {
+          duration: 480,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "both",
+        }
+      )
+      logHome("operation:morph:animation-start", {
+        attempt,
+        currentTime: operationMorphAnimationRef.current.currentTime,
+        playState: operationMorphAnimationRef.current.playState,
+      })
+      operationMorphAnimationRef.current.onfinish = () => {
+        logHome("operation:morph:animation-finish")
+      }
+      operationMorphAnimationRef.current.oncancel = () => {
+        logHome("operation:morph:animation-cancel")
+      }
+      return true
+    },
+    [isPortraitMode, operationOriginRect, operationModalClass, operationModalRootClass]
+  )
 
   useLayoutEffect(() => {
     if (isPortraitMode || !operationVisible) return
@@ -787,23 +796,26 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, [isPortraitMode, operationVisible, operationOriginRect, playOperationMorph])
 
-  const finishCloseOperationModal = useCallback((skipCancelMorph = false, skipCancelMask = false) => {
-    if (!skipCancelMorph) {
-      operationMorphAnimationRef.current?.cancel()
-    }
-    operationMorphAnimationRef.current = null
-    if (!skipCancelMask) {
-      operationMaskAnimationRef.current?.cancel()
-    }
-    operationMaskAnimationRef.current = null
-    if (operationMorphRafRef.current !== null) {
-      window.cancelAnimationFrame(operationMorphRafRef.current)
-      operationMorphRafRef.current = null
-    }
-    operationClosingRef.current = false
-    setOperationVisible(false)
-    setOperationOriginRect(null)
-  }, [])
+  const finishCloseOperationModal = useCallback(
+    (skipCancelMorph = false, skipCancelMask = false) => {
+      if (!skipCancelMorph) {
+        operationMorphAnimationRef.current?.cancel()
+      }
+      operationMorphAnimationRef.current = null
+      if (!skipCancelMask) {
+        operationMaskAnimationRef.current?.cancel()
+      }
+      operationMaskAnimationRef.current = null
+      if (operationMorphRafRef.current !== null) {
+        window.cancelAnimationFrame(operationMorphRafRef.current)
+        operationMorphRafRef.current = null
+      }
+      operationClosingRef.current = false
+      setOperationVisible(false)
+      setOperationOriginRect(null)
+    },
+    []
+  )
 
   const closeOperationModal = useCallback(() => {
     logHome("operation:morph:close", {

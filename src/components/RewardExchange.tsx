@@ -120,7 +120,9 @@ export const RewardExchange: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
 
     const frame = window.requestAnimationFrame(() => {
-      const modalEl = document.querySelector(".ss-reward-morph-modal.ant-modal") as HTMLElement | null
+      const modalEl = document.querySelector(
+        ".ss-reward-morph-modal.ant-modal"
+      ) as HTMLElement | null
       if (!modalEl) {
         setModalMorphStage("idle")
         return

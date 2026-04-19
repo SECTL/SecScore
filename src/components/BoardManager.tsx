@@ -862,9 +862,9 @@ ORDER BY reward_points DESC, score DESC`,
               ? "repeat(auto-fill, minmax(102px, 1fr))"
               : list.viewMode === "largeAvatar"
                 ? "repeat(auto-fill, minmax(180px, 1fr))"
-              : list.viewMode === "list"
-                ? "1fr"
-                : "repeat(auto-fill, minmax(220px, 1fr))",
+                : list.viewMode === "list"
+                  ? "1fr"
+                  : "repeat(auto-fill, minmax(220px, 1fr))",
           gap: 12,
         }}
       >
@@ -941,9 +941,9 @@ ORDER BY reward_points DESC, score DESC`,
                         ? "8px"
                         : list.viewMode === "largeAvatar"
                           ? 0
-                        : list.viewMode === "list"
-                          ? "10px 12px"
-                          : "12px 14px",
+                          : list.viewMode === "list"
+                            ? "10px 12px"
+                            : "12px 14px",
                     height:
                       list.viewMode === "grid" || list.viewMode === "largeAvatar"
                         ? "100%"
@@ -1108,9 +1108,7 @@ ORDER BY reward_points DESC, score DESC`,
                             fontSize: 28,
                             lineHeight: 1,
                             color:
-                              primaryMetric && primaryMetric.value >= 0
-                                ? "#52c41a"
-                                : "#ff4d4f",
+                              primaryMetric && primaryMetric.value >= 0 ? "#52c41a" : "#ff4d4f",
                             background: "rgba(255,255,255,0.62)",
                             border: "1px solid rgba(255,255,255,0.82)",
                             borderRadius: 8,
