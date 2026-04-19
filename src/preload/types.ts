@@ -836,7 +836,7 @@ const api = {
   }> => invoke("plugin_get_runtime_modules"),
 
   // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
-  invoke: async (channel: string, ..._args: any[]): Promise<any> => {
+  invoke: async (channel: string): Promise<any> => {
     switch (channel) {
       default:
         throw new Error(`Unsupported legacy invoke channel: ${channel}`)

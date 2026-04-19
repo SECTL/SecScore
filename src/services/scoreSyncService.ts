@@ -60,9 +60,7 @@ class ScoreSyncService {
       }))
 
       // 保存到云端
-      await sectlKVStorage.setKV(DATA_KEYS.STUDENTS, scoreData, {
-        is_json: true,
-      })
+      await sectlKVStorage.setKV(DATA_KEYS.STUDENTS, scoreData)
 
       console.log("学生数据同步成功")
     } catch (error: any) {
@@ -107,9 +105,7 @@ class ScoreSyncService {
         createdAt: event.created_at,
       }))
 
-      await sectlKVStorage.setKV(DATA_KEYS.EVENTS, scoreEvents, {
-        is_json: true,
-      })
+      await sectlKVStorage.setKV(DATA_KEYS.EVENTS, scoreEvents)
 
       console.log("积分事件同步成功")
     } catch (error: any) {
@@ -146,9 +142,7 @@ class ScoreSyncService {
     }
 
     try {
-      await sectlKVStorage.setKV(DATA_KEYS.SETTINGS, settings, {
-        is_json: true,
-      })
+      await sectlKVStorage.setKV(DATA_KEYS.SETTINGS, settings)
 
       console.log("设置数据同步成功")
     } catch (error: any) {
@@ -186,9 +180,7 @@ class ScoreSyncService {
       platform: "secscore",
     }
 
-    await sectlKVStorage.setKV(DATA_KEYS.SYNC_META, metadata, {
-      is_json: true,
-    })
+    await sectlKVStorage.setKV(DATA_KEYS.SYNC_META, metadata)
   }
 
   /**

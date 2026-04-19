@@ -1,30 +1,47 @@
 /**
  * SECTL KV 键值对存储服务
+ * 基于 SECTL-One-Stop SDK 规范实现
  * 提供键值对存储功能，支持 JSON 格式和字段级操作
  */
 
 import { SECTL_CONFIG, sectlAuth } from "./sectlAuth"
-import { KVData } from "./sectlCloudStorage"
+
+// KV 数据类型
+export interface KVItem {
+  key: string
+  value: any
+  size: number
+  is_json: boolean
+  created_at: string
+  updated_at: string
+}
+
+// KV 列表选项
+export interface ListKVOptions {
+  prefix?: string
+  limit?: number
+  offset?: number
+}
 
 class SectlKVStorageService {
   /**
-   * 创建或更新键值对
+   * 设置 KV 键值对
+   * @param key 键名（最大 255 字符）
+   * @param value 值（任意 JSON 可序列化数据，最大 64KB）
+   * @param ttl 过期时间（秒），可选
    */
   async setKV(
     key: string,
-    value: any,
-    options?: {
-      is_json?: boolean
-    }
+    value: unknown,
+    ttl?: number
   ): Promise<{
     success: boolean
-    kv_id: string
     key: string
-    value: any
-    is_json: boolean
     size: number
-    created_at: string
-    updated_at: string
+    is_json: boolean
+    created_at?: string
+    updated_at?: string
+    message: string
   }> {
     const accessToken = sectlAuth.getAccessToken()
     if (!accessToken) {
@@ -33,26 +50,15 @@ class SectlKVStorageService {
 
     const url = `${SECTL_CONFIG.baseUrl}/api/cloud/kv`
 
-    // 自动检测是否为 JSON 格式
-    let valueStr: string
-    let isJson = options?.is_json
+    const body: Record<string, unknown> = {
+      client_id: SECTL_CONFIG.platformId,
+      user_id: sectlAuth.getToken()?.user_id || "",
+      key,
+      value,
+    }
 
-    if (typeof value === "object") {
-      valueStr = JSON.stringify(value)
-      if (isJson === undefined) {
-        isJson = true
-      }
-    } else {
-      valueStr = String(value)
-      if (isJson === undefined) {
-        // 尝试检测是否为 JSON 字符串
-        try {
-          JSON.parse(valueStr)
-          isJson = true
-        } catch {
-          isJson = false
-        }
-      }
+    if (ttl !== undefined) {
+      body.ttl = ttl
     }
 
     try {
@@ -62,13 +68,7 @@ class SectlKVStorageService {
           Authorization: `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-          key,
-          value: valueStr,
-          is_json: isJson,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
@@ -84,14 +84,17 @@ class SectlKVStorageService {
   }
 
   /**
-   * 获取键值对
+   * 获取 KV 键值对
+   * @param key 键名
+   * @param field JSON 字段路径，如 "theme" 或 "user.name"，可选
    */
-  async getKV<T = any>(
+  async getKV<T = unknown>(
     key: string,
-    options?: {
-      field?: string // 获取 JSON 中的特定字段
-    }
-  ): Promise<KVData | { key: string; field: string; value: T }> {
+    field?: string
+  ): Promise<
+    | (KVItem & { key: string; value: T })
+    | { key: string; field: string; value: T; is_json: boolean }
+  > {
     const accessToken = sectlAuth.getAccessToken()
     if (!accessToken) {
       throw new Error("未授权，请先登录")
@@ -102,8 +105,8 @@ class SectlKVStorageService {
       user_id: sectlAuth.getToken()?.user_id || "",
     })
 
-    if (options?.field) {
-      params.append("field", options.field)
+    if (field) {
+      params.append("field", field)
     }
 
     const url = `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}?${params.toString()}`
@@ -128,12 +131,14 @@ class SectlKVStorageService {
   }
 
   /**
-   * 获取键值对列表
+   * 获取 KV 键值对列表
+   * @param options 列表选项
    */
-  async listKV(options?: {
-    limit?: number
-    offset?: number
-  }): Promise<{ kvs: KVData[]; total: number; has_more: boolean }> {
+  async listKV(options: ListKVOptions = {}): Promise<{
+    kv_list: KVItem[]
+    total: number
+    has_more: boolean
+  }> {
     const accessToken = sectlAuth.getAccessToken()
     if (!accessToken) {
       throw new Error("未授权，请先登录")
@@ -142,9 +147,13 @@ class SectlKVStorageService {
     const params = new URLSearchParams({
       client_id: SECTL_CONFIG.platformId,
       user_id: sectlAuth.getToken()?.user_id || "",
-      limit: String(options?.limit || 100),
-      offset: String(options?.offset || 0),
+      limit: String(options.limit || 100),
+      offset: String(options.offset || 0),
     })
+
+    if (options.prefix) {
+      params.append("prefix", options.prefix)
+    }
 
     const url = `${SECTL_CONFIG.baseUrl}/api/cloud/kv?${params.toString()}`
 
@@ -168,18 +177,22 @@ class SectlKVStorageService {
   }
 
   /**
-   * 更新 JSON 字段
+   * 更新 KV JSON 字段
+   * @param key 键名
+   * @param field JSON 字段路径，支持嵌套如 "user.name" 或数组索引 "items.0.id"
+   * @param value 要设置的值
    */
   async updateKVField(
     key: string,
     field: string,
-    value: any
+    value: unknown
   ): Promise<{
     success: boolean
     key: string
     field: string
-    value: any
+    size: number
     updated_at: string
+    message: string
   }> {
     const accessToken = sectlAuth.getAccessToken()
     if (!accessToken) {
@@ -216,7 +229,8 @@ class SectlKVStorageService {
   }
 
   /**
-   * 删除键值对
+   * 删除 KV 键值对
+   * @param key 键名
    */
   async deleteKV(key: string): Promise<{ success: boolean; message: string }> {
     const accessToken = sectlAuth.getAccessToken()

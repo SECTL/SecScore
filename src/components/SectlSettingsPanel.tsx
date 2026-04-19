@@ -13,6 +13,8 @@ import {
 import { useSectl } from "../contexts/SectlContext"
 import { SectlLoginButton } from "./SectlLoginButton"
 import { ScoreSyncPanel } from "./ScoreSyncPanel"
+import { SectlCloudStorageManager } from "./SectlCloudStorageManager"
+import { SectlKVStorageManager } from "./SectlKVStorageManager"
 
 export const SectlSettingsPanel: React.FC = () => {
   const { isAuthenticated, isLoading, userInfo, platformId, setPlatformId, refreshUserInfo } =
@@ -152,6 +154,12 @@ export const SectlSettingsPanel: React.FC = () => {
 
       {/* 数据同步面板 */}
       <ScoreSyncPanel />
+
+      {/* 云存储管理 */}
+      <SectlCloudStorageManager />
+
+      {/* KV 存储管理 */}
+      <SectlKVStorageManager />
     </div>
   )
 }
