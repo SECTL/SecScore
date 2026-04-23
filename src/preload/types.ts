@@ -565,6 +565,24 @@ const api = {
     data: string
     message?: string
   }> => invoke("oauth_get_device_uuid"),
+  oauthGetStorageUsage: (
+    accessToken: string,
+    platformId: string,
+    userId: string
+  ): Promise<{
+    success: boolean
+    data: {
+      used_storage: number
+      used_storage_formatted: string
+      total_storage: number
+      total_storage_formatted: string
+      available_storage: number
+      available_storage_formatted: string
+      percentage: number
+      file_count: number
+    }
+    message?: string
+  }> => invoke("oauth_get_storage_usage", { accessToken, platformId, userId }),
   oauthSaveLoginState: (state: {
     access_token: string
     refresh_token: string
@@ -846,3 +864,4 @@ const api = {
 
 export default api
 export { api }
+

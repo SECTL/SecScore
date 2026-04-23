@@ -707,6 +707,63 @@ pub struct OnlineStatusResponse {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthStorageUsageResponse {
+    pub used_storage: i64,
+    pub used_storage_formatted: String,
+    pub total_storage: i64,
+    pub total_storage_formatted: String,
+    pub available_storage: i64,
+    pub available_storage_formatted: String,
+    pub percentage: f64,
+    pub file_count: i64,
+}
+
+#[tauri::command]
+pub async fn oauth_get_storage_usage(
+    access_token: String,
+    platform_id: String,
+    user_id: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<OAuthStorageUsageResponse>, String> {
+    let state_guard = state.read();
+    let client = &state_guard.http_client;
+
+    let response = client
+        .get("https://appwrite.sectl.top/api/cloud/storage/usage")
+        .query(&[("client_id", platform_id), ("user_id", user_id)])
+        .header("Authorization", format!("Bearer {}", access_token))
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        let error_message =
+            if let Ok(json_err) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                json_err
+                    .get("error_description")
+                    .or_else(|| json_err.get("error"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(&error_text)
+                    .to_string()
+            } else {
+                error_text
+            };
+        return Ok(IpcResponse::error(&error_message));
+    }
+
+    let storage_usage: OAuthStorageUsageResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(IpcResponse::success(storage_usage))
+}
+
 #[tauri::command]
 pub async fn oauth_report_online(
     platform_id: String,
@@ -898,3 +955,4 @@ pub async fn oauth_refresh_access_token(
 
     Ok(IpcResponse::success(token_response))
 }
+
