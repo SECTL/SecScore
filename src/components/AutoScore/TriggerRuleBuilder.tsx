@@ -1,5 +1,5 @@
 import React, { useMemo } from "react"
-import { Alert, Card } from "antd"
+import { Card } from "antd"
 import {
   Builder,
   Query,
@@ -46,12 +46,6 @@ export const TriggerRuleBuilder: React.FC<TriggerRuleBuilderProps> = ({
       style={{ marginBottom: "24px", backgroundColor: "var(--ss-card-bg)" }}
       title={t("autoScore.whenTriggered")}
     >
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: "16px" }}
-        title={t("autoScore.triggerScheduleHint")}
-      />
       <div
         className="query-builder-container"
         style={{

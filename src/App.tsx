@@ -1124,15 +1124,15 @@ function MainContent(): React.JSX.Element {
               display: "flex",
               bottom: "2px",
               left: "20px",
-              opacity: 0.6,
+              opacity: 0.75,
               zIndex: 9999,
               pointerEvents: "none",
             }}
           >
             <p
               style={{
-                color: "#df0000",
-                fontWeight: "bold",
+                color: "#ff000d",
+                fontWeight: "bolder",
                 fontSize: "14px",
                 pointerEvents: "none",
               }}
@@ -1141,8 +1141,8 @@ function MainContent(): React.JSX.Element {
             </p>
             <p
               style={{
-                color: currentTheme?.mode === "dark" ? "#fff" : "#44474b",
-                fontWeight: "bold",
+                color: currentTheme?.mode === "dark" ? "#fff" : "#3e3e3e",
+                fontWeight: "bolder",
                 fontSize: "13px",
                 paddingLeft: "5px",
               }}
