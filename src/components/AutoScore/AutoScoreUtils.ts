@@ -40,6 +40,7 @@ export interface AutoScoreExecutionBatch {
   affectedStudentNames: string[]
   createdEventIds: number[]
   addedStudentTagIds: number[]
+  rewardRedemptionIds?: number[]
   scoreDeltaTotal: number
   settled: boolean
   rolledBack: boolean
@@ -58,11 +59,21 @@ export interface AutoScoreRule {
   lastExecuted?: string | null
 }
 
-export type ActionEvent = "add_score" | "add_tag" | "settle_score"
+export type ActionEvent = "add_score" | "add_tag" | "settle_score" | "reward_exchange"
 
 export interface AutoScoreTagOption {
   label: string
   value: string
+}
+
+export interface AutoScoreRewardOption {
+  label: string
+  value: string
+}
+
+export interface ParsedRewardActionValue {
+  rewardId: number
+  rewardName?: string
 }
 
 export interface ActionDraft {
@@ -71,7 +82,12 @@ export interface ActionDraft {
   value: string | string[]
 }
 
-export type ActionDraftError = "action_required" | "score_required" | "tag_required" | null
+export type ActionDraftError =
+  | "action_required"
+  | "score_required"
+  | "tag_required"
+  | "reward_required"
+  | null
 
 const TRIGGER_FIELD_INTERVAL = "interval_minutes"
 const TRIGGER_FIELD_TAG = "student_tag"
@@ -108,6 +124,11 @@ const toStringValue = (value: unknown): string => {
   return String(value)
 }
 
+const normalizeOptionalString = (value: unknown): string | null => {
+  const normalized = toStringValue(value).trim()
+  return normalized || null
+}
+
 const normalizeTagValues = (values: unknown[]): string[] => {
   const normalized = values.map((value) => toStringValue(value).trim()).filter(Boolean)
 
@@ -141,6 +162,66 @@ const stringifyTagValues = (values: string[]): string | null => {
   if (normalized.length === 0) return null
   if (normalized.length === 1) return normalized[0]
   return JSON.stringify(normalized)
+}
+
+export const parseRewardActionValue = (value: unknown): ParsedRewardActionValue | null => {
+  if (value === null || value === undefined) return null
+
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return { rewardId: value }
+  }
+
+  const rawValue = Array.isArray(value) ? value.find((item) => toStringValue(item).trim()) : value
+  const text = toStringValue(rawValue).trim()
+  if (!text) return null
+
+  if (text.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(text) as {
+        rewardId?: unknown
+        reward_id?: unknown
+        rewardName?: unknown
+        reward_name?: unknown
+      }
+      const rewardId = toFiniteNumber(parsed.rewardId ?? parsed.reward_id)
+      if (rewardId === null || !Number.isInteger(rewardId) || rewardId <= 0) {
+        return null
+      }
+
+      const rewardName =
+        normalizeOptionalString(parsed.rewardName ?? parsed.reward_name) ?? undefined
+      return rewardName ? { rewardId, rewardName } : { rewardId }
+    } catch {
+      void 0
+    }
+  }
+
+  const rewardId = toFiniteNumber(text)
+  if (rewardId === null || !Number.isInteger(rewardId) || rewardId <= 0) {
+    return null
+  }
+
+  return { rewardId }
+}
+
+export const stringifyRewardActionValue = (
+  rewardId: unknown,
+  rewardName?: unknown
+): string | null => {
+  const parsedRewardId = toFiniteNumber(rewardId)
+  if (parsedRewardId === null || !Number.isInteger(parsedRewardId) || parsedRewardId <= 0) {
+    return null
+  }
+
+  const payload: ParsedRewardActionValue = {
+    rewardId: parsedRewardId,
+  }
+  const normalizedRewardName = normalizeOptionalString(rewardName)
+  if (normalizedRewardName) {
+    payload.rewardName = normalizedRewardName
+  }
+
+  return JSON.stringify(payload)
 }
 
 const ruleFromTrigger = (trigger: AutoScoreTrigger): JsonRule | null => {
@@ -520,7 +601,10 @@ export const createDefaultActionDraft = (): ActionDraft => ({
 })
 
 const isActionEvent = (value: unknown): value is ActionEvent =>
-  value === "add_score" || value === "add_tag" || value === "settle_score"
+  value === "add_score" ||
+  value === "add_tag" ||
+  value === "settle_score" ||
+  value === "reward_exchange"
 
 export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined): ActionDraft[] => {
   if (!Array.isArray(drafts) || drafts.length === 0) {
@@ -537,6 +621,15 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
         value:
           draft.event === "add_tag"
             ? parseTagValues(draft.value)
+            : draft.event === "reward_exchange"
+              ? (() => {
+                  const parsedValue = parseRewardActionValue(
+                    Array.isArray(draft.value) ? draft.value[0] : draft.value
+                  )
+                  return parsedValue
+                    ? stringifyRewardActionValue(parsedValue.rewardId, parsedValue.rewardName) || ""
+                    : ""
+                })()
             : draft.event === "settle_score"
               ? ""
               : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
@@ -553,7 +646,8 @@ export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
       if (
         action.event !== "add_score" &&
         action.event !== "add_tag" &&
-        action.event !== "settle_score"
+        action.event !== "settle_score" &&
+        action.event !== "reward_exchange"
       ) {
         return null
       }
@@ -563,6 +657,13 @@ export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
         value:
           action.event === "add_tag"
             ? parseTagValues(action.value)
+            : action.event === "reward_exchange"
+              ? (() => {
+                  const parsedValue = parseRewardActionValue(action.value)
+                  return parsedValue
+                    ? stringifyRewardActionValue(parsedValue.rewardId, parsedValue.rewardName) || ""
+                    : ""
+                })()
             : action.event === "settle_score"
               ? ""
               : toStringValue(action.value),
@@ -594,6 +695,18 @@ export const actionDraftsToPayload = (
 
     if (draft.event === "settle_score") {
       actions.push({ event: draft.event })
+      continue
+    }
+
+    if (draft.event === "reward_exchange") {
+      const parsedValue = parseRewardActionValue(draft.value)
+      const serializedValue = parsedValue
+        ? stringifyRewardActionValue(parsedValue.rewardId, parsedValue.rewardName)
+        : null
+      if (!serializedValue) {
+        return { actions: [], error: "reward_required" }
+      }
+      actions.push({ event: draft.event, value: serializedValue })
       continue
     }
 

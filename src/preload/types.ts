@@ -48,6 +48,7 @@ export interface autoScoreExecutionBatch {
   affectedStudentNames: string[]
   createdEventIds: number[]
   addedStudentTagIds: number[]
+  rewardRedemptionIds?: number[]
   scoreDeltaTotal: number
   settled: boolean
   rolledBack: boolean

@@ -613,6 +613,12 @@ export const Home: React.FC<HomeProps> = ({
     }
   }
 
+  const getScrollViewport = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (!container) return null
+    return container.closest(".ss-content-scroll-container") as HTMLElement | null
+  }, [])
+
   const openOperation = (student: student, sourceEl?: HTMLElement | null) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
@@ -2423,9 +2429,11 @@ export const Home: React.FC<HomeProps> = ({
       return
     }
 
+    const scrollViewport = getScrollViewport()
     const refreshActiveByScroll = () => {
       let currentKey = groupedStudents[0]?.key || null
-      const anchorY = 140
+      const viewportTop = scrollViewport?.getBoundingClientRect().top ?? 0
+      const anchorY = viewportTop + 96
 
       groupedStudents.forEach((group) => {
         const el = groupRefs.current[group.key]
@@ -2446,13 +2454,13 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     refreshActiveByScroll()
-    window.addEventListener("scroll", refreshActiveByScroll, { passive: true })
+    scrollViewport?.addEventListener("scroll", refreshActiveByScroll, { passive: true })
     window.addEventListener("resize", refreshActiveByScroll)
     return () => {
-      window.removeEventListener("scroll", refreshActiveByScroll)
+      scrollViewport?.removeEventListener("scroll", refreshActiveByScroll)
       window.removeEventListener("resize", refreshActiveByScroll)
     }
-  }, [groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY])
+  }, [getScrollViewport, groupedStudents, quickNavLayout.itemSize, quickNavLayout.paddingY])
 
   const shouldShowQuickNav =
     groupedStudents.length > 1 &&

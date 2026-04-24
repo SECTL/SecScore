@@ -614,10 +614,12 @@ export function ContentArea({
       </div>
 
       <Content
+        className="ss-content-scroll-container"
         style={{
           flex: 1,
           overflowY: isBoardPage ? "hidden" : "auto",
           overflowX: "hidden",
+          background: "var(--ss-bg-color)",
           paddingBottom: bottomInset ? `${bottomInset}px` : 0,
         }}
       >

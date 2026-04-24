@@ -642,7 +642,8 @@
     "recordStudent": "学生",
     "recordReward": "奖励",
     "recordCost": "消耗积分",
-    "recordTime": "兑换时间"
+    "recordTime": "兑换时间",
+    "rewards": "选择奖励"
   },
   "rewardSettings": {
     "title": "奖励设置",
@@ -829,6 +830,7 @@
     "actionAddTag": "添加标签",
     "actionSettleScore": "结算分数",
     "actionSettleScoreHint": "无需参数",
+    "rewardRequired": "请选择奖励",
     "startAt": "开始时间",
     "startAtPlaceholder": "请选择开始时间（留空立即开始）",
     "startAtHint": "留空表示立即开始；设置后将以该时间为基准按间隔触发",
