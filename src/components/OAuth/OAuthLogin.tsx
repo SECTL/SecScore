@@ -12,7 +12,6 @@ interface OAuthLoginProps {
     email: string
     name: string
     github_username?: string
-    permission: number
   }) => void
 }
 
@@ -170,7 +169,6 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
           email: userRes.data.email,
           name: userRes.data.name,
           github_username: userRes.data.github_username,
-          permission: userRes.data.permission,
           login_time: new Date().toISOString(),
         }
 

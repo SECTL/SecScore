@@ -48,14 +48,6 @@ const applyGlobalFontFamily = (fontValue?: string) => {
   document.body.style.fontFamily = fontFamily
 }
 
-const mapOAuthPermissionToAppPermission = (
-  oauthPermission: number
-): "admin" | "points" | "view" => {
-  if (oauthPermission >= 18) return "admin"
-  if (oauthPermission >= 1) return "points"
-  return "view"
-}
-
 function MainContent(): React.JSX.Element {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -218,26 +210,19 @@ function MainContent(): React.JSX.Element {
         api.getAllSettings(),
       ])
 
-      const oauthPermission =
-        oauthRes?.success && oauthRes.data
-          ? mapOAuthPermissionToAppPermission(oauthRes.data.permission)
-          : null
+      // OAuth 登录仅用于云服务，不影响本地权限
       if (oauthRes?.success && oauthRes.data?.name) {
         setOAuthUserName(String(oauthRes.data.name))
       } else {
         setOAuthUserName(null)
       }
 
+      // 本地权限系统独立于 OAuth
       if (authRes?.success && authRes.data) {
         const anyPwd = Boolean(authRes.data.hasAdminPassword || authRes.data.hasPointsPassword)
         setHasAnyPassword(anyPwd)
-
-        const finalPermission = oauthPermission ?? authRes.data.permission
-        setPermission(finalPermission)
-        setAuthVisible(anyPwd && finalPermission === "view")
-      } else if (oauthPermission) {
-        setPermission(oauthPermission)
-        setAuthVisible(false)
+        setPermission(authRes.data.permission)
+        setAuthVisible(anyPwd && authRes.data.permission === "view")
       }
 
       if (settingsRes?.success && settingsRes.data) {
@@ -527,10 +512,8 @@ function MainContent(): React.JSX.Element {
     email: string
     name: string
     github_username?: string
-    permission: number
   }) => {
-    setPermission(mapOAuthPermissionToAppPermission(userInfo.permission))
-    setAuthVisible(false)
+    // OAuth 登录仅用于云服务，不修改本地权限
     setOAuthUserName(userInfo.name || null)
     messageApi.success(t("auth.oauthSuccess", "登录成功"))
   }

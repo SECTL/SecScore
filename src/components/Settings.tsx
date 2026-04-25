@@ -203,14 +203,7 @@ export const Settings: React.FC<{
     email: string
     name: string
     github_username?: string
-    permission: number
   } | null>(null)
-
-  const getOAuthPermissionLabel = (oauthPermission: number) => {
-    if (oauthPermission >= 18) return t("permissions.admin")
-    if (oauthPermission >= 1) return t("permissions.points")
-    return t("permissions.view")
-  }
 
   const permissionTag = useMemo(() => {
     return (
@@ -326,7 +319,6 @@ export const Settings: React.FC<{
         email: oauthStateRes.data.email,
         name: oauthStateRes.data.name,
         github_username: oauthStateRes.data.github_username,
-        permission: oauthStateRes.data.permission,
       })
     } else {
       setOAuthUserInfo(null)
@@ -347,7 +339,7 @@ export const Settings: React.FC<{
       await api.oauthClearLoginState()
       setOAuthUserInfo(null)
       window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
-      messageApi.success(t("auth.logout"))
+      messageApi.success(t("settings.account.logoutSuccess", "已退出云账号"))
     } catch (error: any) {
       messageApi.error(error?.message || t("common.error"))
     }
@@ -421,17 +413,15 @@ export const Settings: React.FC<{
           email?: string
           name?: string
           github_username?: string
-          permission?: number
         } | null
       }>
       const user = customEvent?.detail?.user
-      if (user?.user_id && user.email && user.name && typeof user.permission === "number") {
+      if (user?.user_id && user.email && user.name) {
         setOAuthUserInfo({
           user_id: user.user_id,
           email: user.email,
           name: user.name,
           github_username: user.github_username,
-          permission: user.permission,
         })
       } else {
         setOAuthUserInfo(null)
@@ -1161,13 +1151,6 @@ export const Settings: React.FC<{
                   <Text code style={{ marginLeft: "8px" }}>
                     {oauthUserInfo.user_id}
                   </Text>
-                </div>
-
-                <div>
-                  <Text type="secondary">{t("settings.account.permission")}:</Text>
-                  <Tag color="blue" style={{ marginLeft: "8px" }}>
-                    {getOAuthPermissionLabel(oauthUserInfo.permission)}
-                  </Tag>
                 </div>
 
                 <Divider />

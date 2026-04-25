@@ -574,7 +574,6 @@ const api = {
     email: string
     name: string
     github_username?: string
-    permission: number
     login_time: string
   }): Promise<{
     success: boolean
@@ -591,7 +590,6 @@ const api = {
       email: string
       name: string
       github_username?: string
-      permission: number
       login_time: string
     } | null
     message?: string

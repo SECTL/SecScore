@@ -790,7 +790,6 @@ pub struct OAuthState {
     pub email: String,
     pub name: String,
     pub github_username: Option<String>,
-    pub permission: u32,
     pub login_time: String,
 }
 

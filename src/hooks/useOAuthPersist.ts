@@ -10,7 +10,6 @@ export interface OAuthUserInfo {
   email: string
   name: string
   github_username?: string
-  permission: number
 }
 
 export interface OAuthLoginState {
@@ -22,7 +21,6 @@ export interface OAuthLoginState {
   email: string
   name: string
   github_username?: string
-  permission: number
   login_time: string
 }
 
@@ -54,7 +52,6 @@ export function useOAuthPersist() {
             email: result.data.email,
             name: result.data.name,
             github_username: result.data.github_username,
-            permission: result.data.permission,
           })
           setIsAuthenticated(true)
         } else {
