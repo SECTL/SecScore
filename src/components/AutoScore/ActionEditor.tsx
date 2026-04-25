@@ -2,12 +2,22 @@ import React, { useEffect, useMemo } from "react"
 import { Button, Card, InputNumber, Select, Space } from "antd"
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
-import type { ActionDraft, ActionEvent, AutoScoreTagOption } from "./AutoScoreUtils"
-import { createDefaultActionDraft } from "./AutoScoreUtils"
+import type {
+  ActionDraft,
+  ActionEvent,
+  AutoScoreRewardOption,
+  AutoScoreTagOption,
+} from "./AutoScoreUtils"
+import {
+  createDefaultActionDraft,
+  parseRewardActionValue,
+  stringifyRewardActionValue,
+} from "./AutoScoreUtils"
 
 interface ActionEditorProps {
   value: ActionDraft[]
   tagOptions: AutoScoreTagOption[]
+  rewardOptions: AutoScoreRewardOption[]
   canEdit: boolean
   onChange: (nextDrafts: ActionDraft[]) => void
 }
@@ -15,6 +25,7 @@ interface ActionEditorProps {
 export const ActionEditor: React.FC<ActionEditorProps> = ({
   value,
   tagOptions,
+  rewardOptions,
   canEdit,
   onChange,
 }) => {
@@ -33,6 +44,7 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
       { value: "add_score", label: t("autoScore.actionAddScore") },
       { value: "add_tag", label: t("autoScore.actionAddTag") },
       { value: "settle_score", label: t("autoScore.actionSettleScore") },
+      { value: "reward_exchange", label: t("rewardExchange.title") },
     ],
     [t]
   )
@@ -57,6 +69,31 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
 
     return Array.from(optionMap.values())
   }, [safeValue, tagOptions])
+
+  const mergedRewardOptions = useMemo(() => {
+    const optionMap = new Map(rewardOptions.map((option) => [option.value, option]))
+
+    for (const action of safeValue) {
+      if (action.event !== "reward_exchange") continue
+      const rewardValue = parseRewardActionValue(action.value)
+      if (!rewardValue) continue
+
+      const optionValue = String(rewardValue.rewardId)
+      if (!optionMap.has(optionValue)) {
+        optionMap.set(optionValue, {
+          label: rewardValue.rewardName || optionValue,
+          value: optionValue,
+        })
+      }
+    }
+
+    return Array.from(optionMap.values())
+  }, [rewardOptions, safeValue])
+
+  const buildRewardDraftValue = (rewardId: string): string => {
+    const rewardOption = mergedRewardOptions.find((option) => option.value === rewardId)
+    return stringifyRewardActionValue(Number(rewardId), rewardOption?.label) || ""
+  }
 
   const updateAction = (id: string, patch: Partial<Omit<ActionDraft, "id">>) => {
     onChange(safeValue.map((item) => (item.id === id ? { ...item, ...patch } : item)))
@@ -87,7 +124,14 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
               onChange={(event: ActionEvent) =>
                 updateAction(action.id, {
                   event,
-                  value: event === "add_score" ? "1" : event === "add_tag" ? [] : "",
+                  value:
+                    event === "add_score"
+                      ? "1"
+                      : event === "add_tag"
+                        ? []
+                        : event === "reward_exchange" && mergedRewardOptions.length > 0
+                          ? buildRewardDraftValue(mergedRewardOptions[0].value)
+                          : "",
                 })
               }
             />
@@ -114,6 +158,22 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
                 disabled={!canEdit}
                 options={mergedTagOptions}
                 onChange={(nextValue) => updateAction(action.id, { value: nextValue })}
+              />
+            ) : action.event === "reward_exchange" ? (
+              <Select
+                showSearch
+                style={{ minWidth: 260 }}
+                placeholder={t("rewardExchange.rewards")}
+                value={(() => {
+                  const rewardValue = parseRewardActionValue(action.value)
+                  return rewardValue ? String(rewardValue.rewardId) : undefined
+                })()}
+                disabled={!canEdit}
+                optionFilterProp="label"
+                options={mergedRewardOptions}
+                onChange={(nextValue: string) =>
+                  updateAction(action.id, { value: buildRewardDraftValue(nextValue) })
+                }
               />
             ) : (
               <div style={{ minWidth: 260, color: "var(--ss-text-secondary)" }}>

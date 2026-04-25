@@ -831,6 +831,7 @@
     "actionAddTag": "Add Tag",
     "actionSettleScore": "Settle Score",
     "actionSettleScoreHint": "No parameters required",
+    "rewardRequired": "Please select a reward",
     "startAt": "Start Time",
     "startAtPlaceholder": "Select start time (empty means start now)",
     "startAtHint": "Empty means start immediately; when set, interval will use this as base time",

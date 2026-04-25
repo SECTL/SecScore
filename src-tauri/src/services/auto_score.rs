@@ -10,7 +10,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::time::{interval, Duration};
 use uuid::Uuid;
 
-use crate::db::entities::{score_events, student_tags, students, tags};
+use crate::db::entities::{
+    reward_redemptions, reward_settings, score_events, student_tags, students, tags,
+};
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::state::SafeAppState;
 
@@ -30,6 +32,19 @@ pub struct AutoScoreTrigger {
 pub struct AutoScoreAction {
     pub event: String,
     pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct RewardExchangeActionValue {
+    #[serde(alias = "reward_id")]
+    reward_id: i32,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "reward_name"
+    )]
+    reward_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -63,6 +78,8 @@ pub struct AutoScoreExecutionBatch {
     pub affected_student_names: Vec<String>,
     pub created_event_ids: Vec<i32>,
     pub added_student_tag_ids: Vec<i32>,
+    #[serde(default)]
+    pub reward_redemption_ids: Vec<i32>,
     pub score_delta_total: i64,
     pub settled: bool,
     pub rolled_back: bool,
@@ -123,6 +140,7 @@ pub struct AutoScoreRule {
 enum PlannedAction {
     AddScore(i32),
     AddTags(Vec<String>),
+    RewardExchange(RewardExchangeActionValue),
     SettleScore,
 }
 
@@ -147,6 +165,7 @@ struct RuleExecutionStats {
     score_delta_total: i64,
     created_event_ids: Vec<i32>,
     added_student_tag_ids: Vec<i32>,
+    reward_redemption_ids: Vec<i32>,
     settled: bool,
 }
 
@@ -390,6 +409,7 @@ impl AutoScoreService {
                         affected_student_names: stats.affected_student_names.clone(),
                         created_event_ids: stats.created_event_ids.clone(),
                         added_student_tag_ids: stats.added_student_tag_ids.clone(),
+                        reward_redemption_ids: stats.reward_redemption_ids.clone(),
                         score_delta_total: stats.score_delta_total,
                         settled: stats.settled,
                         rolled_back: false,
@@ -941,9 +961,68 @@ fn normalize_action(action: AutoScoreAction) -> Result<AutoScoreAction, String> 
                 value: Some(value),
             })
         }
+        "reward_exchange" => {
+            let value = parse_reward_exchange_action_value(action.value.as_deref())
+                .ok_or_else(|| "Reward exchange action requires a valid reward".to_string())?;
+
+            Ok(AutoScoreAction {
+                event,
+                value: Some(serialize_reward_exchange_action_value(&value)?),
+            })
+        }
         "settle_score" => Ok(AutoScoreAction { event, value: None }),
         _ => Err(format!("Unsupported action event: {}", event)),
     }
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    })
+}
+
+fn parse_reward_exchange_action_value(raw_value: Option<&str>) -> Option<RewardExchangeActionValue> {
+    let raw_value = raw_value.map(str::trim)?;
+    if raw_value.is_empty() {
+        return None;
+    }
+
+    if raw_value.starts_with('{') {
+        let parsed = serde_json::from_str::<RewardExchangeActionValue>(raw_value).ok()?;
+        if parsed.reward_id <= 0 {
+            return None;
+        }
+        return Some(RewardExchangeActionValue {
+            reward_id: parsed.reward_id,
+            reward_name: normalize_optional_string(parsed.reward_name),
+        });
+    }
+
+    let reward_id = raw_value.parse::<i32>().ok().filter(|value| *value > 0)?;
+    Some(RewardExchangeActionValue {
+        reward_id,
+        reward_name: None,
+    })
+}
+
+fn serialize_reward_exchange_action_value(
+    value: &RewardExchangeActionValue,
+) -> Result<String, String> {
+    serde_json::to_string(&RewardExchangeActionValue {
+        reward_id: value.reward_id,
+        reward_name: normalize_optional_string(value.reward_name.clone()),
+    })
+    .map_err(|error| {
+        format!(
+            "Failed to serialize reward exchange action value: {}",
+            error
+        )
+    })
 }
 
 fn normalize_required_string(value: String, field_name: &str) -> Result<String, String> {
@@ -1473,6 +1552,36 @@ pub async fn rollback_execution_batch(
             .map_err(|e| e.to_string())?;
     }
 
+    for redemption_id in &batch.reward_redemption_ids {
+        let redemption = reward_redemptions::Entity::find_by_id(*redemption_id)
+            .one(&txn)
+            .await
+            .map_err(|e| e.to_string())?;
+        let Some(redemption) = redemption else {
+            continue;
+        };
+
+        reward_redemptions::Entity::delete_by_id(*redemption_id)
+            .exec(&txn)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if let Some(student) = students::Entity::find()
+            .filter(students::Column::Name.eq(redemption.student_name.clone()))
+            .one(&txn)
+            .await
+            .map_err(|e| e.to_string())?
+        {
+            let mut student_active: students::ActiveModel = student.clone().into();
+            student_active.reward_points = Set(student.reward_points + redemption.cost_points);
+            student_active.updated_at = Set(now_iso());
+            student_active
+                .update(&txn)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
     txn.commit().await.map_err(|e| e.to_string())?;
 
     batch.rolled_back = true;
@@ -1632,6 +1741,7 @@ pub async fn apply_offline_backfill(
                 affected_student_names: stats.affected_student_names.clone(),
                 created_event_ids: stats.created_event_ids.clone(),
                 added_student_tag_ids: stats.added_student_tag_ids.clone(),
+                reward_redemption_ids: stats.reward_redemption_ids.clone(),
                 score_delta_total: stats.score_delta_total,
                 settled: stats.settled,
                 rolled_back: false,
@@ -1728,6 +1838,23 @@ async fn execute_rule(
         tag_name_to_id.insert(tag_name, tag_id);
     }
 
+    let mut reward_settings_by_id = HashMap::new();
+    for action in &planned_actions {
+        if let PlannedAction::RewardExchange(reward_action) = action {
+            if reward_settings_by_id.contains_key(&reward_action.reward_id) {
+                continue;
+            }
+
+            let reward = reward_settings::Entity::find_by_id(reward_action.reward_id)
+                .one(&txn)
+                .await
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("Reward not found: {}", reward_action.reward_id))?;
+
+            reward_settings_by_id.insert(reward.id, reward);
+        }
+    }
+
     for mut student in target_students {
         if mode == ExecutionMode::Normal {
             if !is_student_pass_cooldown(
@@ -1803,6 +1930,40 @@ async fn execute_rule(
                         }
                     }
                 }
+                PlannedAction::RewardExchange(reward_action) => {
+                    let Some(reward) = reward_settings_by_id.get(&reward_action.reward_id) else {
+                        return Err(format!("Reward not found: {}", reward_action.reward_id));
+                    };
+                    if student.reward_points < reward.cost_points {
+                        continue;
+                    }
+
+                    let now = now_iso();
+                    let redemption = reward_redemptions::ActiveModel {
+                        id: sea_orm::ActiveValue::NotSet,
+                        uuid: Set(Uuid::new_v4().to_string()),
+                        student_name: Set(student.name.clone()),
+                        reward_id: Set(reward.id),
+                        reward_name: Set(reward.name.clone()),
+                        cost_points: Set(reward.cost_points),
+                        redeemed_at: Set(now.clone()),
+                    };
+                    let inserted_redemption =
+                        redemption.insert(&txn).await.map_err(|e| e.to_string())?;
+                    stats.reward_redemption_ids.push(inserted_redemption.id);
+
+                    let remaining_reward_points = student.reward_points - reward.cost_points;
+                    let mut student_active: students::ActiveModel = student.clone().into();
+                    student_active.reward_points = Set(remaining_reward_points);
+                    student_active.updated_at = Set(now);
+                    student_active
+                        .update(&txn)
+                        .await
+                        .map_err(|e| e.to_string())?;
+
+                    student.reward_points = remaining_reward_points;
+                    touched = true;
+                }
                 PlannedAction::SettleScore => {}
             }
         }
@@ -1839,6 +2000,11 @@ fn plan_actions(actions: &[AutoScoreAction]) -> Result<Vec<PlannedAction>, Strin
                     return Err("Invalid add_tag value".to_string());
                 }
                 planned.push(PlannedAction::AddTags(tags));
+            }
+            "reward_exchange" => {
+                let reward = parse_reward_exchange_action_value(action.value.as_deref())
+                    .ok_or_else(|| "Invalid reward_exchange value".to_string())?;
+                planned.push(PlannedAction::RewardExchange(reward));
             }
             "settle_score" => {
                 planned.push(PlannedAction::SettleScore);

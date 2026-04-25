@@ -36,11 +36,13 @@ import {
   normalizeTriggerTree,
   queryTreeToJson,
   normalizeActionDrafts,
+  parseRewardActionValue,
   queryTreeToTriggers,
   triggerTreeJsonToQueryTree,
   type ActionDraft,
   type AutoScoreExecutionBatch,
   type AutoScoreExecutionConfig,
+  type AutoScoreRewardOption,
   type AutoScoreRule,
   type AutoScoreTagOption,
 } from "./AutoScore/AutoScoreUtils"
@@ -53,6 +55,12 @@ interface StudentItem {
 interface TagItem {
   id: number
   name: string
+}
+
+interface RewardItem {
+  id: number
+  name: string
+  cost_points: number
 }
 
 interface RuleFormValues {
@@ -152,6 +160,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   const [form] = Form.useForm<RuleFormValues>()
   const [messageApi, contextHolder] = message.useMessage()
   const [tags, setTags] = useState<TagItem[]>([])
+  const [rewards, setRewards] = useState<RewardItem[]>([])
 
   const tagOptions = useMemo<AutoScoreTagOption[]>(
     () =>
@@ -160,6 +169,18 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         value: tag.name,
       })),
     [tags]
+  )
+  const rewardOptions = useMemo<AutoScoreRewardOption[]>(
+    () =>
+      rewards.map((reward) => ({
+        label: reward.name,
+        value: String(reward.id),
+      })),
+    [rewards]
+  )
+  const rewardLabelById = useMemo(
+    () => new Map(rewards.map((reward) => [reward.id, reward.name] as const)),
+    [rewards]
   )
 
   const triggerConfig = useMemo(
@@ -288,6 +309,20 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     }
   }
 
+  const fetchRewards = async () => {
+    const api = (window as any).api
+    if (!api || !canEdit) return
+
+    try {
+      const res = await api.rewardSettingQuery()
+      if (res.success && Array.isArray(res.data)) {
+        setRewards(res.data)
+      }
+    } catch {
+      void 0
+    }
+  }
+
   const fetchRules = async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
@@ -323,6 +358,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
   useEffect(() => {
     if (!canEdit) return
     fetchTags().catch(() => void 0)
+    fetchRewards().catch(() => void 0)
     fetchStudents().catch(() => void 0)
     fetchRules().catch(() => void 0)
     fetchBatches().catch(() => void 0)
@@ -443,6 +479,10 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     }
     if (actionPayload.error === "tag_required") {
       messageApi.warning(t("autoScore.tagNamePlaceholder"))
+      return
+    }
+    if (actionPayload.error === "reward_required") {
+      messageApi.warning(t("autoScore.rewardRequired"))
       return
     }
     if (actionPayload.actions.length === 0) {
@@ -622,6 +662,15 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     }
     if (action.event === "settle_score") {
       return `${t("autoScore.actionSettleScore")}: ${t("autoScore.actionSettleScoreHint")}`
+    }
+    if (action.event === "reward_exchange") {
+      const rewardValue = parseRewardActionValue(action.value)
+      const rewardLabel = rewardValue
+        ? rewardLabelById.get(rewardValue.rewardId) ||
+          rewardValue.rewardName ||
+          `#${rewardValue.rewardId}`
+        : String(action.value || "").trim() || "-"
+      return `${t("rewardExchange.title")}: ${rewardLabel}`
     }
     return `${action.event}: ${String(action.value || "").trim() || "-"}`
   }
@@ -905,6 +954,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
       <ActionEditor
         value={actionDrafts}
         tagOptions={tagOptions}
+        rewardOptions={rewardOptions}
         canEdit={canEdit}
         onChange={(nextDrafts) => setActionDrafts(normalizeActionDrafts(nextDrafts))}
       />

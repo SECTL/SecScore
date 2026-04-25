@@ -86,6 +86,7 @@ pub fn run() {
             oauth_stop_callback_server,
             oauth_report_online,
             oauth_get_device_uuid,
+            oauth_get_storage_usage,
             oauth_save_login_state,
             oauth_load_login_state,
             oauth_clear_login_state,
@@ -449,3 +450,4 @@ fn setup_window_events(app: &mut App) -> Result<(), Box<dyn std::error::Error>> 
 fn setup_window_events(_app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
+

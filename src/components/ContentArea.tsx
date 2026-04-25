@@ -206,7 +206,7 @@ export function ContentArea({
 
     try {
       const api = (window as any).api
-      if (!api?.oauthLoadLoginState) {
+      if (!api?.oauthLoadLoginState || !api?.oauthGetStorageUsage) {
         setStorageUsage(null)
         setStorageUsageError("当前环境不支持云用量查询")
         return
@@ -229,37 +229,24 @@ export function ContentArea({
         return
       }
 
-      const params = new URLSearchParams({
-        client_id: platformId,
-        user_id: oauthState.user_id,
-      })
-
-      const response = await fetch(
-        `https://appwrite.sectl.top/api/cloud/storage/usage?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${oauthState.access_token}`,
-          },
-        }
+      const usageRes = await api.oauthGetStorageUsage(
+        oauthState.access_token,
+        platformId,
+        oauthState.user_id
       )
-
-      const responseText = await response.text()
-      let payload: any = {}
-      try {
-        payload = responseText ? JSON.parse(responseText) : {}
-      } catch {
-        payload = {}
-      }
-
-      if (!response.ok) {
-        throw new Error(payload?.error_description || payload?.message || "获取云空间用量失败")
+      if (!usageRes?.success || !usageRes.data) {
+        throw new Error(usageRes?.message || "获取云空间用量失败")
       }
 
       setStorageUsage({
-        used_storage_formatted: String(payload?.used_storage_formatted || "0 B"),
-        total_storage_formatted: String(payload?.total_storage_formatted || "0 B"),
-        percentage: Number.isFinite(payload?.percentage) ? Number(payload.percentage) : 0,
-        file_count: Number.isFinite(payload?.file_count) ? Number(payload.file_count) : 0,
+        used_storage_formatted: String(usageRes.data.used_storage_formatted || "0 B"),
+        total_storage_formatted: String(usageRes.data.total_storage_formatted || "0 B"),
+        percentage: Number.isFinite(usageRes.data.percentage)
+          ? Number(usageRes.data.percentage)
+          : 0,
+        file_count: Number.isFinite(usageRes.data.file_count)
+          ? Number(usageRes.data.file_count)
+          : 0,
       })
     } catch (error: any) {
       setStorageUsage(null)
@@ -627,10 +614,12 @@ export function ContentArea({
       </div>
 
       <Content
+        className="ss-content-scroll-container"
         style={{
           flex: 1,
           overflowY: isBoardPage ? "hidden" : "auto",
           overflowX: "hidden",
+          background: "var(--ss-bg-color)",
           paddingBottom: bottomInset ? `${bottomInset}px` : 0,
         }}
       >
@@ -697,3 +686,4 @@ export function ContentArea({
     </Layout>
   )
 }
+
