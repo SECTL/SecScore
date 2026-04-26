@@ -16,6 +16,7 @@ import {
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import appLogo from "../assets/logoHD.svg"
+import { usePluginEnabled } from "../hooks/useBuiltinPlugins"
 
 const { Sider } = Layout
 
@@ -35,6 +36,25 @@ interface DbStatus {
   error?: string
 }
 
+// 插件菜单项配置
+const PLUGIN_MENU_ITEMS: Record<
+  string,
+  { icon: React.ReactElement; labelKey: string; requiresAdmin: boolean }
+> = {
+  "auto-score": { icon: <SyncOutlined />, labelKey: "sidebar.autoScore", requiresAdmin: true },
+  boards: { icon: <ApartmentOutlined />, labelKey: "sidebar.boards", requiresAdmin: false },
+  settlements: {
+    icon: <FileTextOutlined />,
+    labelKey: "sidebar.settlements",
+    requiresAdmin: false,
+  },
+  "reward-settings": {
+    icon: <AppstoreAddOutlined />,
+    labelKey: "sidebar.rewardSettings",
+    requiresAdmin: true,
+  },
+}
+
 export function Sidebar({
   activeMenu,
   permission,
@@ -48,6 +68,12 @@ export function Sidebar({
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
   const [syncLoading, setSyncLoading] = useState(false)
   const [messageApi, contextHolder] = message.useMessage()
+
+  // 检查插件启用状态
+  const autoScoreEnabled = usePluginEnabled("auto-score")
+  const boardsEnabled = usePluginEnabled("boards")
+  const settlementsEnabled = usePluginEnabled("settlements")
+  const rewardSettingsEnabled = usePluginEnabled("reward-settings")
 
   useEffect(() => {
     loadDbStatus()
@@ -147,70 +173,95 @@ export function Sidebar({
     }
   }
 
-  const menuItems = [
-    {
-      key: "home",
-      icon: <HomeOutlined />,
-      label: t("sidebar.home"),
-    },
-    {
-      key: "students",
-      icon: <UserOutlined />,
-      label: t("sidebar.students"),
-      disabled: permission !== "admin",
-    },
-    {
-      key: "score",
-      icon: <HistoryOutlined />,
-      label: t("sidebar.score"),
-    },
-    {
-      key: "auto-score",
-      icon: <SyncOutlined />,
-      label: t("sidebar.autoScore"),
-      disabled: permission !== "admin",
-    },
-    {
-      key: "reward-settings",
-      icon: <AppstoreAddOutlined />,
-      label: t("sidebar.rewardSettings"),
-      disabled: permission !== "admin",
-    },
-    {
-      key: "boards",
-      icon: <ApartmentOutlined />,
-      label: t("sidebar.boards"),
-    },
-    {
+  // 构建菜单项
+  const buildMenuItems = () => {
+    const items = [
+      {
+        key: "home",
+        icon: <HomeOutlined />,
+        label: t("sidebar.home"),
+      },
+      {
+        key: "students",
+        icon: <UserOutlined />,
+        label: t("sidebar.students"),
+        disabled: permission !== "admin",
+      },
+      {
+        key: "score",
+        icon: <HistoryOutlined />,
+        label: t("sidebar.score"),
+      },
+    ]
+
+    // 根据插件状态添加菜单项
+    if (autoScoreEnabled) {
+      items.push({
+        key: "auto-score",
+        icon: PLUGIN_MENU_ITEMS["auto-score"].icon,
+        label: t(PLUGIN_MENU_ITEMS["auto-score"].labelKey),
+        disabled: permission !== "admin" && PLUGIN_MENU_ITEMS["auto-score"].requiresAdmin,
+      })
+    }
+
+    if (rewardSettingsEnabled) {
+      items.push({
+        key: "reward-settings",
+        icon: PLUGIN_MENU_ITEMS["reward-settings"].icon,
+        label: t(PLUGIN_MENU_ITEMS["reward-settings"].labelKey),
+        disabled: permission !== "admin" && PLUGIN_MENU_ITEMS["reward-settings"].requiresAdmin,
+      })
+    }
+
+    if (boardsEnabled) {
+      items.push({
+        key: "boards",
+        icon: PLUGIN_MENU_ITEMS["boards"].icon,
+        label: t(PLUGIN_MENU_ITEMS["boards"].labelKey),
+        disabled: permission !== "admin" && PLUGIN_MENU_ITEMS["boards"].requiresAdmin,
+      })
+    }
+
+    items.push({
       key: "leaderboard",
       icon: <UnorderedListOutlined />,
       label: t("sidebar.leaderboard"),
-    },
-    {
-      key: "settlements",
-      icon: <FileTextOutlined />,
-      label: t("sidebar.settlements"),
-    },
-    {
-      key: "reasons",
-      icon: <UnorderedListOutlined />,
-      label: t("sidebar.reasons"),
-      disabled: permission !== "admin",
-    },
-    {
-      key: "plugins",
-      icon: <CrownOutlined />,
-      label: t("sidebar.plugins"),
-      disabled: permission !== "admin",
-    },
-    {
-      key: "settings",
-      icon: <SettingOutlined />,
-      label: t("sidebar.settings"),
-      disabled: permission !== "admin",
-    },
-  ]
+    })
 
+    if (settlementsEnabled) {
+      items.push({
+        key: "settlements",
+        icon: PLUGIN_MENU_ITEMS["settlements"].icon,
+        label: t(PLUGIN_MENU_ITEMS["settlements"].labelKey),
+        disabled: permission !== "admin" && PLUGIN_MENU_ITEMS["settlements"].requiresAdmin,
+      })
+    }
+
+    items.push(
+      {
+        key: "reasons",
+        icon: <UnorderedListOutlined />,
+        label: t("sidebar.reasons"),
+        disabled: permission !== "admin",
+      },
+      {
+        key: "plugins",
+        icon: <CrownOutlined />,
+        label: t("sidebar.plugins"),
+        disabled: permission !== "admin",
+      },
+      {
+        key: "settings",
+        icon: <SettingOutlined />,
+        label: t("sidebar.settings"),
+        disabled: permission !== "admin",
+      }
+    )
+
+    return items
+  }
+
+  const menuItems = buildMenuItems()
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 
   const renderSidebarBody = (isCollapsedView: boolean, hideMenu = false) => (
@@ -277,6 +328,16 @@ export function Sidebar({
             inlineCollapsed={isCollapsedView}
             selectedKeys={[activeMenu]}
             onClick={({ key }) => {
+              if (key === "settings") {
+                // 打开设置窗口
+                const api = (window as any).api
+                if (api?.openSettingsWindow) {
+                  api.openSettingsWindow().catch((err: any) => {
+                    console.error("Failed to open settings window:", err)
+                  })
+                }
+                return
+              }
               onMenuChange(key)
               if (floatingExpand && collapsed) {
                 onFloatingExpandedChange(false)

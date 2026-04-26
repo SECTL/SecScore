@@ -852,6 +852,12 @@ const api = {
     message?: string
   }> => invoke("plugin_get_runtime_modules"),
 
+  // Settings Window
+  openSettingsWindow: (): Promise<{ success: boolean; message?: string }> =>
+    invoke("open_settings_window"),
+  closeSettingsWindow: (): Promise<{ success: boolean; message?: string }> =>
+    invoke("close_settings_window"),
+
   // Generic invoke wrapper for backward compatibility with callers using `api.invoke`
   invoke: async (channel: string): Promise<any> => {
     switch (channel) {
@@ -863,4 +869,3 @@ const api = {
 
 export default api
 export { api }
-

@@ -11,10 +11,10 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 import appLogo from "../assets/logoHD.svg"
+import { usePluginEnabled } from "../hooks/useBuiltinPlugins"
 
 const loadHome = () => import("./Home")
 const loadStudentManager = () => import("./StudentManager")
-const loadSettings = () => import("./Settings")
 const loadReasonManager = () => import("./ReasonManager")
 const loadScoreManager = () => import("./ScoreManager")
 const loadAutoScoreManager = () => import("./AutoScoreManager")
@@ -26,7 +26,6 @@ const loadPluginManager = () => import("./PluginManager")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
-const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })))
 const ReasonManager = lazy(() => loadReasonManager().then((m) => ({ default: m.ReasonManager })))
 const ScoreManager = lazy(() => loadScoreManager().then((m) => ({ default: m.ScoreManager })))
 const AutoScoreManager = lazy(loadAutoScoreManager)
@@ -42,7 +41,6 @@ const warmupRouteChunks = () =>
   Promise.allSettled([
     loadHome(),
     loadStudentManager(),
-    loadSettings(),
     loadReasonManager(),
     loadScoreManager(),
     loadAutoScoreManager(),
@@ -114,6 +112,13 @@ export function ContentArea({
   const isPrimaryMobilePage =
     normalizedPath.startsWith("/home") || normalizedPath.startsWith("/settings")
   const showMobileBack = isMobileHeaderMode && !isPrimaryMobilePage
+
+  // 检查插件启用状态
+  const autoScoreEnabled = usePluginEnabled("auto-score")
+  const boardsEnabled = usePluginEnabled("boards")
+  const settlementsEnabled = usePluginEnabled("settlements")
+  const rewardSettingsEnabled = usePluginEnabled("reward-settings")
+
   const mobilePageTitle = (() => {
     if (normalizedPath.startsWith("/home")) return t("sidebar.home")
     if (normalizedPath.startsWith("/students")) return t("sidebar.students")
@@ -664,20 +669,28 @@ export function ContentArea({
                   <ScoreManager canEdit={permission === "admin" || permission === "points"} />
                 }
               />
-              <Route
-                path="/auto-score"
-                element={<AutoScoreManager canEdit={permission === "admin"} />}
-              />
-              <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
+              {autoScoreEnabled && (
+                <Route
+                  path="/auto-score"
+                  element={<AutoScoreManager canEdit={permission === "admin"} />}
+                />
+              )}
+              {boardsEnabled && (
+                <Route
+                  path="/boards"
+                  element={<BoardManager canManage={permission === "admin"} />}
+                />
+              )}
               <Route path="/leaderboard" element={<Leaderboard />} />
-              <Route path="/settlements" element={<SettlementHistory />} />
+              {settlementsEnabled && <Route path="/settlements" element={<SettlementHistory />} />}
               <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
-              <Route
-                path="/reward-settings"
-                element={<RewardSettings canEdit={permission === "admin"} />}
-              />
+              {rewardSettingsEnabled && (
+                <Route
+                  path="/reward-settings"
+                  element={<RewardSettings canEdit={permission === "admin"} />}
+                />
+              )}
               <Route path="/plugins" element={<PluginManager canEdit={permission === "admin"} />} />
-              <Route path="/settings" element={<Settings permission={permission} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
@@ -686,4 +699,3 @@ export function ContentArea({
     </Layout>
   )
 }
-

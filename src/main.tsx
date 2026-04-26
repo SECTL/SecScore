@@ -8,13 +8,20 @@ import { ClientContext } from "./ClientContext"
 import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { api } from "./preload/types"
+import { initBuiltinPlugins } from "./plugins/builtin"
 
 if (!(window as any).api) {
   ;(window as any).api = api
 }
 
 const ctx = new ClientContext()
+ctx.initializeDI()
 new StudentService(ctx)
+
+// 初始化内置插件系统
+initBuiltinPlugins().catch((error) => {
+  console.error("Failed to initialize builtin plugins:", error)
+})
 
 const safeWriteLog = (payload: {
   level: "debug" | "info" | "warn" | "error"

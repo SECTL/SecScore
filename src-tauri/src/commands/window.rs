@@ -169,3 +169,61 @@ pub async fn window_start_dragging(
     }
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_settings_window(app: AppHandle) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        return Err("Not supported on mobile".to_string());
+    }
+
+    #[cfg(desktop)]
+    {
+        // 检查设置窗口是否已存在
+        if let Some(window) = app.get_webview_window("settings") {
+            // 如果窗口已存在，将其置于前台
+            window.set_focus().map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+
+        // 创建新的设置窗口
+        let window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "settings",
+            tauri::WebviewUrl::App("/settings-window".into()),
+        )
+        .title("SecScore 设置")
+        .inner_size(900.0, 650.0)
+        .min_inner_size(700.0, 500.0)
+        .center()
+        .decorations(false)
+        .transparent(false)
+        .resizable(true)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+        // 在开发模式下打开开发者工具
+        #[cfg(debug_assertions)]
+        window.open_devtools();
+
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub async fn close_settings_window(app: AppHandle) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        return Ok(());
+    }
+
+    #[cfg(desktop)]
+    {
+        if let Some(window) = app.get_webview_window("settings") {
+            window.close().map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+}
