@@ -131,8 +131,6 @@ pub fn run() {
             toggle_devtools,
             window_resize,
             window_set_resizable,
-            open_settings_window,
-            close_settings_window,
             db_test_connection,
             db_switch_connection,
             db_get_status,

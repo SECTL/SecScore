@@ -14,12 +14,10 @@ import {
   Descriptions,
   Upload,
   Tooltip,
-  Tabs,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
 import { UploadOutlined, DeleteOutlined, FolderOpenOutlined } from "@ant-design/icons"
-import { BuiltinPluginManager } from "./BuiltinPluginManager"
 
 interface Plugin {
   id: string
@@ -51,8 +49,6 @@ export const PluginManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [installLoading, setInstallLoading] = useState(false)
   const [selectedPath, setSelectedPath] = useState<string>("")
   const [messageApi, contextHolder] = message.useMessage()
-  const [activeTab, setActiveTab] = useState("external")
-
   const emitPluginsUpdated = (action: "install" | "uninstall" | "toggle", pluginId?: string) => {
     window.dispatchEvent(
       new CustomEvent("ss:plugins-updated", {
@@ -236,61 +232,44 @@ export const PluginManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     },
   ]
 
-  const tabItems = [
-    {
-      key: "external",
-      label: "外部插件",
-      children: (
-        <>
-          <Card size="small" style={{ marginBottom: 16 }}>
-            <Descriptions size="small" column={3}>
-              <Descriptions.Item label={t("plugin.totalPlugins")}>
-                <Tag color="blue">{stats.total_plugins}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label={t("plugin.enabledPlugins")}>
-                <Tag color="success">{stats.enabled_plugins}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label={t("plugin.disabledPlugins")}>
-                <Tag color="default">{stats.disabled_plugins}</Tag>
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0, color: "var(--ss-text-main)" }}>{t("plugin.title")}</h2>
-            <Button
-              type="primary"
-              icon={<FolderOpenOutlined />}
-              disabled={!canEdit}
-              onClick={() => setInstallModalVisible(true)}
-            >
-              {t("plugin.install")}
-            </Button>
-          </div>
-
-          <Table
-            columns={columns}
-            dataSource={data}
-            rowKey="id"
-            loading={loading}
-            locale={{ emptyText: t("plugin.noPlugins") }}
-            pagination={{ pageSize: 10, showSizeChanger: false }}
-          />
-        </>
-      ),
-    },
-    {
-      key: "builtin",
-      label: "内置插件",
-      children: <BuiltinPluginManager canEdit={canEdit} />,
-    },
-  ]
-
   return (
     <div style={{ padding: "24px" }}>
       {contextHolder}
 
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Descriptions size="small" column={3}>
+          <Descriptions.Item label={t("plugin.totalPlugins")}>
+            <Tag color="blue">{stats.total_plugins}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label={t("plugin.enabledPlugins")}>
+            <Tag color="success">{stats.enabled_plugins}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label={t("plugin.disabledPlugins")}>
+            <Tag color="default">{stats.disabled_plugins}</Tag>
+          </Descriptions.Item>
+        </Descriptions>
+      </Card>
+
+      <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0, color: "var(--ss-text-main)" }}>{t("plugin.title")}</h2>
+        <Button
+          type="primary"
+          icon={<FolderOpenOutlined />}
+          disabled={!canEdit}
+          onClick={() => setInstallModalVisible(true)}
+        >
+          {t("plugin.install")}
+        </Button>
+      </div>
+
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="id"
+        loading={loading}
+        locale={{ emptyText: t("plugin.noPlugins") }}
+        pagination={{ pageSize: 10, showSizeChanger: false }}
+      />
 
       <Modal
         title={t("plugin.install")}

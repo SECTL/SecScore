@@ -855,13 +855,7 @@ export const Settings: React.FC<{
 
           <Divider />
 
-          {/* 主题设置 - 预留区域 */}
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontWeight: 600, marginBottom: "12px", fontSize: "16px" }}>
-              {t("settings.theme.title", "主题设置")}
-            </div>
-            <ThemeQuickSettings />
-          </div>
+          <ThemeQuickSettings />
 
           <Divider />
 

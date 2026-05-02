@@ -630,9 +630,9 @@ export const normalizeActionDrafts = (drafts: ActionDraft[] | null | undefined):
                     ? stringifyRewardActionValue(parsedValue.rewardId, parsedValue.rewardName) || ""
                     : ""
                 })()
-              : draft.event === "settle_score"
-                ? ""
-                : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
+            : draft.event === "settle_score"
+              ? ""
+              : toStringValue(Array.isArray(draft.value) ? draft.value[0] : draft.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))
@@ -664,9 +664,9 @@ export const actionsToDrafts = (actions: AutoScoreAction[]): ActionDraft[] => {
                     ? stringifyRewardActionValue(parsedValue.rewardId, parsedValue.rewardName) || ""
                     : ""
                 })()
-              : action.event === "settle_score"
-                ? ""
-                : toStringValue(action.value),
+            : action.event === "settle_score"
+              ? ""
+              : toStringValue(action.value),
       } satisfies ActionDraft
     })
     .filter((item): item is ActionDraft => Boolean(item))

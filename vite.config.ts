@@ -11,17 +11,11 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Avoid scanning legacy `old-ss` entries under project root.
-    entries: ["index.html", "settings-window.html"],
+    entries: ["index.html"],
   },
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        main: resolve(__dirname, "index.html"),
-        "settings-window": resolve(__dirname, "settings-window.html"),
-      },
-    },
   },
   server: {
     host: process.env.TAURI_DEV_HOST || false,
