@@ -680,7 +680,7 @@
     "removeList": "删除列表",
     "removeListConfirm": "确认删除当前学生列表？",
     "editList": "编辑",
-    "sqlEditorTitle": "编辑学生列表",
+    "sqlEditorTitle": "配置排行榜规则",
     "splitHorizontal": "左右拆分",
     "splitVertical": "上下拆分",
     "dragHandle": "拖动调整布局",
@@ -718,16 +718,16 @@
     "keepAtLeastOneList": "至少保留一个学生列表",
     "presets": {
       "weekLowDeduct": {
-        "name": "上周低扣分排行",
-        "description": "上一周扣分 < 3 的学生积分榜"
+        "name": "上周积极举手加分榜",
+        "description": "按上周“积极举手”加分总和排序"
       },
       "todayActive": {
-        "name": "今日活跃榜",
-        "description": "按今日回答次数与积分变化排序"
+        "name": "近7天活跃榜",
+        "description": "按近7天事件次数排序"
       },
       "rewardRanking": {
-        "name": "奖励积分榜",
-        "description": "按奖励积分和总积分排序"
+        "name": "近30天加分榜",
+        "description": "按近30天加分总和排序"
       }
     }
   },
