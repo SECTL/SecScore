@@ -3,12 +3,15 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Empty,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
   Space,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -16,16 +19,43 @@ import {
   message,
 } from "antd"
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
+import dayjs from "dayjs"
 import { useTranslation } from "react-i18next"
 
 type BoardStudentViewMode = "list" | "card" | "grid" | "largeAvatar"
 type BoardScoreDisplayMode = "total" | "split"
 type SplitDirection = "horizontal" | "vertical"
+type BoardTimeRange = "last7d" | "last30d" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | "custom"
+type BoardReasonMode = "all" | "selected" | "keyword"
+type BoardScoreDirection = "all" | "add" | "deduct"
+type BoardMetric = "addScore" | "deductScore" | "netChange" | "addCount" | "eventCount"
+type BoardSortDirection = "desc" | "asc"
+
+interface BoardQueryRuleConfig {
+  timeRange: BoardTimeRange
+  customStart: string | null
+  customEnd: string | null
+  reasonMode: BoardReasonMode
+  reasonValues: string[]
+  scoreDirection: BoardScoreDirection
+  metric: BoardMetric
+  sortDirection: BoardSortDirection
+  topN: number
+  comparePreviousPeriod: boolean
+  minMetric: number | null
+  maxMetric: number | null
+  minAddScore: number | null
+  maxDeductScore: number | null
+  minEventCount: number | null
+  warnThreshold: number | null
+  dangerThreshold: number | null
+  studentNameKeyword: string
+}
 
 interface StudentListConfig {
   id: string
   name: string
-  sql: string
+  rule: BoardQueryRuleConfig
   viewMode: BoardStudentViewMode
   scoreDisplayMode: BoardScoreDisplayMode
 }
@@ -58,7 +88,7 @@ interface BoardPreset {
   id: string
   name: string
   description: string
-  sql: string
+  rulePatch: Partial<BoardQueryRuleConfig>
 }
 
 interface BoardManagerProps {
@@ -78,6 +108,11 @@ interface BoardStudentCardData {
   weekChange?: number
   weekDeducted?: number
   answeredCount?: number
+  metricValue?: number
+  prevMetricValue?: number
+  metricDelta?: number
+  rankChange?: number
+  highlightLevel?: number
 }
 
 interface DragState {
@@ -102,29 +137,339 @@ const makeId = () =>
 
 const clampRatio = (value: number) => Math.max(0.15, Math.min(0.85, value))
 
-const getDefaultSql = () => `WITH score_stat AS (
+const clampTopN = (value: unknown): number => {
+  const num = typeof value === "number" ? value : Number(value)
+  if (!Number.isFinite(num)) return 20
+  return Math.max(1, Math.min(500, Math.floor(num)))
+}
+
+const createDefaultRule = (): BoardQueryRuleConfig => ({
+  timeRange: "last7d",
+  customStart: null,
+  customEnd: null,
+  reasonMode: "all",
+  reasonValues: [],
+  scoreDirection: "all",
+  metric: "addScore",
+  sortDirection: "desc",
+  topN: 20,
+  comparePreviousPeriod: true,
+  minMetric: null,
+  maxMetric: null,
+  minAddScore: null,
+  maxDeductScore: null,
+  minEventCount: null,
+  warnThreshold: null,
+  dangerThreshold: null,
+  studentNameKeyword: "",
+})
+
+const parseNullableNumber = (value: unknown): number | null => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const normalizeRule = (input: unknown): BoardQueryRuleConfig => {
+  const fallback = createDefaultRule()
+  const raw = typeof input === "object" && input ? (input as Record<string, unknown>) : {}
+  const reasonValues = Array.isArray(raw.reasonValues)
+    ? raw.reasonValues
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean)
+    : []
+
+  const allowedTimeRange = new Set<BoardTimeRange>([
+    "last7d",
+    "last30d",
+    "thisWeek",
+    "lastWeek",
+    "thisMonth",
+    "lastMonth",
+    "custom",
+  ])
+  const allowedReasonMode = new Set<BoardReasonMode>(["all", "selected", "keyword"])
+  const allowedScoreDirection = new Set<BoardScoreDirection>(["all", "add", "deduct"])
+  const allowedMetric = new Set<BoardMetric>([
+    "addScore",
+    "deductScore",
+    "netChange",
+    "addCount",
+    "eventCount",
+  ])
+  const allowedSortDirection = new Set<BoardSortDirection>(["desc", "asc"])
+
+  return {
+    timeRange: allowedTimeRange.has(raw.timeRange as BoardTimeRange)
+      ? (raw.timeRange as BoardTimeRange)
+      : fallback.timeRange,
+    customStart:
+      typeof raw.customStart === "string" && raw.customStart.trim() ? raw.customStart : null,
+    customEnd: typeof raw.customEnd === "string" && raw.customEnd.trim() ? raw.customEnd : null,
+    reasonMode: allowedReasonMode.has(raw.reasonMode as BoardReasonMode)
+      ? (raw.reasonMode as BoardReasonMode)
+      : fallback.reasonMode,
+    reasonValues,
+    scoreDirection: allowedScoreDirection.has(raw.scoreDirection as BoardScoreDirection)
+      ? (raw.scoreDirection as BoardScoreDirection)
+      : fallback.scoreDirection,
+    metric: allowedMetric.has(raw.metric as BoardMetric) ? (raw.metric as BoardMetric) : fallback.metric,
+    sortDirection: allowedSortDirection.has(raw.sortDirection as BoardSortDirection)
+      ? (raw.sortDirection as BoardSortDirection)
+      : fallback.sortDirection,
+    topN: clampTopN(raw.topN),
+    comparePreviousPeriod:
+      typeof raw.comparePreviousPeriod === "boolean"
+        ? raw.comparePreviousPeriod
+        : fallback.comparePreviousPeriod,
+    minMetric: parseNullableNumber(raw.minMetric),
+    maxMetric: parseNullableNumber(raw.maxMetric),
+    minAddScore: parseNullableNumber(raw.minAddScore),
+    maxDeductScore: parseNullableNumber(raw.maxDeductScore),
+    minEventCount: parseNullableNumber(raw.minEventCount),
+    warnThreshold: parseNullableNumber(raw.warnThreshold),
+    dangerThreshold: parseNullableNumber(raw.dangerThreshold),
+    studentNameKeyword:
+      typeof raw.studentNameKeyword === "string" ? raw.studentNameKeyword.trim() : "",
+  }
+}
+
+const escapeSqlLiteral = (value: string) => value.replace(/'/g, "''")
+
+const getTimeRangeBoundary = (rule: BoardQueryRuleConfig): { startAt?: string; endAt?: string } => {
+  const now = new Date()
+  const startOfDay = (date: Date) => {
+    const next = new Date(date)
+    next.setHours(0, 0, 0, 0)
+    return next
+  }
+  const addDays = (date: Date, days: number) => {
+    const next = new Date(date)
+    next.setDate(next.getDate() + days)
+    return next
+  }
+  const startOfMonth = (date: Date) => {
+    const next = new Date(date.getFullYear(), date.getMonth(), 1)
+    next.setHours(0, 0, 0, 0)
+    return next
+  }
+
+  if (rule.timeRange === "last7d") {
+    return { startAt: addDays(now, -7).toISOString(), endAt: now.toISOString() }
+  }
+  if (rule.timeRange === "last30d") {
+    return { startAt: addDays(now, -30).toISOString(), endAt: now.toISOString() }
+  }
+  if (rule.timeRange === "thisWeek") {
+    const today = startOfDay(now)
+    const mondayOffset = (today.getDay() + 6) % 7
+    return { startAt: addDays(today, -mondayOffset).toISOString(), endAt: now.toISOString() }
+  }
+  if (rule.timeRange === "lastWeek") {
+    const today = startOfDay(now)
+    const mondayOffset = (today.getDay() + 6) % 7
+    const thisWeekStart = addDays(today, -mondayOffset)
+    return {
+      startAt: addDays(thisWeekStart, -7).toISOString(),
+      endAt: thisWeekStart.toISOString(),
+    }
+  }
+  if (rule.timeRange === "thisMonth") {
+    return { startAt: startOfMonth(now).toISOString(), endAt: now.toISOString() }
+  }
+  if (rule.timeRange === "lastMonth") {
+    const thisMonthStart = startOfMonth(now)
+    return {
+      startAt: startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1)).toISOString(),
+      endAt: thisMonthStart.toISOString(),
+    }
+  }
+  if (rule.timeRange === "custom") {
+    if (!rule.customStart || !rule.customEnd) return {}
+    const start = new Date(rule.customStart)
+    const end = new Date(rule.customEnd)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return {}
+    const startDay = startOfDay(start)
+    const endExclusive = addDays(startOfDay(end), 1)
+    return {
+      startAt: startDay.toISOString(),
+      endAt: endExclusive.toISOString(),
+    }
+  }
+  return {}
+}
+
+const getMetricExpression = (metric: BoardMetric): string => {
+  if (metric === "deductScore") return "CASE WHEN e.delta < 0 THEN -e.delta ELSE 0 END"
+  if (metric === "netChange") return "e.delta"
+  if (metric === "addCount") return "CASE WHEN e.delta > 0 THEN 1 ELSE 0 END"
+  if (metric === "eventCount") return "1"
+  return "CASE WHEN e.delta > 0 THEN e.delta ELSE 0 END"
+}
+
+const buildSqlFromRule = (ruleInput: BoardQueryRuleConfig): string | null => {
+  const rule = normalizeRule(ruleInput)
+  const baseWhereClauses: string[] = []
+  const timeRange = getTimeRangeBoundary(rule)
+  if (rule.timeRange === "custom" && (!timeRange.startAt || !timeRange.endAt)) {
+    return null
+  }
+
+  const currentStart = timeRange.startAt
+  const currentEnd = timeRange.endAt
+  if (!currentStart || !currentEnd) return null
+
+  const currentStartMs = new Date(currentStart).getTime()
+  const currentEndMs = new Date(currentEnd).getTime()
+  if (!Number.isFinite(currentStartMs) || !Number.isFinite(currentEndMs) || currentEndMs <= currentStartMs) {
+    return null
+  }
+
+  const durationMs = currentEndMs - currentStartMs
+  const prevStart = new Date(currentStartMs - durationMs).toISOString()
+  const prevEnd = new Date(currentStartMs).toISOString()
+
+  const queryStart = rule.comparePreviousPeriod ? prevStart : currentStart
+  const queryEnd = currentEnd
+
+  if (rule.scoreDirection === "add") {
+    baseWhereClauses.push("e.delta > 0")
+  } else if (rule.scoreDirection === "deduct") {
+    baseWhereClauses.push("e.delta < 0")
+  }
+  if (rule.reasonMode === "selected" && rule.reasonValues.length > 0) {
+    const list = rule.reasonValues.map((item) => `'${escapeSqlLiteral(item)}'`).join(", ")
+    baseWhereClauses.push(`e.reason_content IN (${list})`)
+  } else if (rule.reasonMode === "keyword" && rule.reasonValues.length > 0) {
+    const keywordClauses = rule.reasonValues
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => `e.reason_content LIKE '%${escapeSqlLiteral(item)}%'`)
+    if (keywordClauses.length > 0) {
+      baseWhereClauses.push(`(${keywordClauses.join(" OR ")})`)
+    }
+  }
+  if (rule.studentNameKeyword.trim()) {
+    baseWhereClauses.push(
+      `e.student_name LIKE '%${escapeSqlLiteral(rule.studentNameKeyword.trim())}%'`
+    )
+  }
+
+  const baseWhereSql =
+    baseWhereClauses.length > 0 ? `AND ${baseWhereClauses.join(" AND ")}` : ""
+  const metricExpression = getMetricExpression(rule.metric)
+  const topN = clampTopN(rule.topN)
+  const filterClauses: string[] = []
+  if (typeof rule.minMetric === "number") filterClauses.push(`metric_value >= ${rule.minMetric}`)
+  if (typeof rule.maxMetric === "number") filterClauses.push(`metric_value <= ${rule.maxMetric}`)
+  if (typeof rule.minAddScore === "number") filterClauses.push(`add_score >= ${rule.minAddScore}`)
+  if (typeof rule.maxDeductScore === "number")
+    filterClauses.push(`deduct_score <= ${rule.maxDeductScore}`)
+  if (typeof rule.minEventCount === "number")
+    filterClauses.push(`event_count >= ${Math.max(0, Math.floor(rule.minEventCount))}`)
+
+  const warnThreshold = typeof rule.warnThreshold === "number" ? rule.warnThreshold : null
+  const dangerThreshold = typeof rule.dangerThreshold === "number" ? rule.dangerThreshold : null
+  const highlightLevelSql =
+    dangerThreshold !== null
+      ? warnThreshold !== null
+        ? `CASE WHEN metric_value >= ${dangerThreshold} THEN 2 WHEN metric_value >= ${warnThreshold} THEN 1 ELSE 0 END`
+        : `CASE WHEN metric_value >= ${dangerThreshold} THEN 2 ELSE 0 END`
+      : warnThreshold !== null
+        ? `CASE WHEN metric_value >= ${warnThreshold} THEN 1 ELSE 0 END`
+        : "0"
+
+  const metricSort = rule.sortDirection.toUpperCase()
+  const prevMetricSelect = rule.comparePreviousPeriod
+    ? "prev_metric_value"
+    : "CAST(NULL AS REAL) AS prev_metric_value"
+  const metricDeltaSelect = rule.comparePreviousPeriod
+    ? "(metric_value - prev_metric_value) AS metric_delta"
+    : "CAST(NULL AS REAL) AS metric_delta"
+  const currentRankSelect = rule.comparePreviousPeriod
+    ? `ROW_NUMBER() OVER (ORDER BY metric_value ${metricSort}, score DESC, student_name ASC) AS current_rank`
+    : "CAST(NULL AS INTEGER) AS current_rank"
+  const prevRankSelect = rule.comparePreviousPeriod
+    ? `ROW_NUMBER() OVER (ORDER BY prev_metric_value ${metricSort}, score DESC, student_name ASC) AS prev_rank`
+    : "CAST(NULL AS INTEGER) AS prev_rank"
+  const rankChangeSelect = rule.comparePreviousPeriod
+    ? "(prev_rank - current_rank) AS rank_change"
+    : "CAST(NULL AS INTEGER) AS rank_change"
+  const filteredWhereSql = filterClauses.length > 0 ? `WHERE ${filterClauses.join(" AND ")}` : ""
+
+  return `WITH scoped AS (
+  SELECT
+    e.student_name,
+    e.delta,
+    e.event_time,
+    COALESCE(s.score, 0) AS score
+  FROM score_events e
+  LEFT JOIN students s ON s.name = e.student_name
+  WHERE e.event_time >= '${escapeSqlLiteral(queryStart)}'
+    AND e.event_time < '${escapeSqlLiteral(queryEnd)}'
+    ${baseWhereSql}
+),
+aggregated AS (
   SELECT
     student_name,
-    SUM(CASE WHEN delta > 0 THEN delta ELSE 0 END) AS add_score,
-    SUM(CASE WHEN delta < 0 THEN -delta ELSE 0 END) AS deduct_score
-  FROM score_events
-  WHERE settlement_id IS NULL
+    MAX(score) AS score,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(currentStart)}' AND e.event_time < '${escapeSqlLiteral(currentEnd)}' AND e.delta > 0 THEN e.delta ELSE 0 END) AS add_score,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(currentStart)}' AND e.event_time < '${escapeSqlLiteral(currentEnd)}' AND e.delta < 0 THEN -e.delta ELSE 0 END) AS deduct_score,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(currentStart)}' AND e.event_time < '${escapeSqlLiteral(currentEnd)}' THEN e.delta ELSE 0 END) AS net_score_change,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(currentStart)}' AND e.event_time < '${escapeSqlLiteral(currentEnd)}' THEN 1 ELSE 0 END) AS event_count,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(currentStart)}' AND e.event_time < '${escapeSqlLiteral(currentEnd)}' THEN ${metricExpression} ELSE 0 END) AS metric_value,
+    SUM(CASE WHEN e.event_time >= '${escapeSqlLiteral(prevStart)}' AND e.event_time < '${escapeSqlLiteral(prevEnd)}' THEN ${metricExpression} ELSE 0 END) AS prev_metric_value
+  FROM scoped e
   GROUP BY student_name
+),
+filtered AS (
+  SELECT
+    student_name,
+    score,
+    add_score,
+    deduct_score,
+    net_score_change,
+    event_count,
+    metric_value,
+    ${prevMetricSelect},
+    ${metricDeltaSelect}
+  FROM aggregated
+  ${filteredWhereSql}
+),
+ranked AS (
+  SELECT
+    *,
+    ${currentRankSelect},
+    ${prevRankSelect},
+    ${highlightLevelSql} AS highlight_level
+  FROM filtered
 )
 SELECT
-  s.name AS student_name,
-  s.score,
-  s.reward_points,
-  COALESCE(ss.add_score, 0) AS add_score,
-  COALESCE(ss.deduct_score, 0) AS deduct_score
-FROM students s
-LEFT JOIN score_stat ss ON ss.student_name = s.name
-ORDER BY s.score DESC`
+  student_name,
+  score,
+  add_score,
+  deduct_score,
+  net_score_change,
+  event_count,
+  metric_value,
+  prev_metric_value,
+  metric_delta,
+  current_rank,
+  prev_rank,
+  ${rankChangeSelect},
+  highlight_level
+FROM ranked
+ORDER BY metric_value ${metricSort}, score DESC, student_name ASC
+LIMIT ${topN}`
+}
 
 const createDefaultList = (): StudentListConfig => ({
   id: makeId(),
   name: "学生积分榜",
-  sql: getDefaultSql(),
+  rule: createDefaultRule(),
   viewMode: "card",
   scoreDisplayMode: "total",
 })
@@ -220,7 +565,7 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
               id: typeof list?.id === "string" && list.id.trim() ? list.id : makeId(),
               name:
                 typeof list?.name === "string" && list.name.trim() ? list.name.trim() : "学生列表",
-              sql: typeof list?.sql === "string" && list.sql.trim() ? list.sql : getDefaultSql(),
+              rule: normalizeRule(list?.rule),
               viewMode:
                 list?.viewMode === "list" ||
                 list?.viewMode === "card" ||
@@ -233,7 +578,6 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
                   ? list.scoreDisplayMode
                   : "total",
             }))
-            .filter((list: StudentListConfig) => list.sql.trim())
         : []
 
       const normalizedLists = lists.length > 0 ? lists : [createDefaultList()]
@@ -255,38 +599,6 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
 
   return boards.length > 0 ? boards : [createDefaultBoard()]
 }
-
-const resolveSqlTemplate = (sql: string) => {
-  const now = new Date()
-  const dayMs = 24 * 60 * 60 * 1000
-  const at = (offsetDays: number) => new Date(now.getTime() + offsetDays * dayMs)
-
-  const formatIso = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z")
-
-  const todayStart = new Date(now)
-  todayStart.setHours(0, 0, 0, 0)
-  const mondayOffset = (todayStart.getDay() + 6) % 7
-  const thisWeekStart = at(-mondayOffset)
-  thisWeekStart.setHours(0, 0, 0, 0)
-  const lastWeekStart = at(-mondayOffset - 7)
-  lastWeekStart.setHours(0, 0, 0, 0)
-
-  return sql
-    .split("{{now}}")
-    .join(formatIso(now))
-    .split("{{today_start}}")
-    .join(formatIso(todayStart))
-    .split("{{this_week_start}}")
-    .join(formatIso(thisWeekStart))
-    .split("{{last_week_start}}")
-    .join(formatIso(lastWeekStart))
-    .split("{{since_7d}}")
-    .join(formatIso(at(-7)))
-    .split("{{since_30d}}")
-    .join(formatIso(at(-30)))
-}
-
-const trimSqlTailSemicolon = (sql: string) => sql.trimEnd().replace(/;+$/, "")
 
 const parseNumber = (value: unknown): number | undefined => {
   if (typeof value === "number" && Number.isFinite(value)) return value
@@ -365,14 +677,15 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
       weekChange: parseNumber(data.week_change ?? data.range_change ?? data.change),
       weekDeducted: parseNumber(data.week_deducted ?? data.deducted),
       answeredCount: parseNumber(data.answered_count ?? data.answer_count),
+      metricValue: parseNumber(data.metric_value ?? data.metricValue),
+      prevMetricValue: parseNumber(data.prev_metric_value ?? data.prevMetricValue),
+      metricDelta: parseNumber(data.metric_delta ?? data.metricDelta),
+      rankChange: parseNumber(data.rank_change ?? data.rankChange),
+      highlightLevel: parseNumber(data.highlight_level ?? data.highlightLevel),
     })
   })
 
-  if (cards.every((item) => item.score === undefined)) return cards
-
-  return cards.sort(
-    (a, b) => (b.score ?? Number.MIN_SAFE_INTEGER) - (a.score ?? Number.MIN_SAFE_INTEGER)
-  )
+  return cards
 }
 
 const getAvatarText = (name: string): string => {
@@ -446,57 +759,51 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
   const [selectedLeafNodeId, setSelectedLeafNodeId] = useState<string | null>(null)
   const [renameVisible, setRenameVisible] = useState(false)
   const [renameValue, setRenameValue] = useState("")
+  const [reasonOptions, setReasonOptions] = useState<string[]>([])
 
   const panelRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const presets: BoardPreset[] = useMemo(
     () => [
       {
-        id: "week-low-deduct",
+        id: "week-positive-hand",
         name: t("board.presets.weekLowDeduct.name"),
         description: t("board.presets.weekLowDeduct.description"),
-        sql: `WITH week_stat AS (
-  SELECT
-    student_name,
-    SUM(CASE WHEN delta < 0 THEN -delta ELSE 0 END) AS deducted,
-    SUM(delta) AS week_change
-  FROM score_events
-  WHERE event_time >= '{{since_7d}}'
-  GROUP BY student_name
-)
-SELECT
-  s.name AS student_name,
-  s.score,
-  COALESCE(w.week_change, 0) AS week_change,
-  COALESCE(w.deducted, 0) AS week_deducted
-FROM students s
-LEFT JOIN week_stat w ON w.student_name = s.name
-WHERE COALESCE(w.deducted, 0) < 3
-ORDER BY s.score DESC`,
+        rulePatch: {
+          timeRange: "lastWeek",
+          reasonMode: "selected",
+          reasonValues: ["积极举手"],
+          scoreDirection: "add",
+          metric: "addScore",
+          sortDirection: "desc",
+          topN: 20,
+        },
       },
       {
         id: "today-active",
         name: t("board.presets.todayActive.name"),
         description: t("board.presets.todayActive.description"),
-        sql: `SELECT
-  student_name,
-  COUNT(*) AS answered_count,
-  SUM(delta) AS score_change
-FROM score_events
-WHERE event_time >= '{{today_start}}'
-GROUP BY student_name
-ORDER BY answered_count DESC, score_change DESC`,
+        rulePatch: {
+          timeRange: "last7d",
+          reasonMode: "all",
+          scoreDirection: "all",
+          metric: "eventCount",
+          sortDirection: "desc",
+          topN: 20,
+        },
       },
       {
         id: "reward-ranking",
         name: t("board.presets.rewardRanking.name"),
         description: t("board.presets.rewardRanking.description"),
-        sql: `SELECT
-  name AS student_name,
-  score,
-  reward_points
-FROM students
-ORDER BY reward_points DESC, score DESC`,
+        rulePatch: {
+          timeRange: "last30d",
+          reasonMode: "all",
+          scoreDirection: "add",
+          metric: "addScore",
+          sortDirection: "desc",
+          topN: 20,
+        },
       },
     ],
     [t]
@@ -568,13 +875,38 @@ ORDER BY reward_points DESC, score DESC`,
     }
   }, [])
 
+  const fetchReasons = useCallback(async () => {
+    if (!(window as any).api) return
+    try {
+      const res = await (window as any).api.queryReasons()
+      if (!res?.success || !Array.isArray(res.data)) return
+      const next = Array.from(
+        new Set<string>(
+          res.data
+            .map((item: any) => (typeof item?.content === "string" ? item.content.trim() : ""))
+            .filter(Boolean)
+        )
+      ).sort((a, b) => a.localeCompare(b, "zh-CN"))
+      setReasonOptions(next)
+    } catch {
+      void 0
+    }
+  }, [])
+
   const runListQuery = useCallback(
     async (list: StudentListConfig) => {
       if (!(window as any).api) return
-      const sql = resolveSqlTemplate(list.sql)
+      const sql = buildSqlFromRule(list.rule)
 
       setRunningIds((prev) => ({ ...prev, [list.id]: true }))
       setErrorMap((prev) => ({ ...prev, [list.id]: "" }))
+
+      if (!sql) {
+        setErrorMap((prev) => ({ ...prev, [list.id]: t("board.runFailed") }))
+        setResultMap((prev) => ({ ...prev, [list.id]: [] }))
+        setRunningIds((prev) => ({ ...prev, [list.id]: false }))
+        return
+      }
 
       try {
         const res = await (window as any).api.boardQuerySql({ sql, limit: 500 })
@@ -610,7 +942,7 @@ ORDER BY reward_points DESC, score DESC`,
       activeBoard.lists.map((item) => ({
         id: item.id,
         name: item.name,
-        sql: item.sql,
+        rule: item.rule,
         viewMode: item.viewMode,
         scoreDisplayMode: item.scoreDisplayMode,
       }))
@@ -619,7 +951,8 @@ ORDER BY reward_points DESC, score DESC`,
 
   useEffect(() => {
     fetchBoards()
-  }, [fetchBoards])
+    fetchReasons()
+  }, [fetchBoards, fetchReasons])
 
   useEffect(() => {
     if (!activeBoardId && boards.length > 0) setActiveBoardId(boards[0].id)
@@ -743,7 +1076,7 @@ ORDER BY reward_points DESC, score DESC`,
         const newList: StudentListConfig = {
           id: makeId(),
           name: t("board.newList"),
-          sql: getDefaultSql(),
+          rule: createDefaultRule(),
           viewMode: "card",
           scoreDisplayMode: "total",
         }
@@ -800,7 +1133,15 @@ ORDER BY reward_points DESC, score DESC`,
         board.id === boardId
           ? {
               ...board,
-              lists: board.lists.map((list) => (list.id === listId ? { ...list, ...patch } : list)),
+              lists: board.lists.map((list) =>
+                list.id === listId
+                  ? {
+                      ...list,
+                      ...patch,
+                      rule: patch.rule ? normalizeRule(patch.rule) : list.rule,
+                    }
+                  : list
+              ),
             }
           : board
       )
@@ -813,7 +1154,7 @@ ORDER BY reward_points DESC, score DESC`,
 
     updateList(boardId, listId, {
       name: preset.name,
-      sql: preset.sql,
+      rule: normalizeRule({ ...createDefaultRule(), ...preset.rulePatch }),
     })
   }
 
@@ -821,6 +1162,13 @@ ORDER BY reward_points DESC, score DESC`,
     const rows = resultMap[list.id] || []
     const studentCards = toStudentCards(rows)
     const useCardView = studentCards.length > 0
+    const metricLabelMap: Record<BoardMetric, string> = {
+      addScore: "加分总和",
+      deductScore: "扣分总和",
+      netChange: "净变化",
+      addCount: "加分次数",
+      eventCount: "事件次数",
+    }
 
     const columns =
       rows.length > 0
@@ -874,8 +1222,19 @@ ORDER BY reward_points DESC, score DESC`,
           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
           const useSplitScore = list.scoreDisplayMode === "split"
           const hasSplitScore = Boolean(item.hasAddScoreField || item.hasDeductScoreField)
+          const metricTitle = metricLabelMap[list.rule.metric]
+          const rankChangeText =
+            item.rankChange === undefined
+              ? null
+              : item.rankChange > 0
+                ? `↑${item.rankChange}`
+                : item.rankChange < 0
+                  ? `↓${Math.abs(item.rankChange)}`
+                  : "→0"
           const primaryMetric = useSplitScore
-            ? item.addScore !== undefined && item.addScore !== 0
+            ? item.metricValue !== undefined
+              ? { label: metricTitle, value: item.metricValue }
+              : item.addScore !== undefined && item.addScore !== 0
               ? { label: t("board.metrics.addScore"), value: item.addScore }
               : item.deductScore !== undefined && item.deductScore !== 0
                 ? { label: t("board.metrics.deductScore"), value: item.deductScore }
@@ -898,7 +1257,9 @@ ORDER BY reward_points DESC, score DESC`,
                                 }
                               : null
             : item.score !== undefined
-              ? { label: t("board.metrics.totalScore"), value: item.score }
+              ? item.metricValue !== undefined
+                ? { label: metricTitle, value: item.metricValue }
+                : { label: t("board.metrics.totalScore"), value: item.score }
               : item.rewardPoints !== undefined
                 ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
                 : item.weekChange !== undefined
@@ -930,7 +1291,12 @@ ORDER BY reward_points DESC, score DESC`,
                   width: "100%",
                   height: "100%",
                   backgroundColor: "var(--ss-card-bg)",
-                  border: "1px solid var(--ss-border-color)",
+                  border:
+                    item.highlightLevel && item.highlightLevel >= 2
+                      ? "1px solid #ff4d4f"
+                      : item.highlightLevel && item.highlightLevel >= 1
+                        ? "1px solid #faad14"
+                        : "1px solid var(--ss-border-color)",
                   boxShadow: "0 6px 16px rgba(0, 0, 0, 0.06)",
                   position: "relative",
                 }}
@@ -1031,6 +1397,11 @@ ORDER BY reward_points DESC, score DESC`,
                             : primaryMetric.value}
                         </Tag>
                       )}
+                      {rankChangeText && (
+                        <Tag color={item.rankChange && item.rankChange > 0 ? "success" : "default"}>
+                          {rankChangeText}
+                        </Tag>
+                      )}
                     </div>
                   </div>
                 ) : list.viewMode === "largeAvatar" ? (
@@ -1120,6 +1491,23 @@ ORDER BY reward_points DESC, score DESC`,
                         </div>
                       )}
                     </div>
+                    {rankChangeText && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 8,
+                          top: 8,
+                          fontWeight: 700,
+                          fontSize: 16,
+                          background: "rgba(255,255,255,0.72)",
+                          border: "1px solid rgba(255,255,255,0.82)",
+                          borderRadius: 8,
+                          padding: "2px 8px",
+                        }}
+                      >
+                        {rankChangeText}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1198,6 +1586,24 @@ ORDER BY reward_points DESC, score DESC`,
                         {item.answeredCount !== undefined && (
                           <Tag color="cyan" style={{ margin: 0 }}>
                             {t("board.metrics.todayAnswered")}: {item.answeredCount}
+                          </Tag>
+                        )}
+                        {item.prevMetricValue !== undefined && (
+                          <Tag color="blue" style={{ margin: 0 }}>
+                            上期: {item.prevMetricValue}
+                          </Tag>
+                        )}
+                        {item.metricDelta !== undefined && (
+                          <Tag color={item.metricDelta >= 0 ? "success" : "error"} style={{ margin: 0 }}>
+                            较上期: {item.metricDelta > 0 ? `+${item.metricDelta}` : item.metricDelta}
+                          </Tag>
+                        )}
+                        {rankChangeText && (
+                          <Tag
+                            color={item.rankChange && item.rankChange > 0 ? "success" : "default"}
+                            style={{ margin: 0 }}
+                          >
+                            排名变化: {rankChangeText}
                           </Tag>
                         )}
                       </div>
@@ -1480,15 +1886,7 @@ ORDER BY reward_points DESC, score DESC`,
         title={t("board.sqlEditorTitle")}
         open={Boolean(editingList)}
         onCancel={() => setEditingListId(null)}
-        onOk={() => {
-          if (editingList && activeBoard && canManage) {
-            const nextSql = trimSqlTailSemicolon(editingList.sql)
-            if (nextSql !== editingList.sql) {
-              updateList(activeBoard.id, editingList.id, { sql: nextSql })
-            }
-          }
-          setEditingListId(null)
-        }}
+        onOk={() => setEditingListId(null)}
         okText={t("common.confirm")}
         cancelText={t("common.cancel")}
         width={860}
@@ -1539,31 +1937,327 @@ ORDER BY reward_points DESC, score DESC`,
                 disabled={!canManage}
               />
             </Space>
+            <Space wrap>
+              <Typography.Text>时间范围</Typography.Text>
+              <Select
+                style={{ width: 200 }}
+                value={editingList.rule.timeRange}
+                onChange={(timeRange: BoardTimeRange) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      timeRange,
+                    },
+                  })
+                }
+                options={[
+                  { value: "last7d", label: "最近 7 天" },
+                  { value: "last30d", label: "最近 30 天" },
+                  { value: "thisWeek", label: "本周" },
+                  { value: "lastWeek", label: "上周" },
+                  { value: "thisMonth", label: "本月" },
+                  { value: "lastMonth", label: "上月" },
+                  { value: "custom", label: "自定义范围" },
+                ]}
+                disabled={!canManage}
+              />
+              {editingList.rule.timeRange === "custom" && (
+                <DatePicker.RangePicker
+                  value={[
+                    editingList.rule.customStart ? dayjs(editingList.rule.customStart) : null,
+                    editingList.rule.customEnd ? dayjs(editingList.rule.customEnd) : null,
+                  ]}
+                  onChange={(values) =>
+                    updateList(activeBoard.id, editingList.id, {
+                      rule: {
+                        ...editingList.rule,
+                        customStart: values?.[0] ? values[0].toISOString() : null,
+                        customEnd: values?.[1] ? values[1].toISOString() : null,
+                      },
+                    })
+                  }
+                  disabled={!canManage}
+                />
+              )}
+            </Space>
+            <Space wrap>
+              <Typography.Text>理由筛选</Typography.Text>
+              <Select
+                style={{ width: 180 }}
+                value={editingList.rule.reasonMode}
+                onChange={(reasonMode: BoardReasonMode) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      reasonMode,
+                    },
+                  })
+                }
+                options={[
+                  { value: "all", label: "全部理由" },
+                  { value: "selected", label: "选择理由" },
+                  { value: "keyword", label: "关键词匹配" },
+                ]}
+                disabled={!canManage}
+              />
+              {editingList.rule.reasonMode === "selected" && (
+                <Select
+                  mode="multiple"
+                  allowClear
+                  showSearch
+                  style={{ width: 380 }}
+                  placeholder="选择一个或多个理由"
+                  value={editingList.rule.reasonValues}
+                  options={reasonOptions.map((reason) => ({ value: reason, label: reason }))}
+                  onChange={(reasonValues: string[]) =>
+                    updateList(activeBoard.id, editingList.id, {
+                      rule: {
+                        ...editingList.rule,
+                        reasonValues,
+                      },
+                    })
+                  }
+                  disabled={!canManage}
+                />
+              )}
+              {editingList.rule.reasonMode === "keyword" && (
+                <Input
+                  style={{ width: 380 }}
+                  placeholder="输入关键词，使用逗号分隔，例如：积极举手,主动发言"
+                  value={editingList.rule.reasonValues.join(",")}
+                  onChange={(e) =>
+                    updateList(activeBoard.id, editingList.id, {
+                      rule: {
+                        ...editingList.rule,
+                        reasonValues: e.target.value
+                          .split(/[,\n，]/)
+                          .map((item) => item.trim())
+                          .filter(Boolean),
+                      },
+                    })
+                  }
+                  disabled={!canManage}
+                />
+              )}
+            </Space>
+            <Space wrap>
+              <Typography.Text>积分方向</Typography.Text>
+              <Select
+                style={{ width: 150 }}
+                value={editingList.rule.scoreDirection}
+                onChange={(scoreDirection: BoardScoreDirection) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      scoreDirection,
+                    },
+                  })
+                }
+                options={[
+                  { value: "all", label: "加分+扣分" },
+                  { value: "add", label: "仅加分" },
+                  { value: "deduct", label: "仅扣分" },
+                ]}
+                disabled={!canManage}
+              />
+              <Typography.Text>排行指标</Typography.Text>
+              <Select
+                style={{ width: 170 }}
+                value={editingList.rule.metric}
+                onChange={(metric: BoardMetric) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      metric,
+                    },
+                  })
+                }
+                options={[
+                  { value: "addScore", label: "加分总和" },
+                  { value: "deductScore", label: "扣分总和" },
+                  { value: "netChange", label: "净变化" },
+                  { value: "addCount", label: "加分次数" },
+                  { value: "eventCount", label: "事件次数" },
+                ]}
+                disabled={!canManage}
+              />
+              <Typography.Text>排序</Typography.Text>
+              <Select
+                style={{ width: 120 }}
+                value={editingList.rule.sortDirection}
+                onChange={(sortDirection: BoardSortDirection) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      sortDirection,
+                    },
+                  })
+                }
+                options={[
+                  { value: "desc", label: "从高到低" },
+                  { value: "asc", label: "从低到高" },
+                ]}
+                disabled={!canManage}
+              />
+              <Typography.Text>TopN</Typography.Text>
+              <InputNumber
+                min={1}
+                max={500}
+                value={editingList.rule.topN}
+                onChange={(topN) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      topN: clampTopN(topN),
+                    },
+                  })
+                }
+                disabled={!canManage}
+              />
+              <Typography.Text>对比上期</Typography.Text>
+              <Switch
+                checked={editingList.rule.comparePreviousPeriod}
+                onChange={(comparePreviousPeriod) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      comparePreviousPeriod,
+                    },
+                  })
+                }
+                disabled={!canManage}
+              />
+            </Space>
+            <Space wrap>
+              <Typography.Text>最小指标值</Typography.Text>
+              <InputNumber
+                value={editingList.rule.minMetric}
+                onChange={(minMetric) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      minMetric: typeof minMetric === "number" ? minMetric : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>最大指标值</Typography.Text>
+              <InputNumber
+                value={editingList.rule.maxMetric}
+                onChange={(maxMetric) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      maxMetric: typeof maxMetric === "number" ? maxMetric : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>最低加分总和</Typography.Text>
+              <InputNumber
+                value={editingList.rule.minAddScore}
+                onChange={(minAddScore) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      minAddScore: typeof minAddScore === "number" ? minAddScore : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>最高扣分总和</Typography.Text>
+              <InputNumber
+                value={editingList.rule.maxDeductScore}
+                onChange={(maxDeductScore) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      maxDeductScore: typeof maxDeductScore === "number" ? maxDeductScore : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>最少事件次数</Typography.Text>
+              <InputNumber
+                min={0}
+                value={editingList.rule.minEventCount}
+                onChange={(minEventCount) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      minEventCount: typeof minEventCount === "number" ? minEventCount : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+            </Space>
+            <Space wrap>
+              <Typography.Text>高亮阈值（预警）</Typography.Text>
+              <InputNumber
+                value={editingList.rule.warnThreshold}
+                onChange={(warnThreshold) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      warnThreshold: typeof warnThreshold === "number" ? warnThreshold : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>高亮阈值（危险）</Typography.Text>
+              <InputNumber
+                value={editingList.rule.dangerThreshold}
+                onChange={(dangerThreshold) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      dangerThreshold: typeof dangerThreshold === "number" ? dangerThreshold : null,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+              <Typography.Text>学生名包含</Typography.Text>
+              <Input
+                style={{ width: 220 }}
+                value={editingList.rule.studentNameKeyword}
+                onChange={(e) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    rule: {
+                      ...editingList.rule,
+                      studentNameKeyword: e.target.value,
+                    },
+                  })
+                }
+                placeholder="可选"
+                disabled={!canManage}
+              />
+            </Space>
+            <Typography.Text type="secondary">
+              当前为图形化规则配置，不需要手写 SQL。下面是系统自动生成的查询预览。
+            </Typography.Text>
             <Input.TextArea
-              value={editingList.sql}
-              autoSize={{ minRows: 10, maxRows: 18 }}
-              onChange={(e) => updateList(activeBoard.id, editingList.id, { sql: e.target.value })}
-              disabled={!canManage}
+              value={buildSqlFromRule(editingList.rule) || ""}
+              autoSize={{ minRows: 8, maxRows: 16 }}
+              readOnly
               spellCheck={false}
-              placeholder={t("board.sqlPlaceholder")}
               style={{
                 fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
               }}
             />
-            <Typography.Link
-              href="https://doubao.com/bot/uEh3mtxq"
-              target="_blank"
-              rel="noreferrer"
-            >
-              豆包智能体一句话生成查询
-            </Typography.Link>
-            <Typography.Link
-              href="https://www.coze.cn/store/agent/7620447018255384610?bot_id=true"
-              target="_blank"
-              rel="noreferrer"
-            >
-              扣子智能体一句话生成查询
-            </Typography.Link>
           </Space>
         )}
       </Modal>
