@@ -14,9 +14,14 @@ import {
   message,
   Avatar,
   Typography,
+  Radio,
+  Collapse,
 } from "antd"
+import { CloudOutlined, DatabaseOutlined } from "@ant-design/icons"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
+import { SectlCloudSyncPanel } from "./SectlCloudSyncPanel"
+import { SectlProvider } from "../contexts/SectlContext"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
@@ -168,6 +173,21 @@ export const Settings: React.FC<{
   const [settleDialogVisible, setSettleDialogVisible] = useState(false)
 
   const [urlRegisterLoading, setUrlRegisterLoading] = useState(false)
+  const [elevationStatus, setElevationStatus] = useState<{
+    is_elevated: boolean
+    platform: string
+    can_request_elevation: boolean
+  } | null>(null)
+  const [elevationLoading, setElevationLoading] = useState(false)
+  const [urlStatus, setUrlStatus] = useState<{
+    registered: boolean
+    protocol: string
+    platform: string
+    details: string
+  } | null>(null)
+  const [urlStatusLoading, setUrlStatusLoading] = useState(false)
+  const [urlUnregisterLoading, setUrlUnregisterLoading] = useState(false)
+  const [urlOperationLogs, setUrlOperationLogs] = useState<string[]>([])
   const [appQuitLoading, setAppQuitLoading] = useState(false)
   const [appRestartLoading, setAppRestartLoading] = useState(false)
   const [mcpLoading, setMcpLoading] = useState(false)
@@ -186,6 +206,8 @@ export const Settings: React.FC<{
   })
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
+
+  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud">("postgresql")
 
   const [pgConnectionString, setPgConnectionString] = useState("")
   const [pgConnectionStatus, setPgConnectionStatus] = useState<{
@@ -307,6 +329,11 @@ export const Settings: React.FC<{
       setSettings(res.data)
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
+      if (res.data.sync_method === "sectl_cloud") {
+        setSyncMethod("sectl_cloud")
+      } else {
+        setSyncMethod("postgresql")
+      }
       savedFontFamily = res.data.font_family || "system"
     }
     const authRes = await api.authGetStatus()
@@ -326,6 +353,28 @@ export const Settings: React.FC<{
 
     await loadMcpStatus()
     await loadSystemFonts(savedFontFamily)
+
+    if (api.checkElevation) {
+      try {
+        const elevRes = await api.checkElevation()
+        if (elevRes?.success && elevRes.data) {
+          setElevationStatus(elevRes.data)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (api.checkUrlProtocolStatus) {
+      try {
+        const urlRes = await api.checkUrlProtocolStatus()
+        if (urlRes?.success && urlRes.data) {
+          setUrlStatus(urlRes.data)
+        }
+      } catch {
+        // ignore
+      }
+    }
   }
 
   const handleOAuthLogout = async () => {
@@ -342,6 +391,118 @@ export const Settings: React.FC<{
       messageApi.success(t("settings.account.logoutSuccess", "已退出云账号"))
     } catch (error: any) {
       messageApi.error(error?.message || t("common.error"))
+    }
+  }
+
+  const handleRequestElevation = async () => {
+    const api = (window as any).api
+    if (!api?.requestElevation) return
+    setElevationLoading(true)
+    try {
+      const res = await api.requestElevation()
+      if (res?.success) {
+        messageApi.success(t("settings.elevation.requestSuccess"))
+      } else {
+        messageApi.error(res?.message || t("settings.elevation.requestFailed"))
+      }
+    } catch (error: any) {
+      messageApi.error(error?.message || t("settings.elevation.requestFailed"))
+    } finally {
+      setElevationLoading(false)
+    }
+  }
+
+  const appendUrlLog = (msg: string) => {
+    const ts = new Date().toLocaleTimeString()
+    setUrlOperationLogs((prev) => [...prev.slice(-19), `[${ts}] ${msg}`])
+  }
+
+  const loadUrlStatus = async () => {
+    const api = (window as any).api
+    if (!api?.checkUrlProtocolStatus) return
+    setUrlStatusLoading(true)
+    try {
+      const res = await api.checkUrlProtocolStatus()
+      if (res?.success && res.data) {
+        setUrlStatus(res.data)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setUrlStatusLoading(false)
+    }
+  }
+
+  const handleUrlRegister = async () => {
+    const api = (window as any).api
+    if (!api?.registerUrlProtocol || !api?.checkUrlProtocolStatus) return
+    setUrlRegisterLoading(true)
+    appendUrlLog(t("settings.url.logRegisterStart"))
+
+    const maxRetries = 7
+    let success = false
+
+    const doRegister = async () => {
+      await api.registerUrlProtocol()
+      appendUrlLog(t("settings.url.logRegisterVerify"))
+      const statusRes = await api.checkUrlProtocolStatus()
+      if (statusRes?.success && statusRes.data?.registered) {
+        setUrlStatus(statusRes.data)
+        return true
+      }
+      return false
+    }
+
+    success = await doRegister()
+
+    if (!success) {
+      for (let retry = 1; retry <= maxRetries; retry++) {
+        appendUrlLog(t("settings.url.retrying", { current: retry, max: maxRetries }))
+        await new Promise((r) => setTimeout(r, retry * 1000))
+        success = await doRegister()
+        if (success) {
+          appendUrlLog(t("settings.url.retrySuccess", { n: retry }))
+          break
+        }
+        appendUrlLog(t("settings.url.logRegisterFailed"))
+      }
+    }
+
+    setUrlRegisterLoading(false)
+
+    if (success) {
+      appendUrlLog(t("settings.url.logRegisterSuccess"))
+      messageApi.success(t("settings.url.registered"))
+    } else {
+      appendUrlLog(t("settings.url.logMaxRetries"))
+      messageApi.error(t("settings.url.retryFailed"))
+    }
+  }
+
+  const handleUrlUnregister = async () => {
+    const api = (window as any).api
+    if (!api?.unregisterUrlProtocol || !api?.checkUrlProtocolStatus) return
+    setUrlUnregisterLoading(true)
+    appendUrlLog(t("settings.url.logUnregisterStart"))
+
+    try {
+      const res = await api.unregisterUrlProtocol()
+      if (res?.success) {
+        const statusRes = await api.checkUrlProtocolStatus()
+        if (statusRes?.success && statusRes.data) {
+          setUrlStatus(statusRes.data)
+        }
+        appendUrlLog(t("settings.url.logUnregisterSuccess"))
+        messageApi.success(t("settings.url.unregistered"))
+      } else {
+        appendUrlLog(t("settings.url.logUnregisterFailed"))
+        messageApi.error(res?.message || t("settings.url.unregisterFailed"))
+      }
+    } catch (error: any) {
+      appendUrlLog(t("settings.url.logUnregisterFailed"))
+      messageApi.error(error?.message || t("settings.url.unregisterFailed"))
+    } finally {
+      setUrlUnregisterLoading(false)
     }
   }
 
@@ -1178,7 +1339,7 @@ export const Settings: React.FC<{
     },
     {
       key: "database",
-      label: t("settings.database.title"),
+      label: t("settings.cloudSync.title"),
       children: (
         <>
           <Card
@@ -1189,110 +1350,220 @@ export const Settings: React.FC<{
             }}
           >
             <div style={{ fontWeight: 600, marginBottom: "12px" }}>
-              {t("settings.database.currentStatus")}
-            </div>
-            <Space>
-              <Tag color={pgConnectionStatus.type === "postgresql" ? "blue" : "green"}>
-                {pgConnectionStatus.type === "postgresql"
-                  ? t("settings.database.postgresqlRemote")
-                  : t("settings.database.sqliteLocal")}
-              </Tag>
-              <Tag color={pgConnectionStatus.connected ? "success" : "error"}>
-                {pgConnectionStatus.connected
-                  ? t("settings.database.connected")
-                  : t("settings.database.disconnected")}
-              </Tag>
-              {pgConnectionStatus.error && (
-                <span style={{ color: "var(--ant-color-error, #ff4d4f)", fontSize: "12px" }}>
-                  {pgConnectionStatus.error}
-                </span>
-              )}
-            </Space>
-          </Card>
-
-          <Card
-            style={{
-              backgroundColor: "var(--ss-card-bg)",
-              color: "var(--ss-text-main)",
-              marginBottom: "16px",
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: "12px" }}>
-              {t("settings.database.postgresqlConnection")}
+              {t("settings.cloudSync.selectMethod")}
             </div>
             <div
-              style={{ marginBottom: "12px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+              style={{ marginBottom: "16px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
             >
-              {t("settings.database.connectionHint")}
+              {t("settings.cloudSync.selectMethodHint")}
             </div>
-            <Space.Compact style={{ width: "100%", marginBottom: "12px" }}>
-              <Input
-                value={pgConnectionString}
-                onChange={(e) => setPgConnectionString(e.target.value)}
-                placeholder="postgresql://user:password@host:port/database?sslmode=require"
-                style={{ flex: 1 }}
-                disabled={!canAdmin}
-              />
-              <Button
-                onClick={testPgConnection}
-                loading={pgTestLoading}
-                disabled={!canAdmin || !pgConnectionString}
-              >
-                {t("settings.database.testConnection")}
-              </Button>
-            </Space.Compact>
-            <div
-              style={{ marginBottom: "12px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
-            >
-              {t("settings.database.connectionExample")}
-            </div>
-            <Space
-              direction={isMobile ? "vertical" : "horizontal"}
-              size={isMobile ? 8 : "small"}
+            <Radio.Group
+              value={syncMethod}
+              onChange={async (e) => {
+                const next = e.target.value as "postgresql" | "sectl_cloud"
+                setSyncMethod(next)
+                if ((window as any).api) {
+                  await (window as any).api.setSetting("sync_method", next)
+                }
+              }}
+              disabled={!canAdmin}
               style={{ width: "100%" }}
             >
-              <Button
-                type="primary"
-                onClick={switchToPg}
-                loading={pgSwitchLoading}
-                disabled={!canAdmin || !pgConnectionString}
-                style={{ width: isMobile ? "100%" : "auto" }}
-              >
-                {t("settings.database.switchToPostgreSQL")}
-              </Button>
-              <Button
-                onClick={switchToSQLite}
-                loading={pgSwitchLoading}
-                disabled={!canAdmin || pgConnectionStatus.type === "sqlite"}
-                style={{ width: isMobile ? "100%" : "auto" }}
-              >
-                {t("settings.database.switchToSQLite")}
-              </Button>
-              <Button
-                onClick={uploadLocalToRemote}
-                loading={pgUploadLoading}
-                disabled={!canAdmin || pgConnectionStatus.type !== "postgresql"}
-                style={{ width: isMobile ? "100%" : "auto" }}
-              >
-                {t("settings.database.uploadButton")}
-              </Button>
-            </Space>
-            <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
-              {t("settings.database.uploadHint")}
-            </div>
+              <Space direction="vertical" style={{ width: "100%" }} size={12}>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{
+                    borderColor:
+                      syncMethod === "postgresql" ? "var(--ant-color-primary)" : undefined,
+                    backgroundColor:
+                      syncMethod === "postgresql" ? "var(--ant-color-primary-bg)" : undefined,
+                  }}
+                >
+                  <Radio value="postgresql">
+                    <Space>
+                      <DatabaseOutlined />
+                      <span style={{ fontWeight: 500 }}>{t("settings.cloudSync.postgresql")}</span>
+                    </Space>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--ss-text-secondary)",
+                        marginTop: 4,
+                        marginLeft: 22,
+                      }}
+                    >
+                      {t("settings.cloudSync.postgresqlDesc")}
+                    </div>
+                  </Radio>
+                </Card>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{
+                    borderColor:
+                      syncMethod === "sectl_cloud" ? "var(--ant-color-primary)" : undefined,
+                    backgroundColor:
+                      syncMethod === "sectl_cloud" ? "var(--ant-color-primary-bg)" : undefined,
+                  }}
+                >
+                  <Radio value="sectl_cloud">
+                    <Space>
+                      <CloudOutlined />
+                      <span style={{ fontWeight: 500 }}>{t("settings.cloudSync.sectlCloud")}</span>
+                    </Space>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--ss-text-secondary)",
+                        marginTop: 4,
+                        marginLeft: 22,
+                      }}
+                    >
+                      {t("settings.cloudSync.sectlCloudDesc")}
+                    </div>
+                  </Radio>
+                </Card>
+              </Space>
+            </Radio.Group>
           </Card>
 
-          <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
-            <div style={{ fontWeight: 600, marginBottom: "12px" }}>
-              {t("settings.database.syncDescription")}
-            </div>
-            <div style={{ fontSize: "13px", color: "var(--ss-text-secondary)", lineHeight: "1.8" }}>
-              <p>{t("settings.database.syncPoint1")}</p>
-              <p>{t("settings.database.syncPoint2")}</p>
-              <p>{t("settings.database.syncPoint3")}</p>
-              <p>{t("settings.database.syncPoint4")}</p>
-            </div>
-          </Card>
+          {syncMethod === "postgresql" ? (
+            <>
+              <Card
+                style={{
+                  backgroundColor: "var(--ss-card-bg)",
+                  color: "var(--ss-text-main)",
+                  marginBottom: "16px",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "12px" }}>
+                  {t("settings.database.currentStatus")}
+                </div>
+                <Space>
+                  <Tag color={pgConnectionStatus.type === "postgresql" ? "blue" : "green"}>
+                    {pgConnectionStatus.type === "postgresql"
+                      ? t("settings.database.postgresqlRemote")
+                      : t("settings.database.sqliteLocal")}
+                  </Tag>
+                  <Tag color={pgConnectionStatus.connected ? "success" : "error"}>
+                    {pgConnectionStatus.connected
+                      ? t("settings.database.connected")
+                      : t("settings.database.disconnected")}
+                  </Tag>
+                  {pgConnectionStatus.error && (
+                    <span style={{ color: "var(--ant-color-error, #ff4d4f)", fontSize: "12px" }}>
+                      {pgConnectionStatus.error}
+                    </span>
+                  )}
+                </Space>
+              </Card>
+
+              <Card
+                style={{
+                  backgroundColor: "var(--ss-card-bg)",
+                  color: "var(--ss-text-main)",
+                  marginBottom: "16px",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "12px" }}>
+                  {t("settings.database.postgresqlConnection")}
+                </div>
+                <div
+                  style={{
+                    marginBottom: "12px",
+                    fontSize: "12px",
+                    color: "var(--ss-text-secondary)",
+                  }}
+                >
+                  {t("settings.database.connectionHint")}
+                </div>
+                <Space.Compact style={{ width: "100%", marginBottom: "12px" }}>
+                  <Input
+                    value={pgConnectionString}
+                    onChange={(e) => setPgConnectionString(e.target.value)}
+                    placeholder="postgresql://user:password@host:port/database?sslmode=require"
+                    style={{ flex: 1 }}
+                    disabled={!canAdmin}
+                  />
+                  <Button
+                    onClick={testPgConnection}
+                    loading={pgTestLoading}
+                    disabled={!canAdmin || !pgConnectionString}
+                  >
+                    {t("settings.database.testConnection")}
+                  </Button>
+                </Space.Compact>
+                <div
+                  style={{
+                    marginBottom: "12px",
+                    fontSize: "12px",
+                    color: "var(--ss-text-secondary)",
+                  }}
+                >
+                  {t("settings.database.connectionExample")}
+                </div>
+                <Space
+                  direction={isMobile ? "vertical" : "horizontal"}
+                  size={isMobile ? 8 : "small"}
+                  style={{ width: "100%" }}
+                >
+                  <Button
+                    type="primary"
+                    onClick={switchToPg}
+                    loading={pgSwitchLoading}
+                    disabled={!canAdmin || !pgConnectionString}
+                    style={{ width: isMobile ? "100%" : "auto" }}
+                  >
+                    {t("settings.database.switchToPostgreSQL")}
+                  </Button>
+                  <Button
+                    onClick={switchToSQLite}
+                    loading={pgSwitchLoading}
+                    disabled={!canAdmin || pgConnectionStatus.type === "sqlite"}
+                    style={{ width: isMobile ? "100%" : "auto" }}
+                  >
+                    {t("settings.database.switchToSQLite")}
+                  </Button>
+                  <Button
+                    onClick={uploadLocalToRemote}
+                    loading={pgUploadLoading}
+                    disabled={!canAdmin || pgConnectionStatus.type !== "postgresql"}
+                    style={{ width: isMobile ? "100%" : "auto" }}
+                  >
+                    {t("settings.database.uploadButton")}
+                  </Button>
+                </Space>
+                <div
+                  style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}
+                >
+                  {t("settings.database.uploadHint")}
+                </div>
+              </Card>
+
+              <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
+                <div style={{ fontWeight: 600, marginBottom: "12px" }}>
+                  {t("settings.database.syncDescription")}
+                </div>
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--ss-text-secondary)",
+                    lineHeight: "1.8",
+                  }}
+                >
+                  <p>{t("settings.database.syncPoint1")}</p>
+                  <p>{t("settings.database.syncPoint2")}</p>
+                  <p>{t("settings.database.syncPoint3")}</p>
+                  <p>{t("settings.database.syncPoint4")}</p>
+                </div>
+              </Card>
+            </>
+          ) : (
+            <SectlProvider>
+              <SectlCloudSyncPanel />
+            </SectlProvider>
+          )}
         </>
       ),
     },
@@ -1412,56 +1683,169 @@ export const Settings: React.FC<{
     },
     {
       key: "url",
-      label: t("settings.url.title"),
+      label: t("settings.tabs.urlProtocol"),
       children: (
-        <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
-          <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
-            {t("settings.url.protocol")}
-          </div>
-          <Divider />
-          <div
-            style={{ marginBottom: "12px", fontSize: "13px", color: "var(--ss-text-secondary)" }}
-          >
-            {t("settings.url.description")}
-          </div>
-          <div
+        <>
+          <Card
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "4px",
-              fontSize: "12px",
-              fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", monospace',
+              backgroundColor: "var(--ss-card-bg)",
+              color: "var(--ss-text-main)",
+              marginBottom: "16px",
             }}
           >
-            <div>secscore://settings</div>
-            <div>secscore://score</div>
-          </div>
-          <Divider />
-          <Space>
+            <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
+              {t("settings.elevation.title")}
+            </div>
+            <Divider />
+            <div
+              style={{ marginBottom: "12px", fontSize: "13px", color: "var(--ss-text-secondary)" }}
+            >
+              {t("settings.elevation.description")}
+            </div>
+            <Space style={{ marginBottom: 12 }}>
+              <Tag color={elevationStatus?.is_elevated ? "success" : "warning"}>
+                {elevationStatus?.is_elevated
+                  ? t("settings.elevation.elevated")
+                  : t("settings.elevation.notElevated")}
+              </Tag>
+              {elevationStatus?.platform && <Tag color="blue">{elevationStatus.platform}</Tag>}
+            </Space>
+            <Divider />
             <Button
               type="primary"
-              loading={urlRegisterLoading}
-              disabled={!canAdmin}
-              onClick={async () => {
-                if (!(window as any).api) return
-                setUrlRegisterLoading(true)
-                const res = await (window as any).api.registerUrlProtocol()
-                setUrlRegisterLoading(false)
-                if (res && res.success) {
-                  messageApi.success(t("settings.url.registered"))
-                } else {
-                  messageApi.error(res?.message || t("settings.url.registerFailed"))
-                }
+              loading={elevationLoading}
+              disabled={
+                !canAdmin || !elevationStatus?.can_request_elevation || elevationStatus?.is_elevated
+              }
+              onClick={handleRequestElevation}
+            >
+              {t("settings.elevation.request")}
+            </Button>
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+              {elevationStatus?.platform === "windows"
+                ? t("settings.elevation.windowsHint")
+                : elevationStatus?.platform === "macos"
+                  ? t("settings.elevation.macosHint")
+                  : t("settings.elevation.linuxHint")}
+            </div>
+          </Card>
+
+          <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
+            <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
+              {t("settings.url.protocol")}
+            </div>
+            <Divider />
+            <div
+              style={{ marginBottom: "12px", fontSize: "13px", color: "var(--ss-text-secondary)" }}
+            >
+              {t("settings.url.description")}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                fontSize: "12px",
+                fontFamily:
+                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", monospace',
               }}
             >
-              {t("settings.url.register")}
-            </Button>
-          </Space>
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
-            {t("settings.url.installerRequired")}
-          </div>
-        </Card>
+              <div>secscore://settings</div>
+              <div>secscore://score</div>
+            </div>
+            <Divider />
+            <Space style={{ marginBottom: 12 }}>
+              <Tag color={urlStatus?.registered ? "success" : "error"}>
+                {urlStatus?.registered
+                  ? t("settings.url.statusRegistered")
+                  : t("settings.url.statusNotRegistered")}
+              </Tag>
+              <Button size="small" loading={urlStatusLoading} onClick={loadUrlStatus}>
+                {t("settings.url.checkStatus")}
+              </Button>
+            </Space>
+            {urlStatus?.details && (
+              <div
+                style={{
+                  marginBottom: "12px",
+                  fontSize: "12px",
+                  color: "var(--ss-text-secondary)",
+                  wordBreak: "break-all",
+                }}
+              >
+                {urlStatus.details}
+              </div>
+            )}
+            <Divider />
+            <Space>
+              {!urlStatus?.registered ? (
+                <Button
+                  type="primary"
+                  loading={urlRegisterLoading}
+                  disabled={!canAdmin}
+                  onClick={handleUrlRegister}
+                >
+                  {t("settings.url.register")}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    loading={urlRegisterLoading}
+                    disabled={!canAdmin}
+                    onClick={handleUrlRegister}
+                  >
+                    {t("settings.url.reRegister")}
+                  </Button>
+                  <Button
+                    danger
+                    loading={urlUnregisterLoading}
+                    disabled={!canAdmin}
+                    onClick={handleUrlUnregister}
+                  >
+                    {t("settings.url.unregister")}
+                  </Button>
+                </>
+              )}
+            </Space>
+            <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+              {t("settings.url.installerRequired")}
+            </div>
+            {urlOperationLogs.length > 0 && (
+              <>
+                <Divider />
+                <Collapse
+                  size="small"
+                  items={[
+                    {
+                      key: "logs",
+                      label: (
+                        <span style={{ fontSize: "13px" }}>
+                          {t("settings.url.operationLog")} ({urlOperationLogs.length})
+                        </span>
+                      ),
+                      children: (
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            fontFamily:
+                              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                            maxHeight: "200px",
+                            overflowY: "auto",
+                            lineHeight: "1.8",
+                          }}
+                        >
+                          {urlOperationLogs.map((log, i) => (
+                            <div key={i}>{log}</div>
+                          ))}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              </>
+            )}
+          </Card>
+        </>
       ),
     },
     {

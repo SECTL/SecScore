@@ -4221,6 +4221,7 @@ dependencies = [
  "chrono",
  "dirs",
  "hex",
+ "libc",
  "once_cell",
  "parking_lot",
  "rand 0.8.5",
@@ -4242,6 +4243,7 @@ dependencies = [
  "tracing-subscriber",
  "urlencoding",
  "uuid",
+ "windows-sys 0.59.0",
  "winreg 0.52.0",
 ]
 

@@ -17,7 +17,6 @@ interface OAuthLoginProps {
 
 interface OAuthConfig {
   platform_id: string
-  platform_secret: string
 }
 
 interface OAuthCallbackResult {
@@ -56,15 +55,13 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     if (!api) return null
 
     const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
-    const platformSecret = import.meta.env.VITE_OAUTH_PLATFORM_SECRET
 
-    if (!platformId || !platformSecret) {
+    if (!platformId) {
       return null
     }
 
     return {
       platform_id: platformId,
-      platform_secret: platformSecret,
     }
   }
 
@@ -138,7 +135,6 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         const tokenRes = await api.oauthExchangeCode(
           result.code,
           config.platform_id,
-          config.platform_secret,
           callbackUrl,
           codeVerifier
         )

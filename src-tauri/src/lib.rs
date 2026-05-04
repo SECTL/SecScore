@@ -153,6 +153,10 @@ pub fn run() {
             mcp_server_stop,
             mcp_server_status,
             register_url_protocol,
+            check_url_protocol_status,
+            unregister_url_protocol,
+            check_elevation,
+            request_elevation,
             app_quit,
             app_restart,
         ])

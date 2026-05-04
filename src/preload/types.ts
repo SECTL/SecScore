@@ -456,7 +456,6 @@ const api = {
   oauthExchangeCode: (
     code: string,
     platformId: string,
-    platformSecret: string,
     callbackUrl: string,
     codeVerifier: string
   ): Promise<{
@@ -468,8 +467,7 @@ const api = {
       expires_in: number
     }
     message?: string
-  }> =>
-    invoke("oauth_exchange_code", { code, platformId, platformSecret, callbackUrl, codeVerifier }),
+  }> => invoke("oauth_exchange_code", { code, platformId, callbackUrl, codeVerifier }),
   oauthGetUserInfo: (
     accessToken: string
   ): Promise<{
@@ -485,8 +483,7 @@ const api = {
   }> => invoke("oauth_get_user_info", { accessToken }),
   oauthRefreshToken: (
     refreshToken: string,
-    platformId: string,
-    platformSecret: string
+    platformId: string
   ): Promise<{
     success: boolean
     data: {
@@ -496,12 +493,11 @@ const api = {
       expires_in: number
     }
     message?: string
-  }> => invoke("oauth_refresh_token", { refreshToken, platformId, platformSecret }),
+  }> => invoke("oauth_refresh_token", { refreshToken, platformId }),
   oauthRevokeToken: (
     token: string,
     tokenTypeHint: string | null,
-    platformId: string,
-    platformSecret: string
+    platformId: string
   ): Promise<{
     success: boolean
     message?: string
@@ -510,12 +506,10 @@ const api = {
       token,
       tokenTypeHint,
       platformId,
-      platformSecret,
     }),
   oauthIntrospectToken: (
     token: string,
-    platformId: string,
-    platformSecret: string
+    platformId: string
   ): Promise<{
     success: boolean
     data: {
@@ -535,7 +529,6 @@ const api = {
     invoke("oauth_introspect_token", {
       token,
       platformId,
-      platformSecret,
     }),
   oauthStartCallbackServer: (): Promise<{
     success: boolean
@@ -781,6 +774,30 @@ const api = {
     data?: { registered: boolean }
     message?: string
   }> => invoke("register_url_protocol"),
+  checkUrlProtocolStatus: (): Promise<{
+    success: boolean
+    data?: {
+      registered: boolean
+      protocol: string
+      platform: string
+      details: string
+    }
+    message?: string
+  }> => invoke("check_url_protocol_status"),
+  unregisterUrlProtocol: (): Promise<{
+    success: boolean
+    data?: { registered: boolean }
+    message?: string
+  }> => invoke("unregister_url_protocol"),
+  checkElevation: (): Promise<{
+    success: boolean
+    data?: { is_elevated: boolean; platform: string; can_request_elevation: boolean }
+    message?: string
+  }> => invoke("check_elevation"),
+  requestElevation: (): Promise<{
+    success: boolean
+    message?: string
+  }> => invoke("request_elevation"),
   appQuit: (): Promise<void> => invoke("app_quit"),
   appRestart: (): Promise<void> => invoke("app_restart"),
 
@@ -863,4 +880,3 @@ const api = {
 
 export default api
 export { api }
-

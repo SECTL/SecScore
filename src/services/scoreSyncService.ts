@@ -160,7 +160,7 @@ class ScoreSyncService {
     }
 
     try {
-      const result = await sectlKVStorage.getKV(DATA_KEYS.SETTINGS)
+      const result = await sectlKVStorage.getKV<{ reasons: any[]; tags: any[] }>(DATA_KEYS.SETTINGS)
       return result.value || { reasons: [], tags: [] }
     } catch (error: any) {
       if (error.message.includes("不存在")) {
@@ -192,8 +192,12 @@ class ScoreSyncService {
     platform: string
   } | null> {
     try {
-      const result = await sectlKVStorage.getKV(DATA_KEYS.SYNC_META)
-      return result.value
+      const result = await sectlKVStorage.getKV<{
+        version: string
+        lastSyncTime: string
+        platform: string
+      }>(DATA_KEYS.SYNC_META)
+      return result.value ?? null
     } catch {
       return null
     }

@@ -108,7 +108,6 @@ pub struct SetPasswordsResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     pub platform_id: String,
-    pub platform_secret: String,
     pub callback_url: String,
 }
 
@@ -463,7 +462,6 @@ pub async fn oauth_get_authorization_url(
 pub async fn oauth_exchange_code(
     code: String,
     platform_id: String,
-    platform_secret: String,
     callback_url: String,
     code_verifier: String,
     state: State<'_, Arc<RwLock<AppState>>>,
@@ -473,19 +471,16 @@ pub async fn oauth_exchange_code(
         code, platform_id, callback_url
     );
 
-    // 获取设备 UUID 和 IP 地址
     let device_uuid = get_or_create_device_uuid();
     let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
 
-    println!("[OAuth] 设备 UUID: {}, IP: {}", device_uuid, ip_address);
-
     let state_guard = state.read();
     let client = &state_guard.http_client;
+
     let payload = serde_json::json!({
         "grant_type": "authorization_code",
         "code": &code,
         "client_id": &platform_id,
-        "client_secret": &platform_secret,
         "redirect_uri": &callback_url,
         "code_verifier": &code_verifier,
         "device_uuid": &device_uuid,
@@ -537,7 +532,6 @@ pub async fn oauth_revoke_token(
     token: String,
     token_type_hint: Option<String>,
     platform_id: String,
-    platform_secret: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<()>, String> {
     let state_guard = state.read();
@@ -546,7 +540,6 @@ pub async fn oauth_revoke_token(
     let mut payload = serde_json::json!({
         "token": token,
         "client_id": platform_id,
-        "client_secret": platform_secret
     });
 
     if let Some(hint) = token_type_hint {
@@ -575,7 +568,6 @@ pub async fn oauth_revoke_token(
 pub async fn oauth_introspect_token(
     token: String,
     platform_id: String,
-    platform_secret: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthIntrospectResponse>, String> {
     let state_guard = state.read();
@@ -586,7 +578,6 @@ pub async fn oauth_introspect_token(
         .json(&serde_json::json!({
             "token": token,
             "client_id": platform_id,
-            "client_secret": platform_secret
         }))
         .send()
         .await
@@ -667,7 +658,6 @@ pub async fn oauth_get_user_info(
 pub async fn oauth_refresh_token(
     refresh_token: String,
     platform_id: String,
-    platform_secret: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     let state_guard = state.read();
@@ -679,7 +669,6 @@ pub async fn oauth_refresh_token(
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
             "client_id": platform_id,
-            "client_secret": platform_secret
         }))
         .send()
         .await
@@ -901,7 +890,6 @@ pub async fn oauth_clear_login_state() -> Result<IpcResponse<()>, String> {
 pub async fn oauth_refresh_access_token(
     refresh_token: String,
     platform_id: String,
-    platform_secret: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     println!("[OAuth] 刷新 access_token");
@@ -916,7 +904,6 @@ pub async fn oauth_refresh_access_token(
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
         "client_id": platform_id,
-        "client_secret": platform_secret,
         "device_uuid": device_uuid,
         "ip_address": ip_address,
     });
