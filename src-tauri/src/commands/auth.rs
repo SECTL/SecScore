@@ -444,7 +444,7 @@ pub async fn oauth_get_authorization_url(
     let code_challenge = generate_code_challenge(&code_verifier);
 
     let url = format!(
-        "https://sectl.top/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&state={}&code_challenge={}&code_challenge_method=S256",
+        "https://sectl.cn/oauth/authorize?client_id={}&redirect_uri={}&response_type=code&state={}&code_challenge={}&code_challenge_method=S256",
         platform_id,
         urlencoding::encode(&callback_url),
         urlencoding::encode(&state),
@@ -490,7 +490,7 @@ pub async fn oauth_exchange_code(
     println!("[OAuth] 请求参数：{:?}", payload);
 
     let response = client
-        .post("https://appwrite.sectl.top/api/oauth/token")
+        .post("https://appwrite.sectl.cn/api/oauth/token")
         .json(&payload)
         .send()
         .await
@@ -547,7 +547,7 @@ pub async fn oauth_revoke_token(
     }
 
     let response = client
-        .post("https://appwrite.sectl.top/api/oauth/revoke")
+        .post("https://appwrite.sectl.cn/api/oauth/revoke")
         .json(&payload)
         .send()
         .await
@@ -574,7 +574,7 @@ pub async fn oauth_introspect_token(
     let client = &state_guard.http_client;
 
     let response = client
-        .post("https://appwrite.sectl.top/api/oauth/introspect")
+        .post("https://appwrite.sectl.cn/api/oauth/introspect")
         .json(&serde_json::json!({
             "token": token,
             "client_id": platform_id,
@@ -613,7 +613,7 @@ pub async fn oauth_get_user_info(
     let client = &state_guard.http_client;
 
     let response = client
-        .get("https://appwrite.sectl.top/api/oauth/userinfo")
+        .get("https://appwrite.sectl.cn/api/oauth/userinfo")
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await
@@ -664,7 +664,7 @@ pub async fn oauth_refresh_token(
     let client = &state_guard.http_client;
 
     let response = client
-        .post("https://appwrite.sectl.top/api/oauth/token")
+        .post("https://appwrite.sectl.cn/api/oauth/token")
         .json(&serde_json::json!({
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
@@ -719,7 +719,7 @@ pub async fn oauth_get_storage_usage(
     let client = &state_guard.http_client;
 
     let response = client
-        .get("https://appwrite.sectl.top/api/cloud/storage/usage")
+        .get("https://appwrite.sectl.cn/api/cloud/storage/usage")
         .query(&[("client_id", platform_id), ("user_id", user_id)])
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
@@ -787,7 +787,7 @@ pub async fn oauth_report_online(
     }
 
     let response = client
-        .post("https://appwrite.sectl.top/api/stats/online")
+        .post("https://appwrite.sectl.cn/api/stats/online")
         .json(&payload)
         .send()
         .await
@@ -911,7 +911,7 @@ pub async fn oauth_refresh_access_token(
     println!("[OAuth] 刷新 token 请求参数: {:?}", payload);
 
     let response = client
-        .post("https://appwrite.sectl.top/api/oauth/token")
+        .post("https://appwrite.sectl.cn/api/oauth/token")
         .json(&payload)
         .send()
         .await

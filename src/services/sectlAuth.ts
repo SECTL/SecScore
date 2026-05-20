@@ -9,8 +9,8 @@ import CryptoJS from "crypto-js"
 
 // SECTL API 配置
 export const SECTL_CONFIG = {
-  baseUrl: "https://appwrite.sectl.top",
-  authUrl: "https://sectl.top",
+  baseUrl: "https://appwrite.sectl.cn",
+  authUrl: "https://sectl.cn",
   platformId: "", // 需要在设置中配置
   callbackUrl: "http://localhost:5173/auth/callback",
   callbackPort: 5173,
