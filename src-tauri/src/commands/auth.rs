@@ -719,7 +719,7 @@ pub async fn oauth_get_storage_usage(
     let client = &state_guard.http_client;
 
     let response = client
-        .get("https://appwrite.sectl.cn/api/cloud-storage/usage")
+        .get("https://appwrite.sectl.cn/api/cloud/storage/usage")
         .query(&[("client_id", platform_id), ("user_id", user_id)])
         .header("Authorization", format!("Bearer {}", access_token))
         .send()

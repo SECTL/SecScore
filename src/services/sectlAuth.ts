@@ -8,7 +8,7 @@
 export const SECTL_CONFIG = {
   baseUrl: "https://appwrite.sectl.cn",
   authUrl: "https://sectl.cn",
-  platformId: "",
+  platformId: "", // 需要在设置中配置
   callbackUrl: "secscore://oauth",
   callbackPort: 5173,
 }
