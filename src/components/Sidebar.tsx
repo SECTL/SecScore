@@ -213,13 +213,20 @@ export function Sidebar({
 
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 
+  const isMacOS =
+    typeof navigator !== "undefined" &&
+    /mac/i.test(navigator.userAgent) &&
+    !/iphone|ipad|ipod|android/i.test(navigator.userAgent)
+
   const renderSidebarBody = (isCollapsedView: boolean, hideMenu = false) => (
     <>
       <div
         data-tauri-drag-region
         style={
           {
-            padding: isCollapsedView ? "20px 8px 12px" : "24px 24px 16px",
+            padding: isCollapsedView
+              ? `${isMacOS ? 40 : 20}px 8px 12px`
+              : `${isMacOS ? 44 : 24}px 24px 16px`,
             textAlign: "center",
             WebkitAppRegion: "drag",
             userSelect: "none",

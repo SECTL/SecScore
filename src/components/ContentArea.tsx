@@ -104,6 +104,12 @@ export function ContentArea({
   bottomInset = 0,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
+  const isMacOS =
+    typeof navigator !== "undefined" &&
+    /mac/i.test(navigator.userAgent) &&
+    !/iphone|ipad|ipod|android/i.test(navigator.userAgent)
+  // macOS 使用原生红绿灯，侧栏隐藏（沉浸/竖屏）时顶部左侧需为红绿灯留白
+  const macTrafficLightsInset = isMacOS && (isPortraitMode || immersiveMode)
   const location = useLocation()
   const navigate = useNavigate()
   const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
@@ -418,6 +424,7 @@ export function ContentArea({
             background: "var(--ss-header-bg)",
             borderBottom: "1px solid var(--ss-border-color)",
             flexShrink: 0,
+            paddingLeft: macTrafficLightsInset ? "80px" : 0,
             WebkitAppRegion: "drag",
             position: "relative",
           } as React.CSSProperties

@@ -209,10 +209,8 @@ html.platform-macos body {
   background: transparent;
 }
 
-html.platform-macos #root {
-  border-radius: 12px;
-  overflow: hidden;
-}
+/* macOS：保留原生窗口圆角与 squircle（由 NSWindow 在系统层裁剪），
+   不再用 CSS border-radius 覆盖，避免圆弧破坏原生连续曲率。 */
 
 .ss-group-board-modal .ant-modal {
   max-height: calc(100vh - 24px);

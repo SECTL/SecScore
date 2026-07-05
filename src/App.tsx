@@ -57,6 +57,10 @@ function MainContent(): React.JSX.Element {
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
+  const isMacDesktop =
+    typeof navigator !== "undefined" &&
+    /mac/i.test(navigator.userAgent) &&
+    !/iphone|ipad|ipod|android/i.test(navigator.userAgent)
   const [immersiveMode, setImmersiveMode] = useState(false)
 
   const normalizeStoredBottomKeys = (raw: unknown): MobileNavKey[] => {
@@ -791,7 +795,7 @@ function MainContent(): React.JSX.Element {
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
-          showWindowControls={!isIosDevice && !isAndroidDevice}
+          showWindowControls={!isIosDevice && !isAndroidDevice && !isMacDesktop}
           isPortraitMode={isPortraitMode}
           isMobileDevice={isMobileDevice}
           sidebarCollapsed={sidebarCollapsed}
