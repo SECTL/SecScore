@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Alert,
   Button,
@@ -156,7 +156,7 @@ const buildOfflineBackfillPlan = (
 }
 
 function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const [form] = Form.useForm<RuleFormValues>()
   const [messageApi, contextHolder] = message.useMessage()
   const [tags, setTags] = useState<TagItem[]>([])
@@ -183,10 +183,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     [rewards]
   )
 
-  const triggerConfig = useMemo(
-    () => createTriggerQueryConfig(t, tagOptions),
-    [i18n.resolvedLanguage, i18n.language, tagOptions]
-  )
+  const triggerConfig = useMemo(() => createTriggerQueryConfig(t, tagOptions), [t, tagOptions])
   const [triggerTree, setTriggerTree] = useState<ImmutableTree>(() =>
     createEmptyTriggerTree(triggerConfig)
   )
@@ -282,7 +279,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
   }
 
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
 
@@ -294,9 +291,9 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     } catch {
       void 0
     }
-  }
+  }, [canEdit])
 
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     if (!canEdit) return
 
     try {
@@ -307,9 +304,9 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     } catch {
       void 0
     }
-  }
+  }, [canEdit])
 
-  const fetchRewards = async () => {
+  const fetchRewards = useCallback(async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
 
@@ -321,9 +318,9 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     } catch {
       void 0
     }
-  }
+  }, [canEdit])
 
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
 
@@ -340,9 +337,9 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     } finally {
       setLoading(false)
     }
-  }
+  }, [canEdit, messageApi, t])
 
-  const fetchBatches = async () => {
+  const fetchBatches = useCallback(async () => {
     const api = (window as any).api
     if (!api || !canEdit) return
     try {
@@ -353,7 +350,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     } catch {
       void 0
     }
-  }
+  }, [canEdit])
 
   useEffect(() => {
     if (!canEdit) return
@@ -362,7 +359,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
     fetchStudents().catch(() => void 0)
     fetchRules().catch(() => void 0)
     fetchBatches().catch(() => void 0)
-  }, [canEdit])
+  }, [canEdit, fetchTags, fetchRewards, fetchStudents, fetchRules, fetchBatches])
 
   useEffect(() => {
     const api = (window as any).api
@@ -426,7 +423,7 @@ function AutoScoreManager({ canEdit }: AutoScoreManagerProps): React.JSX.Element
         }
       },
     })
-  }, [backfillPrompted, canEdit, messageApi, rules, t])
+  }, [backfillPrompted, canEdit, messageApi, rules, t, fetchRules, fetchBatches])
 
   const handleSubmit = async () => {
     const api = (window as any).api

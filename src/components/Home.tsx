@@ -553,7 +553,7 @@ export const Home: React.FC<HomeProps> = ({
         return a.localeCompare(b, "zh-CN")
       })
       .map(([key, students]) => ({ key, students }))
-  }, [sortedStudents, sortType, searchKeyword, layoutType, getGroupName, t])
+  }, [sortedStudents, sortType, searchKeyword, getGroupName, t])
 
   const firstStudentIdByGroup = useMemo(() => {
     const result = new Map<string, number>()
@@ -577,7 +577,7 @@ export const Home: React.FC<HomeProps> = ({
       if (b === t("home.category.others")) return -1
       return a.localeCompare(b, "zh-CN")
     })
-  }, [reasons])
+  }, [reasons, t])
 
   const selectedStudents = useMemo(() => {
     if (selectedStudentIds.length === 0) return []
@@ -2374,18 +2374,21 @@ export const Home: React.FC<HomeProps> = ({
     document.addEventListener("mouseup", onGlobalMouseUp)
   }
 
-  const onGlobalMouseMove = (e: MouseEvent) => {
-    if (isNavDragging.current) {
-      if (e.cancelable) e.preventDefault()
-      handleNavAction(e.clientY)
-    }
-  }
+  const onGlobalMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (isNavDragging.current) {
+        if (e.cancelable) e.preventDefault()
+        handleNavAction(e.clientY)
+      }
+    },
+    [handleNavAction]
+  )
 
-  const onGlobalMouseUp = () => {
+  const onGlobalMouseUp = useCallback(() => {
     setNavDraggingState(false)
     document.removeEventListener("mousemove", onGlobalMouseMove)
     document.removeEventListener("mouseup", onGlobalMouseUp)
-  }
+  }, [onGlobalMouseMove, setNavDraggingState])
 
   const onNavTouchStart = (e: React.TouchEvent) => {
     navHapticIndexRef.current = null
@@ -2421,7 +2424,7 @@ export const Home: React.FC<HomeProps> = ({
       document.body.style.userSelect = bodyUserSelectRef.current
       document.body.style.webkitUserSelect = bodyWebkitUserSelectRef.current
     }
-  }, [])
+  }, [onGlobalMouseMove, onGlobalMouseUp])
 
   useEffect(() => {
     if (!groupedStudents.length) {

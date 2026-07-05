@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 
 export type Breakpoint = "xs" | "sm" | "md" | "lg" | "xl" | "xxl"
 
@@ -22,7 +22,10 @@ const defaultBreakpoints: Breakpoints = {
 
 export function useResponsive(customBreakpoints?: Partial<Breakpoints>): Breakpoint {
   const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg")
-  const breakpoints = { ...defaultBreakpoints, ...customBreakpoints }
+  const breakpoints = useMemo(
+    () => ({ ...defaultBreakpoints, ...customBreakpoints }),
+    [customBreakpoints]
+  )
 
   useEffect(() => {
     const updateBreakpoint = () => {

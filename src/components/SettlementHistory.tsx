@@ -51,7 +51,7 @@ export const SettlementHistory: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [messageApi])
+  }, [messageApi, t])
 
   useEffect(() => {
     fetchSettlements()
@@ -103,7 +103,7 @@ export const SettlementHistory: React.FC = () => {
         render: (score: number) => <span style={{ fontWeight: "bold" }}>{score}</span>,
       },
     ],
-    []
+    [t]
   )
 
   if (selectedId !== null && selectedSettlement) {

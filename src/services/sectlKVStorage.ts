@@ -1,3 +1,8 @@
+/**
+ * SECTL KV 存储服务
+ * 基于 SECTL-One-Stop SDK 的云存储 KV API 实现
+ */
+
 import { SECTL_CONFIG, sectlAuth } from "./sectlAuth"
 
 export interface KVItem {
@@ -16,58 +21,26 @@ export interface ListKVOptions {
 }
 
 class SectlKVStorageService {
-  private get platformId(): string {
-    return SECTL_CONFIG.platformId
+  private getAccessToken(): string {
+    const token = sectlAuth.getAccessToken()
+    if (!token) throw new Error("未授权，请先登录")
+    return token
   }
 
   private getAuthHeaders(): Record<string, string> {
-    const token = sectlAuth.getAccessToken()
-    if (!token) throw new Error("未授权，请先登录")
-    return { Authorization: `Bearer ${token}` }
+    return { Authorization: `Bearer ${this.getAccessToken()}` }
   }
 
-  private async makeRequest<T>(
-    method: string,
-    endpoint: string,
-    options: { jsonData?: Record<string, unknown>; params?: Record<string, unknown> } = {}
-  ): Promise<T> {
-    const headers: Record<string, string> = {
-      ...this.getAuthHeaders(),
-      "Content-Type": "application/json",
-    }
-
-    let url = `${SECTL_CONFIG.baseUrl}${endpoint}`
-    if (options.params) {
-      const searchParams = new URLSearchParams()
-      for (const [k, v] of Object.entries(options.params)) {
-        if (v !== undefined && v !== null) searchParams.set(k, String(v))
+  private buildParams(extra?: Record<string, string>): URLSearchParams {
+    const params = new URLSearchParams({ client_id: SECTL_CONFIG.platformId })
+    const userId = sectlAuth.getUserId()
+    if (userId) params.append("user_id", userId)
+    if (extra) {
+      for (const [key, value] of Object.entries(extra)) {
+        params.append(key, value)
       }
-      const qs = searchParams.toString()
-      if (qs) url += `?${qs}`
     }
-
-    const init: RequestInit = { method, headers }
-    if (options.jsonData && method !== "GET") {
-      init.body = JSON.stringify(options.jsonData)
-    }
-
-    const response = await fetch(url, init)
-
-    if (!response.ok) {
-      let errorData: { error?: string; error_description?: string; message?: string } = {}
-      try {
-        errorData = await response.json()
-      } catch {
-        // ignore
-      }
-      const desc = errorData.error_description || errorData.message || `HTTP ${response.status}`
-      const err = new Error(desc) as Error & { status?: number; error?: string }
-      err.status = response.status
-      err.error = errorData.error
-      throw err
-    }
-
-    return response.json() as Promise<T>
+    return params
   }
 
   async setKV(
@@ -83,67 +56,142 @@ class SectlKVStorageService {
     updated_at?: string
     message: string
   }> {
-    const jsonData: Record<string, unknown> = {
-      client_id: this.platformId,
+    const isJson = typeof value === "object" && value !== null
+    const body: Record<string, unknown> = {
+      client_id: SECTL_CONFIG.platformId,
       key,
       value,
     }
-    if (ttl !== undefined) jsonData.ttl = ttl
+    const userId = sectlAuth.getUserId()
+    if (userId) body.user_id = userId
+    if (ttl) body.ttl = ttl
 
-    return this.makeRequest("POST", "/api/cloud/kv", { jsonData })
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/kv`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "设置 KV 失败")
+    }
+
+    const result = await response.json()
+    return {
+      success: result.success ?? true,
+      key: result.key ?? key,
+      size: result.size ?? 0,
+      is_json: result.is_json ?? isJson,
+      created_at: result.created_at,
+      updated_at: result.updated_at,
+      message: result.message ?? "OK",
+    }
   }
 
-  async getKV<T = unknown>(
-    key: string,
-    field?: string
-  ): Promise<
-    | (KVItem & { key: string; value: T })
-    | { key: string; field: string; value: T; is_json: boolean }
-  > {
-    const params: Record<string, string> = { client_id: this.platformId }
-    if (field) params.field = field
+  async getKV<T = unknown>(key: string): Promise<KVItem & { key: string; value: T }> {
+    const params = this.buildParams()
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}?${params}`,
+      {
+        headers: this.getAuthHeaders(),
+      }
+    )
 
-    return this.makeRequest("GET", `/api/cloud/kv/${encodeURIComponent(key)}`, { params })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取 KV 失败")
+    }
+
+    const result = await response.json()
+    return {
+      key: result.key ?? key,
+      value: result.value as T,
+      size: result.size ?? 0,
+      is_json: result.is_json ?? false,
+      created_at: result.created_at ?? "",
+      updated_at: result.updated_at ?? "",
+    }
   }
 
   async listKV(
     options: ListKVOptions = {}
   ): Promise<{ kv_list: KVItem[]; total: number; has_more: boolean }> {
-    const params: Record<string, unknown> = {
-      client_id: this.platformId,
-      limit: Math.min(options.limit || 100, 1000),
-      offset: options.offset || 0,
-    }
-    if (options.prefix) params.prefix = options.prefix
+    const params = this.buildParams({
+      limit: String(options.limit ?? 100),
+      offset: String(options.offset ?? 0),
+    })
+    if (options.prefix) params.append("prefix", options.prefix)
 
-    return this.makeRequest("GET", "/api/cloud/kv", { params })
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/kv?${params}`, {
+      headers: this.getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取 KV 列表失败")
+    }
+
+    const result = await response.json()
+    return {
+      kv_list: result.kv_list ?? [],
+      total: result.total ?? 0,
+      has_more: result.has_more ?? false,
+    }
   }
 
   async updateKVField(
     key: string,
     field: string,
     value: unknown
-  ): Promise<{
-    success: boolean
-    key: string
-    field: string
-    size: number
-    updated_at: string
-    message: string
-  }> {
-    return this.makeRequest("PATCH", `/api/cloud/kv/${encodeURIComponent(key)}`, {
-      jsonData: { client_id: this.platformId, field, value },
-    })
+  ): Promise<{ success: boolean; message: string }> {
+    const body: Record<string, unknown> = {
+      client_id: SECTL_CONFIG.platformId,
+      field,
+      value,
+    }
+    const userId = sectlAuth.getUserId()
+    if (userId) body.user_id = userId
+
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+        body: JSON.stringify(body),
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "更新 KV 字段失败")
+    }
+
+    return { success: true, message: "OK" }
   }
 
   async deleteKV(key: string): Promise<{ success: boolean; message: string }> {
-    return this.makeRequest("DELETE", `/api/cloud/kv/${encodeURIComponent(key)}`, {
-      jsonData: { client_id: this.platformId },
-    })
-  }
+    const body = {
+      client_id: SECTL_CONFIG.platformId,
+    }
+    const userId = sectlAuth.getUserId()
+    if (userId) (body as Record<string, unknown>).user_id = userId
 
-  getPlatformId(): string {
-    return this.platformId
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+        body: JSON.stringify(body),
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "删除 KV 失败")
+    }
+
+    return { success: true, message: "OK" }
   }
 }
 

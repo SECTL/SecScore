@@ -25,7 +25,14 @@ import { useTranslation } from "react-i18next"
 type BoardStudentViewMode = "list" | "card" | "grid" | "largeAvatar"
 type BoardScoreDisplayMode = "total" | "split"
 type SplitDirection = "horizontal" | "vertical"
-type BoardTimeRange = "last7d" | "last30d" | "thisWeek" | "lastWeek" | "thisMonth" | "lastMonth" | "custom"
+type BoardTimeRange =
+  | "last7d"
+  | "last30d"
+  | "thisWeek"
+  | "lastWeek"
+  | "thisMonth"
+  | "lastMonth"
+  | "custom"
 type BoardReasonMode = "all" | "selected" | "keyword"
 type BoardScoreDirection = "all" | "add" | "deduct"
 type BoardMetric = "addScore" | "deductScore" | "netChange" | "addCount" | "eventCount"
@@ -177,9 +184,7 @@ const normalizeRule = (input: unknown): BoardQueryRuleConfig => {
   const fallback = createDefaultRule()
   const raw = typeof input === "object" && input ? (input as Record<string, unknown>) : {}
   const reasonValues = Array.isArray(raw.reasonValues)
-    ? raw.reasonValues
-        .map((item) => (typeof item === "string" ? item.trim() : ""))
-        .filter(Boolean)
+    ? raw.reasonValues.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)
     : []
 
   const allowedTimeRange = new Set<BoardTimeRange>([
@@ -216,7 +221,9 @@ const normalizeRule = (input: unknown): BoardQueryRuleConfig => {
     scoreDirection: allowedScoreDirection.has(raw.scoreDirection as BoardScoreDirection)
       ? (raw.scoreDirection as BoardScoreDirection)
       : fallback.scoreDirection,
-    metric: allowedMetric.has(raw.metric as BoardMetric) ? (raw.metric as BoardMetric) : fallback.metric,
+    metric: allowedMetric.has(raw.metric as BoardMetric)
+      ? (raw.metric as BoardMetric)
+      : fallback.metric,
     sortDirection: allowedSortDirection.has(raw.sortDirection as BoardSortDirection)
       ? (raw.sortDirection as BoardSortDirection)
       : fallback.sortDirection,
@@ -324,7 +331,11 @@ const buildSqlFromRule = (ruleInput: BoardQueryRuleConfig): string | null => {
 
   const currentStartMs = new Date(currentStart).getTime()
   const currentEndMs = new Date(currentEnd).getTime()
-  if (!Number.isFinite(currentStartMs) || !Number.isFinite(currentEndMs) || currentEndMs <= currentStartMs) {
+  if (
+    !Number.isFinite(currentStartMs) ||
+    !Number.isFinite(currentEndMs) ||
+    currentEndMs <= currentStartMs
+  ) {
     return null
   }
 
@@ -358,8 +369,7 @@ const buildSqlFromRule = (ruleInput: BoardQueryRuleConfig): string | null => {
     )
   }
 
-  const baseWhereSql =
-    baseWhereClauses.length > 0 ? `AND ${baseWhereClauses.join(" AND ")}` : ""
+  const baseWhereSql = baseWhereClauses.length > 0 ? `AND ${baseWhereClauses.join(" AND ")}` : ""
   const metricExpression = getMetricExpression(rule.metric)
   const topN = clampTopN(rule.topN)
   const filterClauses: string[] = []
@@ -560,24 +570,23 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
   const boards = input
     .map((board: any) => {
       const lists = Array.isArray(board?.lists)
-        ? board.lists
-            .map((list: any) => ({
-              id: typeof list?.id === "string" && list.id.trim() ? list.id : makeId(),
-              name:
-                typeof list?.name === "string" && list.name.trim() ? list.name.trim() : "学生列表",
-              rule: normalizeRule(list?.rule),
-              viewMode:
-                list?.viewMode === "list" ||
-                list?.viewMode === "card" ||
-                list?.viewMode === "grid" ||
-                list?.viewMode === "largeAvatar"
-                  ? list.viewMode
-                  : "card",
-              scoreDisplayMode:
-                list?.scoreDisplayMode === "total" || list?.scoreDisplayMode === "split"
-                  ? list.scoreDisplayMode
-                  : "total",
-            }))
+        ? board.lists.map((list: any) => ({
+            id: typeof list?.id === "string" && list.id.trim() ? list.id : makeId(),
+            name:
+              typeof list?.name === "string" && list.name.trim() ? list.name.trim() : "学生列表",
+            rule: normalizeRule(list?.rule),
+            viewMode:
+              list?.viewMode === "list" ||
+              list?.viewMode === "card" ||
+              list?.viewMode === "grid" ||
+              list?.viewMode === "largeAvatar"
+                ? list.viewMode
+                : "card",
+            scoreDisplayMode:
+              list?.scoreDisplayMode === "total" || list?.scoreDisplayMode === "split"
+                ? list.scoreDisplayMode
+                : "total",
+          }))
         : []
 
       const normalizedLists = lists.length > 0 ? lists : [createDefaultList()]
@@ -965,7 +974,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
     }
     const firstLeafId = getFirstLeafId(activeBoard.layout)
     setSelectedLeafNodeId((prev) => prev || firstLeafId)
-  }, [activeBoard?.id, activeBoard?.layout])
+  }, [activeBoard?.id, activeBoard?.layout, activeBoard])
 
   useEffect(() => {
     if (!activeBoard) return
@@ -973,7 +982,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
       runAllInBoard(activeBoard).catch(() => void 0)
     }, 260)
     return () => window.clearTimeout(timer)
-  }, [activeBoard?.id, listConfigSignature, runAllInBoard])
+  }, [activeBoard?.id, listConfigSignature, runAllInBoard, activeBoard])
 
   useEffect(() => {
     const onDataUpdated = (e: Event) => {
@@ -1235,27 +1244,27 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
             ? item.metricValue !== undefined
               ? { label: metricTitle, value: item.metricValue }
               : item.addScore !== undefined && item.addScore !== 0
-              ? { label: t("board.metrics.addScore"), value: item.addScore }
-              : item.deductScore !== undefined && item.deductScore !== 0
-                ? { label: t("board.metrics.deductScore"), value: item.deductScore }
-                : item.addScore !== undefined
-                  ? { label: t("board.metrics.addScore"), value: item.addScore }
-                  : item.deductScore !== undefined
-                    ? { label: t("board.metrics.deductScore"), value: item.deductScore }
-                    : item.score !== undefined
-                      ? { label: t("board.metrics.totalScore"), value: item.score }
-                      : item.rewardPoints !== undefined
-                        ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
-                        : item.weekChange !== undefined
-                          ? { label: t("board.metrics.weekChange"), value: item.weekChange }
-                          : item.weekDeducted !== undefined
-                            ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
-                            : item.answeredCount !== undefined
-                              ? {
-                                  label: t("board.metrics.todayAnswered"),
-                                  value: item.answeredCount,
-                                }
-                              : null
+                ? { label: t("board.metrics.addScore"), value: item.addScore }
+                : item.deductScore !== undefined && item.deductScore !== 0
+                  ? { label: t("board.metrics.deductScore"), value: item.deductScore }
+                  : item.addScore !== undefined
+                    ? { label: t("board.metrics.addScore"), value: item.addScore }
+                    : item.deductScore !== undefined
+                      ? { label: t("board.metrics.deductScore"), value: item.deductScore }
+                      : item.score !== undefined
+                        ? { label: t("board.metrics.totalScore"), value: item.score }
+                        : item.rewardPoints !== undefined
+                          ? { label: t("board.metrics.rewardPoints"), value: item.rewardPoints }
+                          : item.weekChange !== undefined
+                            ? { label: t("board.metrics.weekChange"), value: item.weekChange }
+                            : item.weekDeducted !== undefined
+                              ? { label: t("board.metrics.weekDeducted"), value: item.weekDeducted }
+                              : item.answeredCount !== undefined
+                                ? {
+                                    label: t("board.metrics.todayAnswered"),
+                                    value: item.answeredCount,
+                                  }
+                                : null
             : item.score !== undefined
               ? item.metricValue !== undefined
                 ? { label: metricTitle, value: item.metricValue }
@@ -1594,8 +1603,12 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
                           </Tag>
                         )}
                         {item.metricDelta !== undefined && (
-                          <Tag color={item.metricDelta >= 0 ? "success" : "error"} style={{ margin: 0 }}>
-                            较上期: {item.metricDelta > 0 ? `+${item.metricDelta}` : item.metricDelta}
+                          <Tag
+                            color={item.metricDelta >= 0 ? "success" : "error"}
+                            style={{ margin: 0 }}
+                          >
+                            较上期:{" "}
+                            {item.metricDelta > 0 ? `+${item.metricDelta}` : item.metricDelta}
                           </Tag>
                         )}
                         {rankChangeText && (

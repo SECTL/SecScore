@@ -97,7 +97,7 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
         : { ...base, id: "custom-default", name: t("theme.myTheme") }
     setWorkingTheme(editable)
     setPrimaryInput(editable.config?.tdesign?.brandColor || "")
-  }, [currentTheme])
+  }, [currentTheme, t])
 
   // Real-time theme preview
   useEffect(() => {

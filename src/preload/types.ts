@@ -642,6 +642,11 @@ const api = {
       callback(event.payload || {})
     })
   },
+  onDeepLink: (callback: (url: string) => void): Promise<UnlistenFn> => {
+    return listen<string>("deep-link://new-url", (event) => {
+      callback(event.payload)
+    })
+  },
 
   // Logger
   queryLogs: (

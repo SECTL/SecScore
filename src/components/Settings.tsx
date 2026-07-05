@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Tabs,
   Card,
@@ -221,10 +221,12 @@ export const Settings: React.FC<{
 
   const [oauthLoginVisible, setOAuthLoginVisible] = useState(false)
   const [oauthUserInfo, setOAuthUserInfo] = useState<{
-    user_id: string
-    email: string
-    name: string
-    github_username?: string
+    user_id?: string
+    id?: string
+    email?: string
+    name?: string
+    avatar?: string
+    avatar_url?: string
   } | null>(null)
 
   const permissionTag = useMemo(() => {
@@ -264,58 +266,61 @@ export const Settings: React.FC<{
     }
   }
 
-  const loadSystemFonts = async (selectedFontValue?: string) => {
-    setIsLoadingFonts(true)
+  const loadSystemFonts = useCallback(
+    async (selectedFontValue?: string) => {
+      setIsLoadingFonts(true)
 
-    const applySelectedFont = (options: FontOption[]) => {
-      const current = findFontOption(options, selectedFontValue || settings.font_family)
-      if (current) applyFontFamily(current.fontFamily)
-    }
+      const applySelectedFont = (options: FontOption[]) => {
+        const current = findFontOption(options, selectedFontValue || settings.font_family)
+        if (current) applyFontFamily(current.fontFamily)
+      }
 
-    const api = (window as any).api
-    if (!api?.getSystemFonts) {
-      setFontOptions(defaultFontOptions)
-      applySelectedFont(defaultFontOptions)
-      setIsLoadingFonts(false)
-      return
-    }
-
-    try {
-      const res = await api.getSystemFonts()
-      if (res.success && Array.isArray(res.data)) {
-        const remoteOptions = res.data
-          .map((name: string) => String(name || "").trim())
-          .filter((name: string) => Boolean(name))
-          .map((name: string) => {
-            const label = formatFontDisplayName(name)
-            return {
-              value: buildSystemFontValue(name),
-              label,
-              fontFamily: buildSystemFontFamily(name),
-              searchText: buildFontSearchText(name, label),
-            } satisfies FontOption
-          })
-          .sort((a: FontOption, b: FontOption) =>
-            a.label.localeCompare(b.label, "zh-Hans-CN-u-co-pinyin")
-          )
-
-        const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
-        setFontOptions(mergedOptions)
-        applySelectedFont(mergedOptions)
-      } else {
+      const api = (window as any).api
+      if (!api?.getSystemFonts) {
         setFontOptions(defaultFontOptions)
         applySelectedFont(defaultFontOptions)
+        setIsLoadingFonts(false)
+        return
       }
-    } catch (error) {
-      console.error("Failed to load system fonts:", error)
-      setFontOptions(defaultFontOptions)
-      applySelectedFont(defaultFontOptions)
-    } finally {
-      setIsLoadingFonts(false)
-    }
-  }
 
-  const loadAll = async () => {
+      try {
+        const res = await api.getSystemFonts()
+        if (res.success && Array.isArray(res.data)) {
+          const remoteOptions = res.data
+            .map((name: string) => String(name || "").trim())
+            .filter((name: string) => Boolean(name))
+            .map((name: string) => {
+              const label = formatFontDisplayName(name)
+              return {
+                value: buildSystemFontValue(name),
+                label,
+                fontFamily: buildSystemFontFamily(name),
+                searchText: buildFontSearchText(name, label),
+              } satisfies FontOption
+            })
+            .sort((a: FontOption, b: FontOption) =>
+              a.label.localeCompare(b.label, "zh-Hans-CN-u-co-pinyin")
+            )
+
+          const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
+          setFontOptions(mergedOptions)
+          applySelectedFont(mergedOptions)
+        } else {
+          setFontOptions(defaultFontOptions)
+          applySelectedFont(defaultFontOptions)
+        }
+      } catch (error) {
+        console.error("Failed to load system fonts:", error)
+        setFontOptions(defaultFontOptions)
+        applySelectedFont(defaultFontOptions)
+      } finally {
+        setIsLoadingFonts(false)
+      }
+    },
+    [settings.font_family]
+  )
+
+  const loadAll = useCallback(async () => {
     const api = (window as any).api
     if (!api) {
       setFontOptions(defaultFontOptions)
@@ -345,7 +350,6 @@ export const Settings: React.FC<{
         user_id: oauthStateRes.data.user_id,
         email: oauthStateRes.data.email,
         name: oauthStateRes.data.name,
-        github_username: oauthStateRes.data.github_username,
       })
     } else {
       setOAuthUserInfo(null)
@@ -375,7 +379,7 @@ export const Settings: React.FC<{
         // ignore
       }
     }
-  }
+  }, [settings, loadSystemFonts])
 
   const handleOAuthLogout = async () => {
     const api = (window as any).api
@@ -564,7 +568,7 @@ export const Settings: React.FC<{
       disposed = true
       if (unlisten) unlisten()
     }
-  }, [])
+  }, [loadAll])
 
   useEffect(() => {
     const handleOAuthUserUpdated = (event: Event) => {
@@ -582,7 +586,6 @@ export const Settings: React.FC<{
           user_id: user.user_id,
           email: user.email,
           name: user.name,
-          github_username: user.github_username,
         })
       } else {
         setOAuthUserInfo(null)
@@ -1289,19 +1292,18 @@ export const Settings: React.FC<{
             {oauthUserInfo ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                  <Avatar size={64} style={{ backgroundColor: "#1890ff" }}>
-                    {oauthUserInfo.name.charAt(0).toUpperCase()}
+                  <Avatar
+                    size={64}
+                    src={oauthUserInfo.avatar || oauthUserInfo.avatar_url}
+                    style={{ backgroundColor: "#1890ff" }}
+                  >
+                    {(oauthUserInfo.name || "U").charAt(0).toUpperCase()}
                   </Avatar>
                   <div>
                     <div style={{ fontSize: "18px", fontWeight: 600 }}>{oauthUserInfo.name}</div>
                     <div style={{ fontSize: "14px", color: "var(--ss-text-secondary)" }}>
                       {oauthUserInfo.email}
                     </div>
-                    {oauthUserInfo.github_username && (
-                      <div style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
-                        GitHub: @{oauthUserInfo.github_username}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -1310,7 +1312,7 @@ export const Settings: React.FC<{
                 <div>
                   <Text type="secondary">{t("settings.account.userId")}:</Text>
                   <Text code style={{ marginLeft: "8px" }}>
-                    {oauthUserInfo.user_id}
+                    {oauthUserInfo.user_id || oauthUserInfo.id}
                   </Text>
                 </div>
 

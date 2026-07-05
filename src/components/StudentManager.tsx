@@ -18,7 +18,7 @@ import { UploadOutlined, MoreOutlined, PlusOutlined, CopyOutlined } from "@ant-d
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
-import { useResponsive, useIsMobile, useIsTablet } from "../hooks/useResponsive"
+import { useIsMobile } from "../hooks/useResponsive"
 
 const createXlsxWorker = () => {
   return new Worker(new URL("../workers/xlsxWorker.ts", import.meta.url), {
@@ -157,8 +157,6 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const addFormGroupName = Form.useWatch("group_name", form)
   const editFormGroupName = Form.useWatch("group_name", groupForm)
   const isMobile = useIsMobile()
-  const isTablet = useIsTablet()
-  const breakpoint = useResponsive()
 
   useEffect(() => {
     xlsxWorkerRef.current = createXlsxWorker()
@@ -291,7 +289,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
     if (!(window as any).api) return
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
@@ -305,18 +303,18 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     } else {
       messageApi.error(res.message || t("students.deleteFailed"))
     }
-  }
+  }, [canEdit, messageApi, t, fetchStudents])
 
-  const handleOpenTagEditor = (student: student) => {
+  const handleOpenTagEditor = useCallback((student: student) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
     }
     setEditingStudent(student)
     setTagEditVisible(true)
-  }
+  }, [canEdit, messageApi, t])
 
-  const handleOpenAvatarEditor = (student: student) => {
+  const handleOpenAvatarEditor = useCallback((student: student) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -324,9 +322,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setAvatarStudent(student)
     setAvatarValue(student.avatarUrl || null)
     setAvatarVisible(true)
-  }
+  }, [canEdit, messageApi, t])
 
-  const handleOpenGroupEditor = (student: student) => {
+  const handleOpenGroupEditor = useCallback((student: student) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -334,7 +332,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setGroupEditStudent(student)
     groupForm.setFieldsValue({ group_name: student.group_name || "" })
     setGroupEditVisible(true)
-  }
+  }, [canEdit, messageApi, t, groupForm])
 
   const handleSaveGroup = async () => {
     if (!(window as any).api || !groupEditStudent) return
@@ -1370,7 +1368,15 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
 
     return baseColumns
-  }, [t, canEdit, isMobile, isTablet, breakpoint])
+  }, [
+    t,
+    canEdit,
+    isMobile,
+    handleDelete,
+    handleOpenAvatarEditor,
+    handleOpenGroupEditor,
+    handleOpenTagEditor,
+  ])
 
   const existingGroupNames = useMemo(() => {
     const groups = new Set<string>()

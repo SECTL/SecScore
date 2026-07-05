@@ -31,7 +31,10 @@ export const ActionEditor: React.FC<ActionEditorProps> = ({
 }) => {
   const { t } = useTranslation()
   const fallbackDraft = useMemo(() => createDefaultActionDraft(), [])
-  const safeValue = value.length > 0 ? value : [fallbackDraft]
+  const safeValue = useMemo(
+    () => (value.length > 0 ? value : [fallbackDraft]),
+    [value, fallbackDraft]
+  )
 
   useEffect(() => {
     if (value.length === 0) {

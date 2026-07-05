@@ -82,13 +82,21 @@ export const SectlSettingsPanel: React.FC = () => {
 
           {isAuthenticated && userInfo && (
             <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="用户 ID">{userInfo.user_id}</Descriptions.Item>
+              <Descriptions.Item label="用户 ID">
+                {userInfo.user_id || userInfo.id}
+              </Descriptions.Item>
               <Descriptions.Item label="用户名">{userInfo.name}</Descriptions.Item>
               <Descriptions.Item label="邮箱">{userInfo.email}</Descriptions.Item>
-              <Descriptions.Item label="权限">{userInfo.permission}</Descriptions.Item>
-              <Descriptions.Item label="角色">{userInfo.role}</Descriptions.Item>
-              {userInfo.github_username && (
-                <Descriptions.Item label="GitHub">{userInfo.github_username}</Descriptions.Item>
+              {userInfo.status && (
+                <Descriptions.Item label="状态">{userInfo.status}</Descriptions.Item>
+              )}
+              {userInfo.created_at && (
+                <Descriptions.Item label="注册时间">{userInfo.created_at}</Descriptions.Item>
+              )}
+              {userInfo.email_verified !== undefined && (
+                <Descriptions.Item label="邮箱验证">
+                  {userInfo.email_verified ? "已验证" : "未验证"}
+                </Descriptions.Item>
               )}
             </Descriptions>
           )}

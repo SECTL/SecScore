@@ -137,16 +137,19 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
   const primaryColor = workingTheme?.config?.tdesign?.brandColor || "#1677FF"
   const isDark = workingTheme?.mode === "dark"
 
-  const showOobeMessage = (type: "success" | "error" | "warning" | "info", content: string) => {
-    messageApi.open({
-      type,
-      content,
-      style: {
-        marginTop: 8,
-        zIndex: 12000,
-      },
-    })
-  }
+  const showOobeMessage = useCallback(
+    (type: "success" | "error" | "warning" | "info", content: string) => {
+      messageApi.open({
+        type,
+        content,
+        style: {
+          marginTop: 8,
+          zIndex: 12000,
+        },
+      })
+    },
+    [messageApi]
+  )
 
   useEffect(() => {
     if (!currentTheme) return
@@ -157,7 +160,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         : { ...base, id: "custom-default", name: t("theme.myTheme") }
     setWorkingTheme(editable)
     setPrimaryInput(editable.config?.tdesign?.brandColor || "")
-  }, [currentTheme])
+  }, [currentTheme, t])
 
   useEffect(() => {
     if (!workingTheme) return
@@ -331,7 +334,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         showOobeMessage("error", t("oobe.steps.students.unsupportedFormat"))
       }
     },
-    [students, messageApi]
+    [students, showOobeMessage, t]
   )
 
   const handleDrop = useCallback(

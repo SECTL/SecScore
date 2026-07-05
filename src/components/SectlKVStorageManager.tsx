@@ -3,7 +3,7 @@
  * 基于 SECTL-One-Stop SDK 规范实现
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import {
   Card,
   Table,
@@ -61,42 +61,45 @@ export const SectlKVStorageManager: React.FC = () => {
   const [form] = Form.useForm()
 
   // 加载 KV 列表
-  const loadKVList = async (resetOffset = false) => {
-    if (!isAuthenticated) return
+  const loadKVList = useCallback(
+    async (resetOffset = false) => {
+      if (!isAuthenticated) return
 
-    try {
-      setLoading(true)
-      const currentOffset = resetOffset ? 0 : offset
-      const options: ListKVOptions = {
-        limit: 20,
-        offset: currentOffset,
-      }
-      if (prefix) {
-        options.prefix = prefix
-      }
+      try {
+        setLoading(true)
+        const currentOffset = resetOffset ? 0 : offset
+        const options: ListKVOptions = {
+          limit: 20,
+          offset: currentOffset,
+        }
+        if (prefix) {
+          options.prefix = prefix
+        }
 
-      const result = await sectlKVStorage.listKV(options)
-      setKvList(resetOffset ? result.kv_list : [...kvList, ...result.kv_list])
-      setTotal(result.total)
-      setHasMore(result.has_more)
-      if (resetOffset) {
-        setOffset(20)
-      } else {
-        setOffset(currentOffset + 20)
+        const result = await sectlKVStorage.listKV(options)
+        setKvList(resetOffset ? result.kv_list : [...kvList, ...result.kv_list])
+        setTotal(result.total)
+        setHasMore(result.has_more)
+        if (resetOffset) {
+          setOffset(20)
+        } else {
+          setOffset(currentOffset + 20)
+        }
+      } catch (error: any) {
+        message.error(`加载键值对列表失败：${error.message}`)
+      } finally {
+        setLoading(false)
       }
-    } catch (error: any) {
-      message.error(`加载键值对列表失败：${error.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    [isAuthenticated, offset, prefix, kvList]
+  )
 
   // 初始加载
   useEffect(() => {
     if (isAuthenticated) {
       loadKVList(true)
     }
-  }, [isAuthenticated, prefix])
+  }, [isAuthenticated, prefix, loadKVList])
 
   // 处理创建/更新
   const handleSave = async (values: {

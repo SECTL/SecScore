@@ -3,7 +3,7 @@
  * 提供云端数据同步功能
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Card, Button, Space, Alert, Descriptions, message, Modal, Typography, Divider } from "antd"
 import {
   CloudSyncOutlined,
@@ -43,7 +43,7 @@ export const ScoreSyncPanel: React.FC<SyncPanelProps> = ({ onGetLocalData, onRes
   const [hasData, setHasData] = useState(false)
 
   // 检查云端数据状态
-  const checkCloudStatus = async () => {
+  const checkCloudStatus = useCallback(async () => {
     if (!isAuthenticated) return
 
     try {
@@ -60,13 +60,13 @@ export const ScoreSyncPanel: React.FC<SyncPanelProps> = ({ onGetLocalData, onRes
     } finally {
       setLoading(false)
     }
-  }
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (isAuthenticated) {
       checkCloudStatus()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, checkCloudStatus])
 
   // 上传数据到云端
   const handleSyncToCloud = async () => {

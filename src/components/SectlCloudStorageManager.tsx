@@ -2,7 +2,7 @@
  * SECTL 云存储管理组件
  */
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import {
   Card,
   Table,
@@ -45,7 +45,7 @@ export const SectlCloudStorageManager: React.FC = () => {
   const [newFilename, setNewFilename] = useState("")
 
   // 加载文件列表
-  const loadFiles = async () => {
+  const loadFiles = useCallback(async () => {
     if (!isAuthenticated) return
 
     try {
@@ -57,10 +57,10 @@ export const SectlCloudStorageManager: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [isAuthenticated])
 
   // 加载存储使用情况
-  const loadStorageUsage = async () => {
+  const loadStorageUsage = useCallback(async () => {
     if (!isAuthenticated) return
 
     try {
@@ -69,14 +69,14 @@ export const SectlCloudStorageManager: React.FC = () => {
     } catch (error: any) {
       console.error("加载存储使用情况失败:", error)
     }
-  }
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (isAuthenticated) {
       loadFiles()
       loadStorageUsage()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, loadFiles, loadStorageUsage])
 
   // 处理文件上传
   const handleUpload = async (file: UploadFile): Promise<void> => {
@@ -95,11 +95,17 @@ export const SectlCloudStorageManager: React.FC = () => {
     }
   }
 
-  // 处理文件下载
   const handleDownload = async (file: CloudFile) => {
     try {
-      const { download_url } = await sectlCloudStorage.downloadFile(file.file_id)
-      window.open(download_url, "_blank")
+      const blob = await sectlCloudStorage.downloadFile(file.file_id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = file.filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
       message.success("开始下载")
     } catch (error: any) {
       message.error(`下载失败：${error.message}`)
@@ -137,7 +143,7 @@ export const SectlCloudStorageManager: React.FC = () => {
   const handleCreateShare = async (file: CloudFile) => {
     try {
       const share = await sectlCloudStorage.createShare(file.file_id, {
-        expires_in: 86400, // 1 天
+        expiresIn: 86400,
       })
 
       // 复制到剪贴板

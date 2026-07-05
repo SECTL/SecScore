@@ -1,11 +1,10 @@
 /**
  * SECTL 云存储服务
- * 提供文件上传、下载、管理、分享等功能
+ * 基于 SECTL-One-Stop SDK 的云存储 API 实现
  */
 
 import { SECTL_CONFIG, sectlAuth } from "./sectlAuth"
 
-// 文件信息类型
 export interface CloudFile {
   file_id: string
   filename: string
@@ -18,7 +17,6 @@ export interface CloudFile {
   thumbnail_url?: string
 }
 
-// 分享信息类型
 export interface ShareLink {
   share_id: string
   share_url: string
@@ -31,18 +29,16 @@ export interface ShareLink {
   status: "active" | "disabled" | "expired"
 }
 
-// KV 存储类型
 export interface KVData {
   kv_id: string
   key: string
-  value: any
+  value: unknown
   is_json: boolean
   size: number
   created_at: string
   updated_at: string
 }
 
-// 存储使用情况
 export interface StorageUsage {
   used_storage: number
   used_storage_formatted: string
@@ -55,542 +51,353 @@ export interface StorageUsage {
 }
 
 class SectlCloudStorageService {
-  /**
-   * 获取文件列表
-   */
-  async listFiles(options?: {
-    folder_id?: string
-    limit?: number
-    offset?: number
-  }): Promise<{ files: CloudFile[]; total: number; has_more: boolean }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const params = new URLSearchParams({
-      client_id: SECTL_CONFIG.platformId,
-      user_id: sectlAuth.getToken()?.user_id || "",
-      limit: String(options?.limit || 100),
-      offset: String(options?.offset || 0),
-    })
-
-    if (options?.folder_id) {
-      params.append("folder_id", options.folder_id)
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/files?${params.toString()}`
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "获取文件列表失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("获取文件列表失败:", error)
-      throw error
-    }
+  private getAccessToken(): string {
+    const token = sectlAuth.getAccessToken()
+    if (!token) throw new Error("未授权，请先登录")
+    return token
   }
 
-  /**
-   * 上传文件
-   */
+  private getAuthHeaders(): Record<string, string> {
+    return { Authorization: `Bearer ${this.getAccessToken()}` }
+  }
+
+  private buildParams(extra?: Record<string, string>): URLSearchParams {
+    const params = new URLSearchParams({ client_id: SECTL_CONFIG.platformId })
+    const userId = sectlAuth.getUserId()
+    if (userId) params.append("user_id", userId)
+    if (extra) {
+      for (const [key, value] of Object.entries(extra)) {
+        params.append(key, value)
+      }
+    }
+    return params
+  }
+
   async uploadFile(
     file: File | Blob,
-    options?: {
-      folder_id?: string
-      filename?: string
-    }
-  ): Promise<{
-    success: boolean
-    file_id: string
-    filename: string
-    size: number
-    size_formatted: string
-  }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
+    options?: { filename?: string; description?: string; tags?: string[] }
+  ): Promise<CloudFile> {
     const formData = new FormData()
+    formData.append("file", file, options?.filename)
     formData.append("client_id", SECTL_CONFIG.platformId)
-    formData.append("user_id", sectlAuth.getToken()?.user_id || "")
-    if (options?.folder_id) {
-      formData.append("folder_id", options.folder_id)
-    }
+    const userId = sectlAuth.getUserId()
+    if (userId) formData.append("user_id", userId)
+    if (options?.description) formData.append("description", options.description)
+    if (options?.tags) formData.append("tags", JSON.stringify(options.tags))
 
-    // 如果是 File 对象，直接使用；否则需要指定文件名
-    if (file instanceof File) {
-      formData.append("file", file)
-    } else {
-      const filename = options?.filename || "upload_" + Date.now()
-      formData.append("file", file, filename)
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/upload`
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "文件上传失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("文件上传失败:", error)
-      throw error
-    }
-  }
-
-  /**
-   * 上传文件（Base64 格式）
-   */
-  async uploadFileBase64(
-    base64Data: string,
-    filename: string,
-    mimeType: string = "application/octet-stream",
-    options?: {
-      folder_id?: string
-    }
-  ): Promise<{
-    success: boolean
-    file_id: string
-    filename: string
-    size: number
-  }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/upload`
-
-    const payload = {
-      client_id: SECTL_CONFIG.platformId,
-      user_id: sectlAuth.getToken()?.user_id || "",
-      filename,
-      mime_type: mimeType,
-      file: base64Data,
-      folder_id: options?.folder_id,
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "文件上传失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("文件上传失败:", error)
-      throw error
-    }
-  }
-
-  /**
-   * 获取文件下载链接
-   */
-  async downloadFile(fileId: string): Promise<{ download_url: string; expires_at: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const params = new URLSearchParams({
-      client_id: SECTL_CONFIG.platformId,
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/upload`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: formData,
     })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}/download?${params.toString()}`
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "获取下载链接失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("获取下载链接失败:", error)
-      throw error
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "文件上传失败")
     }
+    return response.json()
   }
 
-  /**
-   * 获取文件预览链接
-   */
-  async previewFile(fileId: string): Promise<{ view_url: string; expires_at: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
+  async listFiles(options?: {
+    folder?: string
+    limit?: number
+    offset?: number
+  }): Promise<{ files: CloudFile[]; total: number }> {
+    const params = this.buildParams()
+    if (options?.folder) params.append("folder", options.folder)
+    if (options?.limit) params.append("limit", String(options.limit))
+    if (options?.offset) params.append("offset", String(options.offset))
 
-    const params = new URLSearchParams({
-      client_id: SECTL_CONFIG.platformId,
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files?${params}`, {
+      headers: this.getAuthHeaders(),
     })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}/preview?${params.toString()}`
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取文件列表失败")
+    }
+    return response.json()
+  }
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+  async getFileInfo(fileId: string): Promise<CloudFile> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
+      headers: this.getAuthHeaders(),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "获取预览链接失败")
-      }
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取文件信息失败")
+    }
+    return response.json()
+  }
 
-      return await response.json()
-    } catch (error) {
-      console.error("获取预览链接失败:", error)
-      throw error
+  async downloadFile(fileId: string): Promise<Blob> {
+    const params = this.buildParams()
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}/download?${params}`,
+      { headers: this.getAuthHeaders() }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "下载文件失败")
+    }
+    return response.blob()
+  }
+
+  async previewFile(fileId: string): Promise<CloudFile> {
+    const params = this.buildParams()
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}/preview?${params}`,
+      { headers: this.getAuthHeaders() }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "预览文件失败")
+    }
+    return response.json()
+  }
+
+  async deleteFile(fileId: string, userId?: string): Promise<void> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        ...(userId ? { user_id: userId } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "删除文件失败")
     }
   }
 
-  /**
-   * 删除文件
-   */
-  async deleteFile(fileId: string): Promise<{ success: boolean; message: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
+  async renameFile(fileId: string, newFilename: string): Promise<CloudFile> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        filename: newFilename,
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "重命名文件失败")
     }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`
-
-    try {
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "删除文件失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("删除文件失败:", error)
-      throw error
-    }
+    return response.json()
   }
 
-  /**
-   * 重命名文件
-   */
-  async renameFile(
-    fileId: string,
-    newFilename: string
-  ): Promise<{
-    file_id: string
-    filename: string
-    updated_at: string
-  }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`
-
-    try {
-      const response = await fetch(url, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-          filename: newFilename,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "重命名文件失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("重命名文件失败:", error)
-      throw error
-    }
-  }
-
-  /**
-   * 创建分享链接
-   */
   async createShare(
     fileId: string,
-    options?: {
-      expires_in?: number // 秒，0 表示永久
-      password?: string
+    options?: { expiresIn?: number; password?: string; userId?: string }
+  ): Promise<ShareLink> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        file_id: fileId,
+        ...(options?.expiresIn ? { expires_in: options.expiresIn } : {}),
+        ...(options?.password ? { password: options.password } : {}),
+        ...(options?.userId ? { user_id: options.userId } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "创建分享链接失败")
     }
-  ): Promise<{
-    share_id: string
-    share_url: string
-    file_id: string
-    filename: string
-    expires_at?: string
-    has_password: boolean
-  }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/share`
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-          file_id: fileId,
-          expires_in: options?.expires_in || 86400, // 默认 1 天
-          password: options?.password,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "创建分享失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("创建分享失败:", error)
-      throw error
-    }
+    return response.json()
   }
 
-  /**
-   * 获取分享列表
-   */
   async listShares(): Promise<{ shares: ShareLink[]; total: number }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const params = new URLSearchParams({
-      client_id: SECTL_CONFIG.platformId,
-      user_id: sectlAuth.getToken()?.user_id || "",
+    const params = this.buildParams()
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/shares?${params}`, {
+      headers: this.getAuthHeaders(),
     })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/shares?${params.toString()}`
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取分享列表失败")
+    }
+    return response.json()
+  }
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+  async disableShare(shareId: string, userId?: string): Promise<void> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}/disable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        ...(userId ? { user_id: userId } : {}),
+      }),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "获取分享列表失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("获取分享列表失败:", error)
-      throw error
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "禁用分享失败")
     }
   }
 
-  /**
-   * 禁用分享
-   */
-  async disableShare(shareId: string): Promise<{ success: boolean; message: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
+  async enableShare(shareId: string, userId?: string): Promise<void> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}/enable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        ...(userId ? { user_id: userId } : {}),
+      }),
+    })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}/disable`
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "禁用分享失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("禁用分享失败:", error)
-      throw error
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "启用分享失败")
     }
   }
 
-  /**
-   * 启用分享
-   */
-  async enableShare(shareId: string): Promise<{ success: boolean; message: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
+  async deleteShare(shareId: string, userId?: string): Promise<void> {
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        ...(userId ? { user_id: userId } : {}),
+      }),
+    })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}/enable`
-
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "启用分享失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("启用分享失败:", error)
-      throw error
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "删除分享失败")
     }
   }
 
-  /**
-   * 删除分享
-   */
-  async deleteShare(shareId: string): Promise<{ success: boolean; message: string }> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/shares/${shareId}`
-
-    try {
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: SECTL_CONFIG.platformId,
-          user_id: sectlAuth.getToken()?.user_id || "",
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "删除分享失败")
-      }
-
-      return await response.json()
-    } catch (error) {
-      console.error("删除分享失败:", error)
-      throw error
-    }
-  }
-
-  /**
-   * 获取存储使用情况
-   */
   async getStorageUsage(): Promise<StorageUsage> {
-    const accessToken = sectlAuth.getAccessToken()
-    if (!accessToken) {
-      throw new Error("未授权，请先登录")
-    }
-
-    const params = new URLSearchParams({
-      client_id: SECTL_CONFIG.platformId,
-      user_id: sectlAuth.getToken()?.user_id || "",
+    const params = this.buildParams()
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/storage/usage?${params}`, {
+      headers: this.getAuthHeaders(),
     })
 
-    const url = `${SECTL_CONFIG.baseUrl}/api/cloud/storage/usage?${params.toString()}`
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取存储使用情况失败")
+    }
+    return response.json()
+  }
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
+  async setKV(
+    key: string,
+    value: string | Record<string, unknown>,
+    options?: { expiresIn?: number; userId?: string; description?: string }
+  ): Promise<KVData> {
+    const isJson = typeof value === "object"
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/kv`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+      body: JSON.stringify({
+        client_id: SECTL_CONFIG.platformId,
+        key,
+        value: isJson ? JSON.stringify(value) : value,
+        is_json: isJson,
+        ...(options?.expiresIn ? { expires_in: options.expiresIn } : {}),
+        ...(options?.userId ? { user_id: options.userId } : {}),
+        ...(options?.description ? { description: options.description } : {}),
+      }),
+    })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "获取存储使用情况失败")
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "设置 KV 失败")
+    }
+    return response.json()
+  }
+
+  async getKV(key: string): Promise<KVData> {
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}`,
+      {
+        method: "GET",
+        headers: this.getAuthHeaders(),
       }
+    )
 
-      return await response.json()
-    } catch (error) {
-      console.error("获取存储使用情况失败:", error)
-      throw error
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取 KV 失败")
+    }
+    return response.json()
+  }
+
+  async updateKVField(
+    key: string,
+    field: string,
+    value: unknown,
+    userId?: string
+  ): Promise<KVData> {
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+        body: JSON.stringify({
+          client_id: SECTL_CONFIG.platformId,
+          field,
+          value: typeof value === "object" ? JSON.stringify(value) : value,
+          ...(userId ? { user_id: userId } : {}),
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "更新 KV 字段失败")
+    }
+    return response.json()
+  }
+
+  async listKV(options?: {
+    prefix?: string
+    limit?: number
+    offset?: number
+  }): Promise<{ data: KVData[]; total: number }> {
+    const params = this.buildParams()
+    if (options?.prefix) params.append("prefix", options.prefix)
+    if (options?.limit) params.append("limit", String(options.limit))
+    if (options?.offset) params.append("offset", String(options.offset))
+
+    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/kv?${params}`, {
+      headers: this.getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "获取 KV 列表失败")
+    }
+    return response.json()
+  }
+
+  async deleteKV(key: string, userId?: string): Promise<void> {
+    const response = await fetch(
+      `${SECTL_CONFIG.baseUrl}/api/cloud/kv/${encodeURIComponent(key)}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
+        body: JSON.stringify({
+          client_id: SECTL_CONFIG.platformId,
+          ...(userId ? { user_id: userId } : {}),
+        }),
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error_description || "删除 KV 失败")
     }
   }
 }
 
-// 导出单例
 export const sectlCloudStorage = new SectlCloudStorageService()

@@ -256,6 +256,57 @@ function MainContent(): React.JSX.Element {
     }
   }, [refreshPermissionFromAuth])
 
+  // 监听 Deep Link 事件（用于 OAuth 回调）
+  useEffect(() => {
+    const api = (window as any).api
+    if (!api || typeof api.onDeepLink !== "function") return
+
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    api
+      .onDeepLink((url: string) => {
+        console.log("[DeepLink] Received URL:", url)
+        if (url.startsWith("secscore://oauth")) {
+          // 解析 OAuth 回调参数
+          const urlObj = new URL(url)
+          const code = urlObj.searchParams.get("code")
+          const state = urlObj.searchParams.get("state")
+          const error = urlObj.searchParams.get("error")
+
+          if (error) {
+            console.error("[DeepLink] OAuth error:", error)
+            messageApi.error("登录失败: " + error)
+            return
+          }
+
+          if (code && state) {
+            // 发送自定义事件，让 OAuthCallback 组件处理
+            window.dispatchEvent(
+              new CustomEvent("ss:oauth-deep-link", {
+                detail: { code, state },
+              })
+            )
+          }
+        }
+      })
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch((err: any) => {
+        console.error("[DeepLink] Failed to listen:", err)
+      })
+
+    return () => {
+      disposed = true
+      if (unlisten) unlisten()
+    }
+  }, [messageApi])
+
   useEffect(() => {
     const api = (window as any).api
     if (!api || typeof api.onSettingChanged !== "function") return
@@ -531,10 +582,12 @@ function MainContent(): React.JSX.Element {
   }, [messageApi, refreshPermissionFromAuth, t])
 
   const handleOAuthSuccess = (userInfo: {
-    user_id: string
-    email: string
-    name: string
-    github_username?: string
+    user_id?: string
+    id?: string
+    email?: string
+    name?: string
+    avatar?: string
+    avatar_url?: string
   }) => {
     // OAuth 登录仅用于云服务，不修改本地权限
     setOAuthUserName(userInfo.name || null)
