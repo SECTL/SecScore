@@ -40,9 +40,10 @@ pub async fn oauth_start_callback_server(
     let t0 = std::time::Instant::now();
     let log = |step: &str| {
         println!(
-            "[OAuth Callback] {} +{}ms",
+            "[OAuth Callback] {} +{}ms (wall={})",
             step,
-            t0.elapsed().as_millis()
+            t0.elapsed().as_millis(),
+            chrono::Local::now().format("%H:%M:%S%.3f")
         );
     };
     log("oauth_start_callback_server enter");

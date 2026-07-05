@@ -129,7 +129,9 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     setLoading(true)
     const t0 = performance.now()
     const log = (step: string) =>
-      console.log(`[OAuthLogin] ${step} +${Math.round(performance.now() - t0)}ms`)
+      console.log(
+        `[OAuthLogin] ${step} +${Math.round(performance.now() - t0)}ms (wall=${new Date().toISOString()})`
+      )
     log("handleOAuthLogin start")
 
     try {
