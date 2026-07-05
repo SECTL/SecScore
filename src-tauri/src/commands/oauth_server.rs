@@ -28,6 +28,9 @@ pub struct OAuthCallbackResult {
 static OAUTH_SERVER_SHUTDOWN: once_cell::sync::Lazy<Arc<Mutex<Option<oneshot::Sender<()>>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
 
+/// OAuth 本地回调服务器监听端口
+const OAUTH_CALLBACK_PORT: u16 = 51267;
+
 #[tauri::command]
 pub async fn oauth_start_callback_server(
     app_handle: tauri::AppHandle,
@@ -37,15 +40,38 @@ pub async fn oauth_start_callback_server(
 
     // 如果服务器已经在运行，直接返回 URL
     if shutdown_tx.is_some() {
-        let port = 16888u16;
+        let port = OAUTH_CALLBACK_PORT;
         let url = format!("http://127.0.0.1:{}/oauth/callback", port);
         return Ok(IpcResponse::success(OAuthServerStartResult { url, port }));
     }
 
-    let port = 16888u16;
+    let port = OAUTH_CALLBACK_PORT;
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
     let url = format!("http://127.0.0.1:{}/oauth/callback", port);
     let url_for_spawn = url.clone();
+
+    // 尝试绑定；若端口被占用，强杀占用进程后重试一次
+    let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::AddrInUse {
+                println!(
+                    "[OAuth Callback] 端口 {} 被占用，尝试强杀占用进程",
+                    port
+                );
+                if let Err(kill_err) = kill_processes_on_port(port) {
+                    eprintln!("[OAuth Callback] 强杀端口占用进程失败: {}", kill_err);
+                }
+                // 给系统一点时间回收端口
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                tokio::net::TcpListener::bind(addr)
+                    .await
+                    .map_err(|e| format!("绑定回调服务器端口 {} 失败: {}", port, e))?
+            } else {
+                return Err(format!("绑定回调服务器端口 {} 失败: {}", port, e));
+            }
+        }
+    };
 
     let (tx, rx) = oneshot::channel::<()>();
     *shutdown_tx = Some(tx);
@@ -57,14 +83,6 @@ pub async fn oauth_start_callback_server(
         let app = axum::Router::new()
             .route("/oauth/callback", axum::routing::get(handle_oauth_callback))
             .layer(axum::extract::Extension(app_handle_clone));
-
-        let listener = match tokio::net::TcpListener::bind(addr).await {
-            Ok(l) => l,
-            Err(e) => {
-                eprintln!("Failed to bind OAuth callback server: {}", e);
-                return;
-            }
-        };
 
         println!("OAuth callback server started at {}", url_for_spawn);
 
@@ -79,6 +97,62 @@ pub async fn oauth_start_callback_server(
     });
 
     Ok(IpcResponse::success(OAuthServerStartResult { url, port }))
+}
+
+/// 查找并强杀占用指定端口的进程。
+/// macOS/Linux 使用 lsof，Windows 使用 netstat + taskkill。
+fn kill_processes_on_port(port: u16) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        let output = std::process::Command::new("lsof")
+            .args(["-t", "-i", &format!(":{}", port)])
+            .output()
+            .map_err(|e| format!("执行 lsof 失败: {}", e))?;
+        let pids = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(|line| line.trim().parse::<i32>().ok())
+            .collect::<Vec<_>>();
+        for pid in pids {
+            let _ = std::process::Command::new("kill")
+                .args(["-9", &pid.to_string()])
+                .status();
+            println!("[OAuth Callback] 已强杀占用端口 {} 的进程 {}", port, pid);
+        }
+        Ok(())
+    }
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("netstat")
+            .args(["-ano"])
+            .output()
+            .map_err(|e| format!("执行 netstat 失败: {}", e))?;
+        let text = String::from_utf8_lossy(&output.stdout);
+        let needle = format!(":{}", port);
+        let mut pids = std::collections::HashSet::<String>::new();
+        for line in text.lines() {
+            // 只匹配监听/连接行且包含目标端口
+            if line.contains(&needle) {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if let Some(pid) = parts.last() {
+                    if pid.chars().all(|c| c.is_ascii_digit()) {
+                        pids.push(pid.to_string());
+                    }
+                }
+            }
+        }
+        for pid in pids {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid, "/F"])
+                .status();
+            println!("[OAuth Callback] 已强杀占用端口 {} 的进程 {}", port, pid);
+        }
+        Ok(())
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = port;
+        Err("当前平台不支持强杀端口占用进程".into())
+    }
 }
 
 #[tauri::command]

@@ -542,6 +542,23 @@ const api = {
     success: boolean
     message?: string
   }> => invoke("oauth_stop_callback_server"),
+  onOAuthCallback: (
+    callback: (payload: {
+      code?: string | null
+      state?: string | null
+      error?: string | null
+      error_description?: string | null
+    }) => void
+  ): Promise<UnlistenFn> => {
+    return listen<{
+      code?: string | null
+      state?: string | null
+      error?: string | null
+      error_description?: string | null
+    }>("oauth-callback", (event) => {
+      callback(event.payload || {})
+    })
+  },
   oauthReportOnline: (
     platformId: string,
     deviceType: string,

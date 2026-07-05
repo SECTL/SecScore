@@ -1,5 +1,5 @@
 import { Button, message, Modal, Space, Spin } from "antd"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { open } from "@tauri-apps/plugin-shell"
 import { sectlAuth, SECTL_CONFIG } from "../../services/sectlAuth"
@@ -20,49 +20,105 @@ interface OAuthLoginProps {
 export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
+  // 标记本次登录流程是否已完成，避免回调重复触发
+  const completedRef = useRef(false)
 
   useEffect(() => {
     if (!visible) return
 
     const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
     if (platformId) {
-      // 使用 deep link 回调地址
-      sectlAuth.initialize(platformId, "secscore://oauth")
+      // 使用本地 HTTP 回调地址 (http://127.0.0.1:51267/oauth/callback)
+      sectlAuth.initialize(platformId, "http://127.0.0.1:51267/oauth/callback")
       SECTL_CONFIG.platformId = platformId
-      SECTL_CONFIG.callbackUrl = "secscore://oauth"
+      SECTL_CONFIG.callbackUrl = "http://127.0.0.1:51267/oauth/callback"
     }
   }, [visible])
 
-  // 监听 Deep Link 回调
+  // 监听本地 HTTP 回调服务器转发回来的 OAuth 回调
   useEffect(() => {
     if (!visible || !loading) return
+    completedRef.current = false
 
-    const handleDeepLink = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ code: string; state: string }>
-      const { code, state } = customEvent.detail
+    const api = (window as any).api
+    if (!api || typeof api.onOAuthCallback !== "function") return
 
-      console.log("[OAuthLogin] Received deep link callback:", { code, state })
+    let disposed = false
+    let unlisten: (() => void) | null = null
+
+    const handleCallback = async (payload: {
+      code?: string | null
+      state?: string | null
+      error?: string | null
+      error_description?: string | null
+    }) => {
+      if (disposed || completedRef.current) return
+      console.log("[OAuthLogin] Received http callback:", payload)
+
+      if (payload.error) {
+        completedRef.current = true
+        message.error("登录失败: " + (payload.error_description || payload.error))
+        await stopCallbackServer()
+        setLoading(false)
+        return
+      }
+
+      if (!payload.code) {
+        completedRef.current = true
+        message.error("登录失败: 未收到授权码")
+        await stopCallbackServer()
+        setLoading(false)
+        return
+      }
 
       try {
-        // 使用 code 交换 token
-        const result = await sectlAuth.exchangeCode(code, state)
+        const result = await sectlAuth.exchangeCode(
+          payload.code,
+          payload.state || ""
+        )
         if (result) {
+          completedRef.current = true
           const userInfo = await sectlAuth.getUserInfo()
           onSuccess(userInfo)
           onClose()
         }
       } catch (error: any) {
+        completedRef.current = true
         message.error(error.message || "登录失败")
       } finally {
+        await stopCallbackServer()
         setLoading(false)
       }
     }
 
-    window.addEventListener("ss:oauth-deep-link", handleDeepLink)
+    api
+      .onOAuthCallback(handleCallback)
+      .then((fn: () => void) => {
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch((err: any) => {
+        console.error("[OAuthLogin] Failed to listen oauth-callback:", err)
+      })
+
     return () => {
-      window.removeEventListener("ss:oauth-deep-link", handleDeepLink)
+      disposed = true
+      if (unlisten) unlisten()
     }
   }, [visible, loading, onClose, onSuccess])
+
+  const stopCallbackServer = async () => {
+    const api = (window as any).api
+    if (!api || typeof api.oauthStopCallbackServer !== "function") return
+    try {
+      await api.oauthStopCallbackServer()
+    } catch (err) {
+      console.warn("[OAuthLogin] stop callback server failed:", err)
+    }
+  }
 
   const handleOAuthLogin = async () => {
     if (!SECTL_CONFIG.platformId) {
@@ -73,25 +129,41 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     setLoading(true)
 
     try {
+      // 启动本地 HTTP 回调服务器 (端口 51267，被占用则强杀已有进程)
+      const api = (window as any).api
+      if (api && typeof api.oauthStartCallbackServer === "function") {
+        const res = await api.oauthStartCallbackServer()
+        if (!res?.success) {
+          throw new Error(res?.message || "启动回调服务器失败")
+        }
+        // 以服务器实际返回的 URL 作为 redirect_uri
+        if (res.data?.url) {
+          SECTL_CONFIG.callbackUrl = res.data.url
+        }
+      }
+
       const authUrl = await sectlAuth.getAuthorizationUrl()
       // 使用 Tauri shell 打开系统浏览器
       await open(authUrl)
 
       // 设置超时
       setTimeout(() => {
-        if (loading) {
+        if (loading && !completedRef.current) {
+          stopCallbackServer()
           setLoading(false)
           message.warning("登录超时，请重试")
         }
       }, 300000)
     } catch (error: any) {
       message.error(error.message || "登录失败")
+      await stopCallbackServer()
       setLoading(false)
     }
   }
 
   const handleModalClose = () => {
     setLoading(false)
+    void stopCallbackServer()
     onClose()
   }
 

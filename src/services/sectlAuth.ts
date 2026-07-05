@@ -9,8 +9,8 @@ export const SECTL_CONFIG = {
   baseUrl: "https://appwrite.sectl.cn",
   authUrl: "https://sectl.cn",
   platformId: "", // 需要在设置中配置
-  callbackUrl: "secscore://oauth",
-  callbackPort: 5173,
+  callbackUrl: "http://127.0.0.1:51267/oauth/callback",
+  callbackPort: 51267,
 }
 
 // Token 数据类型 (与 SDK TokenData 对齐)
