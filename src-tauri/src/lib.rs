@@ -225,6 +225,9 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         let state = handle.state::<crate::state::SafeAppState>();
         let state_guard = state.write();
         let mut active_conn = sqlite_conn.clone();
+        // 缓存本地 SQLite 连接，供 realtime_dual_write_sync 复用，
+        // 避免每次写命令都新建连接池。
+        *state_guard.local_sqlite.write() = Some(sqlite_conn.clone());
 
         {
             let mut settings = state_guard.settings.write();

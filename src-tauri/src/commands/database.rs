@@ -749,13 +749,38 @@ async fn current_remote_and_local_from_state(
         return Ok(None);
     }
 
-    let local_path = sqlite_db_path(app_handle)?;
-    let local_conn = create_sqlite_connection(&local_path)
-        .await
-        .map_err(|e| e.to_string())?;
-    run_migration(&local_conn, DatabaseType::SQLite)
-        .await
-        .map_err(|e| e.to_string())?;
+    // 优先复用启动时缓存的本地 SQLite 连接；缓存未命中时再新建并回填。
+    // 这样 realtime_dual_write_sync 不会在每次写命令后都新建一个 sqlx 连接池，
+    // 避免“pool timed out while waiting for an open connection”式池耗尽。
+    let local_conn = {
+        // 先把 Arc 克隆出来，让 state_guard 尽早释放，再 read 缓存。
+        let local_sqlite = {
+            let state_guard = app_state.read();
+            state_guard.local_sqlite.clone()
+        };
+        let cloned = local_sqlite.read().clone();
+        cloned
+    };
+
+    let local_conn = match local_conn {
+        Some(conn) => conn,
+        None => {
+            let local_path = sqlite_db_path(app_handle)?;
+            let conn = create_sqlite_connection(&local_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            run_migration(&conn, DatabaseType::SQLite)
+                .await
+                .map_err(|e| e.to_string())?;
+            // 回填缓存（best-effort，竞争时仅最后写入者生效，两者都有效）。
+            let state_guard = app_state.read();
+            let mut local_guard = state_guard.local_sqlite.write();
+            if local_guard.is_none() {
+                *local_guard = Some(conn.clone());
+            }
+            conn
+        }
+    };
 
     Ok(Some((local_conn, remote_conn)))
 }

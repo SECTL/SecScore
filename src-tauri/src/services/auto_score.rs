@@ -1858,7 +1858,7 @@ async fn execute_rule(
     for mut student in target_students {
         if mode == ExecutionMode::Normal {
             if !is_student_pass_cooldown(
-                conn,
+                &txn,
                 execution_batches,
                 rule,
                 student.id,
@@ -2368,8 +2368,8 @@ async fn resolve_target_students(
     Ok(matched)
 }
 
-async fn is_student_pass_cooldown(
-    conn: &DatabaseConnection,
+async fn is_student_pass_cooldown<C: ConnectionTrait>(
+    conn: &C,
     execution_batches: &[AutoScoreExecutionBatch],
     rule: &AutoScoreRule,
     student_id: i32,

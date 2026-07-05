@@ -12,6 +12,9 @@ use crate::services::{
 
 pub struct AppState {
     pub db: Arc<RwLock<Option<DatabaseConnection>>>,
+    /// 缓存的本地 SQLite 连接（启动时建立），供 `realtime_dual_write_sync` 等复用，
+    /// 避免每次写操作都新建 sqlx 连接池导致池耗尽 / 文件句柄残留。
+    pub local_sqlite: Arc<RwLock<Option<DatabaseConnection>>>,
     pub settings: Arc<RwLock<SettingsService>>,
     pub security: Arc<RwLock<SecurityService>>,
     pub permissions: Arc<RwLock<PermissionService>>,
@@ -37,6 +40,7 @@ impl AppState {
         let data = Arc::new(RwLock::new(DataService::new()));
         let plugins = Arc::new(RwLock::new(PluginService::new()));
         let db = Arc::new(RwLock::new(None));
+        let local_sqlite = Arc::new(RwLock::new(None));
 
         let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -45,6 +49,7 @@ impl AppState {
 
         Self {
             db,
+            local_sqlite,
             settings,
             security,
             permissions,
