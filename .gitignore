@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 target/
+src-tauri/target/
 
 # Logs
 *.log
@@ -23,6 +24,9 @@ yarn-error.log*
 *.swp
 *.swo
 *.tmp
+
+# Lint cache
+.eslintcache
 
 # Python
 __pycache__/

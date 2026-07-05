@@ -289,50 +289,62 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     }
   }
 
-  const handleDelete = useCallback(async (id: number) => {
-    if (!(window as any).api) return
-    if (!canEdit) {
-      messageApi.error(t("common.readOnly"))
-      return
-    }
-    const res = await (window as any).api.deleteStudent(id)
-    if (res.success) {
-      messageApi.success(t("students.deleteSuccess"))
-      fetchStudents()
-      emitDataUpdated("students")
-    } else {
-      messageApi.error(res.message || t("students.deleteFailed"))
-    }
-  }, [canEdit, messageApi, t, fetchStudents])
+  const handleDelete = useCallback(
+    async (id: number) => {
+      if (!(window as any).api) return
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      const res = await (window as any).api.deleteStudent(id)
+      if (res.success) {
+        messageApi.success(t("students.deleteSuccess"))
+        fetchStudents()
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res.message || t("students.deleteFailed"))
+      }
+    },
+    [canEdit, messageApi, t, fetchStudents]
+  )
 
-  const handleOpenTagEditor = useCallback((student: student) => {
-    if (!canEdit) {
-      messageApi.error(t("common.readOnly"))
-      return
-    }
-    setEditingStudent(student)
-    setTagEditVisible(true)
-  }, [canEdit, messageApi, t])
+  const handleOpenTagEditor = useCallback(
+    (student: student) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setEditingStudent(student)
+      setTagEditVisible(true)
+    },
+    [canEdit, messageApi, t]
+  )
 
-  const handleOpenAvatarEditor = useCallback((student: student) => {
-    if (!canEdit) {
-      messageApi.error(t("common.readOnly"))
-      return
-    }
-    setAvatarStudent(student)
-    setAvatarValue(student.avatarUrl || null)
-    setAvatarVisible(true)
-  }, [canEdit, messageApi, t])
+  const handleOpenAvatarEditor = useCallback(
+    (student: student) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setAvatarStudent(student)
+      setAvatarValue(student.avatarUrl || null)
+      setAvatarVisible(true)
+    },
+    [canEdit, messageApi, t]
+  )
 
-  const handleOpenGroupEditor = useCallback((student: student) => {
-    if (!canEdit) {
-      messageApi.error(t("common.readOnly"))
-      return
-    }
-    setGroupEditStudent(student)
-    groupForm.setFieldsValue({ group_name: student.group_name || "" })
-    setGroupEditVisible(true)
-  }, [canEdit, messageApi, t, groupForm])
+  const handleOpenGroupEditor = useCallback(
+    (student: student) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setGroupEditStudent(student)
+      groupForm.setFieldsValue({ group_name: student.group_name || "" })
+      setGroupEditVisible(true)
+    },
+    [canEdit, messageApi, t, groupForm]
+  )
 
   const handleSaveGroup = async () => {
     if (!(window as any).api || !groupEditStudent) return

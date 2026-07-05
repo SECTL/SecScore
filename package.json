@@ -11,6 +11,7 @@
     "tauri:dev": "node scripts/tauri-dev.cjs",
     "tauri:build": "tauri build",
     "ios:sim": "node scripts/ios-sim.js",
+    "clean": "node scripts/clean.cjs",
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "lint:fix": "eslint --cache . --fix",
