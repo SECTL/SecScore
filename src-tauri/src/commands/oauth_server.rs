@@ -55,7 +55,7 @@ pub async fn oauth_start_callback_server(
     if let Some(h) = handle_guard.as_ref() {
         if !h.is_finished() {
             let port = OAUTH_CALLBACK_PORT;
-            let url = format!("http://127.0.0.1:{}/oauth/callback", port);
+            let url = format!("http://localhost:{}/oauth/callback", port);
             log("server already running, return early");
             return Ok(IpcResponse::success(OAuthServerStartResult { url, port }));
         }
@@ -63,7 +63,7 @@ pub async fn oauth_start_callback_server(
 
     let port = OAUTH_CALLBACK_PORT;
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-    let url = format!("http://127.0.0.1:{}/oauth/callback", port);
+    let url = format!("http://localhost:{}/oauth/callback", port);
     let url_for_spawn = url.clone();
 
     // 尝试绑定；若端口被占用，强杀占用进程后重试一次
