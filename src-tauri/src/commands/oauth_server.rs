@@ -36,12 +36,24 @@ pub async fn oauth_start_callback_server(
     app_handle: tauri::AppHandle,
     _state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthServerStartResult>, String> {
+    let t0 = std::time::Instant::now();
+    let log = |step: &str| {
+        println!(
+            "[OAuth Callback] {} +{}ms",
+            step,
+            t0.elapsed().as_millis()
+        );
+    };
+    log("oauth_start_callback_server enter");
+
     let mut shutdown_tx = OAUTH_SERVER_SHUTDOWN.lock().await;
+    log("after acquire shutdown lock");
 
     // 如果服务器已经在运行，直接返回 URL
     if shutdown_tx.is_some() {
         let port = OAUTH_CALLBACK_PORT;
         let url = format!("http://127.0.0.1:{}/oauth/callback", port);
+        log("server already running, return early");
         return Ok(IpcResponse::success(OAuthServerStartResult { url, port }));
     }
 
@@ -51,19 +63,26 @@ pub async fn oauth_start_callback_server(
     let url_for_spawn = url.clone();
 
     // 尝试绑定；若端口被占用，强杀占用进程后重试一次
+    log("before TcpListener::bind");
     let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(l) => l,
+        Ok(l) => {
+            log("after TcpListener::bind (ok)");
+            l
+        }
         Err(e) => {
             if e.kind() == std::io::ErrorKind::AddrInUse {
                 println!(
-                    "[OAuth Callback] 端口 {} 被占用，尝试强杀占用进程",
-                    port
+                    "[OAuth Callback] 端口 {} 被占用，尝试强杀占用进程 +{}ms",
+                    port,
+                    t0.elapsed().as_millis()
                 );
                 if let Err(kill_err) = kill_processes_on_port(port) {
                     eprintln!("[OAuth Callback] 强杀端口占用进程失败: {}", kill_err);
                 }
+                log("after kill_processes_on_port");
                 // 给系统一点时间回收端口
                 tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                log("after sleep 300ms");
                 tokio::net::TcpListener::bind(addr)
                     .await
                     .map_err(|e| format!("绑定回调服务器端口 {} 失败: {}", port, e))?
@@ -76,6 +95,7 @@ pub async fn oauth_start_callback_server(
     let (tx, rx) = oneshot::channel::<()>();
     *shutdown_tx = Some(tx);
     drop(shutdown_tx);
+    log("after store shutdown tx");
 
     let app_handle_clone = app_handle.clone();
 
@@ -95,6 +115,7 @@ pub async fn oauth_start_callback_server(
             }
         }
     });
+    log("after tokio::spawn, returning");
 
     Ok(IpcResponse::success(OAuthServerStartResult { url, port }))
 }

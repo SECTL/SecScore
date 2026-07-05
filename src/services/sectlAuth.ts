@@ -120,9 +120,16 @@ class SectlAuthService {
   }
 
   async getAuthorizationUrl(scope?: string[]): Promise<string> {
+    const t0 = performance.now()
+    const log = (step: string) =>
+      console.log(`[sectlAuth.getAuthorizationUrl] ${step} +${Math.round(performance.now() - t0)}ms`)
+
     const state = this.generateRandomState()
+    log("after generateRandomState")
     this.codeVerifier = await generateCodeVerifier()
+    log("after generateCodeVerifier")
     const codeChallenge = await generateCodeChallenge(this.codeVerifier)
+    log("after generateCodeChallenge")
 
     // 保存 code_verifier 到 localStorage，以便 deep link 回调时使用
     localStorage.setItem("sectl_code_verifier", this.codeVerifier)
@@ -140,7 +147,9 @@ class SectlAuthService {
       params.set("scope", scope.join(" "))
     }
 
-    return `${SECTL_CONFIG.authUrl}/oauth/authorize?${params.toString()}`
+    const url = `${SECTL_CONFIG.authUrl}/oauth/authorize?${params.toString()}`
+    log("done")
+    return url
   }
 
   async authorize(scope?: string[]): Promise<TokenData> {

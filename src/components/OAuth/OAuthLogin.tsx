@@ -127,12 +127,18 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
     }
 
     setLoading(true)
+    const t0 = performance.now()
+    const log = (step: string) =>
+      console.log(`[OAuthLogin] ${step} +${Math.round(performance.now() - t0)}ms`)
+    log("handleOAuthLogin start")
 
     try {
       // 启动本地 HTTP 回调服务器 (端口 51267，被占用则强杀已有进程)
       const api = (window as any).api
       if (api && typeof api.oauthStartCallbackServer === "function") {
+        log("before oauthStartCallbackServer")
         const res = await api.oauthStartCallbackServer()
+        log(`after oauthStartCallbackServer success=${res?.success}`)
         if (!res?.success) {
           throw new Error(res?.message || "启动回调服务器失败")
         }
@@ -142,19 +148,25 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         }
       }
 
+      log("before getAuthorizationUrl")
       const authUrl = await sectlAuth.getAuthorizationUrl()
+      log(`after getAuthorizationUrl url=${authUrl.slice(0, 60)}...`)
       // 使用 Tauri shell 打开系统浏览器
+      log("before open(authUrl)")
       await open(authUrl)
+      log("after open(authUrl)")
 
       // 设置超时
       setTimeout(() => {
         if (loading && !completedRef.current) {
+          log("login timeout, stopping callback server")
           stopCallbackServer()
           setLoading(false)
           message.warning("登录超时，请重试")
         }
       }, 300000)
     } catch (error: any) {
+      log(`handleOAuthLogin error: ${error?.message}`)
       message.error(error.message || "登录失败")
       await stopCallbackServer()
       setLoading(false)
