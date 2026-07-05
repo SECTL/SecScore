@@ -1382,21 +1382,32 @@ export const Settings: React.FC<{
                       syncMethod === "postgresql" ? "var(--ant-color-primary-bg)" : undefined,
                   }}
                 >
-                  <Radio value="postgresql">
-                    <Space>
-                      <DatabaseOutlined />
-                      <span style={{ fontWeight: 500 }}>{t("settings.cloudSync.postgresql")}</span>
-                    </Space>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--ss-text-secondary)",
-                        marginTop: 4,
-                        marginLeft: 22,
-                      }}
-                    >
-                      {t("settings.cloudSync.postgresqlDesc")}
+                  <Radio
+                    value="postgresql"
+                    styles={{
+                      root: { width: "100%", alignItems: "center" },
+                      label: { display: "flex", alignItems: "center", flex: 1, gap: 8 },
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{t("settings.cloudSync.postgresql")}</div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--ss-text-secondary)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {t("settings.cloudSync.postgresqlDesc")}
+                      </div>
                     </div>
+                    <DatabaseOutlined
+                      style={{
+                        fontSize: "26px",
+                        color: "var(--ant-color-primary)",
+                        flexShrink: 0,
+                      }}
+                    />
                   </Radio>
                 </Card>
                 <Card
@@ -1409,21 +1420,32 @@ export const Settings: React.FC<{
                       syncMethod === "sectl_cloud" ? "var(--ant-color-primary-bg)" : undefined,
                   }}
                 >
-                  <Radio value="sectl_cloud">
-                    <Space>
-                      <CloudOutlined />
-                      <span style={{ fontWeight: 500 }}>{t("settings.cloudSync.sectlCloud")}</span>
-                    </Space>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--ss-text-secondary)",
-                        marginTop: 4,
-                        marginLeft: 22,
-                      }}
-                    >
-                      {t("settings.cloudSync.sectlCloudDesc")}
+                  <Radio
+                    value="sectl_cloud"
+                    styles={{
+                      root: { width: "100%", alignItems: "center" },
+                      label: { display: "flex", alignItems: "center", flex: 1, gap: 8 },
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>{t("settings.cloudSync.sectlCloud")}</div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--ss-text-secondary)",
+                          marginTop: 4,
+                        }}
+                      >
+                        {t("settings.cloudSync.sectlCloudDesc")}
+                      </div>
                     </div>
+                    <CloudOutlined
+                      style={{
+                        fontSize: "26px",
+                        color: "var(--ant-color-primary)",
+                        flexShrink: 0,
+                      }}
+                    />
                   </Radio>
                 </Card>
               </Space>
