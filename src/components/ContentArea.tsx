@@ -3,9 +3,8 @@ import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress } from "ant
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  FullscreenOutlined,
-  FullscreenExitOutlined,
   LeftOutlined,
+  SettingOutlined,
 } from "@ant-design/icons"
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -71,8 +70,10 @@ interface ContentAreaProps {
   onToggleSidebar: () => void
   immersiveMode: boolean
   isHomePage: boolean
-  onToggleImmersiveMode: () => void
+  onOpenManagementWindow?: () => Promise<void> | void
   showSidebarToggle?: boolean
+  showHomeRoute?: boolean
+  fallbackRoute?: string
   bottomInset?: number
 }
 
@@ -99,8 +100,10 @@ export function ContentArea({
   onToggleSidebar,
   immersiveMode,
   isHomePage,
-  onToggleImmersiveMode,
+  onOpenManagementWindow,
   showSidebarToggle = true,
+  showHomeRoute = true,
+  fallbackRoute = "/",
   bottomInset = 0,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
@@ -118,7 +121,7 @@ export function ContentArea({
   const isBoardPage = normalizedPath.startsWith("/boards")
   const isMobileHeaderMode = isPortraitMode && isMobileDevice && !immersiveMode
   const isPrimaryMobilePage =
-    normalizedPath.startsWith("/home") || normalizedPath.startsWith("/settings")
+    (showHomeRoute && normalizedPath.startsWith("/home")) || normalizedPath.startsWith("/settings")
   const showMobileBack = isMobileHeaderMode && !isPrimaryMobilePage
   const mobilePageTitle = (() => {
     if (normalizedPath.startsWith("/home")) return t("sidebar.home")
@@ -549,10 +552,9 @@ export function ContentArea({
             {(immersiveMode || (isHomePage && !isMobileDevice)) && (
               <Button
                 size="small"
-                type={immersiveMode ? "primary" : "default"}
-                icon={immersiveMode ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                onClick={onToggleImmersiveMode}
-                title={immersiveMode ? "退出沉浸模式" : "进入沉浸模式"}
+                icon={<SettingOutlined />}
+                onClick={onOpenManagementWindow}
+                title="管理"
               />
             )}
             <Popover
@@ -651,16 +653,18 @@ export function ContentArea({
             className={`ss-route-page${shouldAnimateSubPage ? " is-subpage-enter" : ""}${isBoardPage ? " is-board-page" : ""}`}
           >
             <Routes>
-              <Route
-                path="/"
-                element={
-                  <Home
-                    canEdit={permission === "admin" || permission === "points"}
-                    isPortraitMode={isPortraitMode}
-                    immersiveMode={immersiveMode}
-                  />
-                }
-              />
+              {showHomeRoute && (
+                <Route
+                  path="/"
+                  element={
+                    <Home
+                      canEdit={permission === "admin" || permission === "points"}
+                      isPortraitMode={isPortraitMode}
+                      immersiveMode={immersiveMode}
+                    />
+                  }
+                />
+              )}
               <Route
                 path="/students"
                 element={<StudentManager canEdit={permission === "admin"} />}
@@ -685,7 +689,7 @@ export function ContentArea({
               />
               <Route path="/plugins" element={<PluginManager canEdit={permission === "admin"} />} />
               <Route path="/settings" element={<Settings permission={permission} />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
             </Routes>
           </div>
         </Suspense>

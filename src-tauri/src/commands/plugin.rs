@@ -19,7 +19,9 @@ fn check_admin_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>)
 }
 
 #[tauri::command]
-pub fn plugin_get_all(state: State<'_, Arc<RwLock<AppState>>>) -> Result<IpcResponse<Vec<Plugin>>, String> {
+pub fn plugin_get_all(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<Vec<Plugin>>, String> {
     let state_guard = state.read();
     let plugins = state_guard.plugins.read();
     let all_plugins = (*plugins).get_all_plugins().to_vec();
@@ -41,7 +43,9 @@ pub fn plugin_get(
 }
 
 #[tauri::command]
-pub fn plugin_get_stats(state: State<'_, Arc<RwLock<AppState>>>) -> Result<IpcResponse<PluginStats>, String> {
+pub fn plugin_get_stats(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<PluginStats>, String> {
     let state_guard = state.read();
     let plugins = state_guard.plugins.read();
     let stats = plugins.get_plugin_stats();
@@ -147,10 +151,16 @@ impl From<Plugin> for PluginListItem {
 }
 
 #[tauri::command]
-pub fn plugin_get_list(state: State<'_, Arc<RwLock<AppState>>>) -> Result<IpcResponse<Vec<PluginListItem>>, String> {
+pub fn plugin_get_list(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<Vec<PluginListItem>>, String> {
     let state_guard = state.read();
     let plugins = state_guard.plugins.read();
-    let list: Vec<PluginListItem> = (*plugins).get_all_plugins().iter().map(|p| (*p).clone().into()).collect();
+    let list: Vec<PluginListItem> = (*plugins)
+        .get_all_plugins()
+        .iter()
+        .map(|p| (*p).clone().into())
+        .collect();
     Ok(IpcResponse::success(list))
 }
 

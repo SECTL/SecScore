@@ -27,6 +27,7 @@ interface SidebarProps {
   floatingExpand: boolean
   floatingExpanded: boolean
   onFloatingExpandedChange: (expanded: boolean) => void
+  showHome?: boolean
 }
 
 interface DbStatus {
@@ -43,6 +44,7 @@ export function Sidebar({
   floatingExpand,
   floatingExpanded,
   onFloatingExpandedChange,
+  showHome = true,
 }: SidebarProps): React.JSX.Element {
   const { t } = useTranslation()
   const [dbStatus, setDbStatus] = useState<DbStatus>({ type: "sqlite", connected: true })
@@ -209,7 +211,7 @@ export function Sidebar({
       label: t("sidebar.settings"),
       disabled: permission !== "admin",
     },
-  ]
+  ].filter((item) => showHome || item.key !== "home")
 
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 

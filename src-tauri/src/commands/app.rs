@@ -68,14 +68,23 @@ if ($urlProtocol -and $command) {{
         let (registered, details) = match output {
             Ok(o) => {
                 let stdout = String::from_utf8_lossy(&o.stdout).to_string();
-                eprintln!("[URL Protocol] Windows PowerShell check output: {}", stdout.trim());
+                eprintln!(
+                    "[URL Protocol] Windows PowerShell check output: {}",
+                    stdout.trim()
+                );
 
                 if stdout.contains("REGISTERED") {
-                    (true, "URL protocol fully registered in Windows Registry".to_string())
+                    (
+                        true,
+                        "URL protocol fully registered in Windows Registry".to_string(),
+                    )
                 } else if stdout.contains("PARTIAL") {
                     (false, format!("Partial registration: {}", stdout.trim()))
                 } else {
-                    (false, "Registry key HKCU\\Software\\Classes\\secscore not found".to_string())
+                    (
+                        false,
+                        "Registry key HKCU\\Software\\Classes\\secscore not found".to_string(),
+                    )
                 }
             }
             Err(e) => {
@@ -84,7 +93,10 @@ if ($urlProtocol -and $command) {{
             }
         };
 
-        eprintln!("[URL Protocol] Windows check result: registered={}, {}", registered, details);
+        eprintln!(
+            "[URL Protocol] Windows check result: registered={}, {}",
+            registered, details
+        );
 
         Ok(IpcResponse::success(UrlProtocolStatus {
             registered,
@@ -113,7 +125,8 @@ if ($urlProtocol -and $command) {{
                     let stdout = String::from_utf8_lossy(&o.stdout);
                     if stdout.contains("secscore") {
                         registered = true;
-                        details = "secscore:// registered via Launch Services (app bundle)".to_string();
+                        details =
+                            "secscore:// registered via Launch Services (app bundle)".to_string();
                     } else {
                         details = "secscore:// not found in Launch Services dump".to_string();
                     }
@@ -135,7 +148,10 @@ if ($urlProtocol -and $command) {{
             }
         }
 
-        eprintln!("[URL Protocol] macOS check result: registered={}, {}", registered, details);
+        eprintln!(
+            "[URL Protocol] macOS check result: registered={}, {}",
+            registered, details
+        );
 
         Ok(IpcResponse::success(UrlProtocolStatus {
             registered,
@@ -165,7 +181,8 @@ if ($urlProtocol -and $command) {{
                                 let handler = String::from_utf8_lossy(&o.stdout).trim().to_string();
                                 if handler == "secscore.desktop" {
                                     registered = true;
-                                    details = "secscore.desktop is default URL scheme handler".to_string();
+                                    details = "secscore.desktop is default URL scheme handler"
+                                        .to_string();
                                 } else {
                                     registered = true;
                                     details = format!(
@@ -176,11 +193,15 @@ if ($urlProtocol -and $command) {{
                             }
                             _ => {
                                 registered = true;
-                                details = "Desktop file exists with MimeType (xdg-settings query failed)".to_string();
+                                details =
+                                    "Desktop file exists with MimeType (xdg-settings query failed)"
+                                        .to_string();
                             }
                         }
                     } else {
-                        details = "Desktop file exists but missing x-scheme-handler/secscore MimeType".to_string();
+                        details =
+                            "Desktop file exists but missing x-scheme-handler/secscore MimeType"
+                                .to_string();
                     }
                 }
                 Err(e) => {
@@ -191,7 +212,10 @@ if ($urlProtocol -and $command) {{
             details = "secscore.desktop not found in ~/.local/share/applications".to_string();
         }
 
-        eprintln!("[URL Protocol] Linux check result: registered={}, {}", registered, details);
+        eprintln!(
+            "[URL Protocol] Linux check result: registered={}, {}",
+            registered, details
+        );
 
         Ok(IpcResponse::success(UrlProtocolStatus {
             registered,
@@ -244,7 +268,10 @@ if (-not (Test-Path 'HKCU:\Software\Classes\{protocol}')) {{
             Ok(o) => {
                 let stdout = String::from_utf8_lossy(&o.stdout);
                 let ok = o.status.success() && stdout.contains("SUCCESS");
-                eprintln!("[URL Protocol] Windows PowerShell unregister result: {}", ok);
+                eprintln!(
+                    "[URL Protocol] Windows PowerShell unregister result: {}",
+                    ok
+                );
                 ok
             }
             Err(e) => {
@@ -271,7 +298,10 @@ if (-not (Test-Path 'HKCU:\Software\Classes\{protocol}')) {{
 
             match output {
                 Ok(o) => {
-                    eprintln!("[URL Protocol] macOS lsregister -u result: {}", o.status.success());
+                    eprintln!(
+                        "[URL Protocol] macOS lsregister -u result: {}",
+                        o.status.success()
+                    );
                 }
                 Err(e) => {
                     eprintln!("[URL Protocol] macOS lsregister -u error: {}", e);
@@ -310,7 +340,10 @@ if (-not (Test-Path 'HKCU:\Software\Classes\{protocol}')) {{
         if desktop_path.exists() {
             match fs::remove_file(&desktop_path) {
                 Ok(_) => {
-                    eprintln!("[URL Protocol] Linux desktop file removed: {:?}", desktop_path);
+                    eprintln!(
+                        "[URL Protocol] Linux desktop file removed: {:?}",
+                        desktop_path
+                    );
                     let apps_dir = home.join(".local/share/applications");
                     let _ = std::process::Command::new("update-desktop-database")
                         .arg(apps_dir.to_string_lossy().to_string())
@@ -397,7 +430,9 @@ pub async fn request_elevation(
         use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOW;
 
         let verb: Vec<u16> = OsStr::new("runas\0").encode_wide().collect();
-        let file: Vec<u16> = OsStr::new(&format!("{}\0", exe_str)).encode_wide().collect();
+        let file: Vec<u16> = OsStr::new(&format!("{}\0", exe_str))
+            .encode_wide()
+            .collect();
         let params: Vec<u16> = OsStr::new("\0").encode_wide().collect();
 
         let result = unsafe {
@@ -442,7 +477,10 @@ pub async fn request_elevation(
                 app.exit(0);
                 Ok(IpcResponse::success(()))
             }
-            Ok(s) => Err(format!("Elevation cancelled or failed (exit code: {:?})", s.code())),
+            Ok(s) => Err(format!(
+                "Elevation cancelled or failed (exit code: {:?})",
+                s.code()
+            )),
             Err(e) => Err(format!("Failed to request elevation: {}", e)),
         }
     }
@@ -453,16 +491,17 @@ pub async fn request_elevation(
             std::env::current_exe().map_err(|e| format!("Failed to get exe path: {}", e))?;
         let exe_str = exe_path.to_string_lossy().to_string();
 
-        let status = std::process::Command::new("pkexec")
-            .arg(&exe_str)
-            .status();
+        let status = std::process::Command::new("pkexec").arg(&exe_str).status();
 
         match status {
             Ok(s) if s.success() => {
                 app.exit(0);
                 Ok(IpcResponse::success(()))
             }
-            Ok(s) => Err(format!("Elevation cancelled or failed (exit code: {:?})", s.code())),
+            Ok(s) => Err(format!(
+                "Elevation cancelled or failed (exit code: {:?})",
+                s.code()
+            )),
             Err(e) => Err(format!("Failed to request elevation: {}", e)),
         }
     }
@@ -480,7 +519,10 @@ pub async fn register_url_protocol(
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<RegisterUrlProtocolResult>, String> {
     let protocol = "secscore";
-    eprintln!("[URL Protocol] Starting registration for protocol: {}", protocol);
+    eprintln!(
+        "[URL Protocol] Starting registration for protocol: {}",
+        protocol
+    );
 
     #[cfg(target_os = "windows")]
     {
@@ -525,7 +567,12 @@ try {{
                 let stdout = String::from_utf8_lossy(&o.stdout);
                 let stderr = String::from_utf8_lossy(&o.stderr);
                 let success = o.status.success() && stdout.contains("SUCCESS");
-                eprintln!("[URL Protocol] Windows PowerShell result: success={}, stdout={}, stderr={}", success, stdout.trim(), stderr.trim());
+                eprintln!(
+                    "[URL Protocol] Windows PowerShell result: success={}, stdout={}, stderr={}",
+                    success,
+                    stdout.trim(),
+                    stderr.trim()
+                );
                 if success {
                     let query_cmd = format!(
                         r#"reg query "HKCU\Software\Classes\{}\shell\open\command" /ve"#,
@@ -540,7 +587,10 @@ try {{
             }
         }
 
-        eprintln!("[URL Protocol] Windows registration verification: {}", registered);
+        eprintln!(
+            "[URL Protocol] Windows registration verification: {}",
+            registered
+        );
 
         let _ = app;
         return Ok(IpcResponse::success(RegisterUrlProtocolResult {
@@ -560,7 +610,10 @@ try {{
         let mut registered = false;
 
         if let Some(bundle_path) = app_bundle {
-            eprintln!("[URL Protocol] macOS: Found app bundle at {:?}", bundle_path);
+            eprintln!(
+                "[URL Protocol] macOS: Found app bundle at {:?}",
+                bundle_path
+            );
             let output = Command::new(
                 "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister",
             )
@@ -573,7 +626,10 @@ try {{
                     registered = true;
                 }
                 Ok(o) => {
-                    eprintln!("[URL Protocol] macOS: lsregister -f failed (exit: {:?}), trying -R -f", o.status.code());
+                    eprintln!(
+                        "[URL Protocol] macOS: lsregister -f failed (exit: {:?}), trying -R -f",
+                        o.status.code()
+                    );
                     let _ = Command::new("/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
                         .args(["-R", "-f", &bundle_path.to_string_lossy()])
                         .output();
@@ -660,7 +716,10 @@ MimeType=x-scheme-handler/secscore;
 
         match fs::write(&desktop_path, &desktop_content) {
             Ok(_) => {
-                eprintln!("[URL Protocol] Linux: Desktop file written to {:?}", desktop_path);
+                eprintln!(
+                    "[URL Protocol] Linux: Desktop file written to {:?}",
+                    desktop_path
+                );
             }
             Err(e) => {
                 eprintln!("[URL Protocol] Linux: Desktop file write error: {}", e);
@@ -674,7 +733,10 @@ MimeType=x-scheme-handler/secscore;
         let update_result = std::process::Command::new("update-desktop-database")
             .arg(apps_dir.to_string_lossy().to_string())
             .status();
-        eprintln!("[URL Protocol] Linux: update-desktop-database result: {:?}", update_result);
+        eprintln!(
+            "[URL Protocol] Linux: update-desktop-database result: {:?}",
+            update_result
+        );
 
         let xdg_set_result = std::process::Command::new("xdg-settings")
             .args([
@@ -684,22 +746,28 @@ MimeType=x-scheme-handler/secscore;
                 "secscore.desktop",
             ])
             .status();
-        eprintln!("[URL Protocol] Linux: xdg-settings set result: {:?}", xdg_set_result);
+        eprintln!(
+            "[URL Protocol] Linux: xdg-settings set result: {:?}",
+            xdg_set_result
+        );
 
         let xdg_mime_result = std::process::Command::new("xdg-mime")
-            .args([
-                "default",
-                "secscore.desktop",
-                "x-scheme-handler/secscore",
-            ])
+            .args(["default", "secscore.desktop", "x-scheme-handler/secscore"])
             .status();
-        eprintln!("[URL Protocol] Linux: xdg-mime default result: {:?}", xdg_mime_result);
+        eprintln!(
+            "[URL Protocol] Linux: xdg-mime default result: {:?}",
+            xdg_mime_result
+        );
 
         let verify_exists = desktop_path.exists();
         let verify_content = fs::read_to_string(&desktop_path).unwrap_or_default();
-        let actually_registered = verify_exists && verify_content.contains("x-scheme-handler/secscore");
+        let actually_registered =
+            verify_exists && verify_content.contains("x-scheme-handler/secscore");
 
-        eprintln!("[URL Protocol] Linux registration verification: {}", actually_registered);
+        eprintln!(
+            "[URL Protocol] Linux registration verification: {}",
+            actually_registered
+        );
 
         let _ = app;
         return Ok(IpcResponse::success(RegisterUrlProtocolResult {

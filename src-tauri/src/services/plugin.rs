@@ -118,7 +118,8 @@ impl PluginService {
         let plugins_dir = Self::get_plugins_dir(app_handle);
 
         if !plugins_dir.exists() {
-            fs::create_dir_all(&plugins_dir).map_err(|e| format!("Failed to create plugins directory: {}", e))?;
+            fs::create_dir_all(&plugins_dir)
+                .map_err(|e| format!("Failed to create plugins directory: {}", e))?;
         }
 
         self.plugins.clear();
@@ -132,7 +133,9 @@ impl PluginService {
             return Ok(());
         }
 
-        for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read plugins directory: {}", e))? {
+        for entry in
+            fs::read_dir(dir).map_err(|e| format!("Failed to read plugins directory: {}", e))?
+        {
             let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
             let path = entry.path();
 
@@ -149,7 +152,11 @@ impl PluginService {
                                 );
                                 continue;
                             }
-                            if self.plugins.iter().any(|existing| existing.id == manifest.id) {
+                            if self
+                                .plugins
+                                .iter()
+                                .any(|existing| existing.id == manifest.id)
+                            {
                                 eprintln!(
                                     "Skip duplicated plugin id {} at {}",
                                     manifest.id,
@@ -190,7 +197,9 @@ impl PluginService {
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-')
         {
-            return Err("Plugin id can only contain letters, numbers, dot, underscore, hyphen".to_string());
+            return Err(
+                "Plugin id can only contain letters, numbers, dot, underscore, hyphen".to_string(),
+            );
         }
         if name.is_empty() {
             return Err("Plugin name cannot be empty".to_string());
@@ -257,14 +266,17 @@ impl PluginService {
     fn persist_manifest_enabled(manifest_path: &Path, enabled: bool) -> Result<(), String> {
         let mut manifest = Self::load_plugin_manifest_from_file(manifest_path)?;
         manifest.enabled = enabled;
-        let serialized =
-            serde_json::to_string_pretty(&manifest).map_err(|e| format!("Failed to serialize manifest.json: {}", e))?;
+        let serialized = serde_json::to_string_pretty(&manifest)
+            .map_err(|e| format!("Failed to serialize manifest.json: {}", e))?;
         fs::write(manifest_path, format!("{}\n", serialized))
             .map_err(|e| format!("Failed to write manifest.json: {}", e))?;
         Ok(())
     }
 
-    fn resolve_plugin_relative_path(plugin_dir: &Path, relative_path: &str) -> Result<PathBuf, String> {
+    fn resolve_plugin_relative_path(
+        plugin_dir: &Path,
+        relative_path: &str,
+    ) -> Result<PathBuf, String> {
         let relative_path = relative_path.trim();
         if relative_path.is_empty() {
             return Err("Plugin entry file path cannot be empty".to_string());
@@ -309,7 +321,11 @@ impl PluginService {
         plugin_dir: PathBuf,
     ) -> Result<Plugin, String> {
         Self::validate_manifest(&manifest)?;
-        if self.plugins.iter().any(|existing| existing.id == manifest.id) {
+        if self
+            .plugins
+            .iter()
+            .any(|existing| existing.id == manifest.id)
+        {
             return Err("Plugin already installed".to_string());
         }
         if !plugin_dir.exists() || !plugin_dir.is_dir() {
@@ -322,7 +338,9 @@ impl PluginService {
         let source_manifest = Self::load_plugin_manifest(&plugin_dir)?;
         Self::validate_manifest(&source_manifest)?;
         if source_manifest.id != manifest.id {
-            return Err("Manifest mismatch: plugin id in folder does not match selected plugin".to_string());
+            return Err(
+                "Manifest mismatch: plugin id in folder does not match selected plugin".to_string(),
+            );
         }
 
         let plugins_dir = Self::get_plugins_dir(app_handle);

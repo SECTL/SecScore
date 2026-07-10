@@ -417,10 +417,7 @@ fn generate_code_challenge(verifier: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(verifier.as_bytes());
     let result = hasher.finalize();
-    base64::Engine::encode(
-        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-        &result,
-    )
+    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &result)
 }
 
 #[tauri::command]
@@ -472,7 +469,9 @@ pub async fn oauth_exchange_code(
     );
 
     let device_uuid = get_or_create_device_uuid();
-    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+    let ip_address = get_local_ip()
+        .await
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
 
     let state_guard = state.read();
     let client = &state_guard.http_client;
@@ -522,7 +521,10 @@ pub async fn oauth_exchange_code(
         }
     }
 
-    println!("[OAuth] Token 处理完成，access_token 长度: {}", token_response.access_token.len());
+    println!(
+        "[OAuth] Token 处理完成，access_token 长度: {}",
+        token_response.access_token.len()
+    );
 
     Ok(IpcResponse::success(token_response))
 }
@@ -761,7 +763,9 @@ pub async fn oauth_report_online(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OnlineStatusResponse>, String> {
     let device_uuid = get_or_create_device_uuid();
-    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+    let ip_address = get_local_ip()
+        .await
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
 
     println!(
         "[OAuth] 上报在线状态 - platform_id: {}, device_uuid: {}, device_type: {}",
@@ -844,11 +848,10 @@ pub async fn oauth_save_login_state(state_data: OAuthState) -> Result<IpcRespons
     println!("[OAuth] 保存登录状态 - user_id: {}", state_data.user_id);
 
     let file_path = get_oauth_state_file_path();
-    let json = serde_json::to_string_pretty(&state_data)
-        .map_err(|e| format!("序列化失败: {}", e))?;
+    let json =
+        serde_json::to_string_pretty(&state_data).map_err(|e| format!("序列化失败: {}", e))?;
 
-    std::fs::write(&file_path, json)
-        .map_err(|e| format!("写入文件失败: {}", e))?;
+    std::fs::write(&file_path, json).map_err(|e| format!("写入文件失败: {}", e))?;
 
     println!("[OAuth] 登录状态已保存到: {:?}", file_path);
     Ok(IpcResponse::success(()))
@@ -863,11 +866,10 @@ pub async fn oauth_load_login_state() -> Result<IpcResponse<Option<OAuthState>>,
         return Ok(IpcResponse::success(None));
     }
 
-    let json = std::fs::read_to_string(&file_path)
-        .map_err(|e| format!("读取文件失败: {}", e))?;
+    let json = std::fs::read_to_string(&file_path).map_err(|e| format!("读取文件失败: {}", e))?;
 
-    let state: OAuthState = serde_json::from_str(&json)
-        .map_err(|e| format!("解析 JSON 失败: {}", e))?;
+    let state: OAuthState =
+        serde_json::from_str(&json).map_err(|e| format!("解析 JSON 失败: {}", e))?;
 
     println!("[OAuth] 登录状态已加载 - user_id: {}", state.user_id);
     Ok(IpcResponse::success(Some(state)))
@@ -878,8 +880,7 @@ pub async fn oauth_clear_login_state() -> Result<IpcResponse<()>, String> {
     let file_path = get_oauth_state_file_path();
 
     if file_path.exists() {
-        std::fs::remove_file(&file_path)
-            .map_err(|e| format!("删除文件失败: {}", e))?;
+        std::fs::remove_file(&file_path).map_err(|e| format!("删除文件失败: {}", e))?;
         println!("[OAuth] 登录状态已清除");
     }
 
@@ -895,7 +896,9 @@ pub async fn oauth_refresh_access_token(
     println!("[OAuth] 刷新 access_token");
 
     let device_uuid = get_or_create_device_uuid();
-    let ip_address = get_local_ip().await.unwrap_or_else(|_| "127.0.0.1".to_string());
+    let ip_address = get_local_ip()
+        .await
+        .unwrap_or_else(|_| "127.0.0.1".to_string());
 
     let state_guard = state.read();
     let client = &state_guard.http_client;
@@ -928,8 +931,8 @@ pub async fn oauth_refresh_access_token(
         return Ok(IpcResponse::error(&response_text));
     }
 
-    let mut token_response: OAuthTokenResponse = serde_json::from_str(&response_text)
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+    let mut token_response: OAuthTokenResponse =
+        serde_json::from_str(&response_text).map_err(|e| format!("解析响应失败: {}", e))?;
 
     // 处理 access_token 格式: JWT|refresh_token
     if token_response.access_token.contains('|') {
@@ -941,4 +944,3 @@ pub async fn oauth_refresh_access_token(
 
     Ok(IpcResponse::success(token_response))
 }
-

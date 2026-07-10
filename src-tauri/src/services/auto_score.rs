@@ -986,7 +986,9 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
     })
 }
 
-fn parse_reward_exchange_action_value(raw_value: Option<&str>) -> Option<RewardExchangeActionValue> {
+fn parse_reward_exchange_action_value(
+    raw_value: Option<&str>,
+) -> Option<RewardExchangeActionValue> {
     let raw_value = raw_value.map(str::trim)?;
     if raw_value.is_empty() {
         return None;

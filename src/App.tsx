@@ -44,6 +44,7 @@ const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM
   0,
   4
 )
+const MANAGEMENT_DEFAULT_ROUTE = "/students"
 const applyGlobalFontFamily = (fontValue?: string) => {
   const fontFamily = resolveStoredFontFamily(fontValue)
   document.documentElement.style.setProperty("--ss-font-family", fontFamily)
@@ -61,7 +62,11 @@ function MainContent(): React.JSX.Element {
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
     !/iphone|ipad|ipod|android/i.test(navigator.userAgent)
-  const [immersiveMode, setImmersiveMode] = useState(false)
+  const isManagementWindow = useMemo(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get("window") === "management"
+  }, [])
+  const [immersiveMode] = useState(!isManagementWindow)
 
   const normalizeStoredBottomKeys = (raw: unknown): MobileNavKey[] => {
     if (Array.isArray(raw)) {
@@ -82,8 +87,13 @@ function MainContent(): React.JSX.Element {
         const currentPath = location.pathname === "/" ? "/home" : location.pathname
         const targetPath = route === "/" ? "/home" : route
 
-        if (immersiveMode && !targetPath.startsWith("/home")) {
+        if (!isManagementWindow && !targetPath.startsWith("/home")) {
           navigate("/", { replace: true })
+          return
+        }
+
+        if (isManagementWindow && targetPath.startsWith("/home")) {
+          navigate(MANAGEMENT_DEFAULT_ROUTE, { replace: true })
           return
         }
 
@@ -104,7 +114,7 @@ function MainContent(): React.JSX.Element {
       disposed = true
       if (unlisten) unlisten()
     }
-  }, [navigate, location.pathname, immersiveMode])
+  }, [navigate, location.pathname, isManagementWindow])
 
   const [wizardVisible, setWizardVisible] = useState(false)
   const [permission, setPermission] = useState<"admin" | "points" | "view">("view")
@@ -154,7 +164,7 @@ function MainContent(): React.JSX.Element {
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
-    if (p === "/" || p.startsWith("/home")) return "home"
+    if (p === "/" || p.startsWith("/home")) return isManagementWindow ? "students" : "home"
     if (p.startsWith("/students")) return "students"
     if (p.startsWith("/score")) return "score"
     if (p.startsWith("/boards")) return "boards"
@@ -165,8 +175,8 @@ function MainContent(): React.JSX.Element {
     if (p.startsWith("/reward-settings")) return "reward-settings"
     if (p.startsWith("/plugins")) return "plugins"
     if (p.startsWith("/settings")) return "settings"
-    return "home"
-  }, [location.pathname])
+    return isManagementWindow ? "students" : "home"
+  }, [location.pathname, isManagementWindow])
 
   useEffect(() => {
     const runtime = pluginRuntimeRef.current
@@ -602,7 +612,8 @@ function MainContent(): React.JSX.Element {
     const key = String(v)
     setMoreNavVisible(false)
     setEditingNav(false)
-    if (immersiveMode && key !== "home") return
+    if (!isManagementWindow && key !== "home") return
+    if (isManagementWindow && key === "home") return
     if (key === "home") navigate("/")
     if (key === "students") navigate("/students")
     if (key === "score") navigate("/score")
@@ -626,29 +637,32 @@ function MainContent(): React.JSX.Element {
   }
 
   useEffect(() => {
-    if (!immersiveMode) return
-    if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
+    if (
+      !isManagementWindow &&
+      location.pathname !== "/" &&
+      !location.pathname.startsWith("/home")
+    ) {
       navigate("/", { replace: true })
+      return
     }
-  }, [immersiveMode, location.pathname, navigate])
+    if (
+      isManagementWindow &&
+      (location.pathname === "/" || location.pathname.startsWith("/home"))
+    ) {
+      navigate(MANAGEMENT_DEFAULT_ROUTE, { replace: true })
+    }
+  }, [isManagementWindow, location.pathname, navigate])
 
-  const toggleImmersiveMode = () => {
-    setImmersiveMode((prev) => {
-      const next = !prev
-      if (next) {
-        setFloatingSidebarExpanded(false)
-        if (location.pathname !== "/" && !location.pathname.startsWith("/home")) {
-          navigate("/", { replace: true })
-        }
-      }
-      return next
-    })
-  }
+  const openManagementWindow = useCallback(async () => {
+    const api = (window as any).api
+    if (!api?.openManagementWindow) return
+    await api.openManagementWindow()
+  }, [])
 
   const isDark = currentTheme?.mode === "dark"
   const brandColor = currentTheme?.config?.tdesign?.brandColor || "#0052D9"
   const isMobileDevice = isIosDevice || isAndroidDevice
-  const showMobileBottomNav = isPortraitMode && !immersiveMode
+  const showMobileBottomNav = isPortraitMode && isManagementWindow
   const mobileBottomNavIconMap: Record<MobileNavKey, React.ReactNode> = {
     home: <HomeOutlined style={{ fontSize: "18px" }} />,
     students: <UserOutlined style={{ fontSize: "18px" }} />,
@@ -664,8 +678,13 @@ function MainContent(): React.JSX.Element {
   }
 
   const mobileNavAvailableItems = useMemo(
-    () => MOBILE_NAV_ITEMS.filter((item) => !(item.adminOnly && permission !== "admin")),
-    [permission]
+    () =>
+      MOBILE_NAV_ITEMS.filter(
+        (item) =>
+          (isManagementWindow ? item.key !== "home" : item.key === "home") &&
+          !(item.adminOnly && permission !== "admin")
+      ),
+    [isManagementWindow, permission]
   )
   const mobileBottomSelectedKeys = useMemo(() => {
     const availableKeySet = new Set(mobileNavAvailableItems.map((item) => item.key))
@@ -768,7 +787,7 @@ function MainContent(): React.JSX.Element {
       <Layout
         style={{ height: "100%", flexDirection: "row", overflow: "hidden", position: "relative" }}
       >
-        {!isPortraitMode && (
+        {!isPortraitMode && isManagementWindow && (
           <div
             className={`ss-immersive-sidebar ${immersiveMode ? "is-hidden" : "is-visible"}`}
             style={
@@ -785,6 +804,7 @@ function MainContent(): React.JSX.Element {
               floatingExpand={isPortraitMode}
               floatingExpanded={floatingSidebarExpanded}
               onFloatingExpandedChange={setFloatingSidebarExpanded}
+              showHome={false}
             />
           </div>
         )}
@@ -804,8 +824,10 @@ function MainContent(): React.JSX.Element {
           onToggleSidebar={toggleSidebar}
           immersiveMode={immersiveMode}
           isHomePage={activeMenu === "home"}
-          onToggleImmersiveMode={toggleImmersiveMode}
-          showSidebarToggle={!isPortraitMode}
+          onOpenManagementWindow={openManagementWindow}
+          showSidebarToggle={!isPortraitMode && isManagementWindow}
+          showHomeRoute={!isManagementWindow}
+          fallbackRoute={isManagementWindow ? MANAGEMENT_DEFAULT_ROUTE : "/"}
           bottomInset={showMobileBottomNav ? 84 : 0}
         />
         {showMobileBottomNav && (
