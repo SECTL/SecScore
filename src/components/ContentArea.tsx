@@ -1,10 +1,12 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
-import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress } from "antd"
+import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress, Input, QRCode } from "antd"
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   LeftOutlined,
   SettingOutlined,
+  LinkOutlined,
+  CopyOutlined,
 } from "@ant-design/icons"
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -84,6 +86,13 @@ interface HeaderStorageUsage {
   file_count: number
 }
 
+interface LanShareUrl {
+  ip: string
+  url: string
+  is_private?: boolean
+  is_192_168?: boolean
+}
+
 export function ContentArea({
   permission,
   oauthUserName,
@@ -107,12 +116,13 @@ export function ContentArea({
   bottomInset = 0,
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
+  const isLanBrowser = Boolean((window as any).__SECSCORE_LAN__)
   const isMacOS =
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
     !/iphone|ipad|ipod|android/i.test(navigator.userAgent)
   // macOS 使用原生红绿灯，侧栏隐藏（沉浸/竖屏）时顶部左侧需为红绿灯留白
-  const macTrafficLightsInset = isMacOS && (isPortraitMode || immersiveMode)
+  const macTrafficLightsInset = !isLanBrowser && isMacOS && (isPortraitMode || immersiveMode)
   const location = useLocation()
   const navigate = useNavigate()
   const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
@@ -200,7 +210,21 @@ export function ContentArea({
   })
   const [copiedUserId, setCopiedUserId] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
+  const [lanPopoverOpen, setLanPopoverOpen] = useState(false)
+  const [lanLoading, setLanLoading] = useState(false)
+  const [lanCopied, setLanCopied] = useState(false)
+  const [selectedLanShareUrl, setSelectedLanShareUrl] = useState<string | null>(null)
+  const [lanStatus, setLanStatus] = useState<{
+    is_running: boolean
+    url?: string | null
+    api_url?: string | null
+    share_url?: string | null
+    share_urls?: LanShareUrl[]
+    token?: string | null
+    config?: any
+  } | null>(null)
   const copyResetTimerRef = useRef<number | null>(null)
+  const lanCopyResetTimerRef = useRef<number | null>(null)
   const hasOAuthSession = Boolean(oauthUserName && oauthUserName.trim())
   const formattedLastSyncTime = (() => {
     if (!lastSyncTime) return "暂无"
@@ -290,6 +314,10 @@ export function ContentArea({
         window.clearTimeout(copyResetTimerRef.current)
         copyResetTimerRef.current = null
       }
+      if (lanCopyResetTimerRef.current) {
+        window.clearTimeout(lanCopyResetTimerRef.current)
+        lanCopyResetTimerRef.current = null
+      }
     }
   }, [])
 
@@ -328,6 +356,127 @@ export function ContentArea({
       setLogoutLoading(false)
     }
   }
+
+  const normalizeLanStatus = (data: any) => {
+    if (!data) return null
+    const shareUrls: LanShareUrl[] = Array.isArray(data.share_urls || data.shareUrls)
+      ? (data.share_urls || data.shareUrls)
+          .map((item: any) => ({
+            ip: String(item.ip || ""),
+            url: String(item.url || ""),
+            is_private: Boolean(item.is_private ?? item.isPrivate),
+            is_192_168: Boolean(item.is_192_168 ?? item.is192168),
+          }))
+          .filter((item: LanShareUrl) => item.ip && item.url)
+      : []
+    const primaryShareUrl = data.share_url || data.shareUrl || shareUrls[0]?.url || null
+    return {
+      is_running: Boolean(data.is_running ?? data.isRunning),
+      url: data.url || null,
+      api_url: data.api_url || data.apiUrl || null,
+      share_url: primaryShareUrl,
+      share_urls:
+        shareUrls.length > 0
+          ? shareUrls
+          : primaryShareUrl
+            ? [{ ip: "", url: primaryShareUrl }]
+            : [],
+      token: data.token || null,
+      config: data.config,
+    }
+  }
+
+  const applyLanStatus = (nextStatus: ReturnType<typeof normalizeLanStatus>) => {
+    setLanStatus(nextStatus)
+    setSelectedLanShareUrl((prev) => {
+      const urls = nextStatus?.share_urls || []
+      if (prev && urls.some((item) => item.url === prev)) return prev
+      return urls[0]?.url || nextStatus?.share_url || null
+    })
+  }
+
+  const refreshLanStatus = useCallback(async (refreshToken: boolean) => {
+    const api = (window as any).api
+    if (!api?.httpServerStatus) return
+    setLanLoading(true)
+    try {
+      const statusRes = await api.httpServerStatus()
+      const status = normalizeLanStatus(statusRes?.data)
+      if (refreshToken && status?.is_running && api.httpServerRefreshToken) {
+        const refreshRes = await api.httpServerRefreshToken()
+        if (refreshRes?.success) {
+          applyLanStatus(normalizeLanStatus({ ...refreshRes.data, is_running: true }))
+          return
+        }
+      }
+      applyLanStatus(status)
+    } finally {
+      setLanLoading(false)
+    }
+  }, [])
+
+  const handleLanPopoverOpenChange = (open: boolean) => {
+    setLanPopoverOpen(open)
+    if (open) {
+      void refreshLanStatus(true)
+    }
+  }
+
+  const startLanAccess = async () => {
+    const api = (window as any).api
+    if (!api?.httpServerStart) return
+    setLanLoading(true)
+    try {
+      const res = await api.httpServerStart({
+        host: "0.0.0.0",
+        port: 45739,
+        api_port: 45740,
+      })
+      if (res?.success) {
+        if (api.setSetting) {
+          await api.setSetting("lan_access_enabled", true)
+        }
+        applyLanStatus(normalizeLanStatus({ ...res.data, is_running: true }))
+      }
+    } finally {
+      setLanLoading(false)
+    }
+  }
+
+  const stopLanAccess = async () => {
+    const api = (window as any).api
+    if (!api?.httpServerStop) return
+    setLanLoading(true)
+    try {
+      const res = await api.httpServerStop()
+      if (res?.success) {
+        if (api.setSetting) {
+          await api.setSetting("lan_access_enabled", false)
+        }
+        setLanStatus((prev) => ({ ...(prev || { is_running: false }), is_running: false }))
+        setSelectedLanShareUrl(null)
+      }
+    } finally {
+      setLanLoading(false)
+    }
+  }
+
+  const copyLanLink = async (link = selectedLanShareUrl || lanStatus?.share_url || "") => {
+    if (!link) return
+    await navigator.clipboard.writeText(link)
+    setLanCopied(true)
+    if (lanCopyResetTimerRef.current) {
+      window.clearTimeout(lanCopyResetTimerRef.current)
+    }
+    lanCopyResetTimerRef.current = window.setTimeout(() => {
+      setLanCopied(false)
+      lanCopyResetTimerRef.current = null
+    }, 1500)
+  }
+
+  const lanShareUrls = lanStatus?.share_urls || []
+  const activeLanShareUrl =
+    selectedLanShareUrl || lanStatus?.share_url || lanShareUrls[0]?.url || ""
 
   const profilePopoverContent = (
     <div style={{ width: "260px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -405,6 +554,134 @@ export function ContentArea({
       >
         退出登录
       </Button>
+    </div>
+  )
+
+  const lanPopoverContent = (
+    <div style={{ width: "300px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--ss-text-main)" }}>
+          局域网访问
+        </span>
+        <Tag color={lanStatus?.is_running ? "success" : "default"}>
+          {lanStatus?.is_running ? "已启用" : "未启用"}
+        </Tag>
+      </div>
+
+      {!lanStatus?.is_running ? (
+        <Button
+          type="primary"
+          block
+          icon={<LinkOutlined />}
+          loading={lanLoading}
+          disabled={permission !== "admin"}
+          onClick={startLanAccess}
+        >
+          启用局域网访问
+        </Button>
+      ) : (
+        <>
+          <Input
+            readOnly
+            value={activeLanShareUrl}
+            suffix={
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={() => copyLanLink()}
+                disabled={!activeLanShareUrl}
+              >
+                {lanCopied ? "已复制" : "复制"}
+              </Button>
+            }
+          />
+          {activeLanShareUrl && (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <QRCode value={activeLanShareUrl} size={180} />
+            </div>
+          )}
+          {lanShareUrls.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {lanShareUrls.map((item, index) => {
+                const selected = item.url === activeLanShareUrl
+                return (
+                  <div
+                    key={`${item.ip}-${item.url}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto auto",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 8px",
+                      border: selected
+                        ? "1px solid var(--ant-color-primary)"
+                        : "1px solid var(--ss-border-color)",
+                      borderRadius: "8px",
+                      background: selected
+                        ? "color-mix(in srgb, var(--ant-color-primary) 8%, transparent)"
+                        : "transparent",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          color: "var(--ss-text-main)",
+                        }}
+                      >
+                        {item.ip || `地址 ${index + 1}`}
+                        {index === 0 && (
+                          <Tag color="blue" style={{ marginLeft: "6px" }}>
+                            默认
+                          </Tag>
+                        )}
+                        {item.is_192_168 && (
+                          <Tag color="green" style={{ marginLeft: "4px" }}>
+                            192.168
+                          </Tag>
+                        )}
+                      </div>
+                      <div
+                        title={item.url}
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--ss-text-secondary)",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.url}
+                      </div>
+                    </div>
+                    <Button size="small" onClick={() => setSelectedLanShareUrl(item.url)}>
+                      二维码
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<CopyOutlined />}
+                      onClick={() => copyLanLink(item.url)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+            每次打开此弹窗都会刷新 token，之前复制的链接会失效。
+          </div>
+          <Space>
+            <Button size="small" loading={lanLoading} onClick={() => refreshLanStatus(true)}>
+              刷新链接
+            </Button>
+            <Button size="small" danger loading={lanLoading} onClick={stopLanAccess}>
+              停用
+            </Button>
+          </Space>
+        </>
+      )}
     </div>
   )
 
@@ -549,7 +826,23 @@ export function ContentArea({
           }
         >
           <Space size="small">
-            {(immersiveMode || (isHomePage && !isMobileDevice)) && (
+            {!isLanBrowser && (
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                open={lanPopoverOpen}
+                onOpenChange={handleLanPopoverOpenChange}
+                content={lanPopoverContent}
+              >
+                <Button
+                  size="small"
+                  icon={<LinkOutlined />}
+                  title="局域网访问"
+                  disabled={permission !== "admin"}
+                />
+              </Popover>
+            )}
+            {!isLanBrowser && (immersiveMode || (isHomePage && !isMobileDevice)) && (
               <Button
                 size="small"
                 icon={<SettingOutlined />}

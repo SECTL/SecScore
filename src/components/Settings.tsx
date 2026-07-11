@@ -42,6 +42,7 @@ type appSettings = {
   search_keyboard_layout?: "t9" | "qwerty26"
   disable_search_keyboard?: boolean
   font_family?: string
+  lan_access_enabled?: boolean
 }
 
 interface FontOption {
@@ -191,6 +192,7 @@ export const Settings: React.FC<{
   const [appQuitLoading, setAppQuitLoading] = useState(false)
   const [appRestartLoading, setAppRestartLoading] = useState(false)
   const [mcpLoading, setMcpLoading] = useState(false)
+  const [lanAccessLoading, setLanAccessLoading] = useState(false)
   const [mcpConfig, setMcpConfig] = useState<{ host: string; port: number }>({
     host: "127.0.0.1",
     port: 3901,
@@ -944,6 +946,47 @@ export const Settings: React.FC<{
     } finally {
       await loadMcpStatus()
       setMcpLoading(false)
+    }
+  }
+
+  const toggleLanAccess = async (checked: boolean) => {
+    const api = (window as any).api
+    if (!api?.setSetting) return
+    setLanAccessLoading(true)
+    try {
+      if (checked) {
+        const statusRes = api.httpServerStatus ? await api.httpServerStatus() : null
+        const isRunning = Boolean(statusRes?.data?.is_running ?? statusRes?.data?.isRunning)
+        if (!isRunning) {
+          const startRes = await withTimeout(
+            api.httpServerStart?.({ host: "0.0.0.0", port: 45739, api_port: 45740 }),
+            10_000,
+            "启动局域网访问超时"
+          )
+          if (!startRes?.success) {
+            messageApi.error(startRes?.message || "启动局域网访问失败")
+            return
+          }
+        }
+      } else if (api.httpServerStop) {
+        const stopRes = await withTimeout(api.httpServerStop(), 10_000, "停止局域网访问超时")
+        if (!stopRes?.success) {
+          messageApi.error(stopRes?.message || "停止局域网访问失败")
+          return
+        }
+      }
+
+      const saveRes = await api.setSetting("lan_access_enabled", checked)
+      if (saveRes?.success) {
+        setSettings((prev) => ({ ...prev, lan_access_enabled: checked }))
+        messageApi.success(t("settings.general.saved"))
+      } else {
+        messageApi.error(saveRes?.message || t("settings.general.saveFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || "局域网访问设置失败")
+    } finally {
+      setLanAccessLoading(false)
     }
   }
 
@@ -1937,6 +1980,23 @@ export const Settings: React.FC<{
               />
             </>
           )}
+          <Divider />
+          <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>局域网访问</div>
+          <div
+            style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}
+          >
+            启用后会开放 45739 前端页面和 45740 API 服务，访问链接由主界面顶部链接按钮生成。
+          </div>
+          <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
+            <Form.Item label="启用">
+              <Switch
+                checked={Boolean(settings.lan_access_enabled)}
+                loading={lanAccessLoading}
+                disabled={!canAdmin}
+                onChange={toggleLanAccess}
+              />
+            </Form.Item>
+          </Form>
           <Divider />
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
             {t("settings.mcp.title")}

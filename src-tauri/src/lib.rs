@@ -148,6 +148,7 @@ pub fn run() {
             fs_file_exists,
             fs_open_path,
             http_server_start,
+            http_server_refresh_token,
             http_server_stop,
             http_server_status,
             mcp_server_start,
@@ -173,6 +174,41 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     setup_window_events(app)?;
 
     setup_deep_link(app)?;
+
+    setup_lan_http_server(app)?;
+
+    Ok(())
+}
+
+fn setup_lan_http_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = app.handle().clone();
+    let state = handle.state::<crate::state::SafeAppState>().inner().clone();
+
+    tauri::async_runtime::spawn(async move {
+        let enabled = {
+            let state_guard = state.read();
+            let db_conn = state_guard.db.read().clone();
+            let mut settings = state_guard.settings.write();
+            settings.attach_db(db_conn);
+            if settings.initialize().await.is_err() {
+                false
+            } else {
+                matches!(
+                    settings.get_value(SettingsKey::LanAccessEnabled),
+                    SettingsValue::Boolean(true)
+                )
+            }
+        };
+
+        if enabled {
+            if let Err(error) =
+                crate::commands::http_server_start_from_settings(handle.clone(), state.clone())
+                    .await
+            {
+                eprintln!("Failed to start LAN server from settings: {}", error);
+            }
+        }
+    });
 
     Ok(())
 }

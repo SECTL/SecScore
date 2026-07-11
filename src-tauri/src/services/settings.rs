@@ -20,6 +20,7 @@ pub struct SettingsSpec {
     pub pg_connection_string: String,
     pub pg_connection_status: JsonValue,
     pub mobile_bottom_nav_items: JsonValue,
+    pub lan_access_enabled: bool,
 }
 
 impl Default for SettingsSpec {
@@ -51,6 +52,7 @@ impl Default for SettingsSpec {
                 "reasons",
                 "settings"
             ]),
+            lan_access_enabled: false,
         }
     }
 }
@@ -72,6 +74,7 @@ pub enum SettingsKey {
     PgConnectionString,
     PgConnectionStatus,
     MobileBottomNavItems,
+    LanAccessEnabled,
 }
 
 impl SettingsKey {
@@ -92,6 +95,7 @@ impl SettingsKey {
             SettingsKey::PgConnectionString => "pg_connection_string",
             SettingsKey::PgConnectionStatus => "pg_connection_status",
             SettingsKey::MobileBottomNavItems => "mobile_bottom_nav_items",
+            SettingsKey::LanAccessEnabled => "lan_access_enabled",
         }
     }
 
@@ -112,6 +116,7 @@ impl SettingsKey {
             "pg_connection_string" => Some(SettingsKey::PgConnectionString),
             "pg_connection_status" => Some(SettingsKey::PgConnectionStatus),
             "mobile_bottom_nav_items" => Some(SettingsKey::MobileBottomNavItems),
+            "lan_access_enabled" => Some(SettingsKey::LanAccessEnabled),
             _ => None,
         }
     }
@@ -475,6 +480,16 @@ impl SettingsService {
             },
         );
 
+        defs.insert(
+            SettingsKey::LanAccessEnabled,
+            SettingDefinition {
+                kind: SettingValueKind::Boolean,
+                default_value: SettingsValue::Boolean(false),
+                write_permission: PermissionRequirement::Admin,
+                validate: None,
+            },
+        );
+
         defs
     }
 
@@ -635,6 +650,10 @@ impl SettingsService {
                     "reasons",
                     "settings"
                 ]),
+            },
+            lan_access_enabled: match self.get_value(SettingsKey::LanAccessEnabled) {
+                SettingsValue::Boolean(b) => b,
+                _ => false,
             },
         }
     }

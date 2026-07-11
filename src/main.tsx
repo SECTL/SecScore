@@ -8,8 +8,17 @@ import { ClientContext } from "./ClientContext"
 import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { api } from "./preload/types"
+import { lanApi } from "./services/lanApi"
 
-if (!(window as any).api) {
+const hasTauriInvoke =
+  typeof (window as any).__TAURI_INTERNALS__?.invoke === "function" ||
+  typeof (window as any).__TAURI__?.core?.invoke === "function"
+
+if (!hasTauriInvoke) {
+  ;(window as any).__SECSCORE_LAN__ = true
+  ;(window as any).api = lanApi
+} else if (!(window as any).api) {
+  ;(window as any).__SECSCORE_LAN__ = false
   ;(window as any).api = api
 }
 

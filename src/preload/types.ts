@@ -96,6 +96,7 @@ export type settingsKey =
   | "pg_connection_string"
   | "pg_connection_status"
   | "mobile_bottom_nav_items"
+  | "lan_access_enabled"
 
 export interface settingsSpec {
   is_wizard_completed: boolean
@@ -117,6 +118,7 @@ export interface settingsSpec {
     error?: string
   }
   mobile_bottom_nav_items: string[]
+  lan_access_enabled: boolean
 }
 
 export interface pluginRuntimeModule {
@@ -128,6 +130,13 @@ export interface pluginRuntimeModule {
   main: string
   code: string
   permissions: string[]
+}
+
+export interface httpServerShareUrl {
+  ip: string
+  url: string
+  is_private?: boolean
+  is_192_168?: boolean
 }
 
 const api = {
@@ -723,13 +732,45 @@ const api = {
   httpServerStart: (config?: {
     port?: number
     host?: string
+    api_port?: number
     corsOrigin?: string
-  }): Promise<{ success: boolean; data: { url: string; config: any } }> =>
-    invoke("http_server_start", { config }),
+  }): Promise<{
+    success: boolean
+    data: {
+      url: string
+      api_url?: string
+      share_url?: string
+      share_urls?: httpServerShareUrl[]
+      token?: string
+      config: any
+    }
+    message?: string
+  }> => invoke("http_server_start", { config }),
+  httpServerRefreshToken: (): Promise<{
+    success: boolean
+    data?: {
+      url: string
+      api_url?: string
+      share_url?: string
+      share_urls?: httpServerShareUrl[]
+      token?: string
+      config: any
+    }
+    message?: string
+  }> => invoke("http_server_refresh_token"),
   httpServerStop: (): Promise<{ success: boolean }> => invoke("http_server_stop"),
   httpServerStatus: (): Promise<{
     success: boolean
-    data: { isRunning: boolean; config?: any; url?: string }
+    data: {
+      is_running?: boolean
+      isRunning?: boolean
+      config?: any
+      url?: string
+      api_url?: string
+      share_url?: string
+      share_urls?: httpServerShareUrl[]
+      token?: string
+    }
   }> => invoke("http_server_status"),
 
   // MCP Server
