@@ -173,6 +173,14 @@ const api = {
     names: string[]
   }): Promise<{ success: boolean; data: { inserted: number; skipped: number; total: number } }> =>
     invoke("student_import_from_xlsx", { params }),
+  fetchBanYouCookieWithBrowser: (): Promise<{
+    success: boolean
+    data?: {
+      cookie: string
+      count: number
+    }
+    message?: string
+  }> => invoke("student_fetch_banyou_cookie_with_browser"),
   fetchBanYouClassrooms: (params: {
     cookie: string
   }): Promise<{

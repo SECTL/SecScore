@@ -14,7 +14,14 @@ import {
   Select,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { UploadOutlined, MoreOutlined, PlusOutlined, CopyOutlined } from "@ant-design/icons"
+import {
+  UploadOutlined,
+  MoreOutlined,
+  PlusOutlined,
+  CopyOutlined,
+  LoginOutlined,
+  EditOutlined,
+} from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
@@ -94,7 +101,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [visible, setVisible] = useState(false)
   const [textImportVisible, setTextImportVisible] = useState(false)
   const [xlsxVisible, setXlsxVisible] = useState(false)
+  const [banYouLoginMethodVisible, setBanYouLoginMethodVisible] = useState(false)
   const [banYouVisible, setBanYouVisible] = useState(false)
+  const [banYouImportMode, setBanYouImportMode] = useState<"browser" | "manual">("manual")
   const [tagEditVisible, setTagEditVisible] = useState(false)
   const [editingStudent, setEditingStudent] = useState<student | null>(null)
   const [groupEditVisible, setGroupEditVisible] = useState(false)
@@ -135,6 +144,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [xlsxSelectedCol, setXlsxSelectedCol] = useState<number | null>(null)
   const [textImportValue, setTextImportValue] = useState("")
   const [banYouCookie, setBanYouCookie] = useState("")
+  const [banYouBrowserLoginLoading, setBanYouBrowserLoginLoading] = useState(false)
   const [banYouLoading, setBanYouLoading] = useState(false)
   const [banYouDetailLoading, setBanYouDetailLoading] = useState(false)
   const [banYouImportLoading, setBanYouImportLoading] = useState(false)
@@ -1002,15 +1012,21 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const handleOpenBanYouImport = () => {
+    setBanYouLoginMethodVisible(true)
+  }
+
+  const handleOpenManualBanYouImport = () => {
+    setBanYouImportMode("manual")
+    setBanYouLoginMethodVisible(false)
     setBanYouVisible(true)
   }
 
-  const handleFetchBanYouClassrooms = async () => {
+  const handleFetchBanYouClassrooms = async (cookieOverride?: string) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
     }
-    const cookie = banYouCookie.trim()
+    const cookie = (cookieOverride ?? banYouCookie).trim()
     if (!cookie) {
       messageApi.warning(t("students.banyouCookieRequired"))
       return
@@ -1043,6 +1059,38 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       messageApi.error(e?.message || t("students.banyouFetchFailed"))
     } finally {
       setBanYouLoading(false)
+    }
+  }
+
+  const handleBanYouBrowserLogin = async () => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    if (!(window as any).api?.fetchBanYouCookieWithBrowser) {
+      messageApi.error(t("students.banyouBrowserLoginFailed"))
+      return
+    }
+
+    setBanYouBrowserLoginLoading(true)
+    try {
+      messageApi.info(t("students.banyouBrowserLoginWaiting"))
+      const res = await (window as any).api.fetchBanYouCookieWithBrowser()
+      const cookie = String(res?.data?.cookie ?? "").trim()
+      if (!res?.success || !cookie) {
+        messageApi.error(res?.message || t("students.banyouBrowserLoginFailed"))
+        return
+      }
+      setBanYouCookie(cookie)
+      setBanYouImportMode("browser")
+      setBanYouLoginMethodVisible(false)
+      setBanYouVisible(true)
+      messageApi.success(t("students.banyouBrowserCookieSuccess"))
+      await handleFetchBanYouClassrooms(cookie)
+    } catch (e: any) {
+      messageApi.error(e?.message || t("students.banyouBrowserLoginFailed"))
+    } finally {
+      setBanYouBrowserLoginLoading(false)
     }
   }
 
@@ -1805,6 +1853,37 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       </Modal>
 
       <Modal
+        title={t("students.banyouLoginMethodTitle")}
+        open={banYouLoginMethodVisible}
+        onCancel={() => setBanYouLoginMethodVisible(false)}
+        footer={null}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" style={{ width: "100%" }} size={12}>
+          <Button
+            block
+            type="primary"
+            icon={<LoginOutlined />}
+            loading={banYouBrowserLoginLoading}
+            onClick={handleBanYouBrowserLogin}
+          >
+            {t("students.banyouBrowserLogin")}
+          </Button>
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+            {t("students.banyouBrowserLoginHint")}
+          </div>
+          <Button
+            block
+            icon={<EditOutlined />}
+            disabled={banYouBrowserLoginLoading}
+            onClick={handleOpenManualBanYouImport}
+          >
+            {t("students.banyouManualCookie")}
+          </Button>
+        </Space>
+      </Modal>
+
+      <Modal
         title={t("students.importByBanyou")}
         open={banYouVisible}
         onCancel={() => setBanYouVisible(false)}
@@ -1813,19 +1892,27 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         destroyOnHidden
       >
         <Space orientation="vertical" style={{ width: "100%" }} size={12}>
-          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
-            {t("students.banyouCookieHint")}
-          </div>
-          <Input.TextArea
-            value={banYouCookie}
-            onChange={(e) => setBanYouCookie(e.target.value)}
-            rows={4}
-            placeholder={t("students.banyouCookiePlaceholder")}
-            disabled={banYouLoading}
-          />
-          <Button type="primary" loading={banYouLoading} onClick={handleFetchBanYouClassrooms}>
-            {t("students.banyouFetch")}
-          </Button>
+          {banYouImportMode === "manual" ? (
+            <>
+              <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
+                {t("students.banyouCookieHint")}
+              </div>
+              <Input.TextArea
+                value={banYouCookie}
+                onChange={(e) => setBanYouCookie(e.target.value)}
+                rows={4}
+                placeholder={t("students.banyouCookiePlaceholder")}
+                disabled={banYouLoading}
+              />
+              <Button
+                type="primary"
+                loading={banYouLoading}
+                onClick={() => handleFetchBanYouClassrooms()}
+              >
+                {t("students.banyouFetch")}
+              </Button>
+            </>
+          ) : null}
 
           <div style={{ marginTop: 8 }}>
             <h3 style={{ margin: "0 0 12px", color: "var(--ss-text-main)" }}>

@@ -4,8 +4,11 @@ use sea_orm::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
+use tokio::process::Command;
+use tokio::time::{timeout, Duration};
 
 use crate::db::entities::students;
 use crate::models::{StudentUpdate, StudentWithTags};
@@ -38,6 +41,13 @@ pub struct FetchBanYouClassroomDetailParams {
     pub cookie: String,
     pub class_id: String,
     pub team_plan_id: Option<i64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BanYouBrowserCookieData {
+    pub cookie: String,
+    pub count: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -237,6 +247,135 @@ fn extract_csrf_token_from_html(html: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn find_node_project_dir() -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir);
+    }
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    candidates.push(manifest_dir.clone());
+    if let Some(parent) = manifest_dir.parent() {
+        candidates.push(parent.to_path_buf());
+    }
+
+    for candidate in candidates {
+        for dir in candidate.ancestors() {
+            if dir.join("package.json").is_file()
+                && dir
+                    .join("scripts")
+                    .join("banyou-login-playwright.cjs")
+                    .is_file()
+            {
+                return Some(dir.to_path_buf());
+            }
+        }
+    }
+    None
+}
+
+fn node_executable() -> &'static str {
+    if cfg!(windows) {
+        "node.exe"
+    } else {
+        "node"
+    }
+}
+
+async fn run_banyou_playwright_script(
+    project_dir: &Path,
+) -> Result<BanYouBrowserCookieData, String> {
+    let script_path = project_dir
+        .join("scripts")
+        .join("banyou-login-playwright.cjs");
+    let output = timeout(
+        Duration::from_secs(10 * 60),
+        Command::new(node_executable())
+            .arg(script_path)
+            .current_dir(project_dir)
+            .output(),
+    )
+    .await
+    .map_err(|_| "BanYou browser login timed out".to_string())?
+    .map_err(|e| format!("Failed to start Node.js for Playwright: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let message = if stderr.is_empty() {
+            "Playwright browser login failed".to_string()
+        } else {
+            stderr
+        };
+        return Err(message);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stdout.is_empty() {
+        return Err("Playwright did not return a Cookie".to_string());
+    }
+    serde_json::from_str::<BanYouBrowserCookieData>(&stdout)
+        .map_err(|e| format!("Failed to parse Playwright Cookie output: {}", e))
+}
+
+#[tauri::command]
+pub async fn student_fetch_banyou_cookie_with_browser(
+    state: State<'_, Arc<RwLock<AppState>>>,
+    sender_id: Option<u32>,
+) -> Result<IpcResponse<BanYouBrowserCookieData>, String> {
+    if !check_admin_permission(&state, sender_id) {
+        return Ok(IpcResponse::error("Permission denied: admin required"));
+    }
+
+    log_banyou(
+        state.inner(),
+        LogLevel::Info,
+        "browser cookie fetch started",
+        None,
+    );
+
+    let Some(project_dir) = find_node_project_dir() else {
+        log_banyou(
+            state.inner(),
+            LogLevel::Error,
+            "failed to locate project directory for playwright script",
+            None,
+        );
+        return Ok(IpcResponse::error(
+            "Cannot find Playwright login script in project directory",
+        ));
+    };
+
+    match run_banyou_playwright_script(&project_dir).await {
+        Ok(data) => {
+            if data.cookie.trim().is_empty() {
+                return Ok(IpcResponse::error("Cookie cannot be empty"));
+            }
+            log_banyou(
+                state.inner(),
+                LogLevel::Info,
+                "browser cookie fetch succeeded",
+                Some(serde_json::json!({
+                    "cookie_length": data.cookie.len(),
+                    "cookie_count": data.count,
+                    "contains_uid": data.cookie.contains("uid="),
+                    "contains_access_token": data.cookie.contains("accessToken="),
+                })),
+            );
+            Ok(IpcResponse::success(data))
+        }
+        Err(err) => {
+            log_banyou(
+                state.inner(),
+                LogLevel::Error,
+                "browser cookie fetch failed",
+                Some(serde_json::json!({ "error": err })),
+            );
+            Ok(IpcResponse::error(
+                "通过浏览器登录班优失败，请重试或改用手动输入 Cookie",
+            ))
+        }
+    }
 }
 
 async fn get_banyou_client_and_csrf(
