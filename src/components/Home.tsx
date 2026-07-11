@@ -12,6 +12,7 @@ import {
   InputNumber,
   Divider,
   Dropdown,
+  Popover,
 } from "antd"
 import {
   SearchOutlined,
@@ -19,6 +20,7 @@ import {
   UndoOutlined,
   UploadOutlined,
   CopyOutlined,
+  MenuOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
@@ -118,6 +120,7 @@ export const Home: React.FC<HomeProps> = ({
   const [layoutType, setLayoutType] = useState<LayoutType>("grouped")
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
+  const [immersiveMenuOpen, setImmersiveMenuOpen] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
   const [disableSearchKeyboard, setDisableSearchKeyboard] = useState(false)
   const canShowSearchKeyboard = !isMobile && !disableSearchKeyboard
@@ -350,7 +353,7 @@ export const Home: React.FC<HomeProps> = ({
   }, [])
 
   useEffect(() => {
-    if (!immersiveMode) {
+    if (!immersiveMode || isPortraitMode) {
       setImmersiveToolbarWidth(null)
       return
     }
@@ -377,7 +380,7 @@ export const Home: React.FC<HomeProps> = ({
       window.removeEventListener("resize", updateToolbarWidth)
       if (frameId !== null) cancelAnimationFrame(frameId)
     }
-  }, [immersiveMode, immersiveToolbarHorizontalPadding])
+  }, [immersiveMode, immersiveToolbarHorizontalPadding, isPortraitMode])
 
   useEffect(() => {
     return () => {
@@ -438,6 +441,8 @@ export const Home: React.FC<HomeProps> = ({
   const getImmersivePopupContainer = useCallback((triggerNode: HTMLElement) => {
     return immersiveToolbarRef.current ?? triggerNode.parentElement ?? document.body
   }, [])
+
+  const getDocumentBodyPopupContainer = useCallback(() => document.body, [])
 
   const getDisplayText = (name: string) => {
     if (!name) return ""
@@ -2946,6 +2951,123 @@ export const Home: React.FC<HomeProps> = ({
     </Space>
   )
 
+  const immersiveActionButtonStyle: React.CSSProperties = {
+    width: "100%",
+    justifyContent: "center",
+    borderRadius: "8px",
+  }
+
+  const immersiveMenuContent = (
+    <div className="ss-immersive-toolbar-menu">
+      <Select
+        value={sortType}
+        onChange={(v) => setSortType(v as SortType)}
+        getPopupContainer={getDocumentBodyPopupContainer}
+        popupClassName="ss-immersive-toolbar-select-popup"
+        style={{ width: "100%" }}
+        options={[
+          { value: "alphabet", label: t("home.sortBy.alphabet") },
+          { value: "surname", label: t("home.sortBy.surname") },
+          { value: "group", label: t("home.sortBy.group") },
+          { value: "score", label: t("home.sortBy.score") },
+        ]}
+      />
+      <Select
+        value={layoutType}
+        onChange={(v) => setLayoutType(v as LayoutType)}
+        getPopupContainer={getDocumentBodyPopupContainer}
+        popupClassName="ss-immersive-toolbar-select-popup"
+        style={{ width: "100%" }}
+        options={[
+          { value: "grouped", label: t("home.layoutBy.grouped") },
+          { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+          { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
+        ]}
+      />
+      <Button
+        icon={<UndoOutlined />}
+        onClick={() => {
+          setImmersiveMenuOpen(false)
+          handleUndoLastEvent()
+        }}
+        loading={undoLoading}
+        disabled={!canEdit || !latestEvent || rewardMode}
+        title={
+          latestEvent
+            ? t("home.undoLastHint", {
+                name: latestEvent.student_name,
+                delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+              })
+            : t("home.undoUnavailable")
+        }
+        style={immersiveActionButtonStyle}
+      >
+        {t("home.undoLastAction")}
+      </Button>
+      <Button
+        type={rewardMode ? "default" : "primary"}
+        onClick={() => {
+          setImmersiveMenuOpen(false)
+          handleToggleRewardMode()
+        }}
+        disabled={!canEdit}
+        style={immersiveActionButtonStyle}
+      >
+        {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+      </Button>
+      {!rewardMode &&
+        (!batchMode ? (
+          <Button
+            onClick={() => {
+              setImmersiveMenuOpen(false)
+              handleEnterBatchMode()
+            }}
+            disabled={!canEdit}
+            style={immersiveActionButtonStyle}
+          >
+            {t("home.multiSelect")}
+          </Button>
+        ) : (
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+            <Button
+              onClick={handleSelectAllStudents}
+              disabled={!canEdit || students.length === 0}
+              style={immersiveActionButtonStyle}
+            >
+              {t("home.selectAll")}
+            </Button>
+            <Button
+              onClick={handleClearSelectedStudents}
+              disabled={!canEdit || selectedStudentIds.length === 0}
+              style={immersiveActionButtonStyle}
+            >
+              {t("home.clearSelected")}
+            </Button>
+            <Button
+              type="primary"
+              onClick={() => {
+                setImmersiveMenuOpen(false)
+                handleOpenBatchOperation()
+              }}
+              disabled={!canEdit || selectedStudentIds.length === 0}
+              style={immersiveActionButtonStyle}
+            >
+              {t("home.batchOperate")}
+            </Button>
+            <Button
+              onClick={() => {
+                setImmersiveMenuOpen(false)
+                handleExitBatchMode()
+              }}
+              style={immersiveActionButtonStyle}
+            >
+              {t("common.cancel")}
+            </Button>
+          </Space>
+        ))}
+    </div>
+  )
+
   return (
     <div
       style={{
@@ -3360,30 +3482,45 @@ export const Home: React.FC<HomeProps> = ({
           left: "50%",
           bottom: isPortraitMode ? "12px" : "16px",
           zIndex: 1100,
-          width: immersiveToolbarWidth ? `${immersiveToolbarWidth}px` : "max-content",
+          width: isPortraitMode
+            ? "calc(100vw - 20px)"
+            : immersiveToolbarWidth
+              ? `${immersiveToolbarWidth}px`
+              : "max-content",
           maxWidth: "calc(100vw - 20px)",
-          borderRadius: "999px",
-          border: "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
-          backgroundColor: "var(--ss-card-bg)",
-          background: "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          boxShadow: "0 8px 30px rgba(0, 0, 0, 0.16)",
-          padding: "10px",
+          display: isPortraitMode ? "flex" : undefined,
+          alignItems: isPortraitMode ? "center" : undefined,
+          justifyContent: isPortraitMode ? "flex-start" : undefined,
+          gap: isPortraitMode ? "4px" : undefined,
+          borderRadius: isPortraitMode ? undefined : "999px",
+          border: isPortraitMode
+            ? undefined
+            : "1px solid color-mix(in srgb, var(--ss-border-color) 80%, transparent)",
+          backgroundColor: isPortraitMode ? undefined : "var(--ss-card-bg)",
+          background: isPortraitMode
+            ? undefined
+            : "color-mix(in srgb, var(--ss-card-bg) 62%, transparent)",
+          backdropFilter: isPortraitMode ? undefined : "blur(16px)",
+          WebkitBackdropFilter: isPortraitMode ? undefined : "blur(16px)",
+          boxShadow: isPortraitMode ? undefined : "0 8px 30px rgba(0, 0, 0, 0.16)",
+          padding: isPortraitMode ? 0 : "10px",
           overflow: "visible",
         }}
       >
         <div
           ref={(node) => {
             searchAreaRef.current = node
-            immersiveToolbarContentRef.current = node
+            immersiveToolbarContentRef.current = isPortraitMode ? null : node
           }}
+          className={isPortraitMode ? "ss-immersive-toolbar-segment" : undefined}
           style={{
-            display: "inline-flex",
+            display: isPortraitMode ? "flex" : "inline-flex",
             alignItems: "center",
             gap: "8px",
             overflowX: "visible",
-            justifyContent: "flex-start",
+            justifyContent: isPortraitMode ? "center" : "flex-start",
+            flex: isPortraitMode ? "1 1 auto" : undefined,
+            minWidth: isPortraitMode ? 0 : undefined,
           }}
         >
           <Input
@@ -3401,61 +3538,66 @@ export const Home: React.FC<HomeProps> = ({
             placeholder={t("home.searchPlaceholder")}
             prefix={<SearchOutlined />}
             allowClear
+            className={isPortraitMode ? "ss-immersive-toolbar-search" : undefined}
             style={{
-              width: isPortraitMode ? "170px" : "220px",
+              width: isPortraitMode ? "100%" : "220px",
               borderRadius: "999px",
-              flexShrink: 0,
+              flexShrink: isPortraitMode ? 1 : 0,
             }}
           />
-          <Select
-            value={sortType}
-            onChange={(v) => setSortType(v as SortType)}
-            getPopupContainer={getImmersivePopupContainer}
-            style={{ width: 126, flexShrink: 0 }}
-            options={[
-              { value: "alphabet", label: t("home.sortBy.alphabet") },
-              { value: "surname", label: t("home.sortBy.surname") },
-              { value: "group", label: t("home.sortBy.group") },
-              { value: "score", label: t("home.sortBy.score") },
-            ]}
-          />
-          <Select
-            value={layoutType}
-            onChange={(v) => setLayoutType(v as LayoutType)}
-            getPopupContainer={getImmersivePopupContainer}
-            style={{ width: 126, flexShrink: 0 }}
-            options={[
-              { value: "grouped", label: t("home.layoutBy.grouped") },
-              { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
-              { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
-            ]}
-          />
-          <Button
-            icon={<UndoOutlined />}
-            onClick={handleUndoLastEvent}
-            loading={undoLoading}
-            disabled={!canEdit || !latestEvent || rewardMode}
-            title={
-              latestEvent
-                ? t("home.undoLastHint", {
-                    name: latestEvent.student_name,
-                    delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
-                  })
-                : t("home.undoUnavailable")
-            }
-            style={{ borderRadius: "999px", flexShrink: 0 }}
-          >
-            {t("home.undoLastAction")}
-          </Button>
-          <Button
-            type={rewardMode ? "default" : "primary"}
-            onClick={handleToggleRewardMode}
-            disabled={!canEdit}
-            style={{ borderRadius: "999px", flexShrink: 0 }}
-          >
-            {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-          </Button>
-          <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
+          {!isPortraitMode && (
+            <>
+              <Select
+                value={sortType}
+                onChange={(v) => setSortType(v as SortType)}
+                getPopupContainer={getImmersivePopupContainer}
+                style={{ width: 126, flexShrink: 0 }}
+                options={[
+                  { value: "alphabet", label: t("home.sortBy.alphabet") },
+                  { value: "surname", label: t("home.sortBy.surname") },
+                  { value: "group", label: t("home.sortBy.group") },
+                  { value: "score", label: t("home.sortBy.score") },
+                ]}
+              />
+              <Select
+                value={layoutType}
+                onChange={(v) => setLayoutType(v as LayoutType)}
+                getPopupContainer={getImmersivePopupContainer}
+                style={{ width: 126, flexShrink: 0 }}
+                options={[
+                  { value: "grouped", label: t("home.layoutBy.grouped") },
+                  { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+                  { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
+                ]}
+              />
+              <Button
+                icon={<UndoOutlined />}
+                onClick={handleUndoLastEvent}
+                loading={undoLoading}
+                disabled={!canEdit || !latestEvent || rewardMode}
+                title={
+                  latestEvent
+                    ? t("home.undoLastHint", {
+                        name: latestEvent.student_name,
+                        delta: latestEvent.delta > 0 ? `+${latestEvent.delta}` : latestEvent.delta,
+                      })
+                    : t("home.undoUnavailable")
+                }
+                style={{ borderRadius: "999px", flexShrink: 0 }}
+              >
+                {t("home.undoLastAction")}
+              </Button>
+              <Button
+                type={rewardMode ? "default" : "primary"}
+                onClick={handleToggleRewardMode}
+                disabled={!canEdit}
+                style={{ borderRadius: "999px", flexShrink: 0 }}
+              >
+                {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+              </Button>
+              <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
+            </>
+          )}
           {canShowSearchKeyboard && showPinyinKeyboard && (
             <div
               style={{
@@ -3519,6 +3661,30 @@ export const Home: React.FC<HomeProps> = ({
             </div>
           )}
         </div>
+        {isPortraitMode && (
+          <Popover
+            trigger="click"
+            placement="topRight"
+            open={immersiveMenuOpen}
+            onOpenChange={setImmersiveMenuOpen}
+            content={immersiveMenuContent}
+            overlayClassName="ss-immersive-toolbar-popover"
+          >
+            <div className="ss-immersive-toolbar-segment ss-immersive-toolbar-menu-segment">
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                aria-label="更多操作"
+                title="更多操作"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "999px",
+                }}
+              />
+            </div>
+          </Popover>
+        )}
       </div>
 
       {isPortraitMode ? (
