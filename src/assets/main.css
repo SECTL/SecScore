@@ -263,9 +263,406 @@ html.platform-macos body {
   animation: ss-reward-modal-morph-in 300ms cubic-bezier(0.2, 0.82, 0.22, 1) both;
 }
 
+.ss-home-operation-morph-modal .ant-modal-container,
 .ss-home-operation-morph-modal .ant-modal-content {
   transform-origin: center;
-  will-change: transform, opacity;
+  will-change: transform, width, height;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--ss-border-color) 85%, white);
+  border-radius: 20px;
+  box-shadow: 0 28px 80px rgba(26, 44, 77, 0.22);
+}
+
+.ss-home-operation-morph-modal .ant-modal-header {
+  padding: 18px 22px 10px;
+  margin: 0;
+  background: transparent;
+}
+
+.ss-home-operation-morph-modal .ant-modal-title {
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.ss-home-operation-morph-modal .ant-modal-body {
+  padding: 10px 22px 16px;
+}
+
+.ss-home-operation-morph-modal .ant-modal-footer {
+  margin: 0;
+  padding: 12px 22px 18px;
+  border-top: 1px solid color-mix(in srgb, var(--ss-border-color) 78%, transparent);
+}
+
+.ss-home-operation-morph-modal .ant-modal-header,
+.ss-home-operation-morph-modal .ant-modal-footer {
+  display: none;
+}
+
+.ss-home-operation-morph-modal .ant-modal-content {
+  padding: 0 !important;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-active .ant-modal-container,
+.ss-home-operation-morph-modal.ss-operation-morph-active .ant-modal-content {
+  animation: ss-operation-shell-in 620ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ant-modal-container,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ant-modal-content {
+  animation: ss-operation-shell-out 460ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes ss-operation-shell-in {
+  0%, 28% {
+    background-color: #fff;
+    border-color: var(--ss-border-color);
+    box-shadow: none;
+  }
+
+  62%, 100% {
+    background-color: #fff;
+    border-color: #dcdcdc;
+    box-shadow: 0 28px 80px rgba(26, 44, 77, 0.22);
+  }
+}
+
+@keyframes ss-operation-shell-out {
+  0% {
+    background-color: #fff;
+    border-color: #dcdcdc;
+    box-shadow: 0 28px 80px rgba(26, 44, 77, 0.22);
+  }
+
+  100% {
+    background-color: #fff;
+    border-color: var(--ss-border-color);
+    box-shadow: none;
+  }
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-score-label,
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-close {
+  animation: ss-operation-meta-in 360ms 230ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-quick-buttons,
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-divider,
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-reasons {
+  animation: ss-operation-body-in 400ms 300ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-score-label,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-close,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-quick-buttons,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-divider,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-reasons {
+  animation: ss-operation-content-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes ss-operation-meta-in {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(8px);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes ss-operation-body-in {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(14px);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes ss-operation-content-out {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+.ss-operation-panel-designed {
+  gap: 0;
+  padding: 0;
+  color: #202020;
+}
+
+.ss-operation-designed-header {
+  display: flex;
+  align-items: center;
+  min-height: 82px;
+  gap: 12px;
+  padding: 14px 2px 12px;
+}
+
+.ss-operation-designed-student {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+  flex: 1;
+}
+
+.ss-operation-designed-student img,
+.ss-operation-designed-avatar-fallback {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ss-operation-designed-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ss-operation-designed-student > span {
+  overflow: hidden;
+  color: #111;
+  font-size: 22px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-operation-designed-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  color: #666;
+  font-size: 18px;
+}
+
+.ss-operation-designed-score .ant-tag {
+  margin: 0;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.ss-operation-designed-close {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 0;
+  color: #111 !important;
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.ss-operation-designed-quick-buttons {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 8px;
+  padding: 18px 0 14px;
+}
+
+.ss-operation-designed-quick-buttons .ant-btn {
+  min-width: 0;
+  height: 68px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 60px;
+  color: #262626;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(1) { background: #ff8083; color: #fff; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(2) { background: #ff9fa2; color: #fff; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(3) { background: #ffc4c5; color: #f24d51; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(4) { background: #ffdfe0; color: #f21c22; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(5) { background: #e9fff0; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(6) { background: #d0ffdc; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(7) { background: #b9fbc9; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(8) { background: #a2f7b8; }
+.ss-operation-designed-quick-buttons .ant-btn:nth-child(9) { background: #8cf2a8; }
+
+.ss-operation-designed-divider {
+  height: 5px;
+  margin: 0 -4px 14px;
+  border-radius: 8px;
+  background: #d8d8d8;
+}
+
+.ss-operation-designed-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 0 8px 16px;
+}
+
+.ss-operation-designed-category-title {
+  margin-bottom: 14px;
+  color: #666;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.ss-operation-designed-reason-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn {
+  min-width: 132px;
+  min-height: 50px;
+  padding: 6px 16px;
+  border-width: 2px;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 17px;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn.is-positive {
+  border-color: #55c936;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn.is-negative {
+  border-color: #ff4d55;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn strong {
+  margin-left: 12px;
+  font-weight: 750;
+}
+
+.ss-operation-designed-reason-buttons .ant-btn.is-positive strong { color: #48bd2e; }
+.ss-operation-designed-reason-buttons .ant-btn.is-negative strong { color: #ff4d55; }
+
+.ss-operation-panel-header {
+  border: 1px solid color-mix(in srgb, var(--ss-border-color) 82%, white);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.72);
+}
+
+.ss-operation-panel-student-name {
+  font-size: 16px;
+  letter-spacing: 0.01em;
+}
+
+.ss-operation-panel-score .ant-tag {
+  margin-inline-end: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 15px;
+}
+
+.ss-operation-quick-strip {
+  padding: 14px 16px 16px;
+  border: 1px solid color-mix(in srgb, var(--ss-border-color) 76%, white);
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--ss-card-bg) 90%, #edf6ff), var(--ss-card-bg));
+}
+
+.ss-operation-quick-strip-label {
+  margin-bottom: 10px;
+  color: var(--ss-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.ss-operation-quick-buttons {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.ss-operation-quick-buttons .ant-btn {
+  min-width: 0;
+  height: 48px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  color: #263238;
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(-n + 3) {
+  background: #ffe0e0;
+  color: #d94848;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(1) {
+  background: #ff8b8b;
+  color: white;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(2) {
+  background: #ffabab;
+  color: white;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(n + 4) {
+  background: #e6fff0;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(5) {
+  background: #cef8dc;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(6) {
+  background: #b6f3ca;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(7) {
+  background: #a5efbd;
+}
+
+.ss-operation-quick-buttons .ant-btn:nth-child(8) {
+  background: #91eab0;
+}
+
+.ss-operation-panel-section {
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--ss-border-color) 75%, white);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ss-card-bg) 94%, #f7fbff);
+}
+
+.ss-operation-section-title > span {
+  font-size: 15px !important;
 }
 
 .ss-home-operation-morph-modal .ss-operation-panel-section,
@@ -302,6 +699,29 @@ html.platform-macos body {
   font-weight: 700;
 }
 
+@media (max-width: 860px) {
+  .ss-operation-quick-buttons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ss-operation-designed-quick-buttons {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .ss-operation-designed-quick-buttons .ant-btn {
+    height: 72px;
+  }
+
+  .ss-operation-designed-score {
+    font-size: 18px;
+  }
+
+  .ss-operation-designed-score .ant-tag {
+    font-size: 18px;
+  }
+}
+
 @media (max-width: 768px) {
   .ss-operation-panel-grid {
     grid-template-columns: 1fr !important;
@@ -315,26 +735,54 @@ html.platform-macos body {
   .ss-reason-preset-buttons .ant-btn {
     min-height: 46px;
   }
-}
 
-.ss-operation-mask-fade-enter,
-.ss-operation-mask-fade-appear {
-  opacity: 0 !important;
-}
+  .ss-operation-quick-buttons {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 
-.ss-operation-mask-fade-enter-active,
-.ss-operation-mask-fade-appear-active {
-  opacity: 1 !important;
-  transition: opacity 260ms cubic-bezier(0.2, 0, 0, 1) !important;
-}
+  .ss-operation-designed-header {
+    min-height: 84px;
+    gap: 8px;
+    padding: 14px 0;
+  }
 
-.ss-operation-mask-fade-leave {
-  opacity: 1 !important;
-}
+  .ss-operation-designed-student img,
+  .ss-operation-designed-avatar-fallback {
+    width: 58px;
+    height: 58px;
+    flex-basis: 58px;
+  }
 
-.ss-operation-mask-fade-leave-active {
-  opacity: 0 !important;
-  transition: opacity 220ms cubic-bezier(0.4, 0, 1, 1) !important;
+  .ss-operation-designed-student > span {
+    font-size: 21px;
+  }
+
+  .ss-operation-designed-close {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    font-size: 36px;
+  }
+
+  .ss-operation-designed-quick-buttons {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .ss-operation-designed-quick-buttons .ant-btn {
+    height: 64px;
+    font-size: 26px;
+  }
+
+  .ss-operation-designed-category-title {
+    font-size: 19px;
+  }
+
+  .ss-operation-designed-reason-buttons .ant-btn {
+    min-width: 0;
+    min-height: 56px;
+    padding: 6px 14px;
+    font-size: 18px;
+  }
 }
 
 @keyframes ss-reward-modal-morph-in {

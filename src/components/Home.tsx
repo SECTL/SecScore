@@ -64,6 +64,35 @@ interface rewardSetting {
   cost_points: number
 }
 
+interface operationMorphElementRects {
+  avatar: DOMRect | null
+  name: DOMRect | null
+  score: DOMRect | null
+  avatarBorderRadius: string | null
+  surfaceBorderRadius: string | null
+}
+
+const getOperationElementMorph = (
+  targetRect: DOMRect,
+  sourceRect: DOMRect
+) => {
+  const translateX = sourceRect.left - targetRect.left
+  const translateY = sourceRect.top - targetRect.top
+  const scale = sourceRect.height / Math.max(1, targetRect.height)
+  return {
+    transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`,
+    translateX,
+    translateY,
+    scale,
+  }
+}
+
+const getCompensatedBorderRadius = (borderRadius: string, scale: number) => {
+  const value = Number.parseFloat(borderRadius)
+  if (!Number.isFinite(value) || scale <= 0) return borderRadius
+  return `${value / scale}px`
+}
+
 type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
@@ -138,6 +167,8 @@ export const Home: React.FC<HomeProps> = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [operationVisible, setOperationVisible] = useState(false)
   const [operationOriginRect, setOperationOriginRect] = useState<DOMRect | null>(null)
+  const [operationOriginElements, setOperationOriginElements] =
+    useState<operationMorphElementRects | null>(null)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
   const [submitLoading, setSubmitLoading] = useState(false)
@@ -163,11 +194,16 @@ export const Home: React.FC<HomeProps> = ({
   const fetchRequestIdRef = useRef(0)
   const operationMorphAnimationRef = useRef<Animation | null>(null)
   const operationMaskAnimationRef = useRef<Animation | null>(null)
+  const operationElementAnimationsRef = useRef<Animation[]>([])
   const operationMorphRafRef = useRef<number | null>(null)
   const operationClosingRef = useRef(false)
   const operationCloseTokenRef = useRef(0)
   const operationModalRootClass = "ss-home-operation-morph-root"
   const operationModalClass = "ss-home-operation-morph-modal"
+  const operationMorphOpenDuration = 620
+  const operationMorphCloseDuration = 460
+  const operationMorphEasing = "cubic-bezier(0.2, 0, 0, 1)"
+  const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -176,9 +212,9 @@ export const Home: React.FC<HomeProps> = ({
   const logHome = (message: string, meta?: Record<string, unknown>) => {
     try {
       if (meta) {
-        console.error(`[Home][Diag] ${message}`, meta)
+        console.info(`[Home][积分弹窗] ${message}`, meta)
       } else {
-        console.error(`[Home][Diag] ${message}`)
+        console.info(`[Home][积分弹窗] ${message}`)
       }
     } catch {
       void 0
@@ -642,11 +678,45 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     const cardEl = sourceEl?.querySelector(".ant-card") as HTMLElement | null
-    const sourceRect = (cardEl ?? sourceEl)?.getBoundingClientRect() ?? null
+    const cardBodyEl = sourceEl?.querySelector(".ant-card-body") as HTMLElement | null
+    const sourceRect = (cardBodyEl ?? cardEl ?? sourceEl)?.getBoundingClientRect() ?? null
+    const findLeafByText = (text: string) => {
+      if (!sourceEl) return null
+      return (
+        Array.from(sourceEl.querySelectorAll<HTMLElement>("div, span"))
+          .filter((element) => element.children.length === 0 && element.textContent?.trim() === text)
+          .sort((a, b) => {
+            const aRect = a.getBoundingClientRect()
+            const bRect = b.getBoundingClientRect()
+            return aRect.width * aRect.height - bRect.width * bRect.height
+          })[0] ?? null
+      )
+    }
+    const displayPoints = getDisplayPoints(student)
+    const scoreText = displayPoints > 0 ? `+${displayPoints}` : String(displayPoints)
+    const sourceAvatarEl =
+      (sourceEl?.querySelector('[data-operation-morph="avatar"]') as HTMLElement | null) ??
+      (sourceEl?.querySelector(`img[alt="${CSS.escape(student.name)}"]`) as HTMLElement | null)
+    const sourceNameEl =
+      (sourceEl?.querySelector('[data-operation-morph="name"]') as HTMLElement | null) ??
+      findLeafByText(student.name)
+    const sourceScoreEl =
+      (sourceEl?.querySelector('[data-operation-morph="score"]') as HTMLElement | null) ??
+      findLeafByText(scoreText)
+    const sourceElements: operationMorphElementRects = {
+      avatar: sourceAvatarEl?.getBoundingClientRect() ?? null,
+      name: sourceNameEl?.getBoundingClientRect() ?? null,
+      score: sourceScoreEl?.getBoundingClientRect() ?? null,
+      avatarBorderRadius: sourceAvatarEl
+        ? window.getComputedStyle(sourceAvatarEl).borderRadius
+        : null,
+      surfaceBorderRadius: cardEl ? window.getComputedStyle(cardEl).borderRadius : null,
+    }
     logHome("operation:morph:open", {
       student: student.name,
       hasSourceEl: Boolean(sourceEl),
       hasCardEl: Boolean(cardEl),
+      hasCardBodyEl: Boolean(cardBodyEl),
       sourceRect: sourceRect
         ? {
             left: sourceRect.left,
@@ -655,12 +725,22 @@ export const Home: React.FC<HomeProps> = ({
             height: sourceRect.height,
           }
         : null,
+      sourceElements: {
+        avatar: sourceElements.avatar?.toJSON() ?? null,
+        name: sourceElements.name?.toJSON() ?? null,
+        score: sourceElements.score?.toJSON() ?? null,
+        avatarBorderRadius: sourceElements.avatarBorderRadius,
+        surfaceBorderRadius: sourceElements.surfaceBorderRadius,
+      },
     })
     setOperationOriginRect(sourceRect)
+    setOperationOriginElements(sourceElements)
     operationClosingRef.current = false
     operationCloseTokenRef.current += 1
     operationMorphAnimationRef.current?.cancel()
     operationMaskAnimationRef.current?.cancel()
+    operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+    operationElementAnimationsRef.current = []
 
     setSelectedStudent(student)
     setCustomScore(undefined)
@@ -686,29 +766,54 @@ export const Home: React.FC<HomeProps> = ({
         })
         return false
       }
+      const modalSurfaceEl =
+        (modalEl.querySelector(".ant-modal-container, .ant-modal-content") as HTMLElement | null) ??
+        modalEl
 
-      // Clear any leftover transform from previous close animation before measuring.
-      operationMorphAnimationRef.current?.cancel()
-      for (const animation of modalEl.getAnimations()) {
-        animation.cancel()
-      }
-      modalEl.style.transform = ""
-      modalEl.style.opacity = ""
-      modalEl.style.visibility = ""
+      logHome("operation:morph:surface-found", {
+        attempt,
+        surfaceTag: modalSurfaceEl.tagName,
+        surfaceClassName: modalSurfaceEl.className,
+        usesModalContainer: modalSurfaceEl.classList.contains("ant-modal-container"),
+        usesModalContent: modalSurfaceEl.classList.contains("ant-modal-content"),
+      })
       const maskEl = document.querySelector(
         `.${operationModalRootClass} .ant-modal-mask`
       ) as HTMLElement | null
       if (maskEl) {
         operationMaskAnimationRef.current?.cancel()
-        maskEl.style.opacity = ""
-        maskEl.style.visibility = ""
+        maskEl.style.visibility = "visible"
         operationMaskAnimationRef.current = maskEl.animate([{ opacity: 0 }, { opacity: 1 }], {
-          duration: 220,
-          easing: "cubic-bezier(0.2, 0, 0, 1)",
+          duration: operationMorphOpenDuration,
+          easing: operationMorphEasing,
           fill: "both",
         })
+        logHome("operation:morph:mask-fade-in", {
+          duration: operationMorphOpenDuration,
+          easing: operationMorphEasing,
+          keyframes: [0, 1],
+        })
+      } else {
+        logHome("operation:morph:mask-miss")
       }
-      const modalRect = modalEl.getBoundingClientRect()
+
+      // Animate the modal surface itself. Animating the outer .ant-modal only moves the
+      // layout box; it does not make the card body visually become the modal container.
+      operationMorphAnimationRef.current?.cancel()
+      for (const animation of modalSurfaceEl.getAnimations()) {
+        animation.cancel()
+      }
+      modalEl.classList.remove("ss-operation-morph-closing")
+      modalEl.classList.add("ss-operation-morph-active")
+      modalSurfaceEl.style.position = ""
+      modalSurfaceEl.style.left = ""
+      modalSurfaceEl.style.top = ""
+      modalSurfaceEl.style.width = ""
+      modalSurfaceEl.style.height = ""
+      modalSurfaceEl.style.margin = ""
+      modalSurfaceEl.style.transform = ""
+      modalSurfaceEl.style.visibility = ""
+      const modalRect = modalSurfaceEl.getBoundingClientRect()
       if (modalRect.width <= 0 || modalRect.height <= 0) {
         logHome("operation:morph:modal-rect-invalid", {
           attempt,
@@ -717,11 +822,6 @@ export const Home: React.FC<HomeProps> = ({
         })
         return false
       }
-      const fromX = operationOriginRect.left - modalRect.left
-      const fromY = operationOriginRect.top - modalRect.top
-      const scaleX = operationOriginRect.width / modalRect.width
-      const scaleY = operationOriginRect.height / modalRect.height
-
       logHome("operation:morph:computed", {
         modalRect: {
           left: modalRect.left,
@@ -729,35 +829,120 @@ export const Home: React.FC<HomeProps> = ({
           width: modalRect.width,
           height: modalRect.height,
         },
-        fromX,
-        fromY,
-        scaleX,
-        scaleY,
+        deltaX: operationOriginRect.left - modalRect.left,
+        deltaY: operationOriginRect.top - modalRect.top,
         expectedStartRect: {
-          left: modalRect.left + fromX,
-          top: modalRect.top + fromY,
-          width: modalRect.width * scaleX,
-          height: modalRect.height * scaleY,
+          left: operationOriginRect.left,
+          top: operationOriginRect.top,
+          width: operationOriginRect.width,
+          height: operationOriginRect.height,
         },
         animateSupported: typeof modalEl.animate === "function",
+        duration: operationMorphOpenDuration,
+        easing: operationMorphEasing,
+        animation: "ant-card-body 与 ant-modal-container 重合后，真实插值位置与宽高；遮罩同步淡入",
       })
 
-      modalEl.style.transformOrigin = "top left"
-      modalEl.style.willChange = "transform, opacity"
-      operationMorphAnimationRef.current = modalEl.animate(
+      modalSurfaceEl.style.position = "fixed"
+      modalSurfaceEl.style.left = `${operationOriginRect.left}px`
+      modalSurfaceEl.style.top = `${operationOriginRect.top}px`
+      modalSurfaceEl.style.width = `${operationOriginRect.width}px`
+      modalSurfaceEl.style.height = `${operationOriginRect.height}px`
+      modalSurfaceEl.style.margin = "0"
+      modalSurfaceEl.style.transform = "none"
+      const positionedStartRect = modalSurfaceEl.getBoundingClientRect()
+      logHome("operation:morph:viewport-start", {
+        requested: operationOriginRect.toJSON(),
+        actual: positionedStartRect.toJSON(),
+        error: {
+          left: positionedStartRect.left - operationOriginRect.left,
+          top: positionedStartRect.top - operationOriginRect.top,
+          width: positionedStartRect.width - operationOriginRect.width,
+          height: positionedStartRect.height - operationOriginRect.height,
+        },
+      })
+
+      operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+      operationElementAnimationsRef.current = []
+      const elementMorphTargets = [
+        {
+          key: "avatar",
+          selector: ".ss-operation-designed-avatar",
+          sourceRect: operationOriginElements?.avatar ?? null,
+        },
+        {
+          key: "name",
+          selector: ".ss-operation-designed-name",
+          sourceRect: operationOriginElements?.name ?? null,
+        },
+        {
+          key: "score",
+          selector: ".ss-operation-designed-score-value",
+          sourceRect: operationOriginElements?.score ?? null,
+        },
+      ]
+      const elementMorphLog: Record<string, unknown> = {}
+      for (const item of elementMorphTargets) {
+        const targetEl = modalEl.querySelector(item.selector) as HTMLElement | null
+        if (!targetEl || !item.sourceRect) {
+          elementMorphLog[item.key] = { found: Boolean(targetEl), hasSourceRect: Boolean(item.sourceRect) }
+          continue
+        }
+        const targetRect = targetEl.getBoundingClientRect()
+        const morph = getOperationElementMorph(targetRect, item.sourceRect)
+        targetEl.style.transformOrigin = "top left"
+        const fromKeyframe: Keyframe = { transform: morph.transform }
+        const toKeyframe: Keyframe = { transform: "translate3d(0, 0, 0) scale(1, 1)" }
+        if (item.key === "avatar" && operationOriginElements?.avatarBorderRadius) {
+          fromKeyframe.borderRadius = getCompensatedBorderRadius(
+            operationOriginElements.avatarBorderRadius,
+            morph.scale
+          )
+          toKeyframe.borderRadius = "50%"
+        }
+        const animation = targetEl.animate([fromKeyframe, toKeyframe], {
+          duration: operationMorphOpenDuration,
+          easing: operationMorphEasing,
+          fill: "both",
+        })
+        operationElementAnimationsRef.current.push(animation)
+        elementMorphLog[item.key] = {
+          sourceRect: item.sourceRect.toJSON(),
+          targetRect: targetRect.toJSON(),
+          ...morph,
+        }
+      }
+      logHome("operation:morph:shared-elements-start", elementMorphLog)
+
+      modalSurfaceEl.style.position = "fixed"
+      modalSurfaceEl.style.left = `${modalRect.left}px`
+      modalSurfaceEl.style.top = `${modalRect.top}px`
+      modalSurfaceEl.style.width = `${modalRect.width}px`
+      modalSurfaceEl.style.height = `${modalRect.height}px`
+      modalSurfaceEl.style.margin = "0"
+      modalSurfaceEl.style.transform = "none"
+      modalSurfaceEl.style.transformOrigin = "top left"
+      modalSurfaceEl.style.willChange = "left, top, width, height"
+      operationMorphAnimationRef.current = modalSurfaceEl.animate(
         [
           {
-            transform: `translate3d(${fromX}px, ${fromY}px, 0) scale(${scaleX}, ${scaleY})`,
-            opacity: 0.86,
+            left: `${operationOriginRect.left}px`,
+            top: `${operationOriginRect.top}px`,
+            width: `${operationOriginRect.width}px`,
+            height: `${operationOriginRect.height}px`,
+            borderRadius: operationOriginElements?.surfaceBorderRadius ?? "12px",
           },
           {
-            transform: "translate3d(0, 0, 0) scale(1, 1)",
-            opacity: 1,
+            left: `${modalRect.left}px`,
+            top: `${modalRect.top}px`,
+            width: `${modalRect.width}px`,
+            height: `${modalRect.height}px`,
+            borderRadius: "20px",
           },
         ],
         {
-          duration: 480,
-          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          duration: operationMorphOpenDuration,
+          easing: operationMorphEasing,
           fill: "both",
         }
       )
@@ -767,14 +952,26 @@ export const Home: React.FC<HomeProps> = ({
         playState: operationMorphAnimationRef.current.playState,
       })
       operationMorphAnimationRef.current.onfinish = () => {
+        modalEl.classList.remove("ss-operation-morph-active")
+        operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+        operationElementAnimationsRef.current = []
         logHome("operation:morph:animation-finish")
       }
       operationMorphAnimationRef.current.oncancel = () => {
+        modalEl.classList.remove("ss-operation-morph-active")
         logHome("operation:morph:animation-cancel")
       }
       return true
     },
-    [isPortraitMode, operationOriginRect, operationModalClass, operationModalRootClass]
+    [
+      isPortraitMode,
+      operationMorphEasing,
+      operationMorphOpenDuration,
+      operationOriginElements,
+      operationOriginRect,
+      operationModalClass,
+      operationModalRootClass,
+    ]
   )
 
   useLayoutEffect(() => {
@@ -808,15 +1005,15 @@ export const Home: React.FC<HomeProps> = ({
   }, [isPortraitMode, operationVisible, operationOriginRect, playOperationMorph])
 
   const finishCloseOperationModal = useCallback(
-    (skipCancelMorph = false, skipCancelMask = false) => {
+    (skipCancelMorph = false) => {
       if (!skipCancelMorph) {
         operationMorphAnimationRef.current?.cancel()
       }
       operationMorphAnimationRef.current = null
-      if (!skipCancelMask) {
-        operationMaskAnimationRef.current?.cancel()
-      }
+      operationMaskAnimationRef.current?.cancel()
       operationMaskAnimationRef.current = null
+      operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+      operationElementAnimationsRef.current = []
       if (operationMorphRafRef.current !== null) {
         window.cancelAnimationFrame(operationMorphRafRef.current)
         operationMorphRafRef.current = null
@@ -824,6 +1021,7 @@ export const Home: React.FC<HomeProps> = ({
       operationClosingRef.current = false
       setOperationVisible(false)
       setOperationOriginRect(null)
+      setOperationOriginElements(null)
     },
     []
   )
@@ -845,56 +1043,156 @@ export const Home: React.FC<HomeProps> = ({
       !operationClosingRef.current
     ) {
       const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
-      if (modalEl) {
-        const modalRect = modalEl.getBoundingClientRect()
+      const modalSurfaceEl = modalEl
+        ? ((modalEl.querySelector(".ant-modal-container, .ant-modal-content") as HTMLElement | null) ??
+          modalEl)
+        : null
+      if (modalEl && modalSurfaceEl) {
+        const modalRect = modalSurfaceEl.getBoundingClientRect()
         if (modalRect.width > 0 && modalRect.height > 0) {
-          const toX = operationOriginRect.left - modalRect.left
-          const toY = operationOriginRect.top - modalRect.top
-          const toScaleX = operationOriginRect.width / modalRect.width
-          const toScaleY = operationOriginRect.height / modalRect.height
           const closeToken = ++operationCloseTokenRef.current
           operationClosingRef.current = true
           operationMorphAnimationRef.current?.cancel()
           operationMaskAnimationRef.current?.cancel()
-          modalEl.style.transformOrigin = "top left"
-          modalEl.style.willChange = "transform, opacity"
+          operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+          operationElementAnimationsRef.current = []
+          modalEl.classList.remove("ss-operation-morph-active")
+          modalEl.classList.add("ss-operation-morph-closing")
+          modalSurfaceEl.style.transformOrigin = "top left"
+          modalSurfaceEl.style.willChange = "left, top, width, height"
           const maskEl = document.querySelector(
             `.${operationModalRootClass} .ant-modal-mask`
           ) as HTMLElement | null
-          if (maskEl) {
-            operationMaskAnimationRef.current = maskEl.animate([{ opacity: 1 }, { opacity: 0 }], {
-              duration: 320,
-              easing: "cubic-bezier(0.4, 0, 1, 1)",
-              fill: "both",
-            })
+          const closingElementTargets = [
+            {
+              key: "avatar",
+              selector: ".ss-operation-designed-avatar",
+              sourceRect: operationOriginElements?.avatar ?? null,
+            },
+            {
+              key: "name",
+              selector: ".ss-operation-designed-name",
+              sourceRect: operationOriginElements?.name ?? null,
+            },
+            {
+              key: "score",
+              selector: ".ss-operation-designed-score-value",
+              sourceRect: operationOriginElements?.score ?? null,
+            },
+          ]
+          const previousSurfaceStyle = {
+            position: modalSurfaceEl.style.position,
+            left: modalSurfaceEl.style.left,
+            top: modalSurfaceEl.style.top,
+            width: modalSurfaceEl.style.width,
+            height: modalSurfaceEl.style.height,
+            margin: modalSurfaceEl.style.margin,
+            transform: modalSurfaceEl.style.transform,
           }
-          operationMorphAnimationRef.current = modalEl.animate(
+          modalSurfaceEl.style.position = "fixed"
+          modalSurfaceEl.style.left = `${operationOriginRect.left}px`
+          modalSurfaceEl.style.top = `${operationOriginRect.top}px`
+          modalSurfaceEl.style.width = `${operationOriginRect.width}px`
+          modalSurfaceEl.style.height = `${operationOriginRect.height}px`
+          modalSurfaceEl.style.margin = "0"
+          modalSurfaceEl.style.transform = "none"
+          const collapsedElementRects = new Map<string, DOMRect>()
+          for (const item of closingElementTargets) {
+            const targetEl = modalEl.querySelector(item.selector) as HTMLElement | null
+            if (targetEl) collapsedElementRects.set(item.key, targetEl.getBoundingClientRect())
+          }
+          modalSurfaceEl.style.position = previousSurfaceStyle.position
+          modalSurfaceEl.style.left = previousSurfaceStyle.left
+          modalSurfaceEl.style.top = previousSurfaceStyle.top
+          modalSurfaceEl.style.width = previousSurfaceStyle.width
+          modalSurfaceEl.style.height = previousSurfaceStyle.height
+          modalSurfaceEl.style.margin = previousSurfaceStyle.margin
+          modalSurfaceEl.style.transform = previousSurfaceStyle.transform
+
+          for (const item of closingElementTargets) {
+            const targetEl = modalEl.querySelector(item.selector) as HTMLElement | null
+            const collapsedRect = collapsedElementRects.get(item.key)
+            if (!targetEl || !item.sourceRect || !collapsedRect) continue
+            const morph = getOperationElementMorph(collapsedRect, item.sourceRect)
+            const fromKeyframe: Keyframe = {
+              transform: "translate3d(0, 0, 0) scale(1, 1)",
+            }
+            const toKeyframe: Keyframe = { transform: morph.transform }
+            if (item.key === "avatar" && operationOriginElements?.avatarBorderRadius) {
+              fromKeyframe.borderRadius = "50%"
+              toKeyframe.borderRadius = getCompensatedBorderRadius(
+                operationOriginElements.avatarBorderRadius,
+                morph.scale
+              )
+            }
+            targetEl.style.transformOrigin = "top left"
+            operationElementAnimationsRef.current.push(
+              targetEl.animate([fromKeyframe, toKeyframe], {
+                duration: operationMorphCloseDuration,
+                easing: operationMorphCloseEasing,
+                fill: "both",
+              })
+            )
+          }
+          logHome("operation:morph:close-keyframes", {
+            sourceRect: operationOriginRect.toJSON(),
+            targetRect: modalRect.toJSON(),
+            deltaX: operationOriginRect.left - modalRect.left,
+            deltaY: operationOriginRect.top - modalRect.top,
+            duration: operationMorphCloseDuration,
+            easing: operationMorphCloseEasing,
+            animation: "真实插值位置与宽高；遮罩同步淡出",
+          })
+          operationMorphAnimationRef.current = modalSurfaceEl.animate(
             [
-              { transform: "translate3d(0, 0, 0) scale(1, 1)", opacity: 1 },
               {
-                transform: `translate3d(${toX}px, ${toY}px, 0) scale(${toScaleX}, ${toScaleY})`,
-                opacity: 0,
+                left: `${modalRect.left}px`,
+                top: `${modalRect.top}px`,
+                width: `${modalRect.width}px`,
+                height: `${modalRect.height}px`,
+                borderRadius: "20px",
+              },
+              {
+                left: `${operationOriginRect.left}px`,
+                top: `${operationOriginRect.top}px`,
+                width: `${operationOriginRect.width}px`,
+                height: `${operationOriginRect.height}px`,
+                borderRadius: operationOriginElements?.surfaceBorderRadius ?? "12px",
               },
             ],
             {
-              duration: 320,
-              easing: "cubic-bezier(0.4, 0, 1, 1)",
+              duration: operationMorphCloseDuration,
+              easing: operationMorphCloseEasing,
               fill: "both",
             }
           )
+          if (maskEl) {
+            operationMaskAnimationRef.current = maskEl.animate([{ opacity: 1 }, { opacity: 0 }], {
+              duration: operationMorphCloseDuration,
+              easing: operationMorphCloseEasing,
+              fill: "both",
+            })
+            logHome("operation:morph:mask-fade-out", {
+              duration: operationMorphCloseDuration,
+              easing: operationMorphCloseEasing,
+              keyframes: [1, 0],
+            })
+          }
           operationMorphAnimationRef.current.onfinish = () => {
             if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) {
               logHome("operation:morph:close-animation-finish:stale", { closeToken })
               return
             }
             logHome("operation:morph:close-animation-finish")
-            modalEl.style.opacity = "0"
-            modalEl.style.visibility = "hidden"
             if (maskEl) {
-              maskEl.style.opacity = "0"
               maskEl.style.visibility = "hidden"
+              logHome("operation:morph:mask-fade-out-finish")
             }
-            finishCloseOperationModal(true, true)
+            modalSurfaceEl.style.visibility = "hidden"
+            modalEl.classList.remove("ss-operation-morph-closing")
+            operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+            operationElementAnimationsRef.current = []
+            finishCloseOperationModal(true)
           }
           operationMorphAnimationRef.current.oncancel = () => {
             if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) {
@@ -902,6 +1200,7 @@ export const Home: React.FC<HomeProps> = ({
               return
             }
             logHome("operation:morph:close-animation-cancel")
+            modalEl.classList.remove("ss-operation-morph-closing")
             finishCloseOperationModal()
           }
           return
@@ -912,7 +1211,11 @@ export const Home: React.FC<HomeProps> = ({
   }, [
     finishCloseOperationModal,
     isPortraitMode,
+    operationMorphCloseDuration,
+    operationMorphCloseEasing,
     operationModalClass,
+    operationModalRootClass,
+    operationOriginElements,
     operationOriginRect,
     operationVisible,
   ])
@@ -1399,6 +1702,7 @@ export const Home: React.FC<HomeProps> = ({
           >
             {student.avatarUrl ? (
               <img
+                data-operation-morph="avatar"
                 src={student.avatarUrl}
                 alt={student.name}
                 style={{
@@ -1414,6 +1718,7 @@ export const Home: React.FC<HomeProps> = ({
               />
             ) : (
               <div
+                data-operation-morph="avatar"
                 style={{
                   width: isPortraitMode ? "40px" : "44px",
                   height: isPortraitMode ? "40px" : "44px",
@@ -1503,6 +1808,7 @@ export const Home: React.FC<HomeProps> = ({
                 }}
               >
                 <div
+                  data-operation-morph="name"
                   style={{
                     fontWeight: 600,
                     fontSize: "15px",
@@ -1523,6 +1829,7 @@ export const Home: React.FC<HomeProps> = ({
                     </Tag>
                   )}
                   <Tag
+                    data-operation-morph="score"
                     color={
                       getDisplayPoints(student) > 0
                         ? "success"
@@ -2609,17 +2916,19 @@ export const Home: React.FC<HomeProps> = ({
   const operationTargets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
   const isBatchOperation = operationTargets.length > 1 || (batchMode && operationTargets.length > 0)
 
-  const operationPanelContent = operationTargets.length > 0 && (
+  const legacyOperationPanelContent = operationTargets.length > 0 && (
     <div
+      className="ss-operation-panel"
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "20px",
-        padding: "8px 0",
+        gap: "16px",
+        padding: "4px 0 0",
         overflowX: "hidden",
       }}
     >
       <div
+        className="ss-operation-panel-header"
         style={{
           display: "flex",
           alignItems: "center",
@@ -2628,10 +2937,13 @@ export const Home: React.FC<HomeProps> = ({
           gap: "8px",
           padding: "12px 16px",
           backgroundColor: "var(--ss-bg-color)",
-          borderRadius: "8px",
+          borderRadius: "14px",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1 }}>
+        <div
+          className="ss-operation-panel-student"
+          style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0, flex: 1 }}
+        >
           {!isBatchOperation && selectedStudent?.avatarUrl ? (
             <img
               src={selectedStudent.avatarUrl}
@@ -2665,6 +2977,7 @@ export const Home: React.FC<HomeProps> = ({
             <Tag color="processing">{t("home.batchMode")}</Tag>
           )}
           <span
+            className="ss-operation-panel-student-name"
             style={{
               fontWeight: 600,
               minWidth: 0,
@@ -2679,7 +2992,10 @@ export const Home: React.FC<HomeProps> = ({
           </span>
         </div>
         {!isBatchOperation && selectedStudent && (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          <div
+            className="ss-operation-panel-score"
+            style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}
+          >
             <span style={{ color: "var(--ss-text-secondary)", fontSize: "13px" }}>
               {t("home.currentScore")}：
             </span>
@@ -2699,17 +3015,34 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
+      {!isBatchOperation && (
+        <div className="ss-operation-quick-strip">
+          <div className="ss-operation-quick-strip-label">{t("home.noReasonQuickActions")}</div>
+          <div className="ss-no-reason-quick-buttons ss-operation-quick-buttons">
+            {[-3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
+              <Button
+                key={num}
+                danger={num < 0}
+                onClick={() => handleNoReasonQuickSelect(num)}
+              >
+                {num > 0 ? `+${num}` : num}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div
         className="ss-operation-panel-grid"
         style={{
           display: "grid",
           gridTemplateColumns: isPortraitMode ? "1fr" : "minmax(0, 0.95fr) minmax(0, 1.25fr)",
-          gap: "20px",
+          gap: "16px",
           alignItems: "start",
         }}
       >
         <div className="ss-operation-panel-section">
-          <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="ss-operation-section-title" style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span
               style={{
                 fontWeight: 600,
@@ -2852,7 +3185,7 @@ export const Home: React.FC<HomeProps> = ({
         </div>
 
         <div className="ss-operation-panel-section">
-          <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div className="ss-operation-section-title" style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span
               style={{
                 fontWeight: 600,
@@ -2868,25 +3201,6 @@ export const Home: React.FC<HomeProps> = ({
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <div
-                style={{
-                  color: "var(--ss-text-secondary)",
-                  fontSize: "13px",
-                  marginBottom: "8px",
-                }}
-              >
-                {t("home.noReasonQuickActions")}
-              </div>
-              <div className="ss-no-reason-quick-buttons">
-                {[-3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
-                  <Button key={num} danger={num < 0} onClick={() => handleNoReasonQuickSelect(num)}>
-                    {num > 0 ? `+${num}` : num}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
             {groupedReasons.length > 0 && (
               <div>
                 <div
@@ -2964,6 +3278,93 @@ export const Home: React.FC<HomeProps> = ({
       </div>
     </div>
   )
+
+  const operationPanelContent = operationTargets.length > 0 && (
+    <div className="ss-operation-panel ss-operation-panel-designed">
+      <div className="ss-operation-designed-header">
+        <div className="ss-operation-designed-student">
+          {!isBatchOperation && selectedStudent?.avatarUrl ? (
+            <img
+              className="ss-operation-designed-avatar"
+              src={selectedStudent.avatarUrl}
+              alt={selectedStudent.name}
+            />
+          ) : !isBatchOperation ? (
+            <div
+              className="ss-operation-designed-avatar ss-operation-designed-avatar-fallback"
+              style={{ backgroundColor: getAvatarColor(selectedStudent?.name || "") }}
+            >
+              {getDisplayText(selectedStudent?.name || "")}
+            </div>
+          ) : (
+            <Tag color="processing">{t("home.batchMode")}</Tag>
+          )}
+          <span className="ss-operation-designed-name">
+            {!isBatchOperation
+              ? selectedStudent?.name
+              : t("home.selectedCount", { count: operationTargets.length })}
+          </span>
+        </div>
+        {!isBatchOperation && selectedStudent && (
+          <div className="ss-operation-designed-score">
+            <span className="ss-operation-designed-score-label">{t("home.currentScore")}</span>
+            <Tag
+              className="ss-operation-designed-score-value"
+              color={
+                selectedStudent.score > 0
+                  ? "success"
+                  : selectedStudent.score < 0
+                    ? "error"
+                    : "default"
+              }
+            >
+              {selectedStudent.score > 0 ? `+${selectedStudent.score}` : selectedStudent.score}
+            </Tag>
+          </div>
+        )}
+        <Button
+          type="text"
+          className="ss-operation-designed-close"
+          aria-label={t("common.cancel")}
+          onClick={closeOperationModal}
+        >
+          ×
+        </Button>
+      </div>
+
+      <div className="ss-operation-designed-quick-buttons">
+        {[-5, -3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
+          <Button key={num} onClick={() => handleNoReasonQuickSelect(num)}>
+            {num > 0 ? `+${num}` : num}
+          </Button>
+        ))}
+      </div>
+
+      <div className="ss-operation-designed-divider" />
+
+      <div className="ss-operation-designed-reasons">
+        {groupedReasons.map(([category, items]) => (
+          <section className="ss-operation-designed-category" key={category}>
+            <div className="ss-operation-designed-category-title">{category}</div>
+            <div className="ss-operation-designed-reason-buttons">
+              {items.map((r) => (
+                <Button
+                  key={r.id}
+                  className={r.delta >= 0 ? "is-positive" : "is-negative"}
+                  onClick={() => handleReasonSelect(r)}
+                >
+                  <span>{r.content}</span>
+                  <strong>{r.delta > 0 ? `+${r.delta}` : r.delta}</strong>
+                </Button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  )
+
+  void legacyOperationPanelContent
 
   const applyDrawerDragRegion = useCallback((open: boolean) => {
     if (!open || typeof document === "undefined") return
@@ -3781,17 +4182,11 @@ export const Home: React.FC<HomeProps> = ({
         </Drawer>
       ) : (
         <Modal
-          title={
-            isBatchOperation
-              ? t("home.operationTitleBatch", { count: operationTargets.length })
-              : t("home.operationTitle", { name: selectedStudent?.name })
-          }
+          title={null}
           open={operationVisible}
           onCancel={closeOperationModal}
-          onOk={handleSubmit}
-          confirmLoading={submitLoading}
-          okText={t("home.submitOperation")}
-          cancelText={t("common.cancel")}
+          closable={false}
+          footer={null}
           width={820}
           centered
           forceRender
@@ -3801,7 +4196,8 @@ export const Home: React.FC<HomeProps> = ({
           className={operationModalClass}
           styles={{
             body: {
-              maxHeight: "calc(100vh - 220px)",
+              maxHeight: "calc(100vh - 140px)",
+              padding: "0 28px 34px",
               overflowY: "auto",
             },
           }}
