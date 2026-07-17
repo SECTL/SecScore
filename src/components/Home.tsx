@@ -1098,6 +1098,15 @@ export const Home: React.FC<HomeProps> = ({
     performSubmit(targets, reason.delta, reason.content)
   }
 
+  const handleNoReasonQuickSelect = (delta: number) => {
+    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+    if (targets.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
+    performSubmit(targets, delta, "")
+  }
+
   const cancelLongPress = () => {
     if (longPressTimerRef.current !== null) {
       window.clearTimeout(longPressTimerRef.current)
@@ -2690,16 +2699,160 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
-      {groupedReasons.length > 0 && (
-        <div>
-          <div
-            style={{
-              marginBottom: "12px",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
+      <div
+        className="ss-operation-panel-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: isPortraitMode ? "1fr" : "minmax(0, 0.95fr) minmax(0, 1.25fr)",
+          gap: "20px",
+          alignItems: "start",
+        }}
+      >
+        <div className="ss-operation-panel-section">
+          <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span
+              style={{
+                fontWeight: 600,
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+                wordBreak: "keep-all",
+                flexShrink: 0,
+              }}
+            >
+              {t("home.customOperation")}
+            </span>
+            <Divider style={{ flex: 1, margin: 0 }} />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            <div>
+              <div
+                style={{
+                  color: "var(--ss-text-secondary)",
+                  fontSize: "13px",
+                  marginBottom: "8px",
+                }}
+              >
+                {t("home.adjustPoints")}
+              </div>
+              <div className="ss-custom-score-buttons">
+                {[-5, -3, -2, -1, 1, 2, 3, 5, 10].map((num) => (
+                  <Button
+                    key={num}
+                    type={customScore === num ? "primary" : "default"}
+                    danger={num < 0}
+                    onClick={() => setCustomScore(num)}
+                  >
+                    {num > 0 ? `+${num}` : num}
+                  </Button>
+                ))}
+                <Button onClick={() => setCustomScore(0)}>0</Button>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  marginTop: "12px",
+                }}
+              >
+                <InputNumber
+                  value={customScore}
+                  onChange={(v) => setCustomScore(v as number)}
+                  min={-99}
+                  max={99}
+                  step={1}
+                  style={{ width: "140px" }}
+                  placeholder={t("home.customPoints")}
+                />
+                <span style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
+                  {t("home.customPointsHint")}
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <div
+                style={{
+                  color: "var(--ss-text-secondary)",
+                  fontSize: "13px",
+                  marginBottom: "8px",
+                }}
+              >
+                {t("home.reason")}
+              </div>
+              <Input
+                value={reasonContent}
+                onChange={(e) => setReasonContent(e.target.value)}
+                placeholder={t("home.reasonPlaceholder")}
+                suffix={
+                  reasonContent ? (
+                    <DeleteOutlined
+                      onClick={() => setReasonContent("")}
+                      style={{ cursor: "pointer" }}
+                    />
+                  ) : undefined
+                }
+              />
+            </div>
+
+            {customScore !== undefined && (
+              <div
+                style={{
+                  padding: "16px",
+                  background:
+                    customScore > 0
+                      ? "var(--ant-color-success-bg, #f6ffed)"
+                      : customScore < 0
+                        ? "var(--ant-color-error-bg, #fff2f0)"
+                        : "var(--ss-bg-color)",
+                  borderRadius: "8px",
+                  border: `1px solid ${customScore > 0 ? "var(--ant-color-success-border, #b7eb8f)" : customScore < 0 ? "var(--ant-color-error-border, #ffccc7)" : "var(--ss-border-color)"}`,
+                  marginTop: "2px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    marginBottom: "4px",
+                    color: "var(--ss-text-main)",
+                  }}
+                >
+                  {t("home.preview")}：
+                </div>
+                <div style={{ fontSize: "15px" }}>
+                  {isBatchOperation
+                    ? t("home.selectedCount", { count: operationTargets.length })
+                    : selectedStudent?.name}{" "}
+                  <span
+                    style={{
+                      fontWeight: "bold",
+                      color:
+                        customScore > 0
+                          ? "var(--ant-color-success, #52c41a)"
+                          : customScore < 0
+                            ? "var(--ant-color-error, #ff4d4f)"
+                            : "inherit",
+                    }}
+                  >
+                    {customScore > 0 ? `+${customScore}` : customScore}
+                  </span>{" "}
+                  {t("home.points")}
+                  <span style={{ color: "var(--ss-text-secondary)", marginLeft: "8px" }}>
+                    {reasonContent
+                      ? `${t("home.reasonLabel")}${reasonContent}`
+                      : t("home.noReason")}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="ss-operation-panel-section">
+          <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
             <span
               style={{
                 fontWeight: 600,
@@ -2713,193 +2866,102 @@ export const Home: React.FC<HomeProps> = ({
             </span>
             <Divider style={{ flex: 1, margin: 0 }} />
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-              maxHeight: "240px",
-              overflowY: "auto",
-              paddingRight: "4px",
-            }}
-          >
-            {groupedReasons.map(([category, items]) => (
-              <div key={category}>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <div
+                style={{
+                  color: "var(--ss-text-secondary)",
+                  fontSize: "13px",
+                  marginBottom: "8px",
+                }}
+              >
+                {t("home.noReasonQuickActions")}
+              </div>
+              <div className="ss-no-reason-quick-buttons">
+                {[-3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
+                  <Button key={num} danger={num < 0} onClick={() => handleNoReasonQuickSelect(num)}>
+                    {num > 0 ? `+${num}` : num}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {groupedReasons.length > 0 && (
+              <div>
                 <div
                   style={{
-                    fontSize: "12px",
                     color: "var(--ss-text-secondary)",
-                    marginBottom: "6px",
-                    paddingLeft: "2px",
+                    fontSize: "13px",
+                    marginBottom: "8px",
                   }}
                 >
-                  {category}
+                  {t("home.reasonPresets")}
                 </div>
-                <Space wrap size="small">
-                  {items.map((r) => (
-                    <Button
-                      key={r.id}
-                      size="small"
-                      onClick={() => handleReasonSelect(r)}
-                      style={{
-                        whiteSpace: "nowrap",
-                        wordBreak: "keep-all",
-                        borderColor:
-                          r.delta > 0
-                            ? "var(--ant-color-success, #52c41a)"
-                            : r.delta < 0
-                              ? "var(--ant-color-error, #ff4d4f)"
-                              : undefined,
-                      }}
-                    >
-                      {r.content}{" "}
-                      <span
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "12px",
+                    maxHeight: isPortraitMode ? "none" : "320px",
+                    overflowY: isPortraitMode ? "visible" : "auto",
+                    paddingRight: "4px",
+                  }}
+                >
+                  {groupedReasons.map(([category, items]) => (
+                    <div key={category}>
+                      <div
                         style={{
-                          marginLeft: "4px",
-                          color:
-                            r.delta > 0
-                              ? "var(--ant-color-success, #52c41a)"
-                              : r.delta < 0
-                                ? "var(--ant-color-error, #ff4d4f)"
-                                : "inherit",
-                          fontWeight: "bold",
+                          fontSize: "12px",
+                          color: "var(--ss-text-secondary)",
+                          marginBottom: "6px",
+                          paddingLeft: "2px",
                         }}
                       >
-                        {r.delta > 0 ? `+${r.delta}` : r.delta}
-                      </span>
-                    </Button>
+                        {category}
+                      </div>
+                      <div className="ss-reason-preset-buttons">
+                        {items.map((r) => (
+                          <Button
+                            key={r.id}
+                            onClick={() => handleReasonSelect(r)}
+                            style={{
+                              whiteSpace: "nowrap",
+                              wordBreak: "keep-all",
+                              borderColor:
+                                r.delta > 0
+                                  ? "var(--ant-color-success, #52c41a)"
+                                  : r.delta < 0
+                                    ? "var(--ant-color-error, #ff4d4f)"
+                                    : undefined,
+                            }}
+                          >
+                            {r.content}{" "}
+                            <span
+                              style={{
+                                marginLeft: "4px",
+                                color:
+                                  r.delta > 0
+                                    ? "var(--ant-color-success, #52c41a)"
+                                    : r.delta < 0
+                                      ? "var(--ant-color-error, #ff4d4f)"
+                                      : "inherit",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {r.delta > 0 ? `+${r.delta}` : r.delta}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
-                </Space>
+                </div>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
-
-      <div>
-        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <span
-            style={{
-              fontWeight: 600,
-              fontSize: "14px",
-              whiteSpace: "nowrap",
-              wordBreak: "keep-all",
-              flexShrink: 0,
-            }}
-          >
-            {t("home.adjustPoints")}
-          </span>
-          <Divider style={{ flex: 1, margin: 0 }} />
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-          {[-5, -3, -2, -1, 1, 2, 3, 5, 10].map((num) => (
-            <Button
-              key={num}
-              size="small"
-              type={customScore === num ? "primary" : "default"}
-              danger={num < 0}
-              onClick={() => setCustomScore(num)}
-              style={{ minWidth: "42px" }}
-            >
-              {num > 0 ? `+${num}` : num}
-            </Button>
-          ))}
-          <Button size="small" onClick={() => setCustomScore(0)} style={{ minWidth: "42px" }}>
-            0
-          </Button>
-        </div>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <InputNumber
-            value={customScore}
-            onChange={(v) => setCustomScore(v as number)}
-            min={-99}
-            max={99}
-            step={1}
-            style={{ width: "140px" }}
-            placeholder={t("home.customPoints")}
-          />
-          <span style={{ fontSize: "13px", color: "var(--ss-text-secondary)" }}>
-            {t("home.customPointsHint")}
-          </span>
         </div>
       </div>
-
-      <div>
-        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <span
-            style={{
-              fontWeight: 600,
-              fontSize: "14px",
-              whiteSpace: "nowrap",
-              wordBreak: "keep-all",
-              flexShrink: 0,
-            }}
-          >
-            {t("home.reason")}
-          </span>
-          <Divider style={{ flex: 1, margin: 0 }} />
-        </div>
-        <Input
-          value={reasonContent}
-          onChange={(e) => setReasonContent(e.target.value)}
-          placeholder={t("home.reasonPlaceholder")}
-          suffix={
-            reasonContent ? (
-              <DeleteOutlined onClick={() => setReasonContent("")} style={{ cursor: "pointer" }} />
-            ) : undefined
-          }
-        />
-      </div>
-
-      {customScore !== undefined && (
-        <div
-          style={{
-            padding: "16px",
-            background:
-              customScore > 0
-                ? "var(--ant-color-success-bg, #f6ffed)"
-                : customScore < 0
-                  ? "var(--ant-color-error-bg, #fff2f0)"
-                  : "var(--ss-bg-color)",
-            borderRadius: "8px",
-            border: `1px solid ${customScore > 0 ? "var(--ant-color-success-border, #b7eb8f)" : customScore < 0 ? "var(--ant-color-error-border, #ffccc7)" : "var(--ss-border-color)"}`,
-            marginTop: "4px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "13px",
-              fontWeight: 600,
-              marginBottom: "4px",
-              color: "var(--ss-text-main)",
-            }}
-          >
-            {t("home.preview")}：
-          </div>
-          <div style={{ fontSize: "15px" }}>
-            {isBatchOperation
-              ? t("home.selectedCount", { count: operationTargets.length })
-              : selectedStudent?.name}{" "}
-            <span
-              style={{
-                fontWeight: "bold",
-                color:
-                  customScore > 0
-                    ? "var(--ant-color-success, #52c41a)"
-                    : customScore < 0
-                      ? "var(--ant-color-error, #ff4d4f)"
-                      : "inherit",
-              }}
-            >
-              {customScore > 0 ? `+${customScore}` : customScore}
-            </span>{" "}
-            {t("home.points")}
-            <span style={{ color: "var(--ss-text-secondary)", marginLeft: "8px" }}>
-              {reasonContent ? `${t("home.reasonLabel")}${reasonContent}` : t("home.noReason")}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   )
 
@@ -3730,7 +3792,7 @@ export const Home: React.FC<HomeProps> = ({
           confirmLoading={submitLoading}
           okText={t("home.submitOperation")}
           cancelText={t("common.cancel")}
-          width={560}
+          width={820}
           centered
           forceRender
           transitionName=""

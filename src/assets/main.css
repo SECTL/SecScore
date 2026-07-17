@@ -268,6 +268,55 @@ html.platform-macos body {
   will-change: transform, opacity;
 }
 
+.ss-home-operation-morph-modal .ss-operation-panel-section,
+.ss-operation-drawer .ss-operation-panel-section {
+  min-width: 0;
+}
+
+.ss-custom-score-buttons,
+.ss-no-reason-quick-buttons,
+.ss-reason-preset-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ss-custom-score-buttons .ant-btn {
+  min-width: 48px;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.ss-reason-preset-buttons .ant-btn {
+  min-height: 42px;
+  padding: 6px 14px;
+  font-size: 15px;
+}
+
+.ss-no-reason-quick-buttons .ant-btn {
+  min-width: 62px;
+  height: 50px;
+  padding: 0 18px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .ss-operation-panel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .ss-no-reason-quick-buttons .ant-btn {
+    min-width: 64px;
+    height: 52px;
+  }
+
+  .ss-reason-preset-buttons .ant-btn {
+    min-height: 46px;
+  }
+}
+
 .ss-operation-mask-fade-enter,
 .ss-operation-mask-fade-appear {
   opacity: 0 !important;
@@ -385,8 +434,7 @@ html.platform-macos body {
   line-height: 52px;
 }
 
-.ss-immersive-toolbar-segment
-  .ss-immersive-toolbar-search.ant-input-affix-wrapper-focused,
+.ss-immersive-toolbar-segment .ss-immersive-toolbar-search.ant-input-affix-wrapper-focused,
 .ss-immersive-toolbar-segment .ss-immersive-toolbar-search.ant-input-affix-wrapper:focus,
 .ss-immersive-toolbar-segment .ss-immersive-toolbar-search.ant-input-affix-wrapper:hover {
   border: none !important;
