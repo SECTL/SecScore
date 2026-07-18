@@ -4281,7 +4281,7 @@ export const Home: React.FC<HomeProps> = ({
             styles={{
               body: {
                 maxHeight: "calc(100vh - 140px)",
-                padding: "0 28px 34px",
+                padding: "0 20px 34px",
                 overflowY: "auto",
               },
             }}
