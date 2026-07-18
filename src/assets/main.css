@@ -362,6 +362,29 @@ html.platform-macos body {
   animation: ss-operation-content-out 180ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
+.ss-home-operation-morph-modal.ss-operation-morph-active .ant-modal-body,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ant-modal-body {
+  overflow: visible !important;
+  scrollbar-width: none;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-active .ant-modal-body::-webkit-scrollbar,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ant-modal-body::-webkit-scrollbar {
+  display: none;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-active .ss-operation-designed-name,
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-name {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.ss-home-operation-morph-modal.ss-operation-morph-closing .ss-operation-designed-close {
+  visibility: hidden;
+  opacity: 0;
+  animation: none;
+}
+
 @keyframes ss-operation-meta-in {
   0% {
     opacity: 0;
@@ -409,6 +432,7 @@ html.platform-macos body {
 }
 
 .ss-operation-designed-header {
+  position: relative;
   display: flex;
   align-items: center;
   min-height: 82px;
@@ -421,7 +445,7 @@ html.platform-macos body {
   align-items: center;
   min-width: 0;
   gap: 12px;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .ss-operation-designed-student img,
@@ -452,6 +476,9 @@ html.platform-macos body {
 }
 
 .ss-operation-designed-score {
+  position: absolute;
+  top: 26px;
+  right: 52px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -470,6 +497,9 @@ html.platform-macos body {
 }
 
 .ss-operation-designed-close {
+  position: absolute;
+  top: 22px;
+  right: 0;
   width: 38px;
   height: 38px;
   flex: 0 0 38px;
