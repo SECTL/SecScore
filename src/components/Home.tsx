@@ -864,11 +864,17 @@ export const Home: React.FC<HomeProps> = ({
       if (maskEl) {
         operationMaskAnimationRef.current?.cancel()
         maskEl.style.visibility = "visible"
-        operationMaskAnimationRef.current = maskEl.animate([{ opacity: 0 }, { opacity: 1 }], {
-          duration: operationMorphOpenDuration,
-          easing: operationMorphEasing,
-          fill: "both",
-        })
+        operationMaskAnimationRef.current = maskEl.animate(
+          [
+            { opacity: 0, backdropFilter: "blur(0px)", WebkitBackdropFilter: "blur(0px)" },
+            { opacity: 1, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" },
+          ],
+          {
+            duration: operationMorphOpenDuration,
+            easing: operationMorphEasing,
+            fill: "both",
+          }
+        )
         logHome("operation:morph:mask-fade-in", {
           duration: operationMorphOpenDuration,
           easing: operationMorphEasing,
@@ -1250,11 +1256,17 @@ export const Home: React.FC<HomeProps> = ({
             }
           )
           if (maskEl) {
-            operationMaskAnimationRef.current = maskEl.animate([{ opacity: 1 }, { opacity: 0 }], {
-              duration: operationMorphCloseDuration,
-              easing: operationMorphCloseEasing,
-              fill: "both",
-            })
+            operationMaskAnimationRef.current = maskEl.animate(
+              [
+                { opacity: 1, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" },
+                { opacity: 0, backdropFilter: "blur(0px)", WebkitBackdropFilter: "blur(0px)" },
+              ],
+              {
+                duration: operationMorphCloseDuration,
+                easing: operationMorphCloseEasing,
+                fill: "both",
+              }
+            )
             logHome("operation:morph:mask-fade-out", {
               duration: operationMorphCloseDuration,
               easing: operationMorphCloseEasing,
