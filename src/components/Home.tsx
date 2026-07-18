@@ -4021,7 +4021,9 @@ export const Home: React.FC<HomeProps> = ({
       <div
         ref={immersiveToolbarRef}
         data-immersive-toolbar="true"
-        className={`ss-immersive-toolbar ${immersiveMode ? "is-visible" : "is-hidden"}`}
+        className={`ss-immersive-toolbar ${immersiveMode ? "is-visible" : "is-hidden"} ${
+          operationVisible ? "is-operation-active" : ""
+        }`}
         aria-hidden={!immersiveMode}
         style={{
           position: "fixed",

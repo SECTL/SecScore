@@ -903,6 +903,14 @@ html.platform-macos body {
   pointer-events: none;
 }
 
+/* Keep the home toolbar visually behind the score-operation drawer. */
+.ss-immersive-toolbar.is-operation-active {
+  opacity: 0.22;
+  filter: blur(8px);
+  transform: translateX(-50%) translateY(84px) rotate(-5deg) scale(0.94);
+  pointer-events: none;
+}
+
 .ss-immersive-toolbar-segment {
   position: relative;
   height: 54px;
