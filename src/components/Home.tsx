@@ -72,6 +72,15 @@ interface operationMorphElementRects {
   surfaceBorderRadius: string | null
 }
 
+interface operationScrollbarState {
+  visible: boolean
+  left: number
+  top: number
+  height: number
+  thumbTop: number
+  thumbHeight: number
+}
+
 const getOperationElementMorph = (
   targetRect: DOMRect,
   sourceRect: DOMRect
@@ -166,6 +175,14 @@ export const Home: React.FC<HomeProps> = ({
   const [batchMode, setBatchMode] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [operationVisible, setOperationVisible] = useState(false)
+  const [operationScrollbar, setOperationScrollbar] = useState<operationScrollbarState>({
+    visible: false,
+    left: 0,
+    top: 0,
+    height: 0,
+    thumbTop: 0,
+    thumbHeight: 0,
+  })
   const [operationOriginRect, setOperationOriginRect] = useState<DOMRect | null>(null)
   const [operationOriginElements, setOperationOriginElements] =
     useState<operationMorphElementRects | null>(null)
@@ -204,6 +221,70 @@ export const Home: React.FC<HomeProps> = ({
   const operationMorphCloseDuration = 360
   const operationMorphEasing = "cubic-bezier(0.2, 0, 0, 1)"
   const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
+
+  const syncOperationScrollbar = useCallback(() => {
+    if (isPortraitMode || !operationVisible) {
+      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      return
+    }
+    const modalBody = document.querySelector(
+      `.${operationModalClass} .ant-modal-body`
+    ) as HTMLElement | null
+    if (!modalBody) return
+
+    const computedStyle = window.getComputedStyle(modalBody)
+    const canScroll =
+      computedStyle.overflowY !== "visible" &&
+      modalBody.scrollHeight - modalBody.clientHeight > 1 &&
+      modalBody.clientHeight > 0
+    if (!canScroll) {
+      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      return
+    }
+
+    const bodyRect = modalBody.getBoundingClientRect()
+    const trackHeight = Math.max(0, modalBody.clientHeight - 16)
+    const thumbHeight = Math.min(
+      trackHeight,
+      Math.max(28, (modalBody.clientHeight * trackHeight) / modalBody.scrollHeight)
+    )
+    const thumbTop =
+      (modalBody.scrollTop / Math.max(1, modalBody.scrollHeight - modalBody.clientHeight)) *
+      Math.max(0, trackHeight - thumbHeight)
+    setOperationScrollbar({
+      visible: true,
+      left: bodyRect.right - 12,
+      top: bodyRect.top + 8,
+      height: trackHeight,
+      thumbTop,
+      thumbHeight,
+    })
+  }, [isPortraitMode, operationModalClass, operationVisible])
+
+  useEffect(() => {
+    if (isPortraitMode || !operationVisible) {
+      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      return
+    }
+    const modalBody = document.querySelector(
+      `.${operationModalClass} .ant-modal-body`
+    ) as HTMLElement | null
+    if (!modalBody) return
+
+    const frame = window.requestAnimationFrame(syncOperationScrollbar)
+    const delayedSync = window.setTimeout(syncOperationScrollbar, operationMorphOpenDuration + 24)
+    modalBody.addEventListener("scroll", syncOperationScrollbar, { passive: true })
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(syncOperationScrollbar)
+    resizeObserver?.observe(modalBody)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(delayedSync)
+      modalBody.removeEventListener("scroll", syncOperationScrollbar)
+      resizeObserver?.disconnect()
+    }
+  }, [isPortraitMode, operationMorphOpenDuration, operationVisible, operationModalClass, syncOperationScrollbar])
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -1019,6 +1100,7 @@ export const Home: React.FC<HomeProps> = ({
         operationMorphRafRef.current = null
       }
       operationClosingRef.current = false
+      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
       setOperationVisible(false)
       setOperationOriginRect(null)
       setOperationOriginElements(null)
@@ -1032,6 +1114,7 @@ export const Home: React.FC<HomeProps> = ({
       playState: operationMorphAnimationRef.current?.playState,
       currentTime: operationMorphAnimationRef.current?.currentTime,
     })
+    setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
     if (operationMorphRafRef.current !== null) {
       window.cancelAnimationFrame(operationMorphRafRef.current)
       operationMorphRafRef.current = null
@@ -4181,30 +4264,50 @@ export const Home: React.FC<HomeProps> = ({
           {operationPanelContent}
         </Drawer>
       ) : (
-        <Modal
-          title={null}
-          open={operationVisible}
-          onCancel={closeOperationModal}
-          closable={false}
-          footer={null}
-          width={820}
-          centered
-          forceRender
-          transitionName=""
-          maskTransitionName=""
-          rootClassName={operationModalRootClass}
-          className={operationModalClass}
-          styles={{
-            body: {
-              maxHeight: "calc(100vh - 140px)",
-              padding: "0 28px 34px",
-              overflowY: "auto",
-            },
-          }}
-          destroyOnHidden
-        >
-          {operationPanelContent}
-        </Modal>
+        <>
+          <Modal
+            title={null}
+            open={operationVisible}
+            onCancel={closeOperationModal}
+            closable={false}
+            footer={null}
+            width={820}
+            centered
+            forceRender
+            transitionName=""
+            maskTransitionName=""
+            rootClassName={operationModalRootClass}
+            className={operationModalClass}
+            styles={{
+              body: {
+                maxHeight: "calc(100vh - 140px)",
+                padding: "0 28px 34px",
+                overflowY: "auto",
+              },
+            }}
+            destroyOnHidden
+          >
+            {operationPanelContent}
+          </Modal>
+          {operationScrollbar.visible && (
+            <div
+              className="ss-operation-designed-scrollbar"
+              aria-hidden="true"
+              style={{
+                left: operationScrollbar.left,
+                top: operationScrollbar.top,
+                height: operationScrollbar.height,
+              }}
+            >
+              <span
+                style={{
+                  top: operationScrollbar.thumbTop,
+                  height: operationScrollbar.thumbHeight,
+                }}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   )
