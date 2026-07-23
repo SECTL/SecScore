@@ -192,7 +192,6 @@ pub fn show_management_window(app: &AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(true)
         .transparent(true)
-        .hidden_title(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 22.0))
         .center()
