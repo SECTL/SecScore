@@ -84,6 +84,8 @@ pub fn run() {
             oauth_revoke_token,
             oauth_introspect_token,
             oauth_start_callback_server,
+            oauth_open_browser,
+            oauth_log_error,
             oauth_stop_callback_server,
             oauth_report_online,
             oauth_get_device_uuid,
@@ -220,6 +222,10 @@ fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(desktop)]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
+
+        // 静态配置在开发模式下不一定会被操作系统注册，显式注册可保证
+        // `tauri:dev` 运行时也能接收 secscore:// 回调。
+        app.deep_link().register_all()?;
 
         app.deep_link().on_open_url(move |event| {
             let url = event

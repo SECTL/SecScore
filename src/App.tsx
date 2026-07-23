@@ -290,15 +290,22 @@ function MainContent(): React.JSX.Element {
 
           if (error) {
             console.error("[DeepLink] OAuth error:", error)
-            messageApi.error("登录失败: " + error)
+            window.dispatchEvent(
+              new CustomEvent("ss:oauth-deep-link", {
+                detail: {
+                  error,
+                  error_description: urlObj.searchParams.get("error_description") || undefined,
+                },
+              })
+            )
             return
           }
 
-          if (code && state) {
+          if (code) {
             // 发送自定义事件，让 OAuthCallback 组件处理
             window.dispatchEvent(
               new CustomEvent("ss:oauth-deep-link", {
-                detail: { code, state },
+                detail: { code: code || undefined, state: state || undefined },
               })
             )
           }

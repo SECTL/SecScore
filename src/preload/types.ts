@@ -555,6 +555,11 @@ const api = {
     }
     message?: string
   }> => invoke("oauth_start_callback_server"),
+  oauthOpenBrowser: (
+    url: string
+  ): Promise<{ success: boolean; message?: string }> => invoke("oauth_open_browser", { url }),
+  oauthLogError: (message: string): Promise<{ success: boolean; message?: string }> =>
+    invoke("oauth_log_error", { message }),
   oauthStopCallbackServer: (): Promise<{
     success: boolean
     message?: string

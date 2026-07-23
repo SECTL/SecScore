@@ -9,7 +9,8 @@ export const SECTL_CONFIG = {
   baseUrl: "https://appwrite.sectl.cn",
   authUrl: "https://sectl.cn",
   platformId: "", // 需要在设置中配置
-  callbackUrl: "secscore://oauth/callback",
+  // 本地 HTTP 回调地址；授权请求和 Token 请求必须保持完全一致。
+  callbackUrl: "http://localhost:51267/oauth/callback",
   callbackPort: 51267,
 }
 
@@ -100,12 +101,48 @@ function extractPlatformIdFromJwt(accessToken: string): string | null {
   }
 }
 
+const PUBLIC_IP_ENDPOINTS = [
+  "https://api.ipify.org?format=text",
+  "https://ddns.oray.com/checkip",
+  "https://myip.ipip.net",
+]
+
+function extractPublicIp(text: string): string | null {
+  const ipv4 = text.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/)?.[0]
+  if (ipv4 && ipv4.split(".").every((part) => Number(part) >= 0 && Number(part) <= 255)) {
+    return ipv4
+  }
+
+  const ipv6 = text.match(/\b(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}\b/i)?.[0]
+  return ipv6 || null
+}
+
+async function getPublicIp(): Promise<string | null> {
+  for (const endpoint of PUBLIC_IP_ENDPOINTS) {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 3000)
+    try {
+      const response = await fetch(endpoint, { signal: controller.signal })
+      if (response.ok) {
+        const ip = extractPublicIp(await response.text())
+        if (ip) return ip
+      }
+    } catch {
+      // 尝试下一个公网 IP 服务。
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
+  return null
+}
+
 class SectlAuthService {
   private accessToken: string | null = null
   private refreshToken: string | null = null
   private tokenExpiresAt: number | null = null
   private userId: string | null = null
   private codeVerifier: string | null = null
+  private authorizationState: string | null = null
 
   constructor() {
     this.loadToken()
@@ -125,6 +162,7 @@ class SectlAuthService {
       console.log(`[sectlAuth.getAuthorizationUrl] ${step} +${Math.round(performance.now() - t0)}ms`)
 
     const state = this.generateRandomState()
+    this.authorizationState = state
     log("after generateRandomState")
     this.codeVerifier = await generateCodeVerifier()
     log("after generateCodeVerifier")
@@ -133,6 +171,7 @@ class SectlAuthService {
 
     // 保存 code_verifier 到 localStorage，以便 deep link 回调时使用
     localStorage.setItem("sectl_code_verifier", this.codeVerifier)
+    localStorage.setItem("sectl_oauth_state", state)
 
     const params = new URLSearchParams({
       client_id: SECTL_CONFIG.platformId,
@@ -187,6 +226,7 @@ class SectlAuthService {
 
     const deviceUuid = this.generateDeviceUuid()
 
+    const publicIp = await getPublicIp()
     const payload: Record<string, unknown> = {
       grant_type: "authorization_code",
       code,
@@ -194,8 +234,8 @@ class SectlAuthService {
       redirect_uri: SECTL_CONFIG.callbackUrl,
       code_verifier: this.codeVerifier,
       device_uuid: deviceUuid,
-      ip_address: "127.0.0.1",
     }
+    if (publicIp) payload.ip_address = publicIp
 
     if (scope && scope.length > 0) {
       payload.scope = scope.join(" ")
@@ -225,8 +265,12 @@ class SectlAuthService {
   }
 
   // 用于 Deep Link 回调的 code 交换
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async exchangeCode(code: string, _state: string): Promise<TokenData> {
+  async exchangeCode(code: string, state: string): Promise<TokenData> {
+    const expectedState = this.authorizationState || localStorage.getItem("sectl_oauth_state")
+    if (!expectedState || state !== expectedState) {
+      throw new Error("OAuth state 校验失败，请重新发起登录")
+    }
+
     // 从 localStorage 恢复 code_verifier
     const savedVerifier = localStorage.getItem("sectl_code_verifier")
     if (savedVerifier) {
@@ -239,15 +283,16 @@ class SectlAuthService {
 
     const deviceUuid = this.generateDeviceUuid()
 
-    const payload = {
+    const publicIp = await getPublicIp()
+    const payload: Record<string, unknown> = {
       grant_type: "authorization_code",
       code,
       client_id: SECTL_CONFIG.platformId,
       redirect_uri: SECTL_CONFIG.callbackUrl,
       code_verifier: this.codeVerifier,
       device_uuid: deviceUuid,
-      ip_address: "127.0.0.1",
     }
+    if (publicIp) payload.ip_address = publicIp
 
     const url = `${SECTL_CONFIG.baseUrl}/api/oauth/token`
 
@@ -331,13 +376,14 @@ class SectlAuthService {
 
     const deviceUuid = this.generateDeviceUuid()
 
-    const payload = {
+    const publicIp = await getPublicIp()
+    const payload: Record<string, unknown> = {
       grant_type: "refresh_token",
       refresh_token: this.refreshToken,
       client_id: SECTL_CONFIG.platformId,
       device_uuid: deviceUuid,
-      ip_address: "127.0.0.1",
     }
+    if (publicIp) payload.ip_address = publicIp
 
     const url = `${SECTL_CONFIG.baseUrl}/api/oauth/refresh`
 
@@ -421,6 +467,7 @@ class SectlAuthService {
     localStorage.setItem("sectl_token", JSON.stringify(storableData))
     // 登录成功后清除 code_verifier
     localStorage.removeItem("sectl_code_verifier")
+    localStorage.removeItem("sectl_oauth_state")
   }
 
   private loadToken(): void {
@@ -453,11 +500,13 @@ class SectlAuthService {
   private clearToken(): void {
     localStorage.removeItem("sectl_token")
     localStorage.removeItem("sectl_code_verifier")
+    localStorage.removeItem("sectl_oauth_state")
     this.accessToken = null
     this.refreshToken = null
     this.tokenExpiresAt = null
     this.userId = null
     this.codeVerifier = null
+    this.authorizationState = null
   }
 
   getToken(): TokenData | null {

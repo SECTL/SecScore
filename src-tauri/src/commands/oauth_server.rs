@@ -116,6 +116,32 @@ pub async fn oauth_start_callback_server(
     Ok(IpcResponse::success(OAuthServerStartResult { url, port }))
 }
 
+/// 脱离 Tauri 进程启动系统浏览器，避免 shell 插件在 macOS 上等待 open 命令结束。
+#[tauri::command]
+pub async fn oauth_open_browser(url: String) -> Result<IpcResponse<()>, String> {
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(&url).spawn();
+
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &url])
+        .spawn();
+
+    #[cfg(target_os = "linux")]
+    let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+
+    result
+        .map(|_| IpcResponse::success(()))
+        .map_err(|error| format!("启动系统浏览器失败: {}", error))
+}
+
+/// 将前端 OAuth 错误转发到 Tauri 后端输出，便于排查服务端返回结果。
+#[tauri::command]
+pub fn oauth_log_error(message: String) -> Result<IpcResponse<()>, String> {
+    eprintln!("[OAuth Frontend Error] {}", message);
+    Ok(IpcResponse::success(()))
+}
+
 /// 查找并强杀占用指定端口的进程。
 /// macOS/Linux 使用 lsof (-n -P 跳过 DNS/端口名解析)，Windows 使用 netstat + taskkill。
 /// 全程异步并带 5s 超时，避免 DNS 解析挂起导致命令阻塞数十秒。

@@ -19,6 +19,7 @@ pub struct SettingsSpec {
     pub dashboards_config: JsonValue,
     pub pg_connection_string: String,
     pub pg_connection_status: JsonValue,
+    pub sync_method: String,
     pub mobile_bottom_nav_items: JsonValue,
     pub lan_access_enabled: bool,
 }
@@ -40,6 +41,7 @@ impl Default for SettingsSpec {
             dashboards_config: JsonValue::Array(vec![]),
             pg_connection_string: String::new(),
             pg_connection_status: serde_json::json!({"connected": false, "type": "sqlite"}),
+            sync_method: "postgresql".to_string(),
             mobile_bottom_nav_items: serde_json::json!([
                 "home",
                 "students",
@@ -73,6 +75,7 @@ pub enum SettingsKey {
     DashboardsConfig,
     PgConnectionString,
     PgConnectionStatus,
+    SyncMethod,
     MobileBottomNavItems,
     LanAccessEnabled,
 }
@@ -94,6 +97,7 @@ impl SettingsKey {
             SettingsKey::DashboardsConfig => "dashboards_config",
             SettingsKey::PgConnectionString => "pg_connection_string",
             SettingsKey::PgConnectionStatus => "pg_connection_status",
+            SettingsKey::SyncMethod => "sync_method",
             SettingsKey::MobileBottomNavItems => "mobile_bottom_nav_items",
             SettingsKey::LanAccessEnabled => "lan_access_enabled",
         }
@@ -115,6 +119,7 @@ impl SettingsKey {
             "dashboards_config" => Some(SettingsKey::DashboardsConfig),
             "pg_connection_string" => Some(SettingsKey::PgConnectionString),
             "pg_connection_status" => Some(SettingsKey::PgConnectionStatus),
+            "sync_method" => Some(SettingsKey::SyncMethod),
             "mobile_bottom_nav_items" => Some(SettingsKey::MobileBottomNavItems),
             "lan_access_enabled" => Some(SettingsKey::LanAccessEnabled),
             _ => None,
@@ -441,6 +446,22 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::SyncMethod,
+            SettingDefinition {
+                kind: SettingValueKind::String,
+                default_value: SettingsValue::String("postgresql".to_string()),
+                write_permission: PermissionRequirement::Admin,
+                validate: Some(|v| {
+                    if let SettingsValue::String(s) = v {
+                        matches!(s.as_str(), "postgresql" | "sectl_cloud")
+                    } else {
+                        false
+                    }
+                }),
+            },
+        );
+
+        defs.insert(
             SettingsKey::MobileBottomNavItems,
             SettingDefinition {
                 kind: SettingValueKind::Json,
@@ -635,6 +656,10 @@ impl SettingsService {
             pg_connection_status: match self.get_value(SettingsKey::PgConnectionStatus) {
                 SettingsValue::Json(j) => j,
                 _ => serde_json::json!({"connected": false, "type": "sqlite"}),
+            },
+            sync_method: match self.get_value(SettingsKey::SyncMethod) {
+                SettingsValue::String(s) => s,
+                _ => "postgresql".to_string(),
             },
             mobile_bottom_nav_items: match self.get_value(SettingsKey::MobileBottomNavItems) {
                 SettingsValue::Json(j) => j,
