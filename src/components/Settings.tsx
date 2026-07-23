@@ -22,6 +22,7 @@ import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
 import { SectlCloudSyncPanel } from "./SectlCloudSyncPanel"
 import { SectlProvider } from "../contexts/SectlContext"
+import { syncClient } from "../services/syncClient"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
@@ -209,7 +210,12 @@ export const Settings: React.FC<{
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
-  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud">("postgresql")
+  const [syncMethod, setSyncMethod] = useState<
+    "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
+  >("postgresql")
+  const [syncServerUrl, setSyncServerUrl] = useState(
+    localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
+  )
 
   const [pgConnectionString, setPgConnectionString] = useState("")
   const [pgConnectionStatus, setPgConnectionStatus] = useState<{
@@ -338,6 +344,8 @@ export const Settings: React.FC<{
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
       if (res.data.sync_method === "sectl_cloud") {
         setSyncMethod("sectl_cloud")
+      } else if (res.data.sync_method === "sectl_cloud_v2") {
+        setSyncMethod("sectl_cloud_v2")
       } else {
         setSyncMethod("postgresql")
       }
@@ -1405,11 +1413,15 @@ export const Settings: React.FC<{
             <Radio.Group
               value={syncMethod}
               onChange={async (e) => {
-                const next = e.target.value as "postgresql" | "sectl_cloud"
+                const next = e.target.value as
+                  | "postgresql"
+                  | "sectl_cloud"
+                  | "sectl_cloud_v2"
                 setSyncMethod(next)
                 if ((window as any).api) {
                   await (window as any).api.setSetting("sync_method", next)
                 }
+                syncClient.setEnabled(next === "sectl_cloud_v2")
               }}
               disabled={!canAdmin}
               style={{ width: "100%" }}
@@ -1491,9 +1503,88 @@ export const Settings: React.FC<{
                     />
                   </Radio>
                 </Card>
+                <Card
+                  hoverable
+                  size="small"
+                  style={{
+                    borderColor:
+                      syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary)" : undefined,
+                    backgroundColor:
+                      syncMethod === "sectl_cloud_v2"
+                        ? "var(--ant-color-primary-bg)"
+                        : undefined,
+                  }}
+                >
+                  <Radio
+                    value="sectl_cloud_v2"
+                    styles={{
+                      root: { width: "100%", alignItems: "center" },
+                      label: { display: "flex", alignItems: "center", flex: 1, gap: 8 },
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>SECTL云同步（新）</div>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "var(--ss-text-secondary)",
+                          marginTop: 4,
+                        }}
+                      >
+                        本地 SQLite 优先，使用操作日志在多端自动合并，支持断网操作。
+                      </div>
+                    </div>
+                    <CloudOutlined
+                      style={{
+                        fontSize: "26px",
+                        color: "var(--ant-color-primary)",
+                        flexShrink: 0,
+                      }}
+                    />
+                  </Radio>
+                </Card>
               </Space>
             </Radio.Group>
           </Card>
+
+          {syncMethod === "sectl_cloud_v2" && (
+            <Card
+              style={{
+                backgroundColor: "var(--ss-card-bg)",
+                color: "var(--ss-text-main)",
+                marginBottom: "16px",
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: "12px" }}>新同步服务器</div>
+              <div
+                style={{
+                  marginBottom: "12px",
+                  fontSize: "12px",
+                  color: "var(--ss-text-secondary)",
+                }}
+              >
+                开发环境默认连接本机 8787 端口，也可以填写已部署的 HTTPS 地址。
+              </div>
+              <Space.Compact style={{ width: "100%" }}>
+                <Input
+                  value={syncServerUrl}
+                  onChange={(event) => setSyncServerUrl(event.target.value)}
+                  placeholder="http://127.0.0.1:8787"
+                  disabled={!canAdmin}
+                />
+                <Button
+                  disabled={!canAdmin || !syncServerUrl.trim()}
+                  onClick={() => {
+                    syncClient.setServerUrl(syncServerUrl.trim())
+                    void syncClient.syncNow()
+                    messageApi.success("同步服务器地址已保存")
+                  }}
+                >
+                  保存并连接
+                </Button>
+              </Space.Compact>
+            </Card>
+          )}
 
           {syncMethod === "postgresql" ? (
             <>

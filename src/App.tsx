@@ -484,6 +484,10 @@ function MainContent(): React.JSX.Element {
           return
         }
 
+        if (syncMethod === "sectl_cloud_v2") {
+          return
+        }
+
         const statusRes = await api.dbGetStatus()
         if (
           !statusRes?.success ||

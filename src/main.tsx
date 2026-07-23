@@ -9,6 +9,7 @@ import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { api } from "./preload/types"
 import { lanApi } from "./services/lanApi"
+import { syncClient } from "./services/syncClient"
 
 const hasTauriInvoke =
   typeof (window as any).__TAURI_INTERNALS__?.invoke === "function" ||
@@ -20,6 +21,16 @@ if (!hasTauriInvoke) {
 } else if (!(window as any).api) {
   ;(window as any).__SECSCORE_LAN__ = false
   ;(window as any).api = api
+}
+
+if (!(window as any).__SECSCORE_LAN__) {
+  void (window as any).api
+    ?.getAllSettings?.()
+    .then((result: any) => {
+      syncClient.setEnabled(result?.success && result.data?.sync_method === "sectl_cloud_v2")
+      syncClient.start()
+    })
+    .catch(() => syncClient.start())
 }
 
 const ctx = new ClientContext()

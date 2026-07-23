@@ -141,6 +141,8 @@ pub fn run() {
             db_sync,
             db_sync_preview,
             db_sync_apply,
+            sync_apply_remote_operation,
+            sync_apply_snapshot,
             fs_get_config_structure,
             fs_read_json,
             fs_write_json,

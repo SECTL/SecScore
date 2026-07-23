@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
+import { syncClient } from "../services/syncClient"
 
 export interface themeConfig {
   name: string
@@ -283,14 +284,27 @@ const api = {
     invoke("reward_setting_update", { id, data }),
   rewardSettingDelete: (id: number): Promise<{ success: boolean; message?: string }> =>
     invoke("reward_setting_delete", { id }),
-  rewardRedeem: (data: {
+  rewardRedeem: async (data: {
     student_name: string
     reward_id: number
   }): Promise<{
     success: boolean
     data?: { redemption_id: number; remaining_reward_points: number }
     message?: string
-  }> => invoke("reward_redeem", { data }),
+  }> => {
+    const result = await invoke<{
+      success: boolean
+      data?: { redemption_id: number; remaining_reward_points: number }
+      message?: string
+    }>("reward_redeem", { data })
+    if (result.success) {
+      void syncClient.enqueueRewardRedemption({
+        student_name: data.student_name,
+        reward_id: data.reward_id,
+      })
+    }
+    return result
+  },
   rewardRedemptionQuery: (params?: {
     limit?: number
   }): Promise<{ success: boolean; data: any[] }> => invoke("reward_redemption_query", { params }),
@@ -298,7 +312,7 @@ const api = {
   // DB - Event
   queryEvents: (params?: { limit?: number }): Promise<{ success: boolean; data: any[] }> =>
     invoke("event_query", { params }),
-  createEvent: (data: {
+  createEvent: async (data: {
     student_name?: string
     reason_content?: string
     delta: number
@@ -310,8 +324,28 @@ const api = {
       reason_content: String(data.reason_content ?? data.reasonContent ?? "").trim(),
       delta: Number(data.delta),
     }
-    return invoke("event_create", { data: normalized })
+    const result = await invoke<{ success: boolean; data?: number; message?: string }>(
+      "event_create",
+      { data: normalized }
+    )
+    if (result.success) {
+      void syncClient.enqueueScoreAdjustment({
+        student_name: normalized.student_name,
+        reason_content: normalized.reason_content,
+        delta: normalized.delta,
+      })
+    }
+    return result
   },
+  syncApplyRemoteOperation: (operation: {
+    operation_id: string
+    operation_type: string
+    payload: Record<string, unknown>
+    client_created_at?: string
+  }): Promise<{ success: boolean; message?: string }> =>
+    invoke("sync_apply_remote_operation", { operation }),
+  syncApplySnapshot: (snapshot: Record<string, unknown>): Promise<{ success: boolean; message?: string }> =>
+    invoke("sync_apply_snapshot", { snapshot }),
   deleteEvent: (uuid: string): Promise<{ success: boolean }> => invoke("event_delete", { uuid }),
   queryEventsByStudent: (params: {
     student_name?: string
