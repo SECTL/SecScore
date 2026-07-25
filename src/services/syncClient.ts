@@ -258,7 +258,12 @@ class SyncClient {
     const token = sectlAuth.getAccessToken()
     if (token) {
       syncLog("debug", "使用 OAuth 令牌同步", { device_id: this.getDeviceId() })
-      return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+      // DEV_AUTH 服务端会优先使用开发账号；生产服务端会忽略该头并校验 Bearer token。
+      return {
+        Authorization: `Bearer ${token}`,
+        "X-Dev-User-Id": this.getDevUserId(),
+        "Content-Type": "application/json",
+      }
     }
     return {
       "Content-Type": "application/json",
@@ -308,6 +313,19 @@ class SyncClient {
       for (const operation of result.accepted_operations) appliedSet.add(operation.op_id)
       for (const operation of result.remote_operations) {
         if (appliedSet.has(operation.op_id)) continue
+        if (
+          (operation.operation_type === "score.adjust" || operation.operation_type === "reward.redeem") &&
+          typeof operation.payload.student_name !== "string"
+        ) {
+          syncLog("warn", "跳过缺少 student_name 的历史远端操作", {
+            operation_id: operation.op_id,
+            operation_type: operation.operation_type,
+            server_change_seq: operation.server_change_seq,
+            device_id: operation.device_id,
+          })
+          appliedSet.add(operation.op_id)
+          continue
+        }
         const applyResult = await (window as any).api.syncApplyRemoteOperation({
           operation_id: operation.op_id,
           operation_type: operation.operation_type,

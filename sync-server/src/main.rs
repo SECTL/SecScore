@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{DefaultBodyLimit, Path, State},
     http::{header::AUTHORIZATION, HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
@@ -172,6 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/v1/snapshot", post(snapshot))
         .route("/v1/students/:student_id/balance", get(balance))
         .layer(CorsLayer::permissive())
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
     let addr: SocketAddr = env::var("BIND_ADDR")
