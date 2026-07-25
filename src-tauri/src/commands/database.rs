@@ -15,7 +15,7 @@ use crate::services::logger::LogLevel;
 use crate::services::permission::PermissionLevel;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::state::AppState;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use super::response::IpcResponse;
 
@@ -1112,6 +1112,10 @@ fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
     let mut permissions = state_guard.permissions.write();
     let sender_id = 0;
     if !permissions.require_permission(sender_id, PermissionLevel::Admin) {
+        state_guard.logger.read().warn_with_meta(
+            "数据库切换被拒绝：当前进程没有管理员权限",
+            json!({ "sender_id": sender_id, "required": "admin" }),
+        );
         return Err("Permission denied: Admin required".to_string());
     }
     Ok(())
@@ -1377,6 +1381,13 @@ pub async fn db_switch_connection(
 pub async fn db_use_local_sqlite(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SwitchConnectionResult>, String> {
+    {
+        let state_guard = state.read();
+        state_guard.logger.read().info_with_meta(
+            "收到切换到本地 SQLite 请求",
+            json!({ "command": "db_use_local_sqlite" }),
+        );
+    }
     check_admin_permission(&state)?;
 
     let local_conn = {
@@ -1390,10 +1401,46 @@ pub async fn db_use_local_sqlite(
     };
 
     let old_conn = {
-        let state_guard = state.read();
-        let mut db_guard = state_guard.db.write();
-        db_guard.replace(local_conn.clone())
+        let started_at = std::time::Instant::now();
+        let mut attempts = 0u32;
+        loop {
+            let replacement = {
+                let state_guard = state.read();
+                state_guard
+                    .db
+                    .try_write()
+                    .map(|mut db_guard| db_guard.replace(local_conn.clone()))
+            };
+            if let Some(old_conn) = replacement {
+                break old_conn;
+            }
+            attempts += 1;
+            if started_at.elapsed() >= Duration::from_secs(10) {
+                let state_guard = state.read();
+                state_guard.logger.read().error_with_meta(
+                    "切换到本地 SQLite 超时：业务数据库仍被其他操作占用",
+                    json!({ "wait_seconds": 10, "attempts": attempts }),
+                );
+                return Err("切换数据库超时：当前仍有数据库操作进行中，请稍后重试".to_string());
+            }
+            if attempts == 1 || attempts % 20 == 0 {
+                let state_guard = state.read();
+                state_guard.logger.read().info_with_meta(
+                    "等待业务数据库连接锁释放",
+                    json!({ "attempts": attempts, "elapsed_ms": started_at.elapsed().as_millis() }),
+                );
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
     };
+
+    {
+        let state_guard = state.read();
+        state_guard.logger.read().info_with_meta(
+            "本地 SQLite 连接已接管业务连接",
+            json!({ "had_previous_connection": old_conn.is_some() }),
+        );
+    }
 
     if let Some(old_conn) = old_conn {
         let is_postgresql = {
@@ -1405,34 +1452,41 @@ pub async fn db_use_local_sqlite(
             is_postgresql
         };
         if is_postgresql {
-            old_conn
-                .close()
-                .await
-                .map_err(|error| format!("关闭 PostgreSQL 连接失败: {}", error))?;
+            let logger = {
+                let state_guard = state.read();
+                state_guard.logger.clone()
+            };
+            logger.read().info_with_meta(
+                "开始异步关闭旧 PostgreSQL 连接池",
+                json!({ "database_type": "postgresql" }),
+            );
+            // 某些平台上的 sqlx 连接池 close 可能等待底层 socket，不能阻塞设置页的 IPC。
+            // 业务连接已经在上面切换到 SQLite；关闭动作限时后台执行，超时后释放连接对象。
+            tauri::async_runtime::spawn(async move {
+                let close_result =
+                    tokio::time::timeout(Duration::from_secs(3), old_conn.close()).await;
+                match close_result {
+                    Ok(Ok(())) => logger.read().info_with_meta(
+                        "旧 PostgreSQL 连接池已关闭",
+                        json!({ "database_type": "postgresql" }),
+                    ),
+                    Ok(Err(error)) => logger.read().warn_with_meta(
+                        "关闭旧 PostgreSQL 连接池失败，连接对象已释放",
+                        json!({ "error": error.to_string() }),
+                    ),
+                    Err(_) => logger.read().warn_with_meta(
+                        "关闭旧 PostgreSQL 连接池超时，连接对象已释放",
+                        json!({ "timeout_seconds": 3 }),
+                    ),
+                }
+            });
         }
     }
 
     {
         let state_guard = state.read();
-        let mut settings = state_guard.settings.write();
-        // settings 服务可能仍绑定在旧的 PostgreSQL 连接上；切换后必须重新绑定本地 SQLite，
-        // 否则同步模式会被写入旧库，重启时自然无法恢复。
-        settings.attach_db(Some(local_conn.clone()));
-        settings.initialize().await?;
-        settings
-            .set_value(
-                SettingsKey::PgConnectionString,
-                SettingsValue::String(String::new()),
-            )
-            .await?;
-        settings
-            .set_value(
-                SettingsKey::PgConnectionStatus,
-                SettingsValue::Json(json!({ "connected": true, "type": "sqlite" })),
-            )
-            .await?;
         state_guard.logger.read().info_with_meta(
-            "已切换到本地 SQLite，PostgreSQL 连接已关闭",
+            "本地 SQLite 切换完成，等待前端持久化同步设置",
             json!({ "database_type": "sqlite", "sync_mode": "sectl_cloud_v2" }),
         );
     }
@@ -1450,21 +1504,13 @@ pub async fn db_get_status(
     let db_guard = state_guard.db.read();
     let connected = db_guard.is_some();
 
-    let db_type = if connected {
-        let settings = state_guard.settings.read();
-        let status_json =
-            settings.get_value(crate::services::settings::SettingsKey::PgConnectionStatus);
-        match status_json {
-            crate::services::settings::SettingsValue::Json(json) => json
-                .get("type")
-                .and_then(|t| t.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "sqlite".to_string()),
+    let db_type = db_guard
+        .as_ref()
+        .map(|connection| match connection.get_database_backend() {
+            sea_orm::DatabaseBackend::Postgres => "postgresql".to_string(),
             _ => "sqlite".to_string(),
-        }
-    } else {
-        "sqlite".to_string()
-    };
+        })
+        .unwrap_or_else(|| "sqlite".to_string());
 
     Ok(IpcResponse::success(DatabaseStatus {
         db_type,

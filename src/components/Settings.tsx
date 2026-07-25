@@ -36,6 +36,11 @@ import {
 const { Text, Paragraph } = Typography
 
 type permissionLevel = "admin" | "points" | "view"
+
+// Settings 可能因管理窗口/路由生命周期短时间挂载多个实例；同步模式切换必须在整个
+// 前端进程范围内互斥，不能只依赖某一个组件实例的 ref。
+let syncMethodChangeInFlight = false
+
 type appSettings = {
   is_wizard_completed: boolean
   log_level: "debug" | "info" | "warn" | "error"
@@ -210,6 +215,17 @@ export const Settings: React.FC<{
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
+  const logSyncMethodEvent = (message: string, meta: Record<string, unknown> = {}) => {
+    const payload = { message, meta: { permission, canAdmin, ...meta } }
+    console.info("[sync-method]", payload)
+    const api = (window as any).api
+    if (api?.writeLog) {
+      void api.writeLog({ level: "info", ...payload }).catch((error: unknown) => {
+        console.warn("[sync-method] failed to write diagnostic log", error)
+      })
+    }
+  }
+
   const [syncMethod, setSyncMethod] = useState<
     "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
   >("postgresql")
@@ -219,6 +235,16 @@ export const Settings: React.FC<{
   const [syncDevUserId, setSyncDevUserId] = useState(
     localStorage.getItem("ss_sync_dev_user_id") || "local-demo-user"
   )
+
+  useEffect(() => {
+    logSyncMethodEvent("sync_method:settings_state", {
+      permission,
+      canAdmin,
+      syncMethod,
+    })
+    // 该诊断日志用于确认选择控件是否因权限被禁用。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permission, canAdmin, syncMethod])
 
   const [pgConnectionString, setPgConnectionString] = useState("")
   const [pgConnectionStatus, setPgConnectionStatus] = useState<{
@@ -260,6 +286,12 @@ export const Settings: React.FC<{
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
+  }
+
+  const activateSyncMethodCard = (event: React.MouseEvent<HTMLElement>) => {
+    // 点击 radio 自身时让 Radio.Group 正常处理，点击卡片其余区域时再代为点击 radio。
+    if ((event.target as HTMLElement).closest(".ant-radio-wrapper")) return
+    event.currentTarget.querySelector<HTMLInputElement>('input[type="radio"]')?.click()
   }
 
   const loadMcpStatus = async () => {
@@ -1421,25 +1453,122 @@ export const Settings: React.FC<{
                   | "sectl_cloud"
                   | "sectl_cloud_v2"
                 const previous = syncMethod
-                if ((window as any).api) {
-                  if (next === "sectl_cloud_v2") {
-                    const switchResult = await (window as any).api.dbUseLocalSqlite()
-                    if (!switchResult?.success) {
-                      messageApi.error(switchResult?.message || "切换到本地 SQLite 失败")
+                if (syncMethodChangeInFlight) {
+                  logSyncMethodEvent("sync_method:selection_ignored_in_flight", {
+                    previous,
+                    next,
+                  })
+                  return
+                }
+                syncMethodChangeInFlight = true
+                logSyncMethodEvent("sync_method:selection_start", { previous, next })
+                try {
+                  const api = (window as any).api
+                  if (!api) {
+                    logSyncMethodEvent("sync_method:selection_no_api", { next })
+                  } else {
+                    if (next === "sectl_cloud_v2") {
+                      if (typeof api.dbUseLocalSqlite !== "function") {
+                        logSyncMethodEvent("sync_method:local_sqlite_command_missing", { next })
+                        messageApi.error("当前客户端未加载最新版本，请完全退出后重新启动")
+                        return
+                      }
+                      logSyncMethodEvent("sync_method:local_sqlite_switch_start", { next })
+                      let switchResult: {
+                        success?: boolean
+                        data?: { type?: string }
+                        message?: string
+                      }
+                      try {
+                        switchResult = await withTimeout(
+                          api.dbUseLocalSqlite(),
+                          12_000,
+                          "切换本地 SQLite 超时，请查看客户端日志"
+                        )
+                      } catch (error) {
+                        // 后端可能已经完成换库，但 Tauri IPC 返回包没有及时回到 WebView。
+                        // 用真实连接类型确认结果，避免前端把一次成功切换误判成失败。
+                        const statusResult = await api.dbGetStatus()
+                        if (
+                          statusResult?.success &&
+                          statusResult.data?.connected &&
+                          statusResult.data?.type === "sqlite"
+                        ) {
+                          logSyncMethodEvent("sync_method:local_sqlite_switch_recovered", {
+                            next,
+                            error: error instanceof Error ? error.message : String(error),
+                          })
+                          switchResult = { success: true, data: { type: "sqlite" } }
+                        } else {
+                          throw error
+                        }
+                      }
+                      if (!switchResult?.success) {
+                        const statusResult = await api.dbGetStatus()
+                        if (
+                          statusResult?.success &&
+                          statusResult.data?.connected &&
+                          statusResult.data?.type === "sqlite"
+                        ) {
+                          logSyncMethodEvent("sync_method:local_sqlite_switch_recovered", {
+                            next,
+                            message: switchResult?.message,
+                          })
+                          switchResult = { success: true, data: { type: "sqlite" } }
+                        }
+                      }
+                      logSyncMethodEvent("sync_method:local_sqlite_switch_result", {
+                        next,
+                        success: switchResult?.success,
+                        message: switchResult?.message,
+                      })
+                      if (!switchResult?.success) {
+                        messageApi.error(switchResult?.message || "切换到本地 SQLite 失败")
+                        return
+                      }
+                    }
+                    const sqliteStatusResult = await api.setSetting("pg_connection_string", "")
+                    const sqliteStatusSaved = await api.setSetting("pg_connection_status", {
+                      connected: true,
+                      type: "sqlite",
+                    })
+                    logSyncMethodEvent("sync_method:sqlite_status_persist_result", {
+                      next,
+                      connectionStringSaved: sqliteStatusResult?.success,
+                      connectionStatusSaved: sqliteStatusSaved?.success,
+                    })
+                    if (!sqliteStatusResult?.success || !sqliteStatusSaved?.success) {
+                      messageApi.error("本地 SQLite 已切换，但数据库状态保存失败")
+                      return
+                    }
+                    logSyncMethodEvent("sync_method:persist_start", { next })
+                    const settingResult = await api.setSetting("sync_method", next)
+                    logSyncMethodEvent("sync_method:persist_result", {
+                      next,
+                      success: settingResult?.success,
+                      message: settingResult?.message,
+                    })
+                    if (!settingResult?.success) {
+                      messageApi.error(settingResult?.message || "保存同步模式失败")
+                      if (next === "sectl_cloud_v2" && previous !== "sectl_cloud_v2") {
+                        messageApi.warning("已切回本地 SQLite，但同步模式未保存，请重试")
+                      }
                       return
                     }
                   }
-                  const settingResult = await (window as any).api.setSetting("sync_method", next)
-                  if (!settingResult?.success) {
-                    messageApi.error(settingResult?.message || "保存同步模式失败")
-                    if (next === "sectl_cloud_v2" && previous !== "sectl_cloud_v2") {
-                      messageApi.warning("已切回本地 SQLite，但同步模式未保存，请重试")
-                    }
-                    return
-                  }
+                  setSyncMethod(next)
+                  syncClient.setEnabled(next === "sectl_cloud_v2")
+                  logSyncMethodEvent("sync_method:selection_success", { next })
+                } catch (error) {
+                  logSyncMethodEvent("sync_method:selection_error", {
+                    next,
+                    error: error instanceof Error ? error.message : String(error),
+                  })
+                  messageApi.error(error instanceof Error ? error.message : "切换同步模式失败")
+                } finally {
+                  syncMethodChangeInFlight = false
+                  logSyncMethodEvent("sync_method:selection_finished", { next })
                 }
-                setSyncMethod(next)
-                syncClient.setEnabled(next === "sectl_cloud_v2")
               }}
               disabled={!canAdmin}
               style={{ width: "100%" }}
@@ -1448,11 +1577,13 @@ export const Settings: React.FC<{
                 <Card
                   hoverable
                   size="small"
+                  onClick={activateSyncMethodCard}
                   style={{
                     borderColor:
                       syncMethod === "postgresql" ? "var(--ant-color-primary)" : undefined,
                     backgroundColor:
                       syncMethod === "postgresql" ? "var(--ant-color-primary-bg)" : undefined,
+                    cursor: "pointer",
                   }}
                 >
                   <Radio
@@ -1486,11 +1617,13 @@ export const Settings: React.FC<{
                 <Card
                   hoverable
                   size="small"
+                  onClick={activateSyncMethodCard}
                   style={{
                     borderColor:
                       syncMethod === "sectl_cloud" ? "var(--ant-color-primary)" : undefined,
                     backgroundColor:
                       syncMethod === "sectl_cloud" ? "var(--ant-color-primary-bg)" : undefined,
+                    cursor: "pointer",
                   }}
                 >
                   <Radio
@@ -1524,6 +1657,7 @@ export const Settings: React.FC<{
                 <Card
                   hoverable
                   size="small"
+                  onClick={activateSyncMethodCard}
                   style={{
                     borderColor:
                       syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary)" : undefined,
@@ -1531,6 +1665,7 @@ export const Settings: React.FC<{
                       syncMethod === "sectl_cloud_v2"
                         ? "var(--ant-color-primary-bg)"
                         : undefined,
+                    cursor: "pointer",
                   }}
                 >
                   <Radio
