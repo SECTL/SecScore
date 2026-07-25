@@ -1420,10 +1420,25 @@ export const Settings: React.FC<{
                   | "postgresql"
                   | "sectl_cloud"
                   | "sectl_cloud_v2"
-                setSyncMethod(next)
+                const previous = syncMethod
                 if ((window as any).api) {
-                  await (window as any).api.setSetting("sync_method", next)
+                  if (next === "sectl_cloud_v2") {
+                    const switchResult = await (window as any).api.dbUseLocalSqlite()
+                    if (!switchResult?.success) {
+                      messageApi.error(switchResult?.message || "切换到本地 SQLite 失败")
+                      return
+                    }
+                  }
+                  const settingResult = await (window as any).api.setSetting("sync_method", next)
+                  if (!settingResult?.success) {
+                    messageApi.error(settingResult?.message || "保存同步模式失败")
+                    if (next === "sectl_cloud_v2" && previous !== "sectl_cloud_v2") {
+                      messageApi.warning("已切回本地 SQLite，但同步模式未保存，请重试")
+                    }
+                    return
+                  }
                 }
+                setSyncMethod(next)
                 syncClient.setEnabled(next === "sectl_cloud_v2")
               }}
               disabled={!canAdmin}

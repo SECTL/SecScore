@@ -1372,6 +1372,76 @@ pub async fn db_switch_connection(
     Ok(IpcResponse::success(SwitchConnectionResult { db_type }))
 }
 
+/// 将当前业务连接切换到启动时缓存的本地 SQLite，并关闭旧的 PostgreSQL 连接池。
+#[tauri::command]
+pub async fn db_use_local_sqlite(
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<SwitchConnectionResult>, String> {
+    check_admin_permission(&state)?;
+
+    let local_conn = {
+        let state_guard = state.read();
+        let local_conn = state_guard
+            .local_sqlite
+            .read()
+            .clone()
+            .ok_or_else(|| "本地 SQLite 连接尚未初始化".to_string())?;
+        local_conn
+    };
+
+    let old_conn = {
+        let state_guard = state.read();
+        let mut db_guard = state_guard.db.write();
+        db_guard.replace(local_conn.clone())
+    };
+
+    if let Some(old_conn) = old_conn {
+        let is_postgresql = {
+            let state_guard = state.read();
+            let is_postgresql = matches!(
+                state_guard.settings.read().get_value(SettingsKey::PgConnectionStatus),
+                SettingsValue::Json(status) if status.get("type").and_then(|value| value.as_str()) == Some("postgresql")
+            );
+            is_postgresql
+        };
+        if is_postgresql {
+            old_conn
+                .close()
+                .await
+                .map_err(|error| format!("关闭 PostgreSQL 连接失败: {}", error))?;
+        }
+    }
+
+    {
+        let state_guard = state.read();
+        let mut settings = state_guard.settings.write();
+        // settings 服务可能仍绑定在旧的 PostgreSQL 连接上；切换后必须重新绑定本地 SQLite，
+        // 否则同步模式会被写入旧库，重启时自然无法恢复。
+        settings.attach_db(Some(local_conn.clone()));
+        settings.initialize().await?;
+        settings
+            .set_value(
+                SettingsKey::PgConnectionString,
+                SettingsValue::String(String::new()),
+            )
+            .await?;
+        settings
+            .set_value(
+                SettingsKey::PgConnectionStatus,
+                SettingsValue::Json(json!({ "connected": true, "type": "sqlite" })),
+            )
+            .await?;
+        state_guard.logger.read().info_with_meta(
+            "已切换到本地 SQLite，PostgreSQL 连接已关闭",
+            json!({ "database_type": "sqlite", "sync_mode": "sectl_cloud_v2" }),
+        );
+    }
+
+    Ok(IpcResponse::success(SwitchConnectionResult {
+        db_type: "sqlite".to_string(),
+    }))
+}
+
 #[tauri::command]
 pub async fn db_get_status(
     state: State<'_, Arc<RwLock<AppState>>>,

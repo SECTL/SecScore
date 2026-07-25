@@ -746,6 +746,11 @@ const api = {
     connectionString: string
   ): Promise<{ success: boolean; data: { type: "sqlite" | "postgresql" } }> =>
     invoke("db_switch_connection", { connectionString }),
+  dbUseLocalSqlite: (): Promise<{
+    success: boolean
+    data: { type: "sqlite" }
+    message?: string
+  }> => invoke("db_use_local_sqlite"),
   dbGetStatus: (): Promise<{
     success: boolean
     data: { type: string; connected: boolean; error?: string }

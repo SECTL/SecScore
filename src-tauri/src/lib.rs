@@ -137,6 +137,7 @@ pub fn run() {
             window_set_resizable,
             db_test_connection,
             db_switch_connection,
+            db_use_local_sqlite,
             db_get_status,
             db_sync,
             db_sync_preview,
@@ -287,8 +288,12 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                 SettingsValue::String(s) => s,
                 _ => String::new(),
             };
+            let sync_method = match settings.get_value(SettingsKey::SyncMethod) {
+                SettingsValue::String(s) => s,
+                _ => "postgresql".to_string(),
+            };
 
-            if !pg_connection_string.trim().is_empty() {
+            if sync_method != "sectl_cloud_v2" && !pg_connection_string.trim().is_empty() {
                 match timeout(
                     Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
                     create_postgres_connection(&pg_connection_string),
@@ -382,6 +387,11 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             } else {
+                if sync_method == "sectl_cloud_v2" {
+                    eprintln!(
+                        "New cloud sync mode restored on startup; PostgreSQL auto-connect skipped"
+                    );
+                }
                 settings
                     .set_value(
                         SettingsKey::PgConnectionStatus,
