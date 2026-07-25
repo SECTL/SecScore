@@ -5,12 +5,18 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
-use std::{env, net::SocketAddr, sync::Arc};
+use std::{
+    env,
+    fs::{self, OpenOptions},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use uuid::Uuid;
@@ -120,9 +126,25 @@ struct AuthUser {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let log_dir = PathBuf::from(env::var("SYNC_LOG_DIR").unwrap_or_else(|_| "logs".into()));
+    fs::create_dir_all(&log_dir)?;
+    let startup = Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let log_path = log_dir.join(format!("sync-server-{}.log", startup));
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
     tracing_subscriber::fmt()
+        .with_writer(log_file)
+        .with_ansi(false)
         .with_env_filter(env::var("RUST_LOG").unwrap_or_else(|_| "info".into()))
-        .init();
+        .try_init()
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error.to_string()))?;
+    info!(event = "server_start", log_file = %log_path.display(), pid = std::process::id(), "同步服务启动");
+    println!(
+        "SecScore sync server started; log file: {}",
+        log_path.display()
+    );
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is required");
     let pool = PgPoolOptions::new()
         .max_connections(10)
@@ -137,6 +159,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sectl_client_id: env::var("SECTL_CLIENT_ID").ok(),
         dev_auth: env::var("DEV_AUTH").unwrap_or_default() == "true",
     });
+    info!(
+        event = "server_config",
+        bind_addr = %env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into()),
+        dev_auth = state.dev_auth,
+        database = %database_url.chars().take(12).collect::<String>(),
+        "同步服务配置已加载"
+    );
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/sync", post(sync))
@@ -267,7 +296,18 @@ async fn sync(
     headers: HeaderMap,
     Json(request): Json<SyncRequest>,
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ApiError>)> {
+    let request_id = Uuid::now_v7();
     let user = authenticate(&state, &headers).await?;
+    info!(
+        event = "sync_request",
+        request_id = %request_id,
+        user_id = %user.sectl_user_id,
+        device_id = %request.device_id,
+        operation_count = request.operations.len(),
+        last_server_change_seq = request.last_server_change_seq,
+        limit = request.limit,
+        "收到增量同步请求"
+    );
     if request.limit <= 0 || request.limit > 2000 {
         return Err(bad_request("limit must be between 1 and 2000"));
     }
@@ -377,6 +417,18 @@ async fn sync(
         .collect::<Result<Vec<_>, sqlx::Error>>()
         .map_err(|e| internal(e.to_string()))?;
     tx.commit().await.map_err(|e| internal(e.to_string()))?;
+    info!(
+        event = "sync_response",
+        request_id = %request_id,
+        user_id = %user.sectl_user_id,
+        device_id = %request.device_id,
+        accepted_count = accepted.len(),
+        remote_count = remote_operations.len(),
+        balance_count = balances.len(),
+        server_change_seq = max_seq,
+        has_more,
+        "增量同步完成"
+    );
     Ok(Json(SyncResponse {
         server_change_seq: max_seq,
         accepted_operations: accepted,
@@ -391,7 +443,17 @@ async fn snapshot(
     headers: HeaderMap,
     Json(request): Json<SnapshotRequest>,
 ) -> Result<Json<SnapshotResponse>, (StatusCode, Json<ApiError>)> {
+    let request_id = Uuid::now_v7();
     let user = authenticate(&state, &headers).await?;
+    let incoming_counts = snapshot_counts(&request.snapshot);
+    info!(
+        event = "snapshot_request",
+        request_id = %request_id,
+        user_id = %user.sectl_user_id,
+        device_id = %request.device_id,
+        incoming_counts = %incoming_counts,
+        "收到业务数据快照"
+    );
     let account_id = ensure_account(&state.pool, &user.sectl_user_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
@@ -399,14 +461,14 @@ async fn snapshot(
         .await
         .map_err(|e| internal(e.to_string()))?;
 
-    let existing: Option<Value> = sqlx::query_scalar(
-        "SELECT snapshot FROM account_snapshots WHERE account_id = $1",
-    )
-    .bind(account_id)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| internal(e.to_string()))?;
+    let existing: Option<Value> =
+        sqlx::query_scalar("SELECT snapshot FROM account_snapshots WHERE account_id = $1")
+            .bind(account_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| internal(e.to_string()))?;
     let merged = merge_snapshots(existing.as_ref(), &request.snapshot);
+    let merged_counts = snapshot_counts(&merged);
     sqlx::query(
         "INSERT INTO account_snapshots (account_id, snapshot) VALUES ($1, $2) ON CONFLICT (account_id) DO UPDATE SET snapshot = EXCLUDED.snapshot, updated_at = now()",
     )
@@ -416,7 +478,41 @@ async fn snapshot(
     .await
     .map_err(|e| internal(e.to_string()))?;
 
+    info!(
+        event = "snapshot_response",
+        request_id = %request_id,
+        user_id = %user.sectl_user_id,
+        device_id = %request.device_id,
+        had_existing = existing.is_some(),
+        merged_counts = %merged_counts,
+        "业务数据快照合并完成"
+    );
+
     Ok(Json(SnapshotResponse { snapshot: merged }))
+}
+
+fn snapshot_counts(snapshot: &Value) -> String {
+    [
+        "students",
+        "reasons",
+        "reward_settings",
+        "tags",
+        "student_tags",
+        "score_events",
+        "reward_redemptions",
+        "settlements",
+        "board_configs",
+    ]
+    .iter()
+    .map(|key| {
+        let count = snapshot
+            .get(*key)
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
+        format!("{}={}", key, count)
+    })
+    .collect::<Vec<_>>()
+    .join(",")
 }
 
 fn snapshot_key(table: &str, value: &Value) -> String {
@@ -473,7 +569,10 @@ fn merge_snapshots(existing: Option<&Value>, incoming: &Value) -> Value {
             .unwrap_or_default();
         for item in incoming_array {
             let key = snapshot_key(table, item);
-            if let Some(index) = records.iter().position(|current| snapshot_key(table, current) == key) {
+            if let Some(index) = records
+                .iter()
+                .position(|current| snapshot_key(table, current) == key)
+            {
                 records[index] = item.clone();
             } else {
                 records.push(item.clone());

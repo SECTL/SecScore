@@ -9,6 +9,18 @@ const CURSOR_KEY = "ss_sync_cursor"
 const DEFAULT_SERVER_URL =
   (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
 
+const syncLog = (level: "debug" | "info" | "warn" | "error", message: string, meta: Record<string, unknown> = {}) => {
+  try {
+    void (window as any).api?.writeLog?.({
+      level,
+      message: `[sync] ${message}`,
+      meta: { ...meta, at: new Date().toISOString() },
+    })
+  } catch {
+    // 日志失败不能影响同步。
+  }
+}
+
 interface PendingOperation {
   op_id: string
   client_seq: number
@@ -24,6 +36,7 @@ interface SyncResponse {
   server_change_seq: number
   accepted_operations: Array<{ op_id: string; server_change_seq: number; status: string }>
   remote_operations: Array<PendingOperation & { server_change_seq: number; device_id: string }>
+  balances: Array<{ student_id: string; score: number; reward_points: number }>
   has_more: boolean
 }
 
@@ -62,11 +75,26 @@ class SyncClient {
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled
+    syncLog("info", enabled ? "同步已启用" : "同步已停用", {
+      server_url: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
+      dev_user_id: localStorage.getItem(USER_ID_KEY) || "local-demo-user",
+    })
     if (enabled) void this.syncNow()
   }
 
   setServerUrl(url: string) {
     localStorage.setItem(SERVER_URL_KEY, url.replace(/\/$/, ""))
+    syncLog("info", "同步服务器地址已更新", { server_url: localStorage.getItem(SERVER_URL_KEY) })
+  }
+
+  setDevUserId(userId: string) {
+    const normalized = userId.trim() || "local-demo-user"
+    localStorage.setItem(USER_ID_KEY, normalized)
+    syncLog("info", "开发账号已更新", { dev_user_id: normalized })
+  }
+
+  getDevUserId() {
+    return localStorage.getItem(USER_ID_KEY) || "local-demo-user"
   }
 
   private getDeviceId(): string {
@@ -194,18 +222,32 @@ class SyncClient {
   private async syncSnapshot(): Promise<void> {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
-    const response = await fetch(
-      `${localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL}/v1/snapshot`,
-      {
-        method: "POST",
-        headers: await this.headers(),
-        body: JSON.stringify({ device_id: this.getDeviceId(), snapshot: await this.buildSnapshot() }),
-      }
+    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const deviceId = this.getDeviceId()
+    const snapshot = await this.buildSnapshot()
+    const counts = Object.fromEntries(
+      ["students", "reasons", "reward_settings", "tags", "student_tags", "score_events", "reward_redemptions", "settlements", "board_configs"].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
     )
-    if (!response.ok) return
-    const result = (await response.json()) as { snapshot?: Record<string, unknown> }
+    syncLog("info", "开始上传业务数据快照", { server_url: serverUrl, device_id: deviceId, counts })
+    const response = await fetch(`${serverUrl}/v1/snapshot`, {
+      method: "POST",
+      headers: await this.headers(),
+      body: JSON.stringify({ device_id: deviceId, snapshot }),
+    })
+    const responseText = await response.text()
+    if (!response.ok) {
+      syncLog("error", "业务数据快照上传失败", { status: response.status, body: responseText.slice(0, 1000), server_url: serverUrl, device_id: deviceId })
+      throw new Error(`snapshot HTTP ${response.status}`)
+    }
+    const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
     if (result.snapshot) {
       const applied = await api.syncApplySnapshot(result.snapshot)
+      syncLog(applied?.success ? "info" : "error", applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败", {
+        device_id: deviceId,
+        merged_counts: Object.fromEntries(Object.entries(result.snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])),
+        message: applied?.message,
+      })
+      if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
       if (applied?.success) {
         window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
       }
@@ -214,20 +256,33 @@ class SyncClient {
 
   private async headers(): Promise<HeadersInit> {
     const token = sectlAuth.getAccessToken()
-    if (token) return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    if (token) {
+      syncLog("debug", "使用 OAuth 令牌同步", { device_id: this.getDeviceId() })
+      return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }
+    }
     return {
       "Content-Type": "application/json",
-      "X-Dev-User-Id": localStorage.getItem(USER_ID_KEY) || "local-demo-user",
+      "X-Dev-User-Id": this.getDevUserId(),
     }
   }
 
   async syncNow(): Promise<void> {
     if (!this.enabled || this.syncing || !(window as any).api?.syncApplyRemoteOperation) return
     this.syncing = true
+    const startedAt = Date.now()
+    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const deviceId = this.getDeviceId()
+    syncLog("info", "同步周期开始", { server_url: serverUrl, device_id: deviceId, dev_user_id: this.getDevUserId(), outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length, cursor: Number(localStorage.getItem(CURSOR_KEY) || "0") })
     try {
+      // 快照必须独立于增量接口执行，确保已有本地资料可以完成首次上传/合并。
+      try {
+        await this.syncSnapshot()
+      } catch (error) {
+        syncLog("error", "快照阶段失败，继续尝试增量同步", { error: String(error) })
+      }
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
       const response = await fetch(
-        `${localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL}/v1/sync`,
+        `${serverUrl}/v1/sync`,
         {
           method: "POST",
           headers: await this.headers(),
@@ -239,8 +294,12 @@ class SyncClient {
           }),
         }
       )
-      if (!response.ok) return
-      const result = (await response.json()) as SyncResponse
+      const responseText = await response.text()
+      if (!response.ok) {
+        syncLog("error", "增量同步请求失败", { status: response.status, body: responseText.slice(0, 1000) })
+        return
+      }
+      const result = JSON.parse(responseText) as SyncResponse
       const acceptedIds = new Set(result.accepted_operations.map((item) => item.op_id))
       setJson(OUTBOX_KEY, outbox.filter((operation) => !acceptedIds.has(operation.op_id)))
 
@@ -266,9 +325,15 @@ class SyncClient {
       if (result.remote_operations.length > 0) {
         window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
       }
-      await this.syncSnapshot()
+      syncLog("info", "同步周期完成", {
+        duration_ms: Date.now() - startedAt,
+        accepted_count: result.accepted_operations.length,
+        remote_count: result.remote_operations.length,
+        balance_count: result.balances.length,
+        cursor: localStorage.getItem(CURSOR_KEY),
+      })
     } catch (error) {
-      console.debug("Sync server unavailable", error)
+      syncLog("error", "同步周期异常", { duration_ms: Date.now() - startedAt, error: String(error), stack: error instanceof Error ? error.stack : undefined })
     } finally {
       this.syncing = false
     }

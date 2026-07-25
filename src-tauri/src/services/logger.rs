@@ -45,6 +45,7 @@ pub struct LogEntry {
 
 pub struct LoggerService {
     log_dir: PathBuf,
+    current_log_file: Option<PathBuf>,
     current_level: LogLevel,
     #[allow(dead_code)]
     max_files: usize,
@@ -62,6 +63,7 @@ impl LoggerService {
     pub fn new() -> Self {
         Self {
             log_dir: PathBuf::from("logs"),
+            current_log_file: None,
             current_level: LogLevel::Info,
             max_files: 30,
             max_size_mb: 20,
@@ -75,11 +77,22 @@ impl LoggerService {
             .map_err(|e| format!("Failed to get app data directory: {}", e))?;
         self.log_dir = app_data_dir.join("logs");
         fs::create_dir_all(&self.log_dir).map_err(|e| e.to_string())?;
+        let startup = Local::now().format("%Y%m%d-%H%M%S").to_string();
+        self.current_log_file = Some(self.log_dir.join(format!("secscore-{}.log", startup)));
+        self.info_with_meta(
+            "客户端日志已初始化",
+            serde_json::json!({
+                "log_file": self.current_log_file.as_ref().map(|path| path.display().to_string()),
+                "app_data_dir": app_data_dir.display().to_string(),
+            }),
+        );
         Ok(())
     }
 
     pub fn set_log_dir(&mut self, dir: PathBuf) {
         self.log_dir = dir;
+        let startup = Local::now().format("%Y%m%d-%H%M%S").to_string();
+        self.current_log_file = Some(self.log_dir.join(format!("secscore-{}.log", startup)));
         let _ = fs::create_dir_all(&self.log_dir);
     }
 
@@ -92,8 +105,10 @@ impl LoggerService {
     }
 
     fn get_log_file_path(&self) -> PathBuf {
-        let date = Local::now().format("%Y-%m-%d").to_string();
-        self.log_dir.join(format!("secscore-{}.log", date))
+        self.current_log_file.clone().unwrap_or_else(|| {
+            let startup = Local::now().format("%Y%m%d-%H%M%S").to_string();
+            self.log_dir.join(format!("secscore-{}.log", startup))
+        })
     }
 
     fn should_log(&self, level: LogLevel) -> bool {

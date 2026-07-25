@@ -216,6 +216,9 @@ export const Settings: React.FC<{
   const [syncServerUrl, setSyncServerUrl] = useState(
     localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
   )
+  const [syncDevUserId, setSyncDevUserId] = useState(
+    localStorage.getItem("ss_sync_dev_user_id") || "local-demo-user"
+  )
 
   const [pgConnectionString, setPgConnectionString] = useState("")
   const [pgConnectionStatus, setPgConnectionStatus] = useState<{
@@ -1583,6 +1586,30 @@ export const Settings: React.FC<{
                   保存并连接
                 </Button>
               </Space.Compact>
+              <div style={{ marginTop: "12px" }}>
+                <div style={{ marginBottom: "6px", fontSize: "12px" }}>开发账号（DEV_AUTH）</div>
+                <Space.Compact style={{ width: "100%" }}>
+                  <Input
+                    value={syncDevUserId}
+                    onChange={(event) => setSyncDevUserId(event.target.value)}
+                    placeholder="local-demo-user"
+                    disabled={!canAdmin}
+                  />
+                  <Button
+                    disabled={!canAdmin || !syncDevUserId.trim()}
+                    onClick={() => {
+                      syncClient.setDevUserId(syncDevUserId)
+                      void syncClient.syncNow()
+                      messageApi.success("开发账号已保存并开始同步")
+                    }}
+                  >
+                    保存账号并同步
+                  </Button>
+                </Space.Compact>
+                <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+                  A、B 两端必须填写相同账号。若客户端已登录 OAuth，将优先使用 OAuth 账号。
+                </div>
+              </div>
             </Card>
           )}
 

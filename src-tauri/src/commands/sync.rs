@@ -25,7 +25,10 @@ pub struct ApplyRemoteOperation {
 }
 
 fn snapshot_string(value: &Value, key: &str) -> Option<String> {
-    value.get(key).and_then(Value::as_str).map(ToString::to_string)
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 fn snapshot_i32(value: &Value, key: &str) -> Option<i32> {
@@ -64,7 +67,9 @@ pub async fn sync_apply_snapshot(
     let transaction = connection.begin().await.map_err(|e| e.to_string())?;
 
     for value in snapshot_array(&snapshot, "students") {
-        let Some(name) = snapshot_string(value, "name") else { continue };
+        let Some(name) = snapshot_string(value, "name") else {
+            continue;
+        };
         let existing = students::Entity::find()
             .filter(students::Column::Name.eq(&name))
             .one(&transaction)
@@ -75,8 +80,14 @@ pub async fn sync_apply_snapshot(
             .cloned()
             .unwrap_or_else(|| Value::Array(Vec::new()));
         let tags_text = serde_json::to_string(&tags_value).unwrap_or_else(|_| "[]".into());
-        let group_name = value.get("group_name").and_then(Value::as_str).map(String::from);
-        let extra_json = value.get("extra_json").and_then(Value::as_str).map(String::from);
+        let group_name = value
+            .get("group_name")
+            .and_then(Value::as_str)
+            .map(String::from);
+        let extra_json = value
+            .get("extra_json")
+            .and_then(Value::as_str)
+            .map(String::from);
         let score = snapshot_i32(value, "score").unwrap_or(0);
         let reward_points = snapshot_i32(value, "reward_points").unwrap_or(0);
         let updated_at = snapshot_string(value, "updated_at").unwrap_or_else(now_string);
@@ -94,7 +105,10 @@ pub async fn sync_apply_snapshot(
                     active.reward_points = Set(reward_points);
                 }
                 active.updated_at = Set(updated_at);
-                active.update(&transaction).await.map_err(|e| e.to_string())?;
+                active
+                    .update(&transaction)
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             None => {
                 students::ActiveModel {
@@ -116,14 +130,19 @@ pub async fn sync_apply_snapshot(
     }
 
     for value in snapshot_array(&snapshot, "reasons") {
-        let Some(content) = snapshot_string(value, "content") else { continue };
+        let Some(content) = snapshot_string(value, "content") else {
+            continue;
+        };
         let existing = reasons::Entity::find()
             .filter(reasons::Column::Content.eq(&content))
             .one(&transaction)
             .await
             .map_err(|e| e.to_string())?;
         let model = reasons::ActiveModel {
-            id: existing.as_ref().map(|row| Set(row.id)).unwrap_or(sea_orm::ActiveValue::NotSet),
+            id: existing
+                .as_ref()
+                .map(|row| Set(row.id))
+                .unwrap_or(sea_orm::ActiveValue::NotSet),
             content: Set(content),
             category: Set(snapshot_string(value, "category").unwrap_or_else(|| "其他".into())),
             delta: Set(snapshot_i32(value, "delta").unwrap_or(0)),
@@ -131,55 +150,85 @@ pub async fn sync_apply_snapshot(
             updated_at: Set(snapshot_string(value, "updated_at").unwrap_or_else(now_string)),
         };
         if existing.is_some() {
-            model.update(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .update(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         } else {
-            model.insert(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .insert(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
 
     for value in snapshot_array(&snapshot, "reward_settings") {
-        let Some(name) = snapshot_string(value, "name") else { continue };
+        let Some(name) = snapshot_string(value, "name") else {
+            continue;
+        };
         let existing = reward_settings::Entity::find()
             .filter(reward_settings::Column::Name.eq(&name))
             .one(&transaction)
             .await
             .map_err(|e| e.to_string())?;
         let model = reward_settings::ActiveModel {
-            id: existing.as_ref().map(|row| Set(row.id)).unwrap_or(sea_orm::ActiveValue::NotSet),
+            id: existing
+                .as_ref()
+                .map(|row| Set(row.id))
+                .unwrap_or(sea_orm::ActiveValue::NotSet),
             name: Set(name),
             cost_points: Set(snapshot_i32(value, "cost_points").unwrap_or(0)),
             created_at: Set(snapshot_string(value, "created_at").unwrap_or_else(now_string)),
             updated_at: Set(snapshot_string(value, "updated_at").unwrap_or_else(now_string)),
         };
         if existing.is_some() {
-            model.update(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .update(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         } else {
-            model.insert(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .insert(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
 
     for value in snapshot_array(&snapshot, "tags") {
-        let Some(name) = snapshot_string(value, "name") else { continue };
+        let Some(name) = snapshot_string(value, "name") else {
+            continue;
+        };
         let existing = tags::Entity::find()
             .filter(tags::Column::Name.eq(&name))
             .one(&transaction)
             .await
             .map_err(|e| e.to_string())?;
         let model = tags::ActiveModel {
-            id: existing.as_ref().map(|row| Set(row.id)).unwrap_or(sea_orm::ActiveValue::NotSet),
+            id: existing
+                .as_ref()
+                .map(|row| Set(row.id))
+                .unwrap_or(sea_orm::ActiveValue::NotSet),
             name: Set(name),
             created_at: Set(snapshot_string(value, "created_at").unwrap_or_else(now_string)),
             updated_at: Set(snapshot_string(value, "updated_at").unwrap_or_else(now_string)),
         };
         if existing.is_some() {
-            model.update(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .update(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         } else {
-            model.insert(&transaction).await.map_err(|e| e.to_string())?;
+            model
+                .insert(&transaction)
+                .await
+                .map_err(|e| e.to_string())?;
         }
     }
 
     for value in snapshot_array(&snapshot, "score_events") {
-        let Some(uuid) = snapshot_string(value, "uuid") else { continue };
+        let Some(uuid) = snapshot_string(value, "uuid") else {
+            continue;
+        };
         let exists = score_events::Entity::find()
             .filter(score_events::Column::Uuid.eq(&uuid))
             .one(&transaction)
@@ -204,7 +253,9 @@ pub async fn sync_apply_snapshot(
     }
 
     for value in snapshot_array(&snapshot, "reward_redemptions") {
-        let Some(uuid) = snapshot_string(value, "uuid") else { continue };
+        let Some(uuid) = snapshot_string(value, "uuid") else {
+            continue;
+        };
         let reward_name = snapshot_string(value, "reward_name").unwrap_or_default();
         let local_reward_id = reward_settings::Entity::find()
             .filter(reward_settings::Column::Name.eq(&reward_name))
@@ -235,18 +286,28 @@ pub async fn sync_apply_snapshot(
     }
 
     for value in snapshot_array(&snapshot, "student_tags") {
-        let Some(student_name) = snapshot_string(value, "student_name") else { continue };
-        let Some(tag_name) = snapshot_string(value, "tag_name") else { continue };
+        let Some(student_name) = snapshot_string(value, "student_name") else {
+            continue;
+        };
+        let Some(tag_name) = snapshot_string(value, "tag_name") else {
+            continue;
+        };
         let Some(student) = students::Entity::find()
             .filter(students::Column::Name.eq(&student_name))
             .one(&transaction)
             .await
-            .map_err(|e| e.to_string())? else { continue };
+            .map_err(|e| e.to_string())?
+        else {
+            continue;
+        };
         let Some(tag) = tags::Entity::find()
             .filter(tags::Column::Name.eq(&tag_name))
             .one(&transaction)
             .await
-            .map_err(|e| e.to_string())? else { continue };
+            .map_err(|e| e.to_string())?
+        else {
+            continue;
+        };
         let exists = student_tags::Entity::find()
             .filter(student_tags::Column::StudentId.eq(student.id))
             .filter(student_tags::Column::TagId.eq(tag.id))
@@ -267,8 +328,12 @@ pub async fn sync_apply_snapshot(
     }
 
     for value in snapshot_array(&snapshot, "settlements") {
-        let Some(start_time) = snapshot_string(value, "start_time") else { continue };
-        let Some(end_time) = snapshot_string(value, "end_time") else { continue };
+        let Some(start_time) = snapshot_string(value, "start_time") else {
+            continue;
+        };
+        let Some(end_time) = snapshot_string(value, "end_time") else {
+            continue;
+        };
         let created_at = snapshot_string(value, "created_at").unwrap_or_else(now_string);
         let statement = Statement::from_sql_and_values(
             DbBackend::Sqlite,
@@ -282,11 +347,16 @@ pub async fn sync_apply_snapshot(
                 created_at.into(),
             ],
         );
-        transaction.execute(statement).await.map_err(|e| e.to_string())?;
+        transaction
+            .execute(statement)
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     for value in snapshot_array(&snapshot, "board_configs") {
-        let Some(id) = snapshot_i32(value, "id") else { continue };
+        let Some(id) = snapshot_i32(value, "id") else {
+            continue;
+        };
         let config_json = snapshot_string(value, "config_json").unwrap_or_else(|| "[]".into());
         let updated_at = snapshot_string(value, "updated_at").unwrap_or_else(now_string);
         let statement = Statement::from_sql_and_values(
@@ -294,7 +364,10 @@ pub async fn sync_apply_snapshot(
             "INSERT INTO board_configs (id, config_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET config_json = excluded.config_json, updated_at = excluded.updated_at",
             vec![id.into(), config_json.into(), updated_at.into()],
         );
-        transaction.execute(statement).await.map_err(|e| e.to_string())?;
+        transaction
+            .execute(statement)
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     for (key, value) in snapshot
@@ -303,7 +376,10 @@ pub async fn sync_apply_snapshot(
         .into_iter()
         .flat_map(|settings| settings.iter())
     {
-        if matches!(key.as_str(), "pg_connection_string" | "pg_connection_status") {
+        if matches!(
+            key.as_str(),
+            "pg_connection_string" | "pg_connection_status"
+        ) {
             continue;
         }
         let raw = serde_json::to_string(value).map_err(|e| e.to_string())?;
@@ -312,7 +388,10 @@ pub async fn sync_apply_snapshot(
             "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             vec![key.clone().into(), raw.into()],
         );
-        transaction.execute(statement).await.map_err(|e| e.to_string())?;
+        transaction
+            .execute(statement)
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     transaction.commit().await.map_err(|e| e.to_string())?;
