@@ -14,8 +14,13 @@ import { syncClient } from "./services/syncClient"
 const hasTauriInvoke =
   typeof (window as any).__TAURI_INTERNALS__?.invoke === "function" ||
   typeof (window as any).__TAURI__?.core?.invoke === "function"
+const isTauriWebView =
+  hasTauriInvoke ||
+  window.location.protocol === "tauri:" ||
+  window.location.hostname === "tauri.localhost" ||
+  (window.location.hostname === "localhost" && window.location.port === "1420")
 
-if (!hasTauriInvoke) {
+if (!isTauriWebView) {
   ;(window as any).__SECSCORE_LAN__ = true
   ;(window as any).api = lanApi
 } else if (!(window as any).api) {
@@ -25,18 +30,39 @@ if (!hasTauriInvoke) {
 
 if (!(window as any).__SECSCORE_LAN__) {
   const initializeSync = async () => {
+    const rememberedEnabled = syncClient.getRememberedEnabled()
+    const withTimeout = async <T,>(promise: Promise<T> | undefined, timeoutMs: number): Promise<T | undefined> => {
+      if (!promise) return undefined
+      return Promise.race([
+        promise,
+        new Promise<undefined>((resolve) => window.setTimeout(() => resolve(undefined), timeoutMs)),
+      ])
+    }
     const maxAttempts = 20
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
       try {
-        const result = await (window as any).api?.getAllSettings?.()
+        const status: any = await withTimeout((window as any).api?.dbGetStatus?.(), 800)
+        const result: any = await withTimeout((window as any).api?.getAllSettings?.(), 800)
         if (result?.success && typeof result.data?.sync_method === "string") {
-          if (result.data.sync_method === "sectl_cloud_v2") {
+          // 启动时设置服务可能先返回默认值；已有用户选择以本地持久化标记为准，
+          // 但仍等待真实数据库连接，避免在数据库尚未接管时启动同步。
+          if (result.data.sync_method === "sectl_cloud_v2" && status?.data?.connected) {
             syncClient.setEnabled(true)
             syncClient.start()
             return
           }
+          if (rememberedEnabled === true && status?.data?.connected) {
+            syncClient.setEnabled(true)
+            syncClient.start()
+            return
+          }
+          if (rememberedEnabled === false && status?.data?.connected) {
+            syncClient.setEnabled(false)
+            syncClient.start()
+            return
+          }
           // 数据库刚启动时设置接口可能先返回默认值，继续等待后再判定为旧模式。
-          if (attempt === maxAttempts - 1) {
+          if (attempt === maxAttempts - 1 && status?.data?.connected) {
             syncClient.setEnabled(false)
             syncClient.start()
             return

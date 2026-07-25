@@ -379,8 +379,9 @@ pub async fn sync_apply_snapshot(
     {
         if matches!(
             key.as_str(),
-            "pg_connection_string" | "pg_connection_status"
+            "pg_connection_string" | "pg_connection_status" | "sync_method"
         ) {
+            // 数据库连接方式和同步方式是本机策略，不能被另一端的快照覆盖。
             continue;
         }
         let raw = serde_json::to_string(value).map_err(|e| e.to_string())?;

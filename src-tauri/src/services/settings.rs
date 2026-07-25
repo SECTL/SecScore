@@ -165,7 +165,13 @@ impl SettingsValue {
             SettingValueKind::Boolean => {
                 SettingsValue::Boolean(raw == "1" || raw.to_lowercase() == "true")
             }
-            SettingValueKind::String => SettingsValue::String(raw.to_string()),
+            SettingValueKind::String => {
+                // 旧版快照曾把字符串设置按 JSON 字符串写入 SQLite，
+                // 例如 `"sectl_cloud_v2"`。读取时兼容并剥掉这层 JSON 引号，
+                // 否则启动判断会把新同步误判为 PostgreSQL。
+                let value = serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_string());
+                SettingsValue::String(value)
+            }
             SettingValueKind::Number => SettingsValue::Number(raw.parse().unwrap_or(0.0)),
             SettingValueKind::Json => {
                 SettingsValue::Json(serde_json::from_str(raw).unwrap_or(JsonValue::Null))

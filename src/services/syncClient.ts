@@ -6,8 +6,11 @@ const USER_ID_KEY = "ss_sync_dev_user_id"
 const OUTBOX_KEY = "ss_sync_outbox"
 const APPLIED_KEY = "ss_sync_applied_operations"
 const CURSOR_KEY = "ss_sync_cursor"
+const SYNC_ENABLED_KEY = "ss_sync_enabled"
 const DEFAULT_SERVER_URL =
   (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
+const SYNC_REQUEST_TIMEOUT_MS = 10_000
+const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
 
 const syncLog = (level: "debug" | "info" | "warn" | "error", message: string, meta: Record<string, unknown> = {}) => {
   try {
@@ -74,14 +77,24 @@ class SyncClient {
   private timer: number | null = null
   private enabled = false
   private lastSnapshotAt = 0
+  private snapshotAbortController: AbortController | null = null
 
   setEnabled(enabled: boolean) {
+    const changed = this.enabled !== enabled
     this.enabled = enabled
+    localStorage.setItem(SYNC_ENABLED_KEY, String(enabled))
     syncLog("info", enabled ? "同步已启用" : "同步已停用", {
       server_url: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
       dev_user_id: localStorage.getItem(USER_ID_KEY) || "local-demo-user",
     })
-    if (enabled) void this.syncNow(true)
+    if (enabled && changed) void this.syncNow(true)
+  }
+
+  getRememberedEnabled(): boolean | null {
+    const value = localStorage.getItem(SYNC_ENABLED_KEY)
+    if (value === "true") return true
+    if (value === "false") return false
+    return null
   }
 
   setServerUrl(url: string) {
@@ -134,6 +147,8 @@ class SyncClient {
   }
 
   private appendOperation(operation: PendingOperation): void {
+    // 快照写入 SQLite 时如果用户产生了新操作，立即取消快照，让增量操作先发出。
+    this.snapshotAbortController?.abort()
     const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
     outbox.push(operation)
     setJson(OUTBOX_KEY, outbox)
@@ -264,28 +279,40 @@ class SyncClient {
       ["students", "reasons", "reward_settings", "tags", "student_tags", "score_events", "reward_redemptions", "settlements", "board_configs"].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
     )
     syncLog("info", "开始上传业务数据快照", { server_url: serverUrl, device_id: deviceId, counts })
-    const response = await fetch(`${serverUrl}/v1/snapshot`, {
-      method: "POST",
-      headers: await this.headers(),
-      body: JSON.stringify({ device_id: deviceId, snapshot }),
-    })
-    const responseText = await response.text()
-    if (!response.ok) {
-      syncLog("error", "业务数据快照上传失败", { status: response.status, body: responseText.slice(0, 1000), server_url: serverUrl, device_id: deviceId })
-      throw new Error(`snapshot HTTP ${response.status}`)
-    }
-    const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
-    if (result.snapshot) {
-      const applied = await api.syncApplySnapshot(result.snapshot)
-      syncLog(applied?.success ? "info" : "error", applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败", {
-        device_id: deviceId,
-        merged_counts: Object.fromEntries(Object.entries(result.snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])),
-        message: applied?.message,
+    const controller = new AbortController()
+    this.snapshotAbortController = controller
+    const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`${serverUrl}/v1/snapshot`, {
+        method: "POST",
+        headers: await this.headers(),
+        body: JSON.stringify({ device_id: deviceId, snapshot }),
+        signal: controller.signal,
       })
-      if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
-      if (applied?.success) {
+      const responseText = await response.text()
+      if (!response.ok) {
+        syncLog("error", "业务数据快照上传失败", { status: response.status, body: responseText.slice(0, 1000), server_url: serverUrl, device_id: deviceId })
+        throw new Error(`snapshot HTTP ${response.status}`)
+      }
+      // 用户在请求期间产生了新积分时，不应用旧快照，避免覆盖刚写入的本地余额。
+      if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
+        syncLog("info", "快照响应已收到，但存在新的积分操作，跳过本地快照写入", { device_id: deviceId })
+        return
+      }
+      const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
+      if (result.snapshot) {
+        const applied = await api.syncApplySnapshot(result.snapshot)
+        syncLog(applied?.success ? "info" : "error", applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败", {
+          device_id: deviceId,
+          merged_counts: Object.fromEntries(Object.entries(result.snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])),
+          message: applied?.message,
+        })
+        if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
         window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
       }
+    } finally {
+      window.clearTimeout(timeout)
+      if (this.snapshotAbortController === controller) this.snapshotAbortController = null
     }
   }
 
@@ -319,18 +346,9 @@ class SyncClient {
     const deviceId = this.getDeviceId()
     syncLog("info", "同步周期开始", { server_url: serverUrl, device_id: deviceId, dev_user_id: this.getDevUserId(), outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length, cursor: Number(localStorage.getItem(CURSOR_KEY) || "0") })
     try {
-      const shouldSnapshot = forceSnapshot || Date.now() - this.lastSnapshotAt >= 30_000
+      const shouldSnapshot = forceSnapshot || Date.now() - this.lastSnapshotAt >= 5 * 60_000
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
-      // 有待上传积分时优先发送增量请求，不能让大快照阻塞实时积分同步。
-      if (shouldSnapshot && outbox.length === 0) {
-        // 快照必须独立于增量接口执行，确保已有本地资料可以完成首次上传/合并。
-        try {
-          await this.syncSnapshot()
-          this.lastSnapshotAt = Date.now()
-        } catch (error) {
-          syncLog("error", "快照阶段失败，继续尝试增量同步", { error: String(error) })
-        }
-      }
+      // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
       const response = await fetch(
         `${serverUrl}/v1/sync`,
         {
@@ -342,6 +360,7 @@ class SyncClient {
             operations: outbox,
             limit: 500,
           }),
+          signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
         }
       )
       const responseText = await response.text()
@@ -388,12 +407,13 @@ class SyncClient {
       if (result.remote_operations.length > 0) {
         window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
       }
-      if (shouldSnapshot && outbox.length > 0) {
+      if (shouldSnapshot && getJson<PendingOperation[]>(OUTBOX_KEY, []).length === 0) {
         try {
           await this.syncSnapshot()
           this.lastSnapshotAt = Date.now()
         } catch (error) {
-          syncLog("error", "增量同步完成但快照阶段失败", { error: String(error) })
+          const message = error instanceof DOMException && error.name === "AbortError" ? "快照已取消或超时" : String(error)
+          syncLog("warn", "增量同步完成但快照阶段未完成", { error: message })
         }
       }
       syncLog("info", "同步周期完成", {

@@ -841,18 +841,30 @@ pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Resu
 pub async fn realtime_dual_write_sync_if_legacy(
     app_state: &Arc<RwLock<AppState>>,
 ) -> Result<(), String> {
-    let is_new_sync = {
+    let (is_new_sync, is_sqlite) = {
         let state_guard = app_state.read();
         let sync_method = state_guard
             .settings
             .read()
             .get_value(SettingsKey::SyncMethod);
-        matches!(
+        let is_new_sync = matches!(
             sync_method,
             SettingsValue::String(method) if method == "sectl_cloud_v2"
-        )
+        ) || state_guard
+            .db
+            .read()
+            .as_ref()
+            .map(|connection| connection.get_database_backend() == sea_orm::DatabaseBackend::Sqlite)
+            .unwrap_or(true);
+        let is_sqlite = state_guard
+            .db
+            .read()
+            .as_ref()
+            .map(|connection| connection.get_database_backend() == sea_orm::DatabaseBackend::Sqlite)
+            .unwrap_or(true);
+        (is_new_sync, is_sqlite)
     };
-    if is_new_sync {
+    if is_new_sync || is_sqlite {
         return Ok(());
     }
     realtime_dual_write_sync(app_state).await

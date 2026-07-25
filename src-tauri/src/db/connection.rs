@@ -21,6 +21,18 @@ fn apply_default_connect_options(opt: &mut ConnectOptions) {
         .sqlx_logging_level(tracing::log::LevelFilter::Info);
 }
 
+fn apply_sqlite_connect_options(opt: &mut ConnectOptions) {
+    // SQLite 只有一个写者。多连接池会让快照事务和积分事务互相等待，
+    // 表现为点击积分后数秒甚至几十秒才提交。
+    opt.max_connections(1)
+        .min_connections(1)
+        .connect_timeout(Duration::from_secs(DB_CONNECT_TIMEOUT_SECS))
+        .acquire_timeout(Duration::from_secs(3))
+        .idle_timeout(Duration::from_secs(DB_IDLE_TIMEOUT_SECS))
+        .sqlx_logging(true)
+        .sqlx_logging_level(tracing::log::LevelFilter::Info);
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum DatabaseType {
     SQLite,
@@ -123,7 +135,11 @@ impl ConnectionManager {
         );
 
         let mut opt = ConnectOptions::new(&url);
-        apply_default_connect_options(&mut opt);
+        if config.db_type == DatabaseType::SQLite {
+            apply_sqlite_connect_options(&mut opt);
+        } else {
+            apply_default_connect_options(&mut opt);
+        }
 
         let conn = Database::connect(opt).await?;
 
@@ -209,7 +225,7 @@ impl ConnectionManager {
 pub async fn create_sqlite_connection(path: &str) -> Result<DatabaseConnection, DbErr> {
     let url = format!("sqlite://{}?mode=rwc", path);
     let mut opt = ConnectOptions::new(&url);
-    apply_default_connect_options(&mut opt);
+    apply_sqlite_connect_options(&mut opt);
 
     Database::connect(opt).await
 }

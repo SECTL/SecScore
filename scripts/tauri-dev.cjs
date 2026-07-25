@@ -33,6 +33,11 @@ async function findAvailablePort(startPort) {
 async function main() {
   const port = await findAvailablePort(START_PORT)
   const overrideConfig = {
+    app: {
+      // 临时开发配置也必须保留 Tauri 全局 invoke，否则前端会误判为 LAN 模式，
+      // 从而跳过本地同步初始化。
+      withGlobalTauri: true,
+    },
     build: {
       beforeDevCommand: `npm run dev -- --host --port ${port}`,
       devUrl: `http://localhost:${port}`,
