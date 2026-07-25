@@ -8,7 +8,7 @@ use crate::db::entities::reasons;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
-use super::database::realtime_dual_write_sync;
+use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::IpcResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,7 +119,7 @@ pub async fn reason_create(
 
         match new_reason.insert(conn).await {
             Ok(inserted) => {
-                realtime_dual_write_sync(state.inner()).await?;
+                realtime_dual_write_sync_if_legacy(state.inner()).await?;
                 Ok(IpcResponse::success(inserted.id))
             }
             Err(e) => Ok(IpcResponse::error(&format!(
@@ -170,7 +170,7 @@ pub async fn reason_update(
 
                 match active.update(conn).await {
                     Ok(_) => {
-                        realtime_dual_write_sync(state.inner()).await?;
+                        realtime_dual_write_sync_if_legacy(state.inner()).await?;
                         Ok(IpcResponse::success_empty())
                     }
                     Err(e) => Ok(IpcResponse::error(&format!(
@@ -212,7 +212,7 @@ pub async fn reason_delete(
                         if result.rows_affected == 0 {
                             Ok(IpcResponse::error("记录不存在"))
                         } else {
-                            realtime_dual_write_sync(state.inner()).await?;
+                            realtime_dual_write_sync_if_legacy(state.inner()).await?;
                             Ok(IpcResponse::success(DeleteResult {
                                 changes: result.rows_affected as i32,
                             }))

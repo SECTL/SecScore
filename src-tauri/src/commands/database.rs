@@ -836,6 +836,28 @@ pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Resu
     Ok(())
 }
 
+/// 新同步模式由前端 outbox + sync-server 负责上传，不能再调用旧的 PostgreSQL 镜像同步。
+/// 旧同步模式继续保留原有的实时镜像行为。
+pub async fn realtime_dual_write_sync_if_legacy(
+    app_state: &Arc<RwLock<AppState>>,
+) -> Result<(), String> {
+    let is_new_sync = {
+        let state_guard = app_state.read();
+        let sync_method = state_guard
+            .settings
+            .read()
+            .get_value(SettingsKey::SyncMethod);
+        matches!(
+            sync_method,
+            SettingsValue::String(method) if method == "sectl_cloud_v2"
+        )
+    };
+    if is_new_sync {
+        return Ok(());
+    }
+    realtime_dual_write_sync(app_state).await
+}
+
 async fn db_sync_apply_internal(
     strategy: ConflictStrategy,
     app_handle: AppHandle,

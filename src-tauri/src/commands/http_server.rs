@@ -34,7 +34,7 @@ use crate::db::entities::{reasons, reward_settings, score_events, students};
 use crate::services::permission::PermissionLevel;
 use crate::state::AppState;
 
-use super::database::realtime_dual_write_sync;
+use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::IpcResponse;
 
 const DEFAULT_STATIC_PORT: u16 = 45739;
@@ -775,7 +775,7 @@ async fn lan_create_event(
         active.update(&txn).await.map_err(|e| e.to_string())?;
 
         txn.commit().await.map_err(|e| e.to_string())?;
-        realtime_dual_write_sync(&state.app_state).await?;
+        realtime_dual_write_sync_if_legacy(&state.app_state).await?;
         {
             let state_guard = state.app_state.read();
             let _ = state_guard.app_handle.emit(
@@ -849,7 +849,7 @@ async fn lan_delete_event(
             .await
             .map_err(|e| e.to_string())?;
         txn.commit().await.map_err(|e| e.to_string())?;
-        realtime_dual_write_sync(&state.app_state).await?;
+        realtime_dual_write_sync_if_legacy(&state.app_state).await?;
         {
             let state_guard = state.app_state.read();
             let _ = state_guard.app_handle.emit(

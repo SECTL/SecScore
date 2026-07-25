@@ -16,7 +16,7 @@ use crate::services::logger::LogLevel;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
-use super::database::realtime_dual_write_sync;
+use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::{ImportResult, IpcResponse};
 
 #[derive(Deserialize)]
@@ -720,7 +720,7 @@ pub async fn student_create(
 
                 match new_student.insert(conn).await {
                     Ok(inserted) => {
-                        realtime_dual_write_sync(state.inner()).await?;
+                        realtime_dual_write_sync_if_legacy(state.inner()).await?;
                         Ok(IpcResponse::success(inserted.id))
                     }
                     Err(e) => Ok(IpcResponse::error(&format!(
@@ -789,7 +789,7 @@ pub async fn student_update(
 
                 match active.update(conn).await {
                     Ok(_) => {
-                        realtime_dual_write_sync(state.inner()).await?;
+                        realtime_dual_write_sync_if_legacy(state.inner()).await?;
                         Ok(IpcResponse::success_empty())
                     }
                     Err(e) => Ok(IpcResponse::error(&format!(
@@ -842,7 +842,7 @@ pub async fn student_delete(
                 .map_err(|e| e.to_string())?;
 
                 txn.commit().await.map_err(|e| e.to_string())?;
-                realtime_dual_write_sync(state.inner()).await?;
+                realtime_dual_write_sync_if_legacy(state.inner()).await?;
                 Ok(IpcResponse::success_empty())
             }
             Ok(None) => Ok(IpcResponse::error("Student not found")),
@@ -928,7 +928,7 @@ pub async fn student_import_from_xlsx(
                     }
 
                     txn.commit().await.map_err(|e| e.to_string())?;
-                    realtime_dual_write_sync(state.inner()).await?;
+                    realtime_dual_write_sync_if_legacy(state.inner()).await?;
                 }
 
                 Ok(IpcResponse::success(ImportResult {

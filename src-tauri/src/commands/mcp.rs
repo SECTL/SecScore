@@ -31,7 +31,7 @@ use crate::db::entities::{score_events, students};
 use crate::services::permission::PermissionLevel;
 use crate::state::AppState;
 
-use super::database::realtime_dual_write_sync;
+use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::IpcResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -332,7 +332,7 @@ async fn mcp_add_score(
 
     txn.commit().await.map_err(|e| e.to_string())?;
 
-    realtime_dual_write_sync(app_state).await?;
+    realtime_dual_write_sync_if_legacy(app_state).await?;
     {
         let state_guard = app_state.read();
         let _ = state_guard.app_handle.emit(

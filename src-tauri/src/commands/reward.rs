@@ -12,7 +12,7 @@ use crate::db::entities::{reward_redemptions, reward_settings, students};
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
-use super::database::realtime_dual_write_sync;
+use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::IpcResponse;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,7 +160,7 @@ pub async fn reward_setting_create(
     .await
     .map_err(|e| e.to_string())?;
 
-    realtime_dual_write_sync(state.inner()).await?;
+    realtime_dual_write_sync_if_legacy(state.inner()).await?;
     Ok(IpcResponse::success(inserted.id))
 }
 
@@ -220,7 +220,7 @@ pub async fn reward_setting_update(
     active.updated_at = Set(now);
 
     active.update(conn).await.map_err(|e| e.to_string())?;
-    realtime_dual_write_sync(state.inner()).await?;
+    realtime_dual_write_sync_if_legacy(state.inner()).await?;
     Ok(IpcResponse::success_empty())
 }
 
@@ -248,7 +248,7 @@ pub async fn reward_setting_delete(
         return Ok(IpcResponse::error("Reward not found"));
     }
 
-    realtime_dual_write_sync(state.inner()).await?;
+    realtime_dual_write_sync_if_legacy(state.inner()).await?;
     Ok(IpcResponse::success_empty())
 }
 
@@ -323,7 +323,7 @@ pub async fn reward_redeem(
         .map_err(|e| e.to_string())?;
 
     txn.commit().await.map_err(|e| e.to_string())?;
-    realtime_dual_write_sync(state.inner()).await?;
+    realtime_dual_write_sync_if_legacy(state.inner()).await?;
 
     Ok(IpcResponse::success(RedeemRewardResult {
         redemption_id: redemption.id,

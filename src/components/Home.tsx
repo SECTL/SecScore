@@ -215,6 +215,7 @@ export const Home: React.FC<HomeProps> = ({
   const operationMorphRafRef = useRef<number | null>(null)
   const operationClosingRef = useRef(false)
   const operationCloseTokenRef = useRef(0)
+  const submitInFlightRef = useRef(false)
   const operationModalRootClass = "ss-home-operation-morph-root"
   const operationModalClass = "ss-home-operation-morph-modal"
   const operationMorphOpenDuration = 480
@@ -1380,6 +1381,10 @@ export const Home: React.FC<HomeProps> = ({
 
   const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
     if (!(window as any).api) return
+    if (submitInFlightRef.current) {
+      logHome("performSubmit:ignored-duplicate", { studentCount: targetStudents.length, delta })
+      return
+    }
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -1390,61 +1395,66 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     setSubmitLoading(true)
+    submitInFlightRef.current = true
     logHome("performSubmit:start", { studentCount: targetStudents.length, delta, content })
-    let successCount = 0
+    try {
+      let successCount = 0
 
-    for (const student of targetStudents) {
-      const res = await (window as any).api.createEvent({
-        student_name: student.name,
-        reason_content: content,
-        delta: delta,
-      })
+      for (const student of targetStudents) {
+        const res = await (window as any).api.createEvent({
+          student_name: student.name,
+          reason_content: content,
+          delta: delta,
+        })
 
-      logHome("performSubmit:createEvent:response", {
-        student: student.name,
-        delta,
-        success: Boolean(res?.success),
-        message: (res as any)?.message,
-      })
-      if (res.success) successCount += 1
-    }
+        logHome("performSubmit:createEvent:response", {
+          student: student.name,
+          delta,
+          success: Boolean(res?.success),
+          message: (res as any)?.message,
+        })
+        if (res.success) successCount += 1
+      }
 
-    if (successCount > 0) {
-      if (targetStudents.length === 1) {
-        const student = targetStudents[0]
-        messageApi.success(
-          delta > 0
-            ? t("home.scoreAdded", { name: student.name, points: Math.abs(delta) })
-            : t("home.scoreDeducted", { name: student.name, points: Math.abs(delta) })
-        )
-      } else if (successCount === targetStudents.length) {
-        messageApi.success(t("home.batchSuccess", { count: successCount }))
+      if (successCount > 0) {
+        if (targetStudents.length === 1) {
+          const student = targetStudents[0]
+          messageApi.success(
+            delta > 0
+              ? t("home.scoreAdded", { name: student.name, points: Math.abs(delta) })
+              : t("home.scoreDeducted", { name: student.name, points: Math.abs(delta) })
+          )
+        } else if (successCount === targetStudents.length) {
+          messageApi.success(t("home.batchSuccess", { count: successCount }))
+        } else {
+          messageApi.warning(
+            t("home.batchPartial", { success: successCount, total: targetStudents.length })
+          )
+        }
+
+        setSelectedStudentIds([])
+        setBatchMode(false)
+        setSelectedStudent(null)
+        closeOperationModal()
+        setCustomScore(undefined)
+        setReasonContent("")
+        setQuickActionStudentId(null)
+        fetchData(true)
+        fetchLatestEvent()
+        emitDataUpdated("events")
+        logHome("performSubmit:afterSuccessRefreshDispatched", {
+          studentCount: targetStudents.length,
+          delta,
+        })
       } else {
         messageApi.warning(
           t("home.batchPartial", { success: successCount, total: targetStudents.length })
         )
       }
-
-      setSelectedStudentIds([])
-      setBatchMode(false)
-      setSelectedStudent(null)
-      closeOperationModal()
-      setCustomScore(undefined)
-      setReasonContent("")
-      setQuickActionStudentId(null)
-      fetchData(true)
-      fetchLatestEvent()
-      emitDataUpdated("events")
-      logHome("performSubmit:afterSuccessRefreshDispatched", {
-        studentCount: targetStudents.length,
-        delta,
-      })
-    } else {
-      messageApi.warning(
-        t("home.batchPartial", { success: successCount, total: targetStudents.length })
-      )
+    } finally {
+      submitInFlightRef.current = false
+      setSubmitLoading(false)
     }
-    setSubmitLoading(false)
   }
 
   const handleUndoLastEvent = async () => {
