@@ -70,8 +70,10 @@ const deterministicEntityId = (studentName: string): string => {
 
 class SyncClient {
   private syncing = false
+  private syncRequested = false
   private timer: number | null = null
   private enabled = false
+  private lastSnapshotAt = 0
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled
@@ -79,7 +81,7 @@ class SyncClient {
       server_url: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
       dev_user_id: localStorage.getItem(USER_ID_KEY) || "local-demo-user",
     })
-    if (enabled) void this.syncNow()
+    if (enabled) void this.syncNow(true)
   }
 
   setServerUrl(url: string) {
@@ -271,21 +273,31 @@ class SyncClient {
     }
   }
 
-  async syncNow(): Promise<void> {
-    if (!this.enabled || this.syncing || !(window as any).api?.syncApplyRemoteOperation) return
+  async syncNow(forceSnapshot = false): Promise<void> {
+    if (!this.enabled || !(window as any).api?.syncApplyRemoteOperation) return
+    if (this.syncing) {
+      this.syncRequested = true
+      syncLog("debug", "同步正在进行，已登记后续同步请求", { force_snapshot: forceSnapshot })
+      return
+    }
     this.syncing = true
     const startedAt = Date.now()
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     syncLog("info", "同步周期开始", { server_url: serverUrl, device_id: deviceId, dev_user_id: this.getDevUserId(), outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length, cursor: Number(localStorage.getItem(CURSOR_KEY) || "0") })
     try {
-      // 快照必须独立于增量接口执行，确保已有本地资料可以完成首次上传/合并。
-      try {
-        await this.syncSnapshot()
-      } catch (error) {
-        syncLog("error", "快照阶段失败，继续尝试增量同步", { error: String(error) })
-      }
+      const shouldSnapshot = forceSnapshot || Date.now() - this.lastSnapshotAt >= 30_000
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
+      // 有待上传积分时优先发送增量请求，不能让大快照阻塞实时积分同步。
+      if (shouldSnapshot && outbox.length === 0) {
+        // 快照必须独立于增量接口执行，确保已有本地资料可以完成首次上传/合并。
+        try {
+          await this.syncSnapshot()
+          this.lastSnapshotAt = Date.now()
+        } catch (error) {
+          syncLog("error", "快照阶段失败，继续尝试增量同步", { error: String(error) })
+        }
+      }
       const response = await fetch(
         `${serverUrl}/v1/sync`,
         {
@@ -343,6 +355,14 @@ class SyncClient {
       if (result.remote_operations.length > 0) {
         window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
       }
+      if (shouldSnapshot && outbox.length > 0) {
+        try {
+          await this.syncSnapshot()
+          this.lastSnapshotAt = Date.now()
+        } catch (error) {
+          syncLog("error", "增量同步完成但快照阶段失败", { error: String(error) })
+        }
+      }
       syncLog("info", "同步周期完成", {
         duration_ms: Date.now() - startedAt,
         accepted_count: result.accepted_operations.length,
@@ -354,13 +374,17 @@ class SyncClient {
       syncLog("error", "同步周期异常", { duration_ms: Date.now() - startedAt, error: String(error), stack: error instanceof Error ? error.stack : undefined })
     } finally {
       this.syncing = false
+      if (this.syncRequested) {
+        this.syncRequested = false
+        void this.syncNow(false)
+      }
     }
   }
 
   start() {
     if (this.timer !== null) return
-    void this.syncNow()
-    this.timer = window.setInterval(() => void this.syncNow(), 30_000)
+    void this.syncNow(true)
+    this.timer = window.setInterval(() => void this.syncNow(), 3_000)
     window.addEventListener("online", () => void this.syncNow())
   }
 }

@@ -1298,6 +1298,13 @@ export const Home: React.FC<HomeProps> = ({
             modalEl.classList.remove("ss-operation-morph-closing")
             finishCloseOperationModal()
           }
+          window.setTimeout(() => {
+            if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) return
+            logHome("operation:morph:close-animation-timeout", {
+              duration: operationMorphCloseDuration,
+            })
+            finishCloseOperationModal()
+          }, operationMorphCloseDuration + 150)
           return
         }
       }
