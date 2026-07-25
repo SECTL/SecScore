@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::{
+    collections::{HashMap, HashSet},
     env,
     fs::{self, OpenOptions},
     net::SocketAddr,
@@ -468,6 +469,10 @@ async fn snapshot(
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| internal(e.to_string()))?;
+    let balance_delta_count = existing
+        .as_ref()
+        .map(|current| snapshot_balance_deltas(current, &request.snapshot).len())
+        .unwrap_or(0);
     let merged = merge_snapshots(existing.as_ref(), &request.snapshot);
     let merged_counts = snapshot_counts(&merged);
     sqlx::query(
@@ -485,6 +490,7 @@ async fn snapshot(
         user_id = %user.sectl_user_id,
         device_id = %request.device_id,
         had_existing = existing.is_some(),
+        balance_delta_count,
         merged_counts = %merged_counts,
         "业务数据快照合并完成"
     );
@@ -535,7 +541,18 @@ fn snapshot_key(table: &str, value: &Value) -> String {
         .unwrap_or_else(|| serde_json::to_string(value).unwrap_or_default())
 }
 
+fn snapshot_array<'a>(snapshot: &'a Value, key: &str) -> &'a [Value] {
+    snapshot
+        .get(key)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+}
+
 fn merge_snapshots(existing: Option<&Value>, incoming: &Value) -> Value {
+    let balance_deltas = existing
+        .map(|current| snapshot_balance_deltas(current, incoming))
+        .unwrap_or_default();
     let mut merged = existing
         .and_then(Value::as_object)
         .cloned()
@@ -581,7 +598,105 @@ fn merge_snapshots(existing: Option<&Value>, incoming: &Value) -> Value {
         }
         merged.insert(table.clone(), Value::Array(records));
     }
+    if let Some(current) = existing {
+        apply_snapshot_balance_deltas(&mut merged, current, &balance_deltas);
+    }
     Value::Object(merged)
+}
+
+fn snapshot_balance_deltas(current: &Value, incoming: &Value) -> HashMap<String, (i32, i32)> {
+    let known_event_keys = snapshot_keys(current, "score_events");
+    let known_redemption_keys = snapshot_keys(current, "reward_redemptions");
+    let mut deltas: HashMap<String, (i32, i32)> = HashMap::new();
+
+    for event in snapshot_array(incoming, "score_events") {
+        if known_event_keys.contains(&snapshot_key("score_events", event)) {
+            continue;
+        }
+        let Some(student_name) = event.get("student_name").and_then(Value::as_str) else {
+            continue;
+        };
+        let delta = event
+            .get("delta")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(0);
+        let entry = deltas.entry(student_name.to_string()).or_insert((0, 0));
+        entry.0 = entry.0.saturating_add(delta);
+        entry.1 = entry.1.saturating_add(delta);
+    }
+
+    for redemption in snapshot_array(incoming, "reward_redemptions") {
+        if known_redemption_keys.contains(&snapshot_key("reward_redemptions", redemption)) {
+            continue;
+        }
+        let Some(student_name) = redemption.get("student_name").and_then(Value::as_str) else {
+            continue;
+        };
+        let cost = redemption
+            .get("cost_points")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(0);
+        let entry = deltas.entry(student_name.to_string()).or_insert((0, 0));
+        entry.1 = entry.1.saturating_sub(cost);
+    }
+
+    deltas
+}
+
+fn snapshot_keys(snapshot: &Value, table: &str) -> HashSet<String> {
+    snapshot_array(snapshot, table)
+        .iter()
+        .map(|value| snapshot_key(table, value))
+        .collect()
+}
+
+fn apply_snapshot_balance_deltas(
+    merged: &mut serde_json::Map<String, Value>,
+    current: &Value,
+    deltas: &HashMap<String, (i32, i32)>,
+) {
+    let current_students: HashMap<String, &Value> = snapshot_array(current, "students")
+        .iter()
+        .filter_map(|student| {
+            student
+                .get("name")
+                .and_then(Value::as_str)
+                .map(|name| (name.to_string(), student))
+        })
+        .collect();
+
+    let Some(students) = merged.get_mut("students").and_then(Value::as_array_mut) else {
+        return;
+    };
+
+    for student in students {
+        let Some(name) = student.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(current_student) = current_students.get(name) else {
+            // 新学生的 incoming score 已经包含其自身历史事件，不能再次累加。
+            continue;
+        };
+        let (score_delta, reward_delta) = deltas.get(name).copied().unwrap_or((0, 0));
+        let score = current_student
+            .get("score")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(0)
+            .saturating_add(score_delta);
+        let reward_points = current_student
+            .get("reward_points")
+            .and_then(Value::as_i64)
+            .and_then(|value| i32::try_from(value).ok())
+            .unwrap_or(0)
+            .saturating_add(reward_delta);
+        if let Some(object) = student.as_object_mut() {
+            object.insert("score".into(), json!(score));
+            object.insert("reward_points".into(), json!(reward_points));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -606,6 +721,67 @@ mod tests {
         assert_eq!(merged["students"][0]["group_name"], "二组");
         assert_eq!(merged["score_events"].as_array().unwrap().len(), 2);
         assert_eq!(merged["settings"]["font_family"], "B");
+    }
+
+    #[test]
+    fn merges_only_new_snapshot_balance_deltas() {
+        let current = json!({
+            "students": [{"name": "小明", "score": 10, "reward_points": 8}],
+            "score_events": [{"uuid": "event-a", "student_name": "小明", "delta": 1}],
+            "reward_redemptions": []
+        });
+        let incoming = json!({
+            "students": [{"name": "小明", "score": 13, "reward_points": 11}],
+            "score_events": [
+                {"uuid": "event-a", "student_name": "小明", "delta": 1},
+                {"uuid": "event-b", "student_name": "小明", "delta": 3}
+            ],
+            "reward_redemptions": []
+        });
+
+        let merged = merge_snapshots(Some(&current), &incoming);
+        assert_eq!(merged["students"][0]["score"], 13);
+        assert_eq!(merged["students"][0]["reward_points"], 11);
+
+        let repeated = merge_snapshots(Some(&merged), &incoming);
+        assert_eq!(repeated["students"][0]["score"], 13);
+        assert_eq!(repeated["students"][0]["reward_points"], 11);
+    }
+
+    #[test]
+    fn merges_new_redemption_without_replacing_existing_balance() {
+        let current = json!({
+            "students": [{"name": "小明", "score": 10, "reward_points": 8}],
+            "score_events": [],
+            "reward_redemptions": []
+        });
+        let incoming = json!({
+            "students": [{"name": "小明", "score": 10, "reward_points": 3}],
+            "score_events": [],
+            "reward_redemptions": [{"uuid": "redeem-a", "student_name": "小明", "cost_points": 5}]
+        });
+
+        let merged = merge_snapshots(Some(&current), &incoming);
+        assert_eq!(merged["students"][0]["score"], 10);
+        assert_eq!(merged["students"][0]["reward_points"], 3);
+    }
+
+    #[test]
+    fn keeps_server_balance_when_snapshot_has_no_new_ledger_records() {
+        let current = json!({
+            "students": [{"name": "小明", "score": 10, "reward_points": 8}],
+            "score_events": [],
+            "reward_redemptions": []
+        });
+        let incoming = json!({
+            "students": [{"name": "小明", "score": 3, "reward_points": 1}],
+            "score_events": [],
+            "reward_redemptions": []
+        });
+
+        let merged = merge_snapshots(Some(&current), &incoming);
+        assert_eq!(merged["students"][0]["score"], 10);
+        assert_eq!(merged["students"][0]["reward_points"], 8);
     }
 }
 

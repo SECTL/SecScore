@@ -93,15 +93,16 @@ pub async fn sync_apply_snapshot(
         let updated_at = snapshot_string(value, "updated_at").unwrap_or_else(now_string);
         match existing {
             Some(student) => {
-                let should_initialize_balance = student.score == 0
-                    && student.reward_points == 0
-                    && (score != 0 || reward_points != 0);
                 let mut active: students::ActiveModel = student.into();
                 active.group_name = Set(group_name);
                 active.tags = Set(tags_text);
                 active.extra_json = Set(extra_json);
-                if should_initialize_balance {
+                // 快照由服务端按事件 UUID 合并后返回，余额是服务端计算出的权威结果。
+                // 不能保留本地非零值，否则历史分叉合并后界面仍会显示各自的余额。
+                if value.get("score").is_some() {
                     active.score = Set(score);
+                }
+                if value.get("reward_points").is_some() {
                     active.reward_points = Set(reward_points);
                 }
                 active.updated_at = Set(updated_at);

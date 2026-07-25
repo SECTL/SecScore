@@ -24,13 +24,33 @@ if (!hasTauriInvoke) {
 }
 
 if (!(window as any).__SECSCORE_LAN__) {
-  void (window as any).api
-    ?.getAllSettings?.()
-    .then((result: any) => {
-      syncClient.setEnabled(result?.success && result.data?.sync_method === "sectl_cloud_v2")
-      syncClient.start()
-    })
-    .catch(() => syncClient.start())
+  const initializeSync = async () => {
+    const maxAttempts = 20
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const result = await (window as any).api?.getAllSettings?.()
+        if (result?.success && typeof result.data?.sync_method === "string") {
+          if (result.data.sync_method === "sectl_cloud_v2") {
+            syncClient.setEnabled(true)
+            syncClient.start()
+            return
+          }
+          // 数据库刚启动时设置接口可能先返回默认值，继续等待后再判定为旧模式。
+          if (attempt === maxAttempts - 1) {
+            syncClient.setEnabled(false)
+            syncClient.start()
+            return
+          }
+        }
+      } catch {
+        // Tauri 数据库尚未准备好时重试，避免把默认 PostgreSQL 设置误判为最终设置。
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
+    }
+    syncClient.setEnabled(false)
+    syncClient.start()
+  }
+  void initializeSync()
 }
 
 const ctx = new ClientContext()

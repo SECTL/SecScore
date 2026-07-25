@@ -133,6 +133,20 @@ class SyncClient {
     }
   }
 
+  private appendOperation(operation: PendingOperation): void {
+    const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
+    outbox.push(operation)
+    setJson(OUTBOX_KEY, outbox)
+    syncLog("info", "积分操作已加入待同步队列", {
+      op_id: operation.op_id,
+      operation_type: operation.operation_type,
+      student_name: operation.payload.student_name,
+      score_delta: operation.payload.score_delta,
+      reward_delta: operation.payload.reward_delta,
+      outbox_count: outbox.length,
+    })
+  }
+
   async enqueueScoreAdjustment(input: {
     student_name: string
     reason_content: string
@@ -144,31 +158,50 @@ class SyncClient {
       score_delta: input.delta,
       reward_delta: input.delta,
     })
-    const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
-    outbox.push(operation)
-    setJson(OUTBOX_KEY, outbox)
-    void this.syncNow()
+    try {
+      this.appendOperation(operation)
+      void this.syncNow()
+    } catch (error) {
+      syncLog("error", "积分操作加入待同步队列失败", {
+        operation_type: operation.operation_type,
+        student_name: input.student_name,
+        error: String(error),
+      })
+    }
   }
 
   async enqueueRewardRedemption(input: {
     student_name: string
     reward_id: number
   }): Promise<void> {
-    const reward = await (window as any).api.rewardSettingQuery()
-    const rewardSetting = Array.isArray(reward?.data)
-      ? reward.data.find((item: any) => Number(item.id) === input.reward_id)
-      : null
-    if (!rewardSetting) return
-    const operation = this.createOperation("reward.redeem", input.student_name, {
-      student_name: input.student_name,
-      reward_id: input.reward_id,
-      reward_name: rewardSetting.name,
-      cost_points: Number(rewardSetting.cost_points),
-    })
-    const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
-    outbox.push(operation)
-    setJson(OUTBOX_KEY, outbox)
-    void this.syncNow()
+    try {
+      const reward = await (window as any).api.rewardSettingQuery()
+      const rewardSetting = Array.isArray(reward?.data)
+        ? reward.data.find((item: any) => Number(item.id) === input.reward_id)
+        : null
+      if (!rewardSetting) {
+        syncLog("error", "奖励兑换未加入同步队列：找不到奖励配置", {
+          student_name: input.student_name,
+          reward_id: input.reward_id,
+        })
+        return
+      }
+      const operation = this.createOperation("reward.redeem", input.student_name, {
+        student_name: input.student_name,
+        reward_id: input.reward_id,
+        reward_name: rewardSetting.name,
+        cost_points: Number(rewardSetting.cost_points),
+      })
+      this.appendOperation(operation)
+      void this.syncNow()
+    } catch (error) {
+      syncLog("error", "奖励兑换加入待同步队列失败", {
+        operation_type: "reward.redeem",
+        student_name: input.student_name,
+        reward_id: input.reward_id,
+        error: String(error),
+      })
+    }
   }
 
   private async buildSnapshot(): Promise<Record<string, unknown>> {
