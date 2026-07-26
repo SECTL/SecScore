@@ -13,8 +13,8 @@ cd sync-server
 cp .env.production.example .env.production
 ```
 
-至少需要替换 `POSTGRES_PASSWORD`、`DATABASE_URL` 中对应的密码和
-`SECTL_CLIENT_ID`。密码建议使用 URL-safe 字符，且生产环境必须保持
+至少需要替换 `POSTGRES_PASSWORD`、`DATABASE_URL` 中对应的密码、
+`SECTL_CLIENT_ID` 和 `SECTL_PLATFORM_ID`。密码建议使用 URL-safe 字符，且生产环境必须保持
 `DEV_AUTH=false`。随后一键构建并启动后端和 PostgreSQL：
 
 ```bash
@@ -58,11 +58,12 @@ cargo run --manifest-path sync-server/Cargo.toml
 curl http://127.0.0.1:8787/health
 ```
 
-真实 SECTL 登录模式需要设置：
+真实 SECTL 登录模式需要设置。注意 Client ID 和 Platform ID 是 SECTL 控制台中的两个不同字段：
 
 ```bash
 export SECTL_INTROSPECT_URL='https://appwrite.sectl.cn/api/oauth/introspect'
-export SECTL_CLIENT_ID='你的 SECTL platform id'
+export SECTL_CLIENT_ID='你的 SECTL Client ID'
+export SECTL_PLATFORM_ID='你的 SECTL 平台 ID'
 export DEV_AUTH=false
 ```
 

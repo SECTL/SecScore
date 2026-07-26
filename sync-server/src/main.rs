@@ -26,7 +26,7 @@ use std::{
 use tokio::sync::broadcast;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -35,6 +35,7 @@ struct AppState {
     http: Client,
     sectl_introspect_url: Option<String>,
     sectl_client_id: Option<String>,
+    sectl_platform_id: Option<String>,
     dev_auth: bool,
     changes: broadcast::Sender<ChangeNotification>,
 }
@@ -188,12 +189,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dev_auth = env::var("DEV_AUTH").unwrap_or_default() == "true";
     let sectl_introspect_url = env::var("SECTL_INTROSPECT_URL").ok();
     let sectl_client_id = env::var("SECTL_CLIENT_ID").ok();
+    let sectl_platform_id = env::var("SECTL_PLATFORM_ID").ok();
 
     if dev_auth && !addr.ip().is_loopback() {
         return Err("DEV_AUTH=true 仅允许绑定 loopback 地址；生产环境必须使用 SECTL Token".into());
     }
-    if !dev_auth && (sectl_introspect_url.is_none() || sectl_client_id.is_none()) {
-        return Err("DEV_AUTH=false 时必须配置 SECTL_INTROSPECT_URL 和 SECTL_CLIENT_ID".into());
+    if !dev_auth
+        && (sectl_introspect_url.is_none()
+            || sectl_client_id.is_none()
+            || sectl_platform_id.is_none())
+    {
+        return Err(
+            "DEV_AUTH=false 时必须配置 SECTL_INTROSPECT_URL、SECTL_CLIENT_ID 和 SECTL_PLATFORM_ID"
+                .into(),
+        );
     }
 
     let pool = PgPoolOptions::new()
@@ -208,6 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         http: Client::builder().timeout(Duration::from_secs(5)).build()?,
         sectl_introspect_url,
         sectl_client_id,
+        sectl_platform_id,
         dev_auth,
         changes: change_tx,
     });
@@ -215,6 +225,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         event = "server_config",
         bind_addr = %bind_addr,
         dev_auth = state.dev_auth,
+        sectl_client_id = ?state.sectl_client_id.as_deref().map(mask_identifier),
+        sectl_platform_id = ?state.sectl_platform_id.as_deref().map(mask_identifier),
         database = %database_url.chars().take(12).collect::<String>(),
         "同步服务配置已加载"
     );
@@ -277,6 +289,7 @@ async fn changes(
     Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>,
     (StatusCode, Json<ApiError>),
 > {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     let account_id = ensure_account(&state.pool, &user.sectl_user_id)
         .await
@@ -308,6 +321,7 @@ async fn changes(
     });
     info!(
         event = "changes_connected",
+        request_id = %request_id,
         user_id = %user.sectl_user_id,
         last_server_change_seq = last_seq,
         "长连接变更订阅已建立"
@@ -323,75 +337,275 @@ async fn authenticate(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<AuthUser, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(headers);
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .filter(|value| !value.trim().is_empty());
+    let has_authorization_header = headers.contains_key(AUTHORIZATION);
+    let has_dev_user_header = headers.contains_key("x-dev-user-id");
+    info!(
+        event = "auth_request",
+        request_id = %request_id,
+        has_authorization_header,
+        has_bearer_token = token.is_some(),
+        bearer_token_length = token.map_or(0, str::len),
+        has_dev_user_header,
+        dev_auth = state.dev_auth,
+        "收到同步请求认证信息"
+    );
 
     // 只有没有 Bearer Token 时才允许使用本地开发身份；一旦请求携带 Token，
     // 必须以 SECTL introspection 的结果为准，避免开发头覆盖真实登录用户。
     if token.is_none() && state.dev_auth {
         if let Some(user) = headers.get("x-dev-user-id").and_then(|v| v.to_str().ok()) {
             if user.trim().is_empty() {
+                warn!(
+                    event = "auth_rejected",
+                    request_id = %request_id,
+                    reason = "empty_development_user_id",
+                    "开发身份认证失败"
+                );
                 return Err(unauthorized("empty development user id"));
             }
+            info!(
+                event = "auth_accepted_dev",
+                request_id = %request_id,
+                user_id = %mask_identifier(user.trim()),
+                "已使用开发身份认证"
+            );
             return Ok(AuthUser {
                 sectl_user_id: user.trim().to_string(),
             });
         }
     }
 
-    let token = token.ok_or_else(|| unauthorized("missing bearer token"))?;
+    let token = match token {
+        Some(token) => token,
+        None => {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "missing_bearer_token",
+                "认证失败：请求没有 Bearer Token"
+            );
+            return Err(unauthorized("missing bearer token"));
+        }
+    };
     let url = state
         .sectl_introspect_url
         .as_ref()
+        .or_else(|| {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "introspection_not_configured",
+                "认证失败：未配置 SECTL introspection 地址"
+            );
+            None
+        })
         .ok_or_else(|| unauthorized("SECTL introspection is not configured"))?;
     let client_id = state
         .sectl_client_id
         .as_ref()
+        .or_else(|| {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "client_id_not_configured",
+                "认证失败：未配置 SECTL client id"
+            );
+            None
+        })
         .ok_or_else(|| unauthorized("SECTL client id is not configured"))?;
-    let response = state
+    let platform_id = state
+        .sectl_platform_id
+        .as_ref()
+        .or_else(|| {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "platform_id_not_configured",
+                "认证失败：未配置 SECTL platform id"
+            );
+            None
+        })
+        .ok_or_else(|| unauthorized("SECTL platform id is not configured"))?;
+    info!(
+        event = "auth_introspection_request",
+        request_id = %request_id,
+        introspect_url = %url,
+        client_id = %mask_identifier(client_id),
+        platform_id = %mask_identifier(platform_id),
+        bearer_token_length = token.len(),
+        "开始请求 SECTL token introspection"
+    );
+    let response = match state
         .http
         .post(url)
         .json(&json!({"token": token, "client_id": client_id}))
         .send()
         .await
-        .map_err(|_| unauthorized("SECTL authentication unavailable"))?;
-    if !response.status().is_success() {
+    {
+        Ok(response) => response,
+        Err(error) => {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "introspection_request_failed",
+                error = %error,
+                "SECTL token introspection 请求失败"
+            );
+            return Err(unauthorized("SECTL authentication unavailable"));
+        }
+    };
+    let response_status = response.status();
+    info!(
+        event = "auth_introspection_response",
+        request_id = %request_id,
+        status = response_status.as_u16(),
+        "收到 SECTL token introspection 响应"
+    );
+    if !response_status.is_success() {
+        let body_length = response.bytes().await.map_or(0, |body| body.len());
+        warn!(
+            event = "auth_rejected",
+            request_id = %request_id,
+            reason = "introspection_http_error",
+            status = response_status.as_u16(),
+            body_length,
+            "SECTL token introspection 返回失败状态"
+        );
         return Err(unauthorized("invalid token"));
     }
-    let data: Value = response
-        .json()
-        .await
-        .map_err(|_| unauthorized("invalid SECTL response"))?;
-    if data.get("active").and_then(Value::as_bool) != Some(true) {
+    let data: Value = match response.json().await {
+        Ok(data) => data,
+        Err(error) => {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "invalid_introspection_response",
+                error = %error,
+                "SECTL token introspection 响应不是有效 JSON"
+            );
+            return Err(unauthorized("invalid SECTL response"));
+        }
+    };
+    let active = data.get("active").and_then(Value::as_bool);
+    // 当前 SECTL introspection 响应将平台 ID 放在 client_id 字段；兼容
+    // 规范化返回 platform_id 字段的版本，但不能把该值与请求用的 Client ID 比较。
+    let returned_platform_id = data
+        .get("platform_id")
+        .or_else(|| data.get("client_id"))
+        .and_then(Value::as_str);
+    let platform_id_field = if data.get("platform_id").is_some() {
+        "platform_id"
+    } else if data.get("client_id").is_some() {
+        "client_id"
+    } else {
+        "missing"
+    };
+    let returned_user_id = data
+        .get("user_id")
+        .and_then(Value::as_str)
+        .or_else(|| data.get("sub").and_then(Value::as_str));
+    info!(
+        event = "auth_introspection_result",
+        request_id = %request_id,
+        active = ?active,
+        returned_platform_id = ?returned_platform_id.map(mask_identifier),
+        platform_id_field,
+        returned_user_id = ?returned_user_id.map(mask_identifier),
+        has_platform_id = returned_platform_id.is_some(),
+        has_user_id = returned_user_id.is_some(),
+        "解析 SECTL token introspection 结果"
+    );
+    if active != Some(true) {
+        warn!(
+            event = "auth_rejected",
+            request_id = %request_id,
+            reason = "inactive_token",
+            "认证失败：SECTL Token 非 active 状态"
+        );
         return Err(unauthorized("inactive token"));
     }
 
-    // SECTL 的 introspection 请求已经携带服务端配置的 client_id；如果响应
-    // 返回平台归属，则必须再次核对，不能接受另一个平台签发的 Token。
-    let returned_client_id = data
-        .get("client_id")
-        .or_else(|| data.get("platform_id"))
-        .and_then(Value::as_str);
-    if let Some(returned_client_id) = returned_client_id {
-        if returned_client_id != client_id {
-            return Err(unauthorized("token belongs to another SECTL platform"));
+    let returned_platform_id = match returned_platform_id {
+        Some(platform_id) => platform_id,
+        None => {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "missing_platform_id",
+                "认证失败：SECTL 响应没有 platform_id"
+            );
+            return Err(unauthorized("SECTL response has no platform id"));
         }
+    };
+    if returned_platform_id != platform_id {
+        warn!(
+            event = "auth_rejected",
+            request_id = %request_id,
+            reason = "platform_mismatch",
+            expected_platform_id = %mask_identifier(platform_id),
+            returned_platform_id = %mask_identifier(returned_platform_id),
+            "认证失败：Token 所属 SECTL 平台不匹配"
+        );
+        return Err(unauthorized("token belongs to another SECTL platform"));
     }
 
-    let user_id = data
-        .get("user_id")
-        .and_then(Value::as_str)
-        .or_else(|| data.get("sub").and_then(Value::as_str))
-        .ok_or_else(|| unauthorized("SECTL response has no user id"))?;
+    let user_id = match returned_user_id {
+        Some(user_id) => user_id,
+        None => {
+            warn!(
+                event = "auth_rejected",
+                request_id = %request_id,
+                reason = "missing_user_id",
+                "认证失败：SECTL 响应没有 user_id 或 sub"
+            );
+            return Err(unauthorized("SECTL response has no user id"));
+        }
+    };
     if user_id.trim().is_empty() {
+        warn!(
+            event = "auth_rejected",
+            request_id = %request_id,
+            reason = "empty_user_id",
+            "认证失败：SECTL 响应中的用户 ID 为空"
+        );
         return Err(unauthorized("SECTL response has an empty user id"));
     }
+    info!(
+        event = "auth_accepted",
+        request_id = %request_id,
+        user_id = %mask_identifier(user_id.trim()),
+        client_id = %mask_identifier(client_id),
+        platform_id = %mask_identifier(platform_id),
+        "SECTL Token 认证通过"
+    );
     Ok(AuthUser {
         sectl_user_id: user_id.trim().to_string(),
     })
+}
+
+fn request_id_from_headers(headers: &HeaderMap) -> String {
+    headers
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| !value.trim().is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| Uuid::now_v7().to_string())
+}
+
+fn mask_identifier(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 8 {
+        return "***".into();
+    }
+    let prefix: String = chars.iter().take(4).collect();
+    let suffix: String = chars.iter().skip(chars.len() - 4).collect();
+    format!("{}…{}", prefix, suffix)
 }
 
 fn unauthorized(message: &str) -> (StatusCode, Json<ApiError>) {
@@ -441,7 +655,7 @@ async fn sync(
     headers: HeaderMap,
     Json(request): Json<SyncRequest>,
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ApiError>)> {
-    let request_id = Uuid::now_v7();
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     info!(
         event = "sync_request",
@@ -618,7 +832,7 @@ async fn snapshot(
     headers: HeaderMap,
     Json(request): Json<SnapshotRequest>,
 ) -> Result<Json<SnapshotResponse>, (StatusCode, Json<ApiError>)> {
-    let request_id = Uuid::now_v7();
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     let incoming_counts = snapshot_counts(&request.snapshot);
     info!(

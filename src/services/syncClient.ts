@@ -46,6 +46,12 @@ const syncLog = (
   }
 }
 
+const describeAccessToken = (token: string | null) => ({
+  has_token: Boolean(token),
+  token_length: token?.length || 0,
+  token_kind: token ? (token.split(".").length === 3 ? "jwt_like" : "opaque") : "none",
+})
+
 interface PendingOperation {
   op_id: string
   client_seq: number
@@ -393,6 +399,7 @@ class SyncClient {
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const snapshot = await this.buildSnapshot()
+    const requestId = newUuid()
     const counts = Object.fromEntries(
       [
         "students",
@@ -406,20 +413,31 @@ class SyncClient {
         "board_configs",
       ].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
     )
-    syncLog("info", "开始上传业务数据快照", { server_url: serverUrl, device_id: deviceId, counts })
+    syncLog("info", "开始上传业务数据快照", {
+      request_id: requestId,
+      server_url: serverUrl,
+      device_id: deviceId,
+      counts,
+    })
     const controller = new AbortController()
     this.snapshotAbortController = controller
     const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
     try {
       const response = await fetch(`${serverUrl}/v1/snapshot`, {
         method: "POST",
-        headers: await this.headers(),
+        headers: await this.headers(requestId),
         body: JSON.stringify({ device_id: deviceId, snapshot }),
         signal: controller.signal,
       })
       const responseText = await response.text()
+      syncLog("debug", "收到业务数据快照响应", {
+        request_id: requestId,
+        status: response.status,
+        response_bytes: responseText.length,
+      })
       if (!response.ok) {
         syncLog("error", "业务数据快照上传失败", {
+          request_id: requestId,
           status: response.status,
           body: responseText.slice(0, 1000),
           server_url: serverUrl,
@@ -473,7 +491,9 @@ class SyncClient {
     if (!api?.syncApplySnapshot) return
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
+    const requestId = newUuid()
     syncLog("info", "开始拉取服务器最新业务数据快照", {
+      request_id: requestId,
       server_url: serverUrl,
       device_id: deviceId,
     })
@@ -482,12 +502,24 @@ class SyncClient {
     const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
     try {
       const response = await fetch(`${serverUrl}/v1/snapshot`, {
-        headers: await this.headers(),
+        headers: await this.headers(requestId),
         signal: controller.signal,
       })
       const responseText = await response.text()
-      if (!response.ok)
-        throw new Error(`snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`)
+      syncLog("debug", "收到服务器快照响应", {
+        request_id: requestId,
+        status: response.status,
+        response_bytes: responseText.length,
+      })
+      if (!response.ok) {
+        const message = `snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`
+        syncLog("error", "拉取服务器快照失败", {
+          request_id: requestId,
+          status: response.status,
+          body: responseText.slice(0, 1000),
+        })
+        throw new Error(message)
+      }
       if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
         syncLog("info", "拉取快照响应已收到，但存在待同步积分操作，跳过本地快照写入", {
           device_id: deviceId,
@@ -502,19 +534,31 @@ class SyncClient {
     }
   }
 
-  private async headers(): Promise<HeadersInit> {
+  private async headers(requestId?: string): Promise<HeadersInit> {
     const token = sectlAuth.getAccessToken()
+    const requestHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+    if (requestId) requestHeaders["X-Request-Id"] = requestId
     if (token) {
-      syncLog("debug", "使用 OAuth 令牌同步", { device_id: this.getDeviceId() })
+      syncLog("debug", "准备携带 OAuth 令牌发送同步请求", {
+        request_id: requestId,
+        device_id: this.getDeviceId(),
+        user_id: sectlAuth.getUserId(),
+        ...describeAccessToken(token),
+      })
+      requestHeaders.Authorization = `Bearer ${token}`
       return {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        ...requestHeaders,
       }
     }
     syncLog("warn", "未找到 OAuth 令牌，同步请求将由服务器拒绝", {
+      request_id: requestId,
       device_id: this.getDeviceId(),
+      user_id: sectlAuth.getUserId(),
+      ...describeAccessToken(token),
     })
-    return { "Content-Type": "application/json" }
+    return requestHeaders
   }
 
   private getFailureState(error: unknown, status?: number): SyncConnectionState {
@@ -637,19 +681,43 @@ class SyncClient {
       while (this.enabled) {
         try {
           const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+          const requestId = newUuid()
+          const cursor = Number(localStorage.getItem(CURSOR_KEY) || "0")
+          const deviceId = this.getDeviceId()
           const controller = new AbortController()
           this.changeStreamAbortController = controller
+          syncLog("info", "发起同步长连接请求", {
+            request_id: requestId,
+            server_url: serverUrl,
+            device_id: deviceId,
+            cursor,
+            authenticated: sectlAuth.isAuthenticated(),
+            user_id: sectlAuth.getUserId(),
+          })
           const response = await fetch(
-            `${serverUrl}/v1/changes?last_server_change_seq=${Number(localStorage.getItem(CURSOR_KEY) || "0")}&device_id=${encodeURIComponent(this.getDeviceId())}`,
-            { headers: await this.headers(), signal: controller.signal }
+            `${serverUrl}/v1/changes?last_server_change_seq=${cursor}&device_id=${encodeURIComponent(deviceId)}`,
+            { headers: await this.headers(requestId), signal: controller.signal }
           )
           if (!response.ok || !response.body) {
-            const error = new Error(`changes HTTP ${response.status}`) as Error & {
+            const responseText = await response.text().catch(() => "")
+            const message = `changes HTTP ${response.status}: ${responseText.slice(0, 500)}`
+            syncLog("error", "同步长连接请求失败", {
+              request_id: requestId,
+              status: response.status,
+              response_bytes: responseText.length,
+              body: responseText.slice(0, 1000),
+            })
+            const error = new Error(message) as Error & {
               status?: number
             }
             error.status = response.status
             throw error
           }
+          syncLog("info", "同步长连接已建立", {
+            request_id: requestId,
+            status: response.status,
+            content_type: response.headers.get("content-type"),
+          })
           this.updateStatus({
             state: "online",
             authenticated: sectlAuth.isAuthenticated(),
@@ -660,7 +728,10 @@ class SyncClient {
           let buffer = ""
           while (this.enabled) {
             const { done, value } = await reader.read()
-            if (done) throw new Error("changes stream closed")
+            if (done) {
+              syncLog("warn", "同步长连接由服务端关闭", { request_id: requestId })
+              throw new Error("changes stream closed")
+            }
             buffer += decoder.decode(value, { stream: true })
             const frames = buffer.split("\n\n")
             buffer = frames.pop() || ""
@@ -721,6 +792,7 @@ class SyncClient {
     const startedAt = Date.now()
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
+    const requestId = newUuid()
     this.updateStatus({
       state: this.status.browserOnline ? "connecting" : "offline",
       authenticated: sectlAuth.isAuthenticated(),
@@ -729,6 +801,7 @@ class SyncClient {
       lastError: null,
     })
     syncLog("info", "同步周期开始", {
+      request_id: requestId,
       server_url: serverUrl,
       device_id: deviceId,
       authenticated: sectlAuth.isAuthenticated(),
@@ -747,7 +820,7 @@ class SyncClient {
       // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
       const response = await fetch(`${serverUrl}/v1/sync`, {
         method: "POST",
-        headers: await this.headers(),
+        headers: await this.headers(requestId),
         body: JSON.stringify({
           device_id: this.getDeviceId(),
           last_server_change_seq: Number(localStorage.getItem(CURSOR_KEY) || "0"),
@@ -757,6 +830,11 @@ class SyncClient {
         signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
       })
       const responseText = await response.text()
+      syncLog("debug", "收到增量同步响应", {
+        request_id: requestId,
+        status: response.status,
+        response_bytes: responseText.length,
+      })
       if (!response.ok) {
         const errorMessage = `sync HTTP ${response.status}: ${responseText.slice(0, 500)}`
         this.updateStatus({
@@ -765,6 +843,7 @@ class SyncClient {
           lastError: errorMessage,
         })
         syncLog("error", "增量同步请求失败", {
+          request_id: requestId,
           status: response.status,
           body: responseText.slice(0, 1000),
         })
@@ -790,6 +869,7 @@ class SyncClient {
         }
       }
       syncLog("info", "同步周期完成", {
+        request_id: requestId,
         duration_ms: Date.now() - startedAt,
         accepted_count: result.accepted_operations.length,
         remote_count: result.remote_operations.length,
@@ -810,6 +890,7 @@ class SyncClient {
         lastError: error instanceof Error ? error.message : String(error),
       })
       syncLog("error", "同步周期异常", {
+        request_id: requestId,
         duration_ms: Date.now() - startedAt,
         error: String(error),
         stack: error instanceof Error ? error.stack : undefined,
@@ -854,6 +935,11 @@ class SyncClient {
     }
     if (!this.oauthHandler) {
       this.oauthHandler = () => {
+        syncLog("info", "检测到 OAuth 登录状态变化", {
+          authenticated: sectlAuth.isAuthenticated(),
+          user_id: sectlAuth.getUserId(),
+          ...describeAccessToken(sectlAuth.getAccessToken()),
+        })
         this.updateStatus({
           authenticated: sectlAuth.isAuthenticated(),
           state: this.enabled ? "connecting" : "disabled",

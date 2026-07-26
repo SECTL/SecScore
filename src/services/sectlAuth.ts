@@ -34,6 +34,38 @@ export interface TokenIntrospection {
   iat?: number
 }
 
+const describeToken = (token: string | null) => ({
+  has_token: Boolean(token),
+  token_length: token?.length || 0,
+  token_kind: token ? (token.split(".").length === 3 ? "jwt_like" : "opaque") : "none",
+})
+
+const authLog = (
+  level: "info" | "warn" | "error",
+  message: string,
+  meta: Record<string, unknown> = {}
+) => {
+  const payload = { ...meta, at: new Date().toISOString() }
+  try {
+    const writeLog = (window as any).api?.writeLog
+    if (writeLog) {
+      void Promise.resolve(
+        writeLog({
+          level,
+          message: `[sectl-auth] ${message}`,
+          meta: payload,
+        })
+      ).catch(() => void 0)
+      return
+    }
+  } catch {
+    // 日志失败不能影响 OAuth 流程。
+  }
+  if (level === "error") console.error(`[sectl-auth] ${message}`, payload)
+  else if (level === "warn") console.warn(`[sectl-auth] ${message}`, payload)
+  else console.info(`[sectl-auth] ${message}`, payload)
+}
+
 // 用户信息类型 (与 SDK UserInfoData 对齐)
 export interface UserInfo {
   user_id?: string
@@ -153,6 +185,10 @@ class SectlAuthService {
     if (callbackUrl) {
       SECTL_CONFIG.callbackUrl = callbackUrl
     }
+    authLog("info", "OAuth 客户端配置已初始化", {
+      platform_id: SECTL_CONFIG.platformId,
+      callback_url: SECTL_CONFIG.callbackUrl,
+    })
     return this
   }
 
@@ -189,6 +225,11 @@ class SectlAuthService {
     }
 
     const url = `${SECTL_CONFIG.authUrl}/oauth/authorize?${params.toString()}`
+    authLog("info", "已生成 OAuth 授权地址", {
+      platform_id: SECTL_CONFIG.platformId,
+      callback_url: SECTL_CONFIG.callbackUrl,
+      scope: scope || [],
+    })
     log("done")
     return url
   }
@@ -285,6 +326,11 @@ class SectlAuthService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
+      authLog("info", "OAuth 授权码交换已返回", {
+        status: response.status,
+        platform_id: SECTL_CONFIG.platformId,
+        has_public_ip: Boolean(publicIp),
+      })
 
       if (!response.ok) {
         const error = await response.json()
@@ -295,6 +341,7 @@ class SectlAuthService {
       this.saveToken(data)
       return data
     } catch (error) {
+      authLog("error", "OAuth 授权码交换失败", { error: String(error) })
       console.error("Token 交换失败:", error)
       throw error
     }
@@ -338,6 +385,11 @@ class SectlAuthService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
+      authLog("info", "OAuth Deep Link 授权码交换已返回", {
+        status: response.status,
+        platform_id: SECTL_CONFIG.platformId,
+        has_public_ip: Boolean(publicIp),
+      })
 
       if (!response.ok) {
         const error = await response.json()
@@ -348,6 +400,7 @@ class SectlAuthService {
       this.saveToken(data)
       return data
     } catch (error) {
+      authLog("error", "OAuth Deep Link 授权码交换失败", { error: String(error) })
       console.error("Token 交换失败:", error)
       throw error
     }
@@ -380,10 +433,18 @@ class SectlAuthService {
   async introspectToken(token?: string): Promise<TokenIntrospection> {
     const tokenToCheck = token || this.accessToken
     if (!tokenToCheck) {
+      authLog("warn", "跳过 OAuth token introspection：本地没有 access token", {
+        platform_id: SECTL_CONFIG.platformId,
+      })
       return { active: false }
     }
 
     const url = `${SECTL_CONFIG.baseUrl}/api/oauth/introspect`
+    authLog("info", "开始 OAuth token introspection", {
+      platform_id: SECTL_CONFIG.platformId,
+      ...describeToken(tokenToCheck),
+      user_id: this.userId,
+    })
 
     try {
       const response = await fetch(url, {
@@ -394,13 +455,29 @@ class SectlAuthService {
           client_id: SECTL_CONFIG.platformId,
         }),
       })
+      authLog("info", "OAuth token introspection 已返回", {
+        status: response.status,
+        platform_id: SECTL_CONFIG.platformId,
+      })
 
       if (!response.ok) {
+        authLog("warn", "OAuth token introspection HTTP 失败", {
+          status: response.status,
+          platform_id: SECTL_CONFIG.platformId,
+        })
         return { active: false }
       }
 
-      return await response.json()
-    } catch {
+      const result = (await response.json()) as TokenIntrospection
+      authLog("info", "OAuth token introspection 结果", {
+        active: result.active,
+        user_id: result.user_id || null,
+        client_id: result.client_id || null,
+        has_exp: typeof result.exp === "number",
+      })
+      return result
+    } catch (error) {
+      authLog("error", "OAuth token introspection 请求异常", { error: String(error) })
       return { active: false }
     }
   }
@@ -429,6 +506,11 @@ class SectlAuthService {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
+      authLog("info", "OAuth token 刷新已返回", {
+        status: response.status,
+        platform_id: SECTL_CONFIG.platformId,
+        user_id: this.userId,
+      })
 
       if (!response.ok) {
         const error = await response.json()
@@ -439,6 +521,7 @@ class SectlAuthService {
       this.saveToken(data)
       return data
     } catch (error) {
+      authLog("error", "OAuth token 刷新失败", { error: String(error) })
       console.error("Token 刷新失败:", error)
       throw error
     }
@@ -446,6 +529,11 @@ class SectlAuthService {
 
   async logout(): Promise<void> {
     const url = `${SECTL_CONFIG.baseUrl}/api/oauth/logout`
+    authLog("info", "开始 OAuth 登出", {
+      platform_id: SECTL_CONFIG.platformId,
+      user_id: this.userId,
+      ...describeToken(this.accessToken),
+    })
 
     try {
       if (this.accessToken) {
@@ -459,6 +547,7 @@ class SectlAuthService {
         })
       }
     } catch (error) {
+      authLog("error", "OAuth 登出请求失败", { error: String(error) })
       console.error("登出失败:", error)
     } finally {
       this.accessToken = null
@@ -466,6 +555,9 @@ class SectlAuthService {
       this.tokenExpiresAt = null
       this.userId = null
       this.clearToken()
+      authLog("info", "OAuth 本地登录状态已清除", {
+        platform_id: SECTL_CONFIG.platformId,
+      })
     }
   }
 
@@ -501,6 +593,14 @@ class SectlAuthService {
     }
 
     localStorage.setItem("sectl_token", JSON.stringify(storableData))
+    authLog("info", "OAuth token 已保存", {
+      platform_id: SECTL_CONFIG.platformId,
+      user_id: this.userId,
+      ...describeToken(this.accessToken),
+      has_refresh_token: Boolean(this.refreshToken),
+      expires_in: tokenData.expires_in || null,
+      token_expired: this.isTokenExpired(),
+    })
     // 登录成功后清除 code_verifier
     localStorage.removeItem("sectl_code_verifier")
     localStorage.removeItem("sectl_oauth_state")
@@ -527,8 +627,15 @@ class SectlAuthService {
         if (tokenData.expires_in) {
           this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
         }
+        authLog("info", "已从本地恢复 OAuth token", {
+          user_id: this.userId,
+          ...describeToken(this.accessToken),
+          has_refresh_token: Boolean(this.refreshToken),
+          token_expired: this.isTokenExpired(),
+        })
       }
     } catch (error) {
+      authLog("error", "加载本地 OAuth token 失败", { error: String(error) })
       console.error("加载 Token 失败:", error)
     }
   }
