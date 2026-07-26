@@ -8,7 +8,7 @@
 export const SECTL_CONFIG = {
   baseUrl: "https://appwrite.sectl.cn",
   authUrl: "https://sectl.cn",
-  platformId: "", // 需要在设置中配置
+  platformId: String((import.meta as any).env?.VITE_OAUTH_PLATFORM_ID || "").trim(),
   // 本地 HTTP 回调地址；授权请求和 Token 请求必须保持完全一致。
   callbackUrl: "http://localhost:51267/oauth/callback",
   callbackPort: 51267,
@@ -185,7 +185,10 @@ class SectlAuthService {
   }
 
   initialize(platformId: string, callbackUrl?: string) {
-    SECTL_CONFIG.platformId = platformId
+    const normalizedPlatformId = platformId.trim()
+    if (normalizedPlatformId) {
+      SECTL_CONFIG.platformId = normalizedPlatformId
+    }
     if (callbackUrl) {
       SECTL_CONFIG.callbackUrl = callbackUrl
     }

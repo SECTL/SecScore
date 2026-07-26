@@ -27,7 +27,7 @@ interface SectlProviderProps {
 
 export const SectlProvider: React.FC<SectlProviderProps> = ({
   children,
-  initialPlatformId = "",
+  initialPlatformId = String((import.meta as any).env?.VITE_OAUTH_PLATFORM_ID || "").trim(),
 }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -116,8 +116,10 @@ export const SectlProvider: React.FC<SectlProviderProps> = ({
   }
 
   const setPlatformId = (id: string) => {
-    setPlatformIdState(id)
-    sectlAuth.initialize(id)
+    const normalizedId = id.trim()
+    if (!normalizedId) return
+    setPlatformIdState(normalizedId)
+    sectlAuth.initialize(normalizedId)
   }
 
   const refreshUserInfo = async () => {
