@@ -1155,12 +1155,45 @@ async fn class_by_id(
 
 async fn register_device(
     pool: &PgPool,
+    request_id: &str,
     account_id: Uuid,
     device_id: Uuid,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query("INSERT INTO devices (id, account_id) VALUES ($1, $2) ON CONFLICT (account_id, id) DO UPDATE SET last_seen_at = now()")
-        .bind(device_id).bind(account_id).execute(pool).await?;
-    Ok(())
+    info!(
+        event = "device_register_start",
+        request_id = %request_id,
+        account_id = %account_id,
+        device_id = %device_id,
+        "开始登记班级同步设备"
+    );
+    let result = sqlx::query("INSERT INTO devices (id, account_id) VALUES ($1, $2) ON CONFLICT (account_id, id) DO UPDATE SET last_seen_at = now()")
+        .bind(device_id)
+        .bind(account_id)
+        .execute(pool)
+        .await;
+    match result {
+        Ok(_) => {
+            info!(
+                event = "device_register_complete",
+                request_id = %request_id,
+                account_id = %account_id,
+                device_id = %device_id,
+                "班级同步设备登记完成"
+            );
+            Ok(())
+        }
+        Err(error) => {
+            warn!(
+                event = "device_register_failed",
+                request_id = %request_id,
+                account_id = %account_id,
+                device_id = %device_id,
+                error = %error,
+                "班级同步设备登记失败"
+            );
+            Err(error)
+        }
+    }
 }
 
 async fn sync(
@@ -1186,7 +1219,7 @@ async fn sync(
     }
     let account_id =
         ensure_class_member(&state.pool, &user.sectl_user_id, request.class_id).await?;
-    register_device(&state.pool, account_id, request.device_id)
+    register_device(&state.pool, &request_id, account_id, request.device_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
     let mut tx = state
@@ -1360,7 +1393,7 @@ async fn snapshot(
     );
     let account_id =
         ensure_class_member(&state.pool, &user.sectl_user_id, request.class_id).await?;
-    register_device(&state.pool, account_id, request.device_id)
+    register_device(&state.pool, &request_id, account_id, request.device_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
 

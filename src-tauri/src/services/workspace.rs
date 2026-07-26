@@ -477,49 +477,97 @@ impl WorkspaceService {
         remote_id: String,
         join_code: String,
     ) -> Result<DatabaseConnection, String> {
+        let class_id = self
+            .upsert_online_class(name, remote_id, join_code, "active".to_string())
+            .await?;
+        self.open_class(&class_id).await
+    }
+
+    pub async fn upsert_online_class(
+        &mut self,
+        name: String,
+        remote_id: String,
+        join_code: String,
+        status: String,
+    ) -> Result<String, String> {
         let trimmed_name = name.trim();
-        if trimmed_name.is_empty() || remote_id.trim().is_empty() {
+        let trimmed_remote_id = remote_id.trim();
+        let trimmed_join_code = join_code.trim().to_uppercase();
+        if trimmed_name.is_empty() || trimmed_remote_id.is_empty() || trimmed_join_code.len() != 6 {
             return Err("在线班级信息不完整".to_string());
         }
-        let id = Uuid::new_v4().to_string();
-        info!(
-            event = "workspace_add_online_class_start",
-            account_id = %masked_identifier(&self.current_account_id),
-            class_id = %masked_identifier(&id),
-            remote_id = %masked_identifier(remote_id.trim()),
-            join_code = %masked_join_code(&join_code),
-            "缓存在线班级"
-        );
-        let path = self.root.join("classes").join(format!("{}.sql", id));
-        let timestamp = now();
-        self.catalog
-            .execute(Statement::from_string(
+        let normalized_status = if status.trim() == "deleted" {
+            "deleted"
+        } else {
+            "active"
+        };
+        let existing_id = self
+            .catalog
+            .query_one(Statement::from_string(
                 DbBackend::Sqlite,
                 &format!(
-                    "INSERT INTO workspace_classes (id, name, kind, remote_id, join_code, status, db_path, created_at, updated_at) VALUES ({}, {}, 'online', {}, {}, 'active', {}, {}, {})",
-                    quote(&id), quote(trimmed_name), quote(remote_id.trim()), quote(&join_code.trim().to_uppercase()), quote(path.to_str().ok_or_else(|| "班级数据库路径无效".to_string())?), quote(&timestamp), quote(&timestamp)
+                    "SELECT id FROM workspace_classes WHERE remote_id = {}",
+                    quote(trimmed_remote_id)
                 ),
             ))
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?
+            .and_then(|row| row.try_get_by::<String, _>("id").ok());
+        let is_existing = existing_id.is_some();
+        let id = existing_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        info!(
+            event = "workspace_upsert_online_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&id),
+            remote_id = %masked_identifier(trimmed_remote_id),
+            join_code = %masked_join_code(&trimmed_join_code),
+            status = normalized_status,
+            is_existing,
+            "同步远端在线班级到本地目录"
+        );
+        let timestamp = now();
+        if is_existing {
+            self.catalog
+                .execute(Statement::from_string(
+                    DbBackend::Sqlite,
+                    &format!(
+                        "UPDATE workspace_classes SET name = {}, kind = 'online', join_code = {}, status = {}, updated_at = {} WHERE id = {}",
+                        quote(trimmed_name), quote(&trimmed_join_code), quote(normalized_status), quote(&timestamp), quote(&id)
+                    ),
+                ))
+                .await
+                .map_err(|e| e.to_string())?;
+        } else {
+            let path = self.root.join("classes").join(format!("{}.sql", id));
+            self.catalog
+                .execute(Statement::from_string(
+                    DbBackend::Sqlite,
+                    &format!(
+                        "INSERT INTO workspace_classes (id, name, kind, remote_id, join_code, status, db_path, created_at, updated_at) VALUES ({}, {}, 'online', {}, {}, {}, {}, {}, {})",
+                        quote(&id), quote(trimmed_name), quote(trimmed_remote_id), quote(&trimmed_join_code), quote(normalized_status), quote(path.to_str().ok_or_else(|| "班级数据库路径无效".to_string())?), quote(&timestamp), quote(&timestamp)
+                    ),
+                ))
+                .await
+                .map_err(|e| e.to_string())?;
+        }
         self.catalog
             .execute(Statement::from_string(
                 DbBackend::Sqlite,
                 &format!(
-                    "INSERT INTO workspace_memberships (account_id, class_id, created_at) VALUES ({}, {}, {})",
+                    "INSERT OR IGNORE INTO workspace_memberships (account_id, class_id, created_at) VALUES ({}, {}, {})",
                     quote(&self.current_account_id), quote(&id), quote(&timestamp)
                 ),
             ))
             .await
             .map_err(|e| e.to_string())?;
-        let connection = self.open_class(&id).await?;
         info!(
-            event = "workspace_add_online_class_complete",
+            event = "workspace_upsert_online_class_complete",
             account_id = %masked_identifier(&self.current_account_id),
             class_id = %masked_identifier(&id),
-            "在线班级缓存完成"
+            remote_id = %masked_identifier(trimmed_remote_id),
+            "远端在线班级已写入本地目录"
         );
-        Ok(connection)
+        Ok(id)
     }
 
     pub async fn mark_class_online(

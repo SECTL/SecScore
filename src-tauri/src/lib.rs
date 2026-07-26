@@ -145,6 +145,7 @@ pub fn run() {
             workspace_upsert_sectl_account,
             workspace_remove_account,
             workspace_add_online_class,
+            workspace_upsert_online_class,
             workspace_mark_class_online,
             workspace_rename_class,
             workspace_update_class_code,

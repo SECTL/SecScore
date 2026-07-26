@@ -252,6 +252,55 @@ pub async fn workspace_add_online_class(
 }
 
 #[tauri::command]
+pub async fn workspace_upsert_online_class(
+    name: String,
+    remote_id: String,
+    join_code: String,
+    status: String,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<WorkspaceState>, String> {
+    let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "upsert_online_class_requested",
+        serde_json::json!({
+            "remote_id": mask_identifier(&remote_id),
+            "status": status,
+        }),
+    );
+    let next = {
+        let state_guard = state_arc.read();
+        let mut workspace = state_guard
+            .workspace
+            .write()
+            .take()
+            .ok_or_else(|| "工作空间尚未初始化".to_string())?;
+        let next = match workspace
+            .upsert_online_class(name, remote_id, join_code, status)
+            .await
+        {
+            Ok(_) => workspace.list_state().await,
+            Err(error) => Err(error),
+        };
+        *state_guard.workspace.write() = Some(workspace);
+        next?
+    };
+    let app_handle = state_arc.read().app_handle.clone();
+    app_handle
+        .emit("workspace:changed", &next)
+        .map_err(|e| e.to_string())?;
+    workspace_log(
+        &state_arc,
+        "upsert_online_class_complete",
+        serde_json::json!({
+            "class_count": next.classes.len(),
+            "current_class_id": mask_identifier(&next.current_class_id),
+        }),
+    );
+    Ok(IpcResponse::success(next))
+}
+
+#[tauri::command]
 pub async fn workspace_mark_class_online(
     class_id: String,
     remote_id: String,

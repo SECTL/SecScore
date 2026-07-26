@@ -1,4 +1,4 @@
-import { AppstoreOutlined, LoginOutlined, PlusOutlined, SwapOutlined } from "@ant-design/icons"
+import { AppstoreOutlined, LoginOutlined, PlusOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons"
 import { Button, Divider, Input, List, Modal, Space, Tag, message } from "antd"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
@@ -177,7 +177,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     }
   }
 
-  const restoreStoredToken = (userId: string) => {
+  const restoreStoredToken = useCallback((userId: string) => {
     try {
       const raw = localStorage.getItem(`sectl_token:${userId}`)
       if (raw) {
@@ -190,9 +190,9 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       workspaceLog("warn", "account_token_restore_failed", { user_id: maskIdentifier(userId) })
       // 该账号没有可恢复的凭据时，保留未登录状态。
     }
-  }
+  }, [])
 
-  const remoteRequest = async (path: string, init: RequestInit = {}) => {
+  const remoteRequest = useCallback(async (path: string, init: RequestInit = {}) => {
     const startedAt = performance.now()
     const method = init.method || "GET"
     const token = sectlAuth.getAccessToken()
@@ -238,6 +238,96 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       })
       throw error
     }
+  }, [])
+
+  const activeAccountId = state?.current_account_id
+  const activeAccountKind = currentAccount?.kind
+  const activeUserId = currentAccount?.user_id || undefined
+
+  const refreshRemoteClasses = useCallback(async () => {
+    if (activeAccountKind !== "sectl" || !activeUserId) {
+      workspaceLog("debug", "remote_classes_refresh_skipped", {
+        reason: "current_account_is_not_sectl",
+        account_id: maskIdentifier(activeAccountId),
+      })
+      return { success: true }
+    }
+
+    if (sectlAuth.getUserId() !== activeUserId) {
+      restoreStoredToken(activeUserId)
+    }
+    if (!sectlAuth.getAccessToken()) {
+      workspaceLog("warn", "remote_classes_refresh_skipped", {
+        reason: "current_account_token_missing",
+        user_id: maskIdentifier(activeUserId),
+      })
+      return { success: true }
+    }
+
+    const startedAt = performance.now()
+    workspaceLog("info", "remote_classes_refresh_start", {
+      account_id: maskIdentifier(activeAccountId),
+      user_id: maskIdentifier(activeUserId),
+    })
+    try {
+      const remoteClasses = await remoteRequest("/v1/classes")
+      if (!Array.isArray(remoteClasses)) {
+        throw new Error("在线班级列表格式无效")
+      }
+
+      let latestState: WorkspaceState | undefined
+      let upsertedCount = 0
+      for (const item of remoteClasses) {
+        const name = typeof item?.name === "string" ? item.name.trim() : ""
+        const remoteId = typeof item?.id === "string" ? item.id.trim() : ""
+        const joinCode = typeof item?.join_code === "string" ? item.join_code.toUpperCase() : ""
+        if (!name || !remoteId || !/^[A-Z]{6}$/.test(joinCode)) {
+          workspaceLog("warn", "remote_class_skipped_invalid", {
+            remote_id: maskIdentifier(remoteId),
+            has_name: Boolean(name),
+            join_code_length: joinCode.length,
+          })
+          continue
+        }
+        const result = await (window as any).api.workspaceUpsertOnlineClass(
+          name,
+          remoteId,
+          joinCode,
+          typeof item.status === "string" ? item.status : "active"
+        )
+        if (!result?.success) {
+          throw new Error(result?.message || `缓存班级失败: ${remoteId}`)
+        }
+        latestState = result.data || latestState
+        upsertedCount += 1
+      }
+
+      if (latestState) applyState(latestState)
+      const result = { success: true, data: latestState }
+      workspaceLog("info", "remote_classes_refresh_complete", {
+        account_id: maskIdentifier(activeAccountId),
+        remote_count: remoteClasses.length,
+        upserted_count: upsertedCount,
+        duration_ms: Math.round(performance.now() - startedAt),
+      })
+      return result
+    } catch (error) {
+      workspaceLog("warn", "remote_classes_refresh_failed", {
+        account_id: maskIdentifier(activeAccountId),
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: String(error),
+      })
+      throw error
+    }
+  }, [activeAccountId, activeAccountKind, activeUserId, applyState, remoteRequest, restoreStoredToken])
+
+  useEffect(() => {
+    if (!activeAccountId || activeAccountKind !== "sectl") return
+    void refreshRemoteClasses().catch(() => void 0)
+  }, [activeAccountId, activeAccountKind, activeUserId, refreshRemoteClasses])
+
+  const refreshClasses = () => {
+    void run("refresh-classes", () => refreshRemoteClasses())
   }
 
   const createClass = () => {
@@ -385,7 +475,10 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       <Button
         size={compact ? "small" : "middle"}
         icon={<AppstoreOutlined />}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true)
+          void refreshRemoteClasses().catch(() => void 0)
+        }}
         title="账号和班级"
       >
         {currentClass?.name || "我的班级"} · {currentAccount?.name || "本地账号"}
@@ -441,7 +534,17 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
           <Divider style={{ margin: 0 }} />
 
           <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>班级</div>
+            <Space style={{ width: "100%", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600 }}>班级</div>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                loading={loadingId === "refresh-classes"}
+                onClick={refreshClasses}
+              >
+                刷新在线班级
+              </Button>
+            </Space>
             <List
               size="small"
               bordered

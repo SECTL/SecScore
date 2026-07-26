@@ -205,6 +205,13 @@ const api = {
     joinCode: string
   ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
     invoke("workspace_add_online_class", { name, remoteId, joinCode }),
+  workspaceUpsertOnlineClass: (
+    name: string,
+    remoteId: string,
+    joinCode: string,
+    status: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_upsert_online_class", { name, remoteId, joinCode, status }),
   workspaceMarkClassOnline: (
     classId: string,
     remoteId: string,
