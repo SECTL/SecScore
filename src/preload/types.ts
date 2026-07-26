@@ -293,15 +293,17 @@ const api = {
     data?: { redemption_id: number; remaining_reward_points: number }
     message?: string
   }> => {
+    const operationId = syncClient.createOperationId()
     const result = await invoke<{
       success: boolean
       data?: { redemption_id: number; remaining_reward_points: number }
       message?: string
-    }>("reward_redeem", { data })
+    }>("reward_redeem", { data: { ...data, operation_id: operationId } })
     if (result.success) {
       void syncClient.enqueueRewardRedemption({
         student_name: data.student_name,
         reward_id: data.reward_id,
+        operation_id: operationId,
       })
     }
     return result
@@ -324,6 +326,7 @@ const api = {
       student_name: String(data.student_name ?? data.studentName ?? "").trim(),
       reason_content: String(data.reason_content ?? data.reasonContent ?? "").trim(),
       delta: Number(data.delta),
+      operation_id: syncClient.createOperationId(),
     }
     const result = await invoke<{ success: boolean; data?: number; message?: string }>(
       "event_create",
@@ -334,6 +337,7 @@ const api = {
         student_name: normalized.student_name,
         reason_content: normalized.reason_content,
         delta: normalized.delta,
+        operation_id: normalized.operation_id,
       })
     }
     return result

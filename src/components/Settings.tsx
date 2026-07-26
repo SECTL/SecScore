@@ -294,7 +294,7 @@ export const Settings: React.FC<{
     event.currentTarget.querySelector<HTMLInputElement>('input[type="radio"]')?.click()
   }
 
-  const loadMcpStatus = async () => {
+  const loadMcpStatus = useCallback(async () => {
     if (!(window as any).api?.mcpServerStatus) return
     try {
       const res = await (window as any).api.mcpServerStatus()
@@ -307,14 +307,14 @@ export const Settings: React.FC<{
     } catch {
       // ignore status polling errors in settings page
     }
-  }
+  }, [])
 
   const loadSystemFonts = useCallback(
     async (selectedFontValue?: string) => {
       setIsLoadingFonts(true)
 
       const applySelectedFont = (options: FontOption[]) => {
-        const current = findFontOption(options, selectedFontValue || settings.font_family)
+        const current = findFontOption(options, selectedFontValue || "system")
         if (current) applyFontFamily(current.fontFamily)
       }
 
@@ -360,7 +360,7 @@ export const Settings: React.FC<{
         setIsLoadingFonts(false)
       }
     },
-    [settings.font_family]
+    []
   )
 
   const loadAll = useCallback(async () => {
@@ -371,7 +371,7 @@ export const Settings: React.FC<{
       return
     }
 
-    let savedFontFamily = settings.font_family || "system"
+    let savedFontFamily = "system"
     const res = await api.getAllSettings()
     if (res.success && res.data) {
       setSettings(res.data)
@@ -424,7 +424,7 @@ export const Settings: React.FC<{
         // ignore
       }
     }
-  }, [settings, loadSystemFonts])
+  }, [loadMcpStatus, loadSystemFonts])
 
   const handleOAuthLogout = async () => {
     const api = (window as any).api

@@ -55,6 +55,8 @@ pub async fn sync_apply_snapshot(
     state: State<'_, Arc<RwLock<AppState>>>,
     snapshot: Value,
 ) -> Result<IpcResponse<()>, String> {
+    let local_write_lock = { state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
     let state_guard = state.read();
     let connection = state_guard
         .local_sqlite
@@ -434,6 +436,8 @@ pub async fn sync_apply_remote_operation(
         return Ok(IpcResponse::error("同步操作缺少 operation_id"));
     }
 
+    let local_write_lock = { state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
     let state_guard = state.read();
     let connection = state_guard
         .local_sqlite

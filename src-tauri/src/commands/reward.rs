@@ -51,6 +51,8 @@ pub struct UpdateRewardSettingData {
 pub struct RedeemRewardData {
     pub student_name: String,
     pub reward_id: i32,
+    #[serde(default)]
+    pub operation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -266,6 +268,8 @@ pub async fn reward_redeem(
         return Ok(IpcResponse::error("Student name cannot be empty"));
     }
 
+    let local_write_lock = { state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
     let state_guard = state.read();
     let db_guard = state_guard.db.read();
     let Some(conn) = db_guard.as_ref() else {
@@ -299,7 +303,12 @@ pub async fn reward_redeem(
     let now = chrono::Utc::now()
         .format("%Y-%m-%dT%H:%M:%S%.3fZ")
         .to_string();
-    let uuid = Uuid::new_v4().to_string();
+    let uuid = data
+        .operation_id
+        .as_deref()
+        .and_then(|value| Uuid::parse_str(value.trim()).ok())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     let redemption = reward_redemptions::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,

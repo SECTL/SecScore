@@ -11,6 +11,7 @@ const DEFAULT_SERVER_URL =
   (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
 const SYNC_REQUEST_TIMEOUT_MS = 10_000
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
+const SNAPSHOT_RETRY_INTERVAL_MS = 60_000
 
 const syncLog = (level: "debug" | "info" | "warn" | "error", message: string, meta: Record<string, unknown> = {}) => {
   try {
@@ -77,9 +78,13 @@ class SyncClient {
   private timer: number | null = null
   private enabled = false
   private lastSnapshotAt = 0
+  private lastSnapshotAttemptAt = 0
   private snapshotAbortController: AbortController | null = null
   private changeStreamAbortController: AbortController | null = null
   private changeStreamRunning = false
+  private readonly appliedOperationIds = new Set<string>()
+  private readonly applyingOperationPromises = new Map<string, Promise<boolean>>()
+  private onlineHandler: (() => void) | null = null
 
   setEnabled(enabled: boolean) {
     const changed = this.enabled !== enabled
@@ -91,8 +96,9 @@ class SyncClient {
       dev_user_id: localStorage.getItem(USER_ID_KEY) || "local-demo-user",
     })
     if (enabled && changed) {
-      void this.syncNow(true)
       this.startChangeStream()
+      // 启动阶段由 start() 发起唯一一次强制同步；运行中切换到云同步时才立即补一次快照。
+      if (this.timer !== null) void this.syncNow(true)
     }
   }
 
@@ -118,6 +124,10 @@ class SyncClient {
     return localStorage.getItem(USER_ID_KEY) || "local-demo-user"
   }
 
+  createOperationId(): string {
+    return newUuid()
+  }
+
   private getDeviceId(): string {
     const existing = localStorage.getItem(DEVICE_ID_KEY)
     if (existing) return existing
@@ -135,13 +145,14 @@ class SyncClient {
   private createOperation(
     operationType: PendingOperation["operation_type"],
     studentName: string,
-    payload: Record<string, unknown>
+    payload: Record<string, unknown>,
+    operationId?: string
   ): PendingOperation {
     const clientSeq = this.getNextSequence()
     const lamport = Math.max(Number(localStorage.getItem("ss_sync_lamport") || "0"), clientSeq) + 1
     localStorage.setItem("ss_sync_lamport", String(lamport))
     return {
-      op_id: newUuid(),
+      op_id: operationId || newUuid(),
       client_seq: clientSeq,
       lamport,
       entity_type: "student",
@@ -172,17 +183,23 @@ class SyncClient {
     student_name: string
     reason_content: string
     delta: number
+    operation_id?: string
   }): Promise<void> {
-    const operation = this.createOperation("score.adjust", input.student_name, {
-      student_name: input.student_name,
-      reason_content: input.reason_content,
-      score_delta: input.delta,
-      reward_delta: input.delta,
-    })
+    const operation = this.createOperation(
+      "score.adjust",
+      input.student_name,
+      {
+        student_name: input.student_name,
+        reason_content: input.reason_content,
+        score_delta: input.delta,
+        reward_delta: input.delta,
+      },
+      input.operation_id
+    )
     try {
       this.appendOperation(operation)
-      // 每次积分操作独立发送一个 HTTP 请求，不等待轮询周期或快照。
-      void this.sendOperationImmediately(operation)
+      // 复用唯一的同步互斥锁，避免即时请求与定时请求同时发送同一个 outbox。
+      void this.syncNow()
     } catch (error) {
       syncLog("error", "积分操作加入待同步队列失败", {
         operation_type: operation.operation_type,
@@ -195,6 +212,7 @@ class SyncClient {
   async enqueueRewardRedemption(input: {
     student_name: string
     reward_id: number
+    operation_id?: string
   }): Promise<void> {
     try {
       const reward = await (window as any).api.rewardSettingQuery()
@@ -213,9 +231,9 @@ class SyncClient {
         reward_id: input.reward_id,
         reward_name: rewardSetting.name,
         cost_points: Number(rewardSetting.cost_points),
-      })
+      }, input.operation_id)
       this.appendOperation(operation)
-      void this.sendOperationImmediately(operation)
+      void this.syncNow()
     } catch (error) {
       syncLog("error", "奖励兑换加入待同步队列失败", {
         operation_type: "reward.redeem",
@@ -340,6 +358,51 @@ class SyncClient {
     }
   }
 
+  private rememberAppliedOperation(operationId: string): void {
+    this.appliedOperationIds.add(operationId)
+    const applied = getJson<string[]>(APPLIED_KEY, [])
+    if (applied.includes(operationId)) return
+    setJson(APPLIED_KEY, [...applied, operationId].slice(-5000))
+  }
+
+  private async applyRemoteOperationOnce(
+    operation: PendingOperation & { server_change_seq: number; device_id: string }
+  ): Promise<boolean> {
+    // 服务端会把本设备的操作广播回本设备。该操作已经由 event_create/reward_redeem
+    // 写入本地，不能再次作为远端增量应用，否则一次加分会再加一遍。
+    if (operation.device_id === this.getDeviceId()) {
+      this.rememberAppliedOperation(operation.op_id)
+      return true
+    }
+
+    if (
+      this.appliedOperationIds.has(operation.op_id) ||
+      getJson<string[]>(APPLIED_KEY, []).includes(operation.op_id)
+    ) {
+      return true
+    }
+
+    const existing = this.applyingOperationPromises.get(operation.op_id)
+    if (existing) return existing
+
+    const promise = (async () => {
+      try {
+        const result = await (window as any).api.syncApplyRemoteOperation({
+          operation_id: operation.op_id,
+          operation_type: operation.operation_type,
+          payload: operation.payload,
+          client_created_at: operation.client_created_at,
+        })
+        if (result?.success) this.rememberAppliedOperation(operation.op_id)
+        return Boolean(result?.success)
+      } finally {
+        this.applyingOperationPromises.delete(operation.op_id)
+      }
+    })()
+    this.applyingOperationPromises.set(operation.op_id, promise)
+    return promise
+  }
+
   private async applySyncResponse(result: SyncResponse): Promise<void> {
     const acceptedIds = new Set(result.accepted_operations.map((item) => item.op_id))
     const currentOutbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
@@ -347,7 +410,10 @@ class SyncClient {
 
     const applied = getJson<string[]>(APPLIED_KEY, [])
     const appliedSet = new Set(applied)
-    for (const operation of result.accepted_operations) appliedSet.add(operation.op_id)
+    for (const operation of result.accepted_operations) {
+      appliedSet.add(operation.op_id)
+      this.rememberAppliedOperation(operation.op_id)
+    }
     for (const operation of result.remote_operations) {
       if (appliedSet.has(operation.op_id)) continue
       if (
@@ -363,13 +429,8 @@ class SyncClient {
         appliedSet.add(operation.op_id)
         continue
       }
-      const applyResult = await (window as any).api.syncApplyRemoteOperation({
-        operation_id: operation.op_id,
-        operation_type: operation.operation_type,
-        payload: operation.payload,
-        client_created_at: operation.client_created_at,
-      })
-      if (applyResult?.success) appliedSet.add(operation.op_id)
+      const appliedSuccessfully = await this.applyRemoteOperationOnce(operation)
+      if (appliedSuccessfully) appliedSet.add(operation.op_id)
     }
     setJson(APPLIED_KEY, Array.from(appliedSet).slice(-5000))
     const lastRemoteSeq = result.remote_operations.at(-1)?.server_change_seq
@@ -382,50 +443,8 @@ class SyncClient {
     }
   }
 
-  private async sendOperationImmediately(operation: PendingOperation): Promise<void> {
-    const startedAt = Date.now()
-    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
-    try {
-      const response = await fetch(`${serverUrl}/v1/operations`, {
-        method: "POST",
-        headers: await this.headers(),
-        body: JSON.stringify({
-          device_id: this.getDeviceId(),
-          last_server_change_seq: Number(localStorage.getItem(CURSOR_KEY) || "0"),
-          operation,
-        }),
-        signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
-      })
-      const responseText = await response.text()
-      if (!response.ok) throw new Error(`operation HTTP ${response.status}: ${responseText.slice(0, 500)}`)
-      await this.applySyncResponse(JSON.parse(responseText) as SyncResponse)
-      syncLog("info", "积分操作 HTTP 请求完成", {
-        op_id: operation.op_id,
-        operation_type: operation.operation_type,
-        duration_ms: Date.now() - startedAt,
-      })
-    } catch (error) {
-      syncLog("warn", "积分操作 HTTP 请求失败，将由兜底同步重试", {
-        op_id: operation.op_id,
-        duration_ms: Date.now() - startedAt,
-        error: String(error),
-      })
-    }
-  }
-
   private async applyStreamOperation(operation: PendingOperation & { server_change_seq: number; device_id: string }): Promise<void> {
-    const applied = getJson<string[]>(APPLIED_KEY, [])
-    const appliedSet = new Set(applied)
-    if (!appliedSet.has(operation.op_id)) {
-      const result = await (window as any).api.syncApplyRemoteOperation({
-        operation_id: operation.op_id,
-        operation_type: operation.operation_type,
-        payload: operation.payload,
-        client_created_at: operation.client_created_at,
-      })
-      if (result?.success) appliedSet.add(operation.op_id)
-    }
-    setJson(APPLIED_KEY, Array.from(appliedSet).slice(-5000))
+    await this.applyRemoteOperationOnce(operation)
     if (operation.server_change_seq > Number(localStorage.getItem(CURSOR_KEY) || "0")) {
       localStorage.setItem(CURSOR_KEY, String(operation.server_change_seq))
     }
@@ -499,7 +518,10 @@ class SyncClient {
     const deviceId = this.getDeviceId()
     syncLog("info", "同步周期开始", { server_url: serverUrl, device_id: deviceId, dev_user_id: this.getDevUserId(), outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length, cursor: Number(localStorage.getItem(CURSOR_KEY) || "0") })
     try {
-      const shouldSnapshot = forceSnapshot || Date.now() - this.lastSnapshotAt >= 5 * 60_000
+      const now = Date.now()
+      const shouldSnapshot =
+        forceSnapshot ||
+        (now - this.lastSnapshotAt >= 5 * 60_000 && now - this.lastSnapshotAttemptAt >= SNAPSHOT_RETRY_INTERVAL_MS)
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
       // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
       const response = await fetch(
@@ -524,6 +546,7 @@ class SyncClient {
       const result = JSON.parse(responseText) as SyncResponse
       await this.applySyncResponse(result)
       if (shouldSnapshot && getJson<PendingOperation[]>(OUTBOX_KEY, []).length === 0) {
+        this.lastSnapshotAttemptAt = Date.now()
         try {
           await this.syncSnapshot()
           this.lastSnapshotAt = Date.now()
@@ -555,7 +578,10 @@ class SyncClient {
     void this.syncNow(true)
     this.timer = window.setInterval(() => void this.syncNow(), 10_000)
     if (this.enabled) this.startChangeStream()
-    window.addEventListener("online", () => void this.syncNow())
+    if (!this.onlineHandler) {
+      this.onlineHandler = () => void this.syncNow()
+      window.addEventListener("online", this.onlineHandler)
+    }
   }
 
   stop() {
@@ -566,6 +592,10 @@ class SyncClient {
     this.enabled = false
     this.changeStreamAbortController?.abort()
     this.snapshotAbortController?.abort()
+    if (this.onlineHandler) {
+      window.removeEventListener("online", this.onlineHandler)
+      this.onlineHandler = null
+    }
   }
 }
 
