@@ -2,6 +2,11 @@ import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
 import { syncClient } from "../services/syncClient"
 
+const requestSnapshotOnSuccess = <T>(result: T): T => {
+  if ((result as any)?.success) syncClient.requestSnapshot()
+  return result
+}
+
 export interface themeConfig {
   name: string
   id: string
@@ -260,18 +265,24 @@ const api = {
   tagsGetByStudent: (studentId: number): Promise<{ success: boolean; data: any[] }> =>
     invoke("tags_get_by_student", { studentId }),
   tagsCreate: (name: string): Promise<{ success: boolean; data: any }> =>
-    invoke("tags_create", { name }),
-  tagsDelete: (id: number): Promise<{ success: boolean }> => invoke("tags_delete", { id }),
+    invoke<{ success: boolean; data: any }>("tags_create", { name }).then(requestSnapshotOnSuccess),
+  tagsDelete: (id: number): Promise<{ success: boolean }> =>
+    invoke<{ success: boolean }>("tags_delete", { id }).then(requestSnapshotOnSuccess),
   tagsUpdateStudentTags: (studentId: number, tagIds: number[]): Promise<{ success: boolean }> =>
-    invoke("tags_update_student_tags", { studentId, tagIds }),
+    invoke<{ success: boolean }>("tags_update_student_tags", { studentId, tagIds }).then(
+      requestSnapshotOnSuccess
+    ),
 
   // DB - Reason
   queryReasons: (): Promise<{ success: boolean; data: any[] }> => invoke("reason_query"),
   createReason: (data: any): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("reason_create", { data }),
+    invoke<{ success: boolean; data?: number; message?: string }>("reason_create", { data }).then(
+      requestSnapshotOnSuccess
+    ),
   updateReason: (id: number, data: any): Promise<{ success: boolean }> =>
-    invoke("reason_update", { id, data }),
-  deleteReason: (id: number): Promise<{ success: boolean }> => invoke("reason_delete", { id }),
+    invoke<{ success: boolean }>("reason_update", { id, data }).then(requestSnapshotOnSuccess),
+  deleteReason: (id: number): Promise<{ success: boolean }> =>
+    invoke<{ success: boolean }>("reason_delete", { id }).then(requestSnapshotOnSuccess),
 
   // DB - Reward
   rewardSettingQuery: (): Promise<{ success: boolean; data: any[] }> =>
@@ -280,11 +291,17 @@ const api = {
     name: string
     cost_points: number
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("reward_setting_create", { data }),
+    invoke<{ success: boolean; data?: number; message?: string }>("reward_setting_create", {
+      data,
+    }).then(requestSnapshotOnSuccess),
   rewardSettingUpdate: (id: number, data: any): Promise<{ success: boolean; message?: string }> =>
-    invoke("reward_setting_update", { id, data }),
+    invoke<{ success: boolean; message?: string }>("reward_setting_update", { id, data }).then(
+      requestSnapshotOnSuccess
+    ),
   rewardSettingDelete: (id: number): Promise<{ success: boolean; message?: string }> =>
-    invoke("reward_setting_delete", { id }),
+    invoke<{ success: boolean; message?: string }>("reward_setting_delete", { id }).then(
+      requestSnapshotOnSuccess
+    ),
   rewardRedeem: async (data: {
     student_name: string
     reward_id: number
@@ -378,7 +395,9 @@ const api = {
   boardGetConfigs: (): Promise<{ success: boolean; data: any[]; message?: string }> =>
     invoke("board_get_configs"),
   boardSaveConfigs: (configs: any[]): Promise<{ success: boolean; message?: string }> =>
-    invoke("board_save_configs", { configs }),
+    invoke<{ success: boolean; message?: string }>("board_save_configs", { configs }).then(
+      requestSnapshotOnSuccess
+    ),
 
   // Settlement
   querySettlements: (): Promise<{ success: boolean; data: any[] }> => invoke("db_settlement_query"),
@@ -402,7 +421,9 @@ const api = {
     actions: autoScoreAction[]
     execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("auto_score_add_rule", { rule }),
+    invoke<{ success: boolean; data?: number; message?: string }>("auto_score_add_rule", {
+      rule,
+    }).then(requestSnapshotOnSuccess),
   autoScoreUpdateRule: (rule: {
     id: number
     name: string
@@ -413,16 +434,22 @@ const api = {
     actions: autoScoreAction[]
     execution?: autoScoreExecutionConfig
   }): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_update_rule", { rule }),
+    invoke<{ success: boolean; data?: boolean; message?: string }>("auto_score_update_rule", {
+      rule,
+    }).then(requestSnapshotOnSuccess),
   autoScoreDeleteRule: (
     ruleId: number
   ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_delete_rule", { ruleId }),
+    invoke<{ success: boolean; data?: boolean; message?: string }>("auto_score_delete_rule", {
+      ruleId,
+    }).then(requestSnapshotOnSuccess),
   autoScoreToggleRule: (params: {
     ruleId: number
     enabled: boolean
   }): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_toggle_rule", { params }),
+    invoke<{ success: boolean; data?: boolean; message?: string }>("auto_score_toggle_rule", {
+      params,
+    }).then(requestSnapshotOnSuccess),
   autoScoreGetStatus: (): Promise<{
     success: boolean
     data?: {
@@ -433,7 +460,9 @@ const api = {
   autoScoreSortRules: (
     ruleIds: number[]
   ): Promise<{ success: boolean; data?: boolean; message?: string }> =>
-    invoke("auto_score_sort_rules", { ruleIds }),
+    invoke<{ success: boolean; data?: boolean; message?: string }>("auto_score_sort_rules", {
+      ruleIds,
+    }).then(requestSnapshotOnSuccess),
   autoScoreQueryBatches: (): Promise<{
     success: boolean
     data?: autoScoreExecutionBatch[]
@@ -442,11 +471,17 @@ const api = {
   autoScoreRollbackBatch: (params: {
     batchId: string
   }): Promise<{ success: boolean; data?: autoScoreExecutionBatch; message?: string }> =>
-    invoke("auto_score_rollback_batch", { params }),
+    invoke<{ success: boolean; data?: autoScoreExecutionBatch; message?: string }>(
+      "auto_score_rollback_batch",
+      { params }
+    ).then(requestSnapshotOnSuccess),
   autoScoreApplyBackfill: (params: {
     items: autoScoreBackfillItem[]
   }): Promise<{ success: boolean; data?: autoScoreBackfillResult; message?: string }> =>
-    invoke("auto_score_apply_backfill", { params }),
+    invoke<{ success: boolean; data?: autoScoreBackfillResult; message?: string }>(
+      "auto_score_apply_backfill",
+      { params }
+    ).then(requestSnapshotOnSuccess),
 
   // Settings & Sync
   getAllSettings: (): Promise<{ success: boolean; data: settingsSpec }> =>
@@ -457,7 +492,11 @@ const api = {
   setSetting: <K extends settingsKey>(
     key: K,
     value: settingsSpec[K]
-  ): Promise<{ success: boolean }> => invoke("settings_set", { key, value }),
+  ): Promise<{ success: boolean }> =>
+    invoke<{ success: boolean }>("settings_set", { key, value }).then((result) => {
+      if (result.success) syncClient.requestSnapshot()
+      return result
+    }),
   getSystemFonts: (): Promise<{ success: boolean; data: string[]; message?: string }> =>
     invoke("settings_get_system_fonts"),
   onSettingChanged: (callback: (change: settingChange) => void): Promise<UnlistenFn> => {

@@ -75,6 +75,10 @@ const deterministicEntityId = (studentName: string): string => {
 class SyncClient {
   private syncing = false
   private syncRequested = false
+  private syncRequestedForceSnapshot = false
+  private snapshotRequested = false
+  private snapshotPullRequested = false
+  private snapshotRequestTimer: number | null = null
   private timer: number | null = null
   private enabled = false
   private lastSnapshotAt = 0
@@ -126,6 +130,27 @@ class SyncClient {
 
   createOperationId(): string {
     return newUuid()
+  }
+
+  requestSnapshot(): void {
+    this.snapshotRequested = true
+    this.snapshotPullRequested = false
+    this.snapshotAbortController?.abort()
+    if (!this.enabled || this.snapshotRequestTimer !== null) return
+    this.snapshotRequestTimer = window.setTimeout(() => {
+      this.snapshotRequestTimer = null
+      void this.syncNow()
+    }, 100)
+  }
+
+  private requestSnapshotFromServer(): void {
+    if (!this.snapshotRequested) this.snapshotPullRequested = true
+    this.snapshotAbortController?.abort()
+    if (!this.enabled || this.snapshotRequestTimer !== null) return
+    this.snapshotRequestTimer = window.setTimeout(() => {
+      this.snapshotRequestTimer = null
+      void this.syncNow()
+    }, 100)
   }
 
   private getDeviceId(): string {
@@ -325,16 +350,53 @@ class SyncClient {
         return
       }
       const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
-      if (result.snapshot) {
-        const applied = await api.syncApplySnapshot(result.snapshot)
-        syncLog(applied?.success ? "info" : "error", applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败", {
-          device_id: deviceId,
-          merged_counts: Object.fromEntries(Object.entries(result.snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])),
-          message: applied?.message,
-        })
-        if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
-        window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
+      if (result.snapshot) await this.applySnapshotResult(result.snapshot, deviceId)
+    } finally {
+      window.clearTimeout(timeout)
+      if (this.snapshotAbortController === controller) this.snapshotAbortController = null
+    }
+  }
+
+  private async applySnapshotResult(snapshot: Record<string, unknown>, deviceId: string): Promise<void> {
+    const api = (window as any).api
+    const applied = await api.syncApplySnapshot(snapshot)
+    syncLog(
+      applied?.success ? "info" : "error",
+      applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败",
+      {
+        device_id: deviceId,
+        merged_counts: Object.fromEntries(
+          Object.entries(snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])
+        ),
+        message: applied?.message,
       }
+    )
+    if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
+    window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
+  }
+
+  private async pullSnapshot(): Promise<void> {
+    const api = (window as any).api
+    if (!api?.syncApplySnapshot) return
+    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const deviceId = this.getDeviceId()
+    syncLog("info", "开始拉取服务器最新业务数据快照", { server_url: serverUrl, device_id: deviceId })
+    const controller = new AbortController()
+    this.snapshotAbortController = controller
+    const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
+    try {
+      const response = await fetch(`${serverUrl}/v1/snapshot`, {
+        headers: await this.headers(),
+        signal: controller.signal,
+      })
+      const responseText = await response.text()
+      if (!response.ok) throw new Error(`snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`)
+      if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
+        syncLog("info", "拉取快照响应已收到，但存在待同步积分操作，跳过本地快照写入", { device_id: deviceId })
+        return
+      }
+      const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
+      if (result.snapshot) await this.applySnapshotResult(result.snapshot, deviceId)
     } finally {
       window.clearTimeout(timeout)
       if (this.snapshotAbortController === controller) this.snapshotAbortController = null
@@ -461,7 +523,7 @@ class SyncClient {
           const controller = new AbortController()
           this.changeStreamAbortController = controller
           const response = await fetch(
-            `${serverUrl}/v1/changes?last_server_change_seq=${Number(localStorage.getItem(CURSOR_KEY) || "0")}`,
+            `${serverUrl}/v1/changes?last_server_change_seq=${Number(localStorage.getItem(CURSOR_KEY) || "0")}&device_id=${encodeURIComponent(this.getDeviceId())}`,
             { headers: await this.headers(), signal: controller.signal }
           )
           if (!response.ok || !response.body) throw new Error(`changes HTTP ${response.status}`)
@@ -481,6 +543,10 @@ class SyncClient {
                 .map((line) => line.slice(5).trim())
                 .join("\n")
               if (!data) continue
+              if (frame.includes("event: snapshot_changed")) {
+                this.requestSnapshotFromServer()
+                continue
+              }
               if (frame.includes("event: reset")) {
                 void this.syncNow(false)
                 continue
@@ -509,9 +575,14 @@ class SyncClient {
     if (!this.enabled || !(window as any).api?.syncApplyRemoteOperation) return
     if (this.syncing) {
       this.syncRequested = true
+      this.syncRequestedForceSnapshot ||= forceSnapshot
       syncLog("debug", "同步正在进行，已登记后续同步请求", { force_snapshot: forceSnapshot })
       return
     }
+    const requestedSnapshot = this.snapshotRequested
+    const requestedSnapshotPull = this.snapshotPullRequested
+    this.snapshotRequested = false
+    this.snapshotPullRequested = false
     this.syncing = true
     const startedAt = Date.now()
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
@@ -521,6 +592,8 @@ class SyncClient {
       const now = Date.now()
       const shouldSnapshot =
         forceSnapshot ||
+        requestedSnapshot ||
+        requestedSnapshotPull ||
         (now - this.lastSnapshotAt >= 5 * 60_000 && now - this.lastSnapshotAttemptAt >= SNAPSHOT_RETRY_INTERVAL_MS)
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
       // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
@@ -548,7 +621,11 @@ class SyncClient {
       if (shouldSnapshot && getJson<PendingOperation[]>(OUTBOX_KEY, []).length === 0) {
         this.lastSnapshotAttemptAt = Date.now()
         try {
-          await this.syncSnapshot()
+          if (requestedSnapshotPull && !requestedSnapshot) {
+            await this.pullSnapshot()
+          } else {
+            await this.syncSnapshot()
+          }
           this.lastSnapshotAt = Date.now()
         } catch (error) {
           const message = error instanceof DOMException && error.name === "AbortError" ? "快照已取消或超时" : String(error)
@@ -567,8 +644,10 @@ class SyncClient {
     } finally {
       this.syncing = false
       if (this.syncRequested) {
+        const nextForceSnapshot = this.syncRequestedForceSnapshot || this.snapshotRequested
         this.syncRequested = false
-        void this.syncNow(false)
+        this.syncRequestedForceSnapshot = false
+        void this.syncNow(nextForceSnapshot)
       }
     }
   }
@@ -590,6 +669,13 @@ class SyncClient {
       this.timer = null
     }
     this.enabled = false
+    this.snapshotRequested = false
+    this.snapshotPullRequested = false
+    this.syncRequestedForceSnapshot = false
+    if (this.snapshotRequestTimer !== null) {
+      window.clearTimeout(this.snapshotRequestTimer)
+      this.snapshotRequestTimer = null
+    }
     this.changeStreamAbortController?.abort()
     this.snapshotAbortController?.abort()
     if (this.onlineHandler) {

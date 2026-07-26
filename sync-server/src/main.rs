@@ -72,6 +72,8 @@ struct OperationRequest {
 struct ChangesQuery {
     #[serde(default)]
     last_server_change_seq: i64,
+    #[serde(default)]
+    device_id: Option<Uuid>,
 }
 
 fn default_limit() -> i64 {
@@ -129,9 +131,15 @@ struct RemoteOperation {
 }
 
 #[derive(Debug, Clone)]
-struct ChangeNotification {
-    account_id: Uuid,
-    operation: RemoteOperation,
+enum ChangeNotification {
+    Operation {
+        account_id: Uuid,
+        operation: RemoteOperation,
+    },
+    SnapshotChanged {
+        account_id: Uuid,
+        device_id: Uuid,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -201,7 +209,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/v1/sync", post(sync))
         .route("/v1/operations", post(operation))
         .route("/v1/changes", get(changes))
-        .route("/v1/snapshot", post(snapshot))
+        .route("/v1/snapshot", get(snapshot_get).post(snapshot))
         .route("/v1/students/:student_id/balance", get(balance))
         .layer(CorsLayer::permissive())
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
@@ -263,17 +271,25 @@ async fn changes(
         .map_err(|error| internal(error.to_string()))?;
     let receiver = state.changes.subscribe();
     let last_seq = query.last_server_change_seq;
+    let subscriber_device_id = query.device_id;
     let stream = BroadcastStream::new(receiver).filter_map(move |message| match message {
-        Ok(change)
-            if change.account_id == account_id && change.operation.server_change_seq > last_seq =>
-        {
+        Ok(ChangeNotification::Operation {
+            account_id: change_account_id,
+            operation,
+        }) if change_account_id == account_id && operation.server_change_seq > last_seq => {
             Some(Ok(Event::default()
                 .event("operation")
-                .id(change.operation.server_change_seq.to_string())
-                .json_data(&change.operation)
+                .id(operation.server_change_seq.to_string())
+                .json_data(&operation)
                 .unwrap_or_else(|_| {
                     Event::default().event("reset").data("{}")
                 })))
+        }
+        Ok(ChangeNotification::SnapshotChanged {
+            account_id: change_account_id,
+            device_id,
+        }) if change_account_id == account_id && subscriber_device_id != Some(device_id) => {
+            Some(Ok(Event::default().event("snapshot_changed").data("{}")))
         }
         Err(_) => Some(Ok(Event::default().event("reset").data("{}"))),
         _ => None,
@@ -527,7 +543,7 @@ async fn sync(
     for operation in notifications {
         let server_change_seq = operation.server_change_seq;
         let receiver_count = state.changes.receiver_count();
-        let sent = state.changes.send(ChangeNotification {
+        let sent = state.changes.send(ChangeNotification::Operation {
             account_id,
             operation,
         });
@@ -605,6 +621,20 @@ async fn snapshot(
     .await
     .map_err(|e| internal(e.to_string()))?;
 
+    let receiver_count = state.changes.receiver_count();
+    let sent = state.changes.send(ChangeNotification::SnapshotChanged {
+        account_id,
+        device_id: request.device_id,
+    });
+    info!(
+        event = "snapshot_broadcast",
+        account_id = %account_id,
+        device_id = %request.device_id,
+        receiver_count,
+        sent = sent.is_ok(),
+        "已广播快照变更"
+    );
+
     info!(
         event = "snapshot_response",
         request_id = %request_id,
@@ -617,6 +647,31 @@ async fn snapshot(
     );
 
     Ok(Json(SnapshotResponse { snapshot: merged }))
+}
+
+async fn snapshot_get(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<SnapshotResponse>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    let snapshot = sqlx::query_scalar::<_, Value>(
+        "SELECT snapshot FROM account_snapshots WHERE account_id = $1",
+    )
+    .bind(account_id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal(e.to_string()))?
+    .unwrap_or_else(|| json!({}));
+    info!(
+        event = "snapshot_pull",
+        user_id = %user.sectl_user_id,
+        account_id = %account_id,
+        "返回业务数据快照"
+    );
+    Ok(Json(SnapshotResponse { snapshot }))
 }
 
 fn snapshot_counts(snapshot: &Value) -> String {

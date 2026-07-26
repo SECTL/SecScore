@@ -17,6 +17,8 @@ yarn-error.log*
 .env
 .env.local
 *.env.*
+!.env.sync-server.development.example
+.env.sync-server.development.local
 
 # Editor / IDE
 .vscode/

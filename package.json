@@ -9,6 +9,7 @@
     "build": "node scripts/generate-about-content.mjs && vite build",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.cjs",
+    "sync-server:dev": "node scripts/start-sync-server-dev.mjs",
     "tauri:build": "tauri build",
     "build:win": "pnpm tauri build --target x86_64-pc-windows-msvc",
     "ios:sim": "node scripts/ios-sim.js",
