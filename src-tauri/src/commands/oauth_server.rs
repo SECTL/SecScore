@@ -123,9 +123,42 @@ pub async fn oauth_open_browser(url: String) -> Result<IpcResponse<()>, String> 
     let result = std::process::Command::new("open").arg(&url).spawn();
 
     #[cfg(target_os = "windows")]
-    let result = std::process::Command::new("cmd")
-        .args(["/C", "start", "", &url])
-        .spawn();
+    let result = {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        let operation: Vec<u16> = std::ffi::OsStr::new("open")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let url_wide: Vec<u16> = std::ffi::OsStr::new(&url)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // 不经过 cmd.exe，避免 URL 中的 `&` 被当作命令分隔符，导致
+        // redirect_uri、state 等 OAuth 参数被截断。
+        let shell_result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                url_wide.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+
+        if (shell_result as isize) > 32 {
+            Ok(())
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("ShellExecuteW 返回错误码 {}", shell_result as isize),
+            ))
+        }
+    };
 
     #[cfg(target_os = "linux")]
     let result = std::process::Command::new("xdg-open").arg(&url).spawn();
