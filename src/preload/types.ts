@@ -123,7 +123,7 @@ export interface settingsSpec {
     type: "sqlite" | "postgresql"
     error?: string
   }
-  sync_method: "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
+  sync_method: "postgresql" | "sectl_cloud_v2"
   mobile_bottom_nav_items: string[]
   lan_access_enabled: boolean
 }

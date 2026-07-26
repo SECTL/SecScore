@@ -36,8 +36,6 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
 import { getPluginRuntime } from "./plugins/runtime"
-import { sectlCloudSync } from "./services/sectlCloudSync"
-import { sectlAuth } from "./services/sectlAuth"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(
@@ -467,23 +465,6 @@ function MainContent(): React.JSX.Element {
         const settingsRes = await api.getAllSettings()
         const syncMethod = settingsRes?.success ? settingsRes.data?.sync_method : null
 
-        if (syncMethod === "sectl_cloud") {
-          if (!sectlAuth.isAuthenticated()) return
-          const status = sectlCloudSync.getStatus()
-          if (!status.is_configured || status.is_syncing) return
-
-          const now = Date.now()
-          const recentLocal = now - lastLocalMutationAtRef.current < 15000
-          const direction = recentLocal ? "push" : "bidirectional"
-          const result = await sectlCloudSync.fullSync(direction)
-          if (result.success) {
-            window.dispatchEvent(
-              new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
-            )
-          }
-          return
-        }
-
         if (syncMethod === "sectl_cloud_v2") {
           return
         }
@@ -616,6 +597,7 @@ function MainContent(): React.JSX.Element {
   }) => {
     // OAuth 登录仅用于云服务，不修改本地权限
     setOAuthUserName(userInfo.name || null)
+    window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: userInfo } }))
     messageApi.success(t("auth.oauthSuccess", "登录成功"))
   }
 

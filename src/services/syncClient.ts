@@ -2,7 +2,6 @@ import { sectlAuth } from "./sectlAuth"
 
 const SERVER_URL_KEY = "ss_sync_server_url"
 const DEVICE_ID_KEY = "ss_sync_device_id"
-const USER_ID_KEY = "ss_sync_dev_user_id"
 const OUTBOX_KEY = "ss_sync_outbox"
 const APPLIED_KEY = "ss_sync_applied_operations"
 const CURSOR_KEY = "ss_sync_cursor"
@@ -11,6 +10,25 @@ const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_SYNC_SERVER_URL || "ht
 const SYNC_REQUEST_TIMEOUT_MS = 10_000
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
 const SNAPSHOT_RETRY_INTERVAL_MS = 60_000
+
+export type SyncConnectionState =
+  | "disabled"
+  | "connecting"
+  | "online"
+  | "offline"
+  | "auth_error"
+  | "error"
+
+export interface SyncStatus {
+  state: SyncConnectionState
+  enabled: boolean
+  browserOnline: boolean
+  authenticated: boolean
+  isSyncing: boolean
+  serverUrl: string
+  lastSyncAt: string | null
+  lastError: string | null
+}
 
 const syncLog = (
   level: "debug" | "info" | "warn" | "error",
@@ -92,15 +110,54 @@ class SyncClient {
   private readonly appliedOperationIds = new Set<string>()
   private readonly applyingOperationPromises = new Map<string, Promise<boolean>>()
   private onlineHandler: (() => void) | null = null
+  private offlineHandler: (() => void) | null = null
+  private oauthHandler: (() => void) | null = null
+  private readonly statusListeners = new Set<(status: SyncStatus) => void>()
+  private status: SyncStatus = {
+    state: "disabled",
+    enabled: false,
+    browserOnline: typeof navigator === "undefined" ? true : navigator.onLine,
+    authenticated: sectlAuth.isAuthenticated(),
+    isSyncing: false,
+    serverUrl: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
+    lastSyncAt: null,
+    lastError: null,
+  }
+
+  getStatus(): SyncStatus {
+    return { ...this.status }
+  }
+
+  subscribeStatus(listener: (status: SyncStatus) => void): () => void {
+    this.statusListeners.add(listener)
+    listener(this.getStatus())
+    return () => this.statusListeners.delete(listener)
+  }
+
+  private updateStatus(patch: Partial<SyncStatus>): void {
+    this.status = { ...this.status, ...patch }
+    const nextStatus = this.getStatus()
+    for (const listener of this.statusListeners) listener(nextStatus)
+  }
 
   setEnabled(enabled: boolean) {
     const changed = this.enabled !== enabled
     this.enabled = enabled
     if (!enabled) this.changeStreamAbortController?.abort()
+    this.updateStatus({
+      enabled,
+      state: enabled
+        ? this.status.browserOnline
+          ? "connecting"
+          : "offline"
+        : "disabled",
+      authenticated: sectlAuth.isAuthenticated(),
+      lastError: null,
+    })
     localStorage.setItem(SYNC_ENABLED_KEY, String(enabled))
     syncLog("info", enabled ? "同步已启用" : "同步已停用", {
       server_url: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
-      dev_user_id: localStorage.getItem(USER_ID_KEY) || "local-demo-user",
+      authenticated: sectlAuth.isAuthenticated(),
     })
     if (enabled && changed) {
       this.startChangeStream()
@@ -117,18 +174,10 @@ class SyncClient {
   }
 
   setServerUrl(url: string) {
-    localStorage.setItem(SERVER_URL_KEY, url.replace(/\/$/, ""))
+    const normalizedUrl = url.replace(/\/$/, "")
+    localStorage.setItem(SERVER_URL_KEY, normalizedUrl)
+    this.updateStatus({ serverUrl: normalizedUrl })
     syncLog("info", "同步服务器地址已更新", { server_url: localStorage.getItem(SERVER_URL_KEY) })
-  }
-
-  setDevUserId(userId: string) {
-    const normalized = userId.trim() || "local-demo-user"
-    localStorage.setItem(USER_ID_KEY, normalized)
-    syncLog("info", "开发账号已更新", { dev_user_id: normalized })
-  }
-
-  getDevUserId() {
-    return localStorage.getItem(USER_ID_KEY) || "local-demo-user"
   }
 
   createOperationId(): string {
@@ -457,16 +506,21 @@ class SyncClient {
     const token = sectlAuth.getAccessToken()
     if (token) {
       syncLog("debug", "使用 OAuth 令牌同步", { device_id: this.getDeviceId() })
-      // 携带 OAuth Token 时不再发送开发身份头，服务端必须从 Token 推导账号。
       return {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       }
     }
-    return {
-      "Content-Type": "application/json",
-      "X-Dev-User-Id": this.getDevUserId(),
-    }
+    syncLog("warn", "未找到 OAuth 令牌，同步请求将由服务器拒绝", {
+      device_id: this.getDeviceId(),
+    })
+    return { "Content-Type": "application/json" }
+  }
+
+  private getFailureState(error: unknown, status?: number): SyncConnectionState {
+    if (status === 401 || status === 403) return "auth_error"
+    if (!this.status.browserOnline || error instanceof TypeError) return "offline"
+    return "error"
   }
 
   private rememberAppliedOperation(operationId: string): void {
@@ -589,7 +643,18 @@ class SyncClient {
             `${serverUrl}/v1/changes?last_server_change_seq=${Number(localStorage.getItem(CURSOR_KEY) || "0")}&device_id=${encodeURIComponent(this.getDeviceId())}`,
             { headers: await this.headers(), signal: controller.signal }
           )
-          if (!response.ok || !response.body) throw new Error(`changes HTTP ${response.status}`)
+          if (!response.ok || !response.body) {
+            const error = new Error(`changes HTTP ${response.status}`) as Error & {
+              status?: number
+            }
+            error.status = response.status
+            throw error
+          }
+          this.updateStatus({
+            state: "online",
+            authenticated: sectlAuth.isAuthenticated(),
+            lastError: null,
+          })
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
           let buffer = ""
@@ -623,6 +688,12 @@ class SyncClient {
           }
         } catch (error) {
           if (this.enabled) {
+            const status = (error as Error & { status?: number })?.status
+            this.updateStatus({
+              state: this.getFailureState(error, status),
+              authenticated: sectlAuth.isAuthenticated(),
+              lastError: error instanceof Error ? error.message : String(error),
+            })
             syncLog("warn", "长连接已断开，稍后重连并依赖轮询兜底", { error: String(error) })
             await new Promise((resolve) => window.setTimeout(resolve, 1000))
           }
@@ -650,10 +721,17 @@ class SyncClient {
     const startedAt = Date.now()
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
+    this.updateStatus({
+      state: this.status.browserOnline ? "connecting" : "offline",
+      authenticated: sectlAuth.isAuthenticated(),
+      isSyncing: true,
+      serverUrl,
+      lastError: null,
+    })
     syncLog("info", "同步周期开始", {
       server_url: serverUrl,
       device_id: deviceId,
-      dev_user_id: this.getDevUserId(),
+      authenticated: sectlAuth.isAuthenticated(),
       outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length,
       cursor: Number(localStorage.getItem(CURSOR_KEY) || "0"),
     })
@@ -680,6 +758,12 @@ class SyncClient {
       })
       const responseText = await response.text()
       if (!response.ok) {
+        const errorMessage = `sync HTTP ${response.status}: ${responseText.slice(0, 500)}`
+        this.updateStatus({
+          state: this.getFailureState(new Error(errorMessage), response.status),
+          authenticated: sectlAuth.isAuthenticated(),
+          lastError: errorMessage,
+        })
         syncLog("error", "增量同步请求失败", {
           status: response.status,
           body: responseText.slice(0, 1000),
@@ -712,7 +796,19 @@ class SyncClient {
         balance_count: result.balances.length,
         cursor: localStorage.getItem(CURSOR_KEY),
       })
+      this.updateStatus({
+        state: "online",
+        browserOnline: true,
+        authenticated: sectlAuth.isAuthenticated(),
+        lastSyncAt: new Date().toISOString(),
+        lastError: null,
+      })
     } catch (error) {
+      this.updateStatus({
+        state: this.getFailureState(error),
+        authenticated: sectlAuth.isAuthenticated(),
+        lastError: error instanceof Error ? error.message : String(error),
+      })
       syncLog("error", "同步周期异常", {
         duration_ms: Date.now() - startedAt,
         error: String(error),
@@ -720,6 +816,7 @@ class SyncClient {
       })
     } finally {
       this.syncing = false
+      this.updateStatus({ isSyncing: false })
       if (this.syncRequested) {
         const nextForceSnapshot = this.syncRequestedForceSnapshot || this.snapshotRequested
         this.syncRequested = false
@@ -735,8 +832,36 @@ class SyncClient {
     this.timer = window.setInterval(() => void this.syncNow(), 10_000)
     if (this.enabled) this.startChangeStream()
     if (!this.onlineHandler) {
-      this.onlineHandler = () => void this.syncNow()
+      this.onlineHandler = () => {
+        this.updateStatus({
+          browserOnline: true,
+          state: this.enabled ? "connecting" : "disabled",
+          lastError: null,
+        })
+        void this.syncNow()
+      }
       window.addEventListener("online", this.onlineHandler)
+    }
+    if (!this.offlineHandler) {
+      this.offlineHandler = () => {
+        this.updateStatus({
+          browserOnline: false,
+          state: this.enabled ? "offline" : "disabled",
+        })
+        this.changeStreamAbortController?.abort()
+      }
+      window.addEventListener("offline", this.offlineHandler)
+    }
+    if (!this.oauthHandler) {
+      this.oauthHandler = () => {
+        this.updateStatus({
+          authenticated: sectlAuth.isAuthenticated(),
+          state: this.enabled ? "connecting" : "disabled",
+          lastError: null,
+        })
+        if (this.enabled) void this.syncNow(true)
+      }
+      window.addEventListener("ss:oauth-user-updated", this.oauthHandler)
     }
   }
 
@@ -759,6 +884,20 @@ class SyncClient {
       window.removeEventListener("online", this.onlineHandler)
       this.onlineHandler = null
     }
+    if (this.offlineHandler) {
+      window.removeEventListener("offline", this.offlineHandler)
+      this.offlineHandler = null
+    }
+    if (this.oauthHandler) {
+      window.removeEventListener("ss:oauth-user-updated", this.oauthHandler)
+      this.oauthHandler = null
+    }
+    this.updateStatus({
+      enabled: false,
+      state: "disabled",
+      isSyncing: false,
+      authenticated: sectlAuth.isAuthenticated(),
+    })
   }
 }
 

@@ -459,7 +459,7 @@ impl SettingsService {
                 write_permission: PermissionRequirement::Admin,
                 validate: Some(|v| {
                     if let SettingsValue::String(s) = v {
-                        matches!(s.as_str(), "postgresql" | "sectl_cloud" | "sectl_cloud_v2")
+                        matches!(s.as_str(), "postgresql" | "sectl_cloud_v2")
                     } else {
                         false
                     }

@@ -20,9 +20,9 @@ import {
 import { CloudOutlined, DatabaseOutlined } from "@ant-design/icons"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
-import { SectlCloudSyncPanel } from "./SectlCloudSyncPanel"
-import { SectlProvider } from "../contexts/SectlContext"
 import { syncClient } from "../services/syncClient"
+import { sectlAuth } from "../services/sectlAuth"
+import { SyncServerStatus } from "./SyncServerStatus"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
@@ -226,14 +226,9 @@ export const Settings: React.FC<{
     }
   }
 
-  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud" | "sectl_cloud_v2">(
-    "postgresql"
-  )
+  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud_v2">("postgresql")
   const [syncServerUrl, setSyncServerUrl] = useState(
     localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
-  )
-  const [syncDevUserId, setSyncDevUserId] = useState(
-    localStorage.getItem("ss_sync_dev_user_id") || "local-demo-user"
   )
 
   useEffect(() => {
@@ -374,11 +369,10 @@ export const Settings: React.FC<{
       setSettings(res.data)
       setPgConnectionString(res.data.pg_connection_string || "")
       setPgConnectionStatus(res.data.pg_connection_status || { connected: true, type: "sqlite" })
-      if (res.data.sync_method === "sectl_cloud") {
-        setSyncMethod("sectl_cloud")
-      } else if (res.data.sync_method === "sectl_cloud_v2") {
+      if (res.data.sync_method === "sectl_cloud_v2") {
         setSyncMethod("sectl_cloud_v2")
       } else {
+        // 旧版 SECTL 云同步不再提供入口，历史配置降级为本地 PostgreSQL 模式。
         setSyncMethod("postgresql")
       }
       savedFontFamily = res.data.font_family || "system"
@@ -1445,7 +1439,7 @@ export const Settings: React.FC<{
             <Radio.Group
               value={syncMethod}
               onChange={async (e) => {
-                const next = e.target.value as "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
+                const next = e.target.value as "postgresql" | "sectl_cloud_v2"
                 const previous = syncMethod
                 if (syncMethodChangeInFlight) {
                   logSyncMethodEvent("sync_method:selection_ignored_in_flight", {
@@ -1614,46 +1608,6 @@ export const Settings: React.FC<{
                   onClick={activateSyncMethodCard}
                   style={{
                     borderColor:
-                      syncMethod === "sectl_cloud" ? "var(--ant-color-primary)" : undefined,
-                    backgroundColor:
-                      syncMethod === "sectl_cloud" ? "var(--ant-color-primary-bg)" : undefined,
-                    cursor: "pointer",
-                  }}
-                >
-                  <Radio
-                    value="sectl_cloud"
-                    styles={{
-                      root: { width: "100%", alignItems: "center" },
-                      label: { display: "flex", alignItems: "center", flex: 1, gap: 8 },
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 500 }}>{t("settings.cloudSync.sectlCloud")}</div>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--ss-text-secondary)",
-                          marginTop: 4,
-                        }}
-                      >
-                        {t("settings.cloudSync.sectlCloudDesc")}
-                      </div>
-                    </div>
-                    <CloudOutlined
-                      style={{
-                        fontSize: "26px",
-                        color: "var(--ant-color-primary)",
-                        flexShrink: 0,
-                      }}
-                    />
-                  </Radio>
-                </Card>
-                <Card
-                  hoverable
-                  size="small"
-                  onClick={activateSyncMethodCard}
-                  style={{
-                    borderColor:
                       syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary)" : undefined,
                     backgroundColor:
                       syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary-bg)" : undefined,
@@ -1728,38 +1682,22 @@ export const Settings: React.FC<{
                   保存并连接
                 </Button>
               </Space.Compact>
-              {import.meta.env.DEV && (
-                <div style={{ marginTop: "12px" }}>
-                  <div style={{ marginBottom: "6px", fontSize: "12px" }}>开发账号（DEV_AUTH）</div>
-                  <Space.Compact style={{ width: "100%" }}>
-                    <Input
-                      value={syncDevUserId}
-                      onChange={(event) => setSyncDevUserId(event.target.value)}
-                      placeholder="local-demo-user"
-                      disabled={!canAdmin}
-                    />
-                    <Button
-                      disabled={!canAdmin || !syncDevUserId.trim()}
-                      onClick={() => {
-                        syncClient.setDevUserId(syncDevUserId)
-                        void syncClient.syncNow()
-                        messageApi.success("开发账号已保存并开始同步")
-                      }}
-                    >
-                      保存账号并同步
-                    </Button>
-                  </Space.Compact>
-                  <div
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      color: "var(--ss-text-secondary)",
-                    }}
-                  >
-                    A、B 两端必须填写相同账号。若客户端已登录 OAuth，将优先使用 OAuth 账号。
-                  </div>
+              <div style={{ marginTop: "12px" }}>
+                <Tag color={oauthUserInfo || sectlAuth.isAuthenticated() ? "success" : "warning"}>
+                  {oauthUserInfo || sectlAuth.isAuthenticated()
+                    ? "使用当前 SECTL 登录账号同步"
+                    : "请先登录 SECTL 账号"}
+                </Tag>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "12px",
+                    color: "var(--ss-text-secondary)",
+                  }}
+                >
+                  新同步服务器不会使用开发账号；每台客户端都必须登录同一个 SECTL 账号。
                 </div>
-              )}
+              </div>
             </Card>
           )}
 
@@ -1895,9 +1833,7 @@ export const Settings: React.FC<{
               </Card>
             </>
           ) : (
-            <SectlProvider>
-              <SectlCloudSyncPanel />
-            </SectlProvider>
+            <SyncServerStatus />
           )}
         </>
       ),
@@ -2495,6 +2431,7 @@ export const Settings: React.FC<{
         onClose={() => setOAuthLoginVisible(false)}
         onSuccess={(userInfo) => {
           setOAuthUserInfo(userInfo)
+          window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: userInfo } }))
           messageApi.success(t("settings.account.loginSuccess"))
         }}
       />
