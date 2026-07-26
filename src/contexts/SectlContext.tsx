@@ -64,6 +64,7 @@ export const SectlProvider: React.FC<SectlProviderProps> = ({
                 setIsAuthenticated(false)
               }
             } catch {
+              sectlAuth.clearLocalSession()
               setIsAuthenticated(false)
               setToken(null)
             }

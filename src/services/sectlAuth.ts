@@ -20,6 +20,7 @@ export interface TokenData {
   refresh_token?: string
   token_type?: string
   expires_in?: number
+  expires_at?: string
   scope?: string
   user_id?: string
 }
@@ -39,6 +40,8 @@ const describeToken = (token: string | null) => ({
   token_length: token?.length || 0,
   token_kind: token ? (token.split(".").length === 3 ? "jwt_like" : "opaque") : "none",
 })
+
+const DEVICE_UUID_KEY = "sectl_device_uuid"
 
 const authLog = (
   level: "info" | "warn" | "error",
@@ -172,6 +175,7 @@ class SectlAuthService {
   private accessToken: string | null = null
   private refreshToken: string | null = null
   private tokenExpiresAt: number | null = null
+  private refreshPromise: Promise<TokenData> | null = null
   private userId: string | null = null
   private codeVerifier: string | null = null
   private authorizationState: string | null = null
@@ -483,6 +487,18 @@ class SectlAuthService {
   }
 
   async refreshAccessToken(): Promise<TokenData> {
+    if (this.refreshPromise) return this.refreshPromise
+
+    const refreshPromise = this.performRefreshAccessToken()
+    this.refreshPromise = refreshPromise
+    try {
+      return await refreshPromise
+    } finally {
+      if (this.refreshPromise === refreshPromise) this.refreshPromise = null
+    }
+  }
+
+  private async performRefreshAccessToken(): Promise<TokenData> {
     if (!this.refreshToken) {
       throw new Error("没有 refresh_token，无法刷新")
     }
@@ -579,7 +595,9 @@ class SectlAuthService {
       SECTL_CONFIG.platformId = jwtPlatformId
     }
 
-    if (tokenData.expires_in) {
+    if (tokenData.expires_at) {
+      this.tokenExpiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
+    } else if (tokenData.expires_in) {
       this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
     }
 
@@ -588,6 +606,7 @@ class SectlAuthService {
       refresh_token: tokenData.refresh_token,
       token_type: tokenData.token_type,
       expires_in: tokenData.expires_in,
+      expires_at: tokenData.expires_at,
       scope: tokenData.scope,
       user_id: this.userId || undefined,
     }
@@ -624,7 +643,9 @@ class SectlAuthService {
 
         this.userId = tokenData.user_id || extractUserIdFromJwt(this.accessToken)
 
-        if (tokenData.expires_in) {
+        if (tokenData.expires_at) {
+          this.tokenExpiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
+        } else if (tokenData.expires_in) {
           this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
         }
         authLog("info", "已从本地恢复 OAuth token", {
@@ -685,15 +706,28 @@ class SectlAuthService {
   }
 
   private generateDeviceUuid(): string {
+    const saved = localStorage.getItem(DEVICE_UUID_KEY)
+    if (saved) return saved
+
+    let generated: string
     if (typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID()
+      generated = crypto.randomUUID()
+    } else {
+      const array = new Uint8Array(16)
+      crypto.getRandomValues(array)
+      array[6] = (array[6] & 0x0f) | 0x40
+      array[8] = (array[8] & 0x3f) | 0x80
+      const hex = Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("")
+      generated = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
     }
-    const array = new Uint8Array(16)
-    crypto.getRandomValues(array)
-    array[6] = (array[6] & 0x0f) | 0x40
-    array[8] = (array[8] & 0x3f) | 0x80
-    const hex = Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("")
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+    localStorage.setItem(DEVICE_UUID_KEY, generated)
+    authLog("info", "已创建并持久化 OAuth 设备标识", { device_uuid: generated })
+    return generated
+  }
+
+  clearLocalSession(): void {
+    this.clearToken()
+    authLog("warn", "已清除本地 OAuth 会话", { platform_id: SECTL_CONFIG.platformId })
   }
 }
 

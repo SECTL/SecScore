@@ -24,6 +24,7 @@ export interface SyncStatus {
   enabled: boolean
   browserOnline: boolean
   authenticated: boolean
+  realtimeConnected: boolean
   isSyncing: boolean
   serverUrl: string
   lastSyncAt: string | null
@@ -113,6 +114,10 @@ class SyncClient {
   private snapshotAbortController: AbortController | null = null
   private changeStreamAbortController: AbortController | null = null
   private changeStreamRunning = false
+  private changeStreamConnected = false
+  private changeStreamAuthError = false
+  private tokenRecoveryInProgress = false
+  private lastTokenRecoveryAt = 0
   private readonly appliedOperationIds = new Set<string>()
   private readonly applyingOperationPromises = new Map<string, Promise<boolean>>()
   private onlineHandler: (() => void) | null = null
@@ -124,6 +129,7 @@ class SyncClient {
     enabled: false,
     browserOnline: typeof navigator === "undefined" ? true : navigator.onLine,
     authenticated: sectlAuth.isAuthenticated(),
+    realtimeConnected: false,
     isSyncing: false,
     serverUrl: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
     lastSyncAt: null,
@@ -149,15 +155,16 @@ class SyncClient {
   setEnabled(enabled: boolean) {
     const changed = this.enabled !== enabled
     this.enabled = enabled
-    if (!enabled) this.changeStreamAbortController?.abort()
+    if (!enabled) {
+      this.changeStreamAbortController?.abort()
+      this.changeStreamConnected = false
+      this.changeStreamAuthError = false
+    }
     this.updateStatus({
       enabled,
-      state: enabled
-        ? this.status.browserOnline
-          ? "connecting"
-          : "offline"
-        : "disabled",
+      state: enabled ? (this.status.browserOnline ? "connecting" : "offline") : "disabled",
       authenticated: sectlAuth.isAuthenticated(),
+      realtimeConnected: enabled ? this.changeStreamConnected : false,
       lastError: null,
     })
     localStorage.setItem(SYNC_ENABLED_KEY, String(enabled))
@@ -567,6 +574,45 @@ class SyncClient {
     return "error"
   }
 
+  private async tryRecoverAuthentication(): Promise<boolean> {
+    const token = sectlAuth.getToken()
+    const now = Date.now()
+    if (
+      this.tokenRecoveryInProgress ||
+      !token?.refresh_token ||
+      now - this.lastTokenRecoveryAt < 60_000
+    ) {
+      return false
+    }
+
+    this.tokenRecoveryInProgress = true
+    this.lastTokenRecoveryAt = now
+    syncLog("warn", "检测到同步认证失败，尝试使用 refresh_token 恢复会话", {
+      user_id: sectlAuth.getUserId(),
+      device_id: this.getDeviceId(),
+    })
+    try {
+      await sectlAuth.refreshAccessToken()
+      this.changeStreamAuthError = false
+      this.updateStatus({
+        state: this.enabled ? "connecting" : "disabled",
+        authenticated: true,
+        realtimeConnected: false,
+        lastError: null,
+      })
+      syncLog("info", "同步 OAuth 会话恢复成功，将重新建立实时连接", {
+        user_id: sectlAuth.getUserId(),
+        device_id: this.getDeviceId(),
+      })
+      return true
+    } catch (error) {
+      syncLog("warn", "同步 OAuth 会话恢复失败，需要重新登录", { error: String(error) })
+      return false
+    } finally {
+      this.tokenRecoveryInProgress = false
+    }
+  }
+
   private rememberAppliedOperation(operationId: string): void {
     this.appliedOperationIds.add(operationId)
     const applied = getJson<string[]>(APPLIED_KEY, [])
@@ -718,9 +764,12 @@ class SyncClient {
             status: response.status,
             content_type: response.headers.get("content-type"),
           })
+          this.changeStreamConnected = true
+          this.changeStreamAuthError = false
           this.updateStatus({
             state: "online",
             authenticated: sectlAuth.isAuthenticated(),
+            realtimeConnected: true,
             lastError: null,
           })
           const reader = response.body.getReader()
@@ -760,13 +809,23 @@ class SyncClient {
         } catch (error) {
           if (this.enabled) {
             const status = (error as Error & { status?: number })?.status
+            const isAuthError = status === 401 || status === 403
+            this.changeStreamConnected = false
+            this.changeStreamAuthError = isAuthError
             this.updateStatus({
               state: this.getFailureState(error, status),
-              authenticated: sectlAuth.isAuthenticated(),
+              authenticated: isAuthError ? false : sectlAuth.isAuthenticated(),
+              realtimeConnected: false,
               lastError: error instanceof Error ? error.message : String(error),
             })
-            syncLog("warn", "长连接已断开，稍后重连并依赖轮询兜底", { error: String(error) })
-            await new Promise((resolve) => window.setTimeout(resolve, 1000))
+            syncLog("warn", "长连接已断开，稍后重连并依赖轮询兜底", {
+              error: String(error),
+              auth_error: isAuthError,
+            })
+            const recovered = isAuthError && (await this.tryRecoverAuthentication())
+            await new Promise((resolve) =>
+              window.setTimeout(resolve, recovered ? 250 : isAuthError ? 5000 : 1000)
+            )
           }
         } finally {
           this.changeStreamAbortController = null
@@ -794,8 +853,13 @@ class SyncClient {
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
     this.updateStatus({
-      state: this.status.browserOnline ? "connecting" : "offline",
-      authenticated: sectlAuth.isAuthenticated(),
+      state: this.changeStreamAuthError
+        ? "auth_error"
+        : this.status.browserOnline
+          ? "connecting"
+          : "offline",
+      authenticated: this.changeStreamAuthError ? false : sectlAuth.isAuthenticated(),
+      realtimeConnected: this.changeStreamConnected,
       isSyncing: true,
       serverUrl,
       lastError: null,
@@ -837,9 +901,15 @@ class SyncClient {
       })
       if (!response.ok) {
         const errorMessage = `sync HTTP ${response.status}: ${responseText.slice(0, 500)}`
+        const isAuthError = response.status === 401 || response.status === 403
+        if (isAuthError) {
+          this.changeStreamConnected = false
+          this.changeStreamAuthError = true
+        }
         this.updateStatus({
           state: this.getFailureState(new Error(errorMessage), response.status),
-          authenticated: sectlAuth.isAuthenticated(),
+          authenticated: isAuthError ? false : sectlAuth.isAuthenticated(),
+          realtimeConnected: this.changeStreamConnected,
           lastError: errorMessage,
         })
         syncLog("error", "增量同步请求失败", {
@@ -847,6 +917,10 @@ class SyncClient {
           status: response.status,
           body: responseText.slice(0, 1000),
         })
+        if (isAuthError) {
+          const recovered = await this.tryRecoverAuthentication()
+          if (recovered) this.syncRequested = true
+        }
         return
       }
       const result = JSON.parse(responseText) as SyncResponse
@@ -877,16 +951,22 @@ class SyncClient {
         cursor: localStorage.getItem(CURSOR_KEY),
       })
       this.updateStatus({
-        state: "online",
+        state: this.changeStreamConnected
+          ? "online"
+          : this.changeStreamAuthError
+            ? "auth_error"
+            : "connecting",
         browserOnline: true,
-        authenticated: sectlAuth.isAuthenticated(),
+        authenticated: this.changeStreamAuthError ? false : sectlAuth.isAuthenticated(),
+        realtimeConnected: this.changeStreamConnected,
         lastSyncAt: new Date().toISOString(),
-        lastError: null,
+        lastError: this.changeStreamAuthError ? this.status.lastError : null,
       })
     } catch (error) {
       this.updateStatus({
         state: this.getFailureState(error),
         authenticated: sectlAuth.isAuthenticated(),
+        realtimeConnected: this.changeStreamConnected,
         lastError: error instanceof Error ? error.message : String(error),
       })
       syncLog("error", "同步周期异常", {
@@ -916,7 +996,11 @@ class SyncClient {
       this.onlineHandler = () => {
         this.updateStatus({
           browserOnline: true,
-          state: this.enabled ? "connecting" : "disabled",
+          state: this.enabled
+            ? this.changeStreamAuthError
+              ? "auth_error"
+              : "connecting"
+            : "disabled",
           lastError: null,
         })
         void this.syncNow()
@@ -928,7 +1012,11 @@ class SyncClient {
         this.updateStatus({
           browserOnline: false,
           state: this.enabled ? "offline" : "disabled",
+          realtimeConnected: false,
         })
+        this.changeStreamConnected = false
+        this.changeStreamAuthError = false
+        this.lastTokenRecoveryAt = 0
         this.changeStreamAbortController?.abort()
       }
       window.addEventListener("offline", this.offlineHandler)
@@ -940,8 +1028,13 @@ class SyncClient {
           user_id: sectlAuth.getUserId(),
           ...describeAccessToken(sectlAuth.getAccessToken()),
         })
+        this.changeStreamConnected = false
+        this.changeStreamAuthError = false
+        this.lastTokenRecoveryAt = 0
+        this.changeStreamAbortController?.abort()
         this.updateStatus({
           authenticated: sectlAuth.isAuthenticated(),
+          realtimeConnected: false,
           state: this.enabled ? "connecting" : "disabled",
           lastError: null,
         })
@@ -965,6 +1058,8 @@ class SyncClient {
       this.snapshotRequestTimer = null
     }
     this.changeStreamAbortController?.abort()
+    this.changeStreamConnected = false
+    this.changeStreamAuthError = false
     this.snapshotAbortController?.abort()
     if (this.onlineHandler) {
       window.removeEventListener("online", this.onlineHandler)
@@ -983,6 +1078,7 @@ class SyncClient {
       state: "disabled",
       isSyncing: false,
       authenticated: sectlAuth.isAuthenticated(),
+      realtimeConnected: false,
     })
   }
 }

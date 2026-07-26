@@ -56,6 +56,11 @@ export const SyncServerStatus: React.FC = () => {
           <Tag color={status.authenticated ? "success" : "warning"}>
             {status.authenticated ? "SECTL 账号已登录" : "未登录 SECTL"}
           </Tag>
+          {status.enabled && (
+            <Tag color={status.realtimeConnected ? "success" : "warning"}>
+              {status.realtimeConnected ? "实时推送已连接" : "实时推送未连接"}
+            </Tag>
+          )}
           <span style={{ color: "var(--ss-text-secondary)", fontSize: "12px" }}>
             {status.browserOnline ? "本机网络在线" : "本机网络离线"}
           </span>
