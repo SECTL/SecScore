@@ -1,7 +1,10 @@
 use axum::{
-    extract::{DefaultBodyLimit, Path, State},
+    extract::{DefaultBodyLimit, Path, Query, State},
     http::{header::AUTHORIZATION, HeaderMap, StatusCode},
-    response::IntoResponse,
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse,
+    },
     routing::{get, post},
     Json, Router,
 };
@@ -12,12 +15,15 @@ use serde_json::{json, Value};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::{
     collections::{HashMap, HashSet},
+    convert::Infallible,
     env,
     fs::{self, OpenOptions},
     net::SocketAddr,
     path::PathBuf,
     sync::Arc,
 };
+use tokio::sync::broadcast;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 use uuid::Uuid;
@@ -29,6 +35,7 @@ struct AppState {
     sectl_introspect_url: Option<String>,
     sectl_client_id: Option<String>,
     dev_auth: bool,
+    changes: broadcast::Sender<ChangeNotification>,
 }
 
 #[derive(Debug, Serialize)]
@@ -51,6 +58,20 @@ struct SyncRequest {
 struct SnapshotRequest {
     device_id: Uuid,
     snapshot: Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct OperationRequest {
+    device_id: Uuid,
+    #[serde(default)]
+    last_server_change_seq: i64,
+    operation: ClientOperation,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChangesQuery {
+    #[serde(default)]
+    last_server_change_seq: i64,
 }
 
 fn default_limit() -> i64 {
@@ -92,7 +113,7 @@ struct AcceptedOperation {
     status: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct RemoteOperation {
     op_id: Uuid,
     server_change_seq: i64,
@@ -105,6 +126,12 @@ struct RemoteOperation {
     payload: Value,
     client_created_at: DateTime<Utc>,
     status: String,
+}
+
+#[derive(Debug, Clone)]
+struct ChangeNotification {
+    account_id: Uuid,
+    operation: RemoteOperation,
 }
 
 #[derive(Debug, Serialize)]
@@ -153,12 +180,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
 
+    let (change_tx, _) = broadcast::channel(512);
     let state = Arc::new(AppState {
         pool,
         http: Client::new(),
         sectl_introspect_url: env::var("SECTL_INTROSPECT_URL").ok(),
         sectl_client_id: env::var("SECTL_CLIENT_ID").ok(),
         dev_auth: env::var("DEV_AUTH").unwrap_or_default() == "true",
+        changes: change_tx,
     });
     info!(
         event = "server_config",
@@ -170,6 +199,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/v1/sync", post(sync))
+        .route("/v1/operations", post(operation))
+        .route("/v1/changes", get(changes))
         .route("/v1/snapshot", post(snapshot))
         .route("/v1/students/:student_id/balance", get(balance))
         .layer(CorsLayer::permissive())
@@ -198,6 +229,66 @@ async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
             database,
         }),
     )
+}
+
+async fn operation(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<OperationRequest>,
+) -> Result<Json<SyncResponse>, (StatusCode, Json<ApiError>)> {
+    sync(
+        State(state),
+        headers,
+        Json(SyncRequest {
+            device_id: request.device_id,
+            last_server_change_seq: request.last_server_change_seq,
+            operations: vec![request.operation],
+            limit: 500,
+        }),
+    )
+    .await
+}
+
+async fn changes(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<ChangesQuery>,
+) -> Result<
+    Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>,
+    (StatusCode, Json<ApiError>),
+> {
+    let user = authenticate(&state, &headers).await?;
+    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
+        .await
+        .map_err(|error| internal(error.to_string()))?;
+    let receiver = state.changes.subscribe();
+    let last_seq = query.last_server_change_seq;
+    let stream = BroadcastStream::new(receiver).filter_map(move |message| match message {
+        Ok(change)
+            if change.account_id == account_id && change.operation.server_change_seq > last_seq =>
+        {
+            Some(Ok(Event::default()
+                .event("operation")
+                .id(change.operation.server_change_seq.to_string())
+                .json_data(&change.operation)
+                .unwrap_or_else(|_| {
+                    Event::default().event("reset").data("{}")
+                })))
+        }
+        Err(_) => Some(Ok(Event::default().event("reset").data("{}"))),
+        _ => None,
+    });
+    info!(
+        event = "changes_connected",
+        user_id = %user.sectl_user_id,
+        last_server_change_seq = last_seq,
+        "长连接变更订阅已建立"
+    );
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+            .text("keepalive"),
+    ))
 }
 
 async fn authenticate(
@@ -325,6 +416,7 @@ async fn sync(
         .await
         .map_err(|e| internal(e.to_string()))?;
     let mut accepted = Vec::new();
+    let mut notifications = Vec::new();
     for operation in request.operations {
         if !SUPPORTED_OPERATION_TYPES.contains(&operation.operation_type.as_str()) {
             return Err(bad_request(format!(
@@ -365,6 +457,19 @@ async fn sync(
         accepted.push(AcceptedOperation {
             op_id: operation.op_id,
             server_change_seq: change_seq,
+            status: "applied".into(),
+        });
+        notifications.push(RemoteOperation {
+            op_id: operation.op_id,
+            server_change_seq: change_seq,
+            device_id: request.device_id,
+            client_seq: operation.client_seq,
+            lamport: operation.lamport,
+            entity_type: operation.entity_type.clone(),
+            entity_id: operation.entity_id,
+            operation_type: operation.operation_type.clone(),
+            payload: operation.payload.clone(),
+            client_created_at: operation.client_created_at,
             status: "applied".into(),
         });
     }
@@ -419,6 +524,22 @@ async fn sync(
         .collect::<Result<Vec<_>, sqlx::Error>>()
         .map_err(|e| internal(e.to_string()))?;
     tx.commit().await.map_err(|e| internal(e.to_string()))?;
+    for operation in notifications {
+        let server_change_seq = operation.server_change_seq;
+        let receiver_count = state.changes.receiver_count();
+        let sent = state.changes.send(ChangeNotification {
+            account_id,
+            operation,
+        });
+        info!(
+            event = "change_broadcast",
+            account_id = %account_id,
+            server_change_seq,
+            receiver_count,
+            sent = sent.is_ok(),
+            "已广播增量变更"
+        );
+    }
     info!(
         event = "sync_response",
         request_id = %request_id,
