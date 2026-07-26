@@ -4,8 +4,9 @@ pub mod migration;
 pub mod schema;
 
 pub use connection::{
-    create_postgres_connection, create_sqlite_connection, test_postgres_connection,
-    test_sqlite_connection, ConnectionManager, DatabaseConfig, DatabaseType,
+    create_postgres_connection, create_sqlite_connection, sqlite_connection_url,
+    test_postgres_connection, test_sqlite_connection, ConnectionManager, DatabaseConfig,
+    DatabaseType,
 };
 
 pub use migration::{check_migration_status, run_migration, Migration, MigrationStatus};

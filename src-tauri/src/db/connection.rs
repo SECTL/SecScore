@@ -87,7 +87,7 @@ impl DatabaseConfig {
 
     pub fn connection_url(&self) -> String {
         match self.db_type {
-            DatabaseType::SQLite => format!("sqlite://{}?mode=rwc", self.sqlite_path),
+            DatabaseType::SQLite => sqlite_connection_url(&self.sqlite_path),
             DatabaseType::PostgreSQL => self.postgres_url.clone().unwrap_or_default(),
         }
     }
@@ -222,8 +222,21 @@ impl ConnectionManager {
     }
 }
 
+/// Build a SQLite URL that can safely pass through SeaORM's URL parser on all platforms.
+///
+/// Windows paths are returned by `Path::to_str()` with backslashes (for example,
+/// `C:\\Users\\...`). A backslash is not valid in a URL authority and causes SeaORM to
+/// panic while checking the database backend, so normalize it before constructing the URL.
+pub fn sqlite_connection_url(path: &str) -> String {
+    let normalized_path = path.replace('\\', "/");
+    let encoded_path = urlencoding::encode(&normalized_path)
+        .replace("%2F", "/")
+        .replace("%3A", ":");
+    format!("sqlite://{}?mode=rwc", encoded_path)
+}
+
 pub async fn create_sqlite_connection(path: &str) -> Result<DatabaseConnection, DbErr> {
-    let url = format!("sqlite://{}?mode=rwc", path);
+    let url = sqlite_connection_url(path);
     let mut opt = ConnectOptions::new(&url);
     apply_sqlite_connect_options(&mut opt);
 
@@ -249,4 +262,37 @@ pub async fn test_postgres_connection(url: &str) -> Result<bool, DbErr> {
     conn.ping().await?;
     conn.close().await?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sqlite_connection_url;
+    use sea_orm::DbBackend;
+
+    #[test]
+    fn sqlite_url_normalizes_windows_path_for_sea_orm() {
+        let url = sqlite_connection_url(r"C:\Users\PANDA-JSR\AppData\data\workspace.sql");
+        assert_eq!(
+            url,
+            "sqlite://C:/Users/PANDA-JSR/AppData/data/workspace.sql?mode=rwc"
+        );
+        assert!(DbBackend::Sqlite.is_prefix_of(&url));
+    }
+
+    #[test]
+    fn sqlite_url_keeps_unix_absolute_path() {
+        let url = sqlite_connection_url("/tmp/secscore/workspace.sql");
+        assert_eq!(url, "sqlite:///tmp/secscore/workspace.sql?mode=rwc");
+        assert!(DbBackend::Sqlite.is_prefix_of(&url));
+    }
+
+    #[test]
+    fn sqlite_url_escapes_reserved_path_characters() {
+        let url = sqlite_connection_url(r"C:\Users\PANDA JSR\data#1\workspace.sql");
+        assert_eq!(
+            url,
+            "sqlite://C:/Users/PANDA%20JSR/data%231/workspace.sql?mode=rwc"
+        );
+        assert!(DbBackend::Sqlite.is_prefix_of(&url));
+    }
 }

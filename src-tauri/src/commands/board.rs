@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 
+use crate::db::sqlite_connection_url;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::services::PermissionLevel;
 use crate::state::AppState;
@@ -265,7 +266,7 @@ fn row_to_json_pg(row: &sqlx::postgres::PgRow) -> JsonValue {
 }
 
 async fn query_sqlite(sql: &str, sqlite_path: &str) -> Result<Vec<JsonValue>, String> {
-    let sqlite_url = format!("sqlite://{}?mode=rwc", sqlite_path);
+    let sqlite_url = sqlite_connection_url(sqlite_path);
     let pool = SqlitePool::connect(&sqlite_url)
         .await
         .map_err(|e| format!("Failed to connect sqlite: {}", e))?;
