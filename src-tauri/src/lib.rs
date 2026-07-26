@@ -280,6 +280,8 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Failed to get app data directory: {}", e))?;
         app_data_dir.join("data").join("workspace")
     };
+    let legacy_path_for_log = legacy_path.clone();
+    let workspace_root_for_log = workspace_root.clone();
 
     let db_result = tauri::async_runtime::block_on(async {
         let state = handle.state::<crate::state::SafeAppState>();
@@ -328,6 +330,15 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Failed to connect to database: {}", e);
     } else {
         eprintln!("Database bootstrap completed with isolated workspace SQLite files");
+        let state = handle.state::<crate::state::SafeAppState>();
+        state.read().logger.read().info_with_meta(
+            "[workspace] database_bootstrap_complete",
+            serde_json::json!({
+                "legacy_path": legacy_path_for_log.display().to_string(),
+                "workspace_root": workspace_root_for_log.display().to_string(),
+                "storage_mode": "isolated_sqlite",
+            }),
+        );
     }
 
     Ok(())

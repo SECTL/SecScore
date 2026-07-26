@@ -365,7 +365,8 @@ async fn changes(
     info!(
         event = "changes_connected",
         request_id = %request_id,
-        user_id = %user.sectl_user_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %query.class_id,
         last_server_change_seq = last_seq,
         "长连接变更订阅已建立"
     );
@@ -686,15 +687,34 @@ fn generate_join_code() -> String {
         .collect()
 }
 
+fn mask_join_code(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 2 {
+        return "**".into();
+    }
+    format!(
+        "{}…{}",
+        chars[..2].iter().collect::<String>(),
+        chars[chars.len() - 1]
+    )
+}
+
 async fn ensure_class_tenant(pool: &PgPool, class_id: Uuid) -> Result<Uuid, sqlx::Error> {
     let synthetic_user_id = format!("class:{}", class_id);
-    sqlx::query(
+    let result = sqlx::query(
         "INSERT INTO accounts (id, sectl_user_id) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
     )
     .bind(class_id)
     .bind(synthetic_user_id)
     .execute(pool)
     .await?;
+    if result.rows_affected() > 0 {
+        info!(
+            event = "class_tenant_created",
+            class_id = %class_id,
+            "已创建班级同步租户"
+        );
+    }
     Ok(class_id)
 }
 
@@ -716,6 +736,13 @@ async fn ensure_legacy_personal_class(pool: &PgPool, user_id: &str) -> Result<()
     else {
         return Ok(());
     };
+
+    info!(
+        event = "legacy_personal_class_migration_start",
+        user_id = %mask_identifier(user_id),
+        legacy_account_id = %legacy_account_id,
+        "开始将旧账号租户迁移为默认班级"
+    );
 
     let class_id = Uuid::now_v7();
     let code = loop {
@@ -742,7 +769,7 @@ async fn ensure_legacy_personal_class(pool: &PgPool, user_id: &str) -> Result<()
         "INSERT INTO classes (id, name, join_code, created_by) VALUES ($1, '我的班级', $2, $3)",
     )
     .bind(class_id)
-    .bind(code)
+    .bind(&code)
     .bind(user_id)
     .execute(&mut *tx)
     .await?;
@@ -769,7 +796,15 @@ async fn ensure_legacy_personal_class(pool: &PgPool, user_id: &str) -> Result<()
         .execute(&mut *tx)
         .await?;
     }
-    tx.commit().await
+    tx.commit().await.map(|_| {
+        info!(
+            event = "legacy_personal_class_migration_complete",
+            user_id = %mask_identifier(user_id),
+            class_id = %class_id,
+            join_code = %mask_join_code(&code),
+            "旧账号租户已迁移为默认班级"
+        );
+    })
 }
 
 async fn ensure_class_member(
@@ -786,6 +821,12 @@ async fn ensure_class_member(
     .await
     .map_err(|e| internal(e.to_string()))?;
     if !exists {
+        warn!(
+            event = "class_membership_denied",
+            user_id = %mask_identifier(user_id),
+            class_id = %class_id,
+            "拒绝访问：用户不是班级成员或班级已删除"
+        );
         return Err((
             StatusCode::FORBIDDEN,
             Json(ApiError {
@@ -802,6 +843,7 @@ async fn classes_list(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<ClassSummary>>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     ensure_legacy_personal_class(&state.pool, &user.sectl_user_id)
         .await
@@ -829,6 +871,13 @@ async fn classes_list(
             })
         })
         .collect::<Result<Vec<_>, (StatusCode, Json<ApiError>)>>()?;
+    info!(
+        event = "classes_list_complete",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_count = classes.len(),
+        "已返回用户可访问班级"
+    );
     Ok(Json(classes))
 }
 
@@ -837,6 +886,7 @@ async fn classes_create(
     headers: HeaderMap,
     Json(request): Json<CreateClassRequest>,
 ) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     let name = request.name.trim();
     if name.is_empty() || name.len() > 100 {
@@ -854,7 +904,16 @@ async fn classes_create(
             break;
         }
     }
-    let row = inserted.ok_or_else(|| internal("could not allocate a unique class ID"))?;
+    let row = inserted.ok_or_else(|| {
+        warn!(
+            event = "class_create_failed",
+            request_id = %request_id,
+            user_id = %mask_identifier(&user.sectl_user_id),
+            reason = "join_code_allocation_exhausted",
+            "无法分配唯一班级 ID"
+        );
+        internal("could not allocate a unique class ID")
+    })?;
     sqlx::query("INSERT INTO class_members (class_id, sectl_user_id) VALUES ($1, $2)")
         .bind(class_id)
         .bind(&user.sectl_user_id)
@@ -864,7 +923,7 @@ async fn classes_create(
     ensure_class_tenant(&state.pool, class_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
-    Ok(Json(ClassSummary {
+    let summary = ClassSummary {
         id: row.try_get("id").map_err(|e| internal(e.to_string()))?,
         name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
         join_code: row
@@ -874,7 +933,16 @@ async fn classes_create(
         created_at: row
             .try_get("created_at")
             .map_err(|e| internal(e.to_string()))?,
-    }))
+    };
+    info!(
+        event = "class_created",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %summary.id,
+        join_code = %mask_join_code(&summary.join_code),
+        "在线班级创建完成"
+    );
+    Ok(Json(summary))
 }
 
 async fn classes_join(
@@ -882,8 +950,16 @@ async fn classes_join(
     headers: HeaderMap,
     Json(request): Json<JoinClassRequest>,
 ) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     let code = request.join_code.trim().to_uppercase();
+    info!(
+        event = "class_join_start",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        join_code = %mask_join_code(&code),
+        "开始通过班级 ID 加入班级"
+    );
     let row = sqlx::query(
         "SELECT id, name, join_code, status, created_at FROM classes WHERE join_code = $1",
     )
@@ -892,6 +968,14 @@ async fn classes_join(
     .await
     .map_err(|e| internal(e.to_string()))?
     .ok_or_else(|| {
+        warn!(
+            event = "class_join_failed",
+            request_id = %request_id,
+            user_id = %mask_identifier(&user.sectl_user_id),
+            join_code = %mask_join_code(&code),
+            reason = "class_not_found",
+            "班级 ID 不存在"
+        );
         (
             StatusCode::NOT_FOUND,
             Json(ApiError {
@@ -910,7 +994,7 @@ async fn classes_join(
     ensure_class_tenant(&state.pool, class_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
-    Ok(Json(ClassSummary {
+    let summary = ClassSummary {
         id: class_id,
         name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
         join_code: code,
@@ -918,7 +1002,16 @@ async fn classes_join(
         created_at: row
             .try_get("created_at")
             .map_err(|e| internal(e.to_string()))?,
-    }))
+    };
+    info!(
+        event = "class_join_complete",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %summary.id,
+        join_code = %mask_join_code(&summary.join_code),
+        "加入班级完成"
+    );
+    Ok(Json(summary))
 }
 
 async fn classes_update(
@@ -927,6 +1020,7 @@ async fn classes_update(
     headers: HeaderMap,
     Json(request): Json<UpdateClassRequest>,
 ) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
     let name = request.name.trim();
@@ -939,7 +1033,15 @@ async fn classes_update(
         .execute(&state.pool)
         .await
         .map_err(|e| internal(e.to_string()))?;
-    class_by_id(&state.pool, class_id).await
+    let result = class_by_id(&state.pool, class_id).await?;
+    info!(
+        event = "class_renamed",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %class_id,
+        "班级名称更新完成"
+    );
+    Ok(result)
 }
 
 async fn classes_rotate_code(
@@ -947,6 +1049,7 @@ async fn classes_rotate_code(
     Path(class_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
     for _ in 0..10 {
@@ -954,7 +1057,15 @@ async fn classes_rotate_code(
         let result = sqlx::query("UPDATE classes SET join_code = $1, updated_at = now() WHERE id = $2 AND status = 'active'")
             .bind(&code).bind(class_id).execute(&state.pool).await.map_err(|e| internal(e.to_string()))?;
         if result.rows_affected() > 0 {
-            return class_by_id(&state.pool, class_id).await;
+            let summary = class_by_id(&state.pool, class_id).await?;
+            info!(
+                event = "class_code_rotated",
+                request_id = %request_id,
+                user_id = %mask_identifier(&user.sectl_user_id),
+                class_id = %class_id,
+                "班级 ID 刷新完成"
+            );
+            return Ok(summary);
         }
     }
     Err(internal("could not allocate a unique class ID"))
@@ -965,14 +1076,24 @@ async fn classes_leave(
     Path(class_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
-    sqlx::query("DELETE FROM class_members WHERE class_id = $1 AND sectl_user_id = $2")
-        .bind(class_id)
-        .bind(&user.sectl_user_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let result =
+        sqlx::query("DELETE FROM class_members WHERE class_id = $1 AND sectl_user_id = $2")
+            .bind(class_id)
+            .bind(&user.sectl_user_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| internal(e.to_string()))?;
+    info!(
+        event = "class_left",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %class_id,
+        rows_affected = result.rows_affected(),
+        "用户已退出班级"
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -981,13 +1102,23 @@ async fn classes_delete(
     Path(class_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
-    sqlx::query("UPDATE classes SET status = 'deleted', updated_at = now() WHERE id = $1")
-        .bind(class_id)
-        .execute(&state.pool)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let result =
+        sqlx::query("UPDATE classes SET status = 'deleted', updated_at = now() WHERE id = $1")
+            .bind(class_id)
+            .execute(&state.pool)
+            .await
+            .map_err(|e| internal(e.to_string()))?;
+    info!(
+        event = "class_deleted",
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %class_id,
+        rows_affected = result.rows_affected(),
+        "班级已软删除"
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1042,7 +1173,8 @@ async fn sync(
     info!(
         event = "sync_request",
         request_id = %request_id,
-        user_id = %user.sectl_user_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %request.class_id,
         device_id = %request.device_id,
         operation_count = request.operations.len(),
         last_server_change_seq = request.last_server_change_seq,
@@ -1190,7 +1322,8 @@ async fn sync(
     info!(
         event = "sync_response",
         request_id = %request_id,
-        user_id = %user.sectl_user_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %request.class_id,
         device_id = %request.device_id,
         accepted_count = accepted.len(),
         remote_count = remote_operations.len(),
@@ -1219,7 +1352,8 @@ async fn snapshot(
     info!(
         event = "snapshot_request",
         request_id = %request_id,
-        user_id = %user.sectl_user_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %request.class_id,
         device_id = %request.device_id,
         incoming_counts = %incoming_counts,
         "收到业务数据快照"
@@ -1268,7 +1402,8 @@ async fn snapshot(
     info!(
         event = "snapshot_response",
         request_id = %request_id,
-        user_id = %user.sectl_user_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %request.class_id,
         device_id = %request.device_id,
         had_existing = existing.is_some(),
         balance_delta_count,
@@ -1284,6 +1419,7 @@ async fn snapshot_get(
     headers: HeaderMap,
     Query(query): Query<ClassQuery>,
 ) -> Result<Json<SnapshotResponse>, (StatusCode, Json<ApiError>)> {
+    let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
     let account_id = ensure_class_member(&state.pool, &user.sectl_user_id, query.class_id).await?;
     let snapshot = sqlx::query_scalar::<_, Value>(
@@ -1296,7 +1432,9 @@ async fn snapshot_get(
     .unwrap_or_else(|| json!({}));
     info!(
         event = "snapshot_pull",
-        user_id = %user.sectl_user_id,
+        request_id = %request_id,
+        user_id = %mask_identifier(&user.sectl_user_id),
+        class_id = %query.class_id,
         account_id = %account_id,
         "返回业务数据快照"
     );

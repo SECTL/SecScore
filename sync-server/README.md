@@ -95,6 +95,8 @@ cd sync-server
 
 班级接口包括：`GET/POST /v1/classes`、`POST /v1/classes/join`、`PATCH/DELETE /v1/classes/:class_id`、`POST /v1/classes/:class_id/rotate-code` 和 `POST /v1/classes/:class_id/leave`。班级 ID 为 6 位大写英文字母，加入时不区分大小写。
 
+服务端日志使用结构化 tracing 事件，班级管理、成员校验、租户初始化、增量同步、快照合并和 SSE 长连接都会记录 `event`、`request_id`、脱敏用户/班级标识、设备 ID、游标、数量和结果状态，便于按一次请求串联排查。日志不会记录 access token、refresh token、快照正文或完整班级 ID；邀请码只记录首尾掩码。客户端工作空间和同步日志会写入 SecScore 应用日志，可通过应用的日志查询功能导出对应时间段。
+
 脚本会模拟设备 A 离线产生 `+5`、设备 B 离线产生 `+3`，最终余额应为 `score=8`、`reward_points=8`，再重复上传设备 A 的操作验证幂等性。
 
 ## 同步接口

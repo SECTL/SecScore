@@ -10,6 +10,28 @@ interface WorkspaceManagerProps {
   compact?: boolean
 }
 
+const maskIdentifier = (value: string | null | undefined): string => {
+  if (!value) return "none"
+  if (value.length <= 8) return "***"
+  return `${value.slice(0, 4)}…${value.slice(-4)}`
+}
+
+const workspaceLog = (
+  level: "debug" | "info" | "warn" | "error",
+  event: string,
+  meta: Record<string, unknown> = {}
+) => {
+  try {
+    void (window as any).api?.writeLog?.({
+      level,
+      message: `[workspace] ${event}`,
+      meta: { ...meta, at: new Date().toISOString() },
+    })
+  } catch {
+    // 日志失败不能影响工作空间操作。
+  }
+}
+
 export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): React.JSX.Element {
   const [state, setState] = useState<WorkspaceState | null>(null)
   const [open, setOpen] = useState(false)
@@ -21,6 +43,12 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
 
   const applyState = useCallback((next: WorkspaceState) => {
     setState(next)
+    workspaceLog("debug", "state_applied", {
+      account_count: next.accounts.length,
+      class_count: next.classes.length,
+      current_account_id: maskIdentifier(next.current_account_id),
+      current_class_id: maskIdentifier(next.current_class_id),
+    })
     try {
       localStorage.setItem("ss_current_class_id", next.current_class_id)
       localStorage.setItem("ss_current_account_id", next.current_account_id)
@@ -30,8 +58,24 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   }, [])
 
   const load = useCallback(async () => {
-    const result = await (window as any).api?.workspaceGetState?.()
-    if (result?.success && result.data) applyState(result.data)
+    const startedAt = performance.now()
+    workspaceLog("info", "state_load_start")
+    try {
+      const result = await (window as any).api?.workspaceGetState?.()
+      if (result?.success && result.data) {
+        applyState(result.data)
+        workspaceLog("info", "state_load_complete", {
+          duration_ms: Math.round(performance.now() - startedAt),
+        })
+      } else {
+        workspaceLog("warn", "state_load_failed", { message: result?.message || "empty_response" })
+      }
+    } catch (error) {
+      workspaceLog("error", "state_load_exception", {
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: String(error),
+      })
+    }
   }, [applyState])
 
   useEffect(() => {
@@ -62,12 +106,35 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   )
 
   const run = async (id: string, action: () => Promise<any>) => {
+    const startedAt = performance.now()
+    workspaceLog("info", "operation_start", {
+      operation: id,
+      account_id: maskIdentifier(state?.current_account_id),
+      class_id: maskIdentifier(state?.current_class_id),
+    })
     setLoadingId(id)
     try {
       const result = await action()
-      if (!result?.success) messageApi.error(result?.message || "操作失败")
-      else if (result.data) applyState(result.data)
+      if (!result?.success) {
+        workspaceLog("warn", "operation_failed", {
+          operation: id,
+          duration_ms: Math.round(performance.now() - startedAt),
+          message: result?.message || "操作失败",
+        })
+        messageApi.error(result?.message || "操作失败")
+      } else {
+        if (result.data) applyState(result.data)
+        workspaceLog("info", "operation_complete", {
+          operation: id,
+          duration_ms: Math.round(performance.now() - startedAt),
+        })
+      }
     } catch (error: any) {
+      workspaceLog("error", "operation_exception", {
+        operation: id,
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: String(error?.message || error),
+      })
       messageApi.error(error?.message || "操作失败")
     } finally {
       setLoadingId(null)
@@ -91,10 +158,21 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   const persistCurrentToken = () => {
     const userId = sectlAuth.getUserId()
     const token = sectlAuth.getToken()
-    if (!userId || !token) return
+    if (!userId || !token) {
+      workspaceLog("debug", "account_token_persist_skipped", {
+        user_id: maskIdentifier(userId),
+        has_token: Boolean(token),
+      })
+      return
+    }
     try {
       localStorage.setItem(`sectl_token:${userId}`, JSON.stringify(token))
+      workspaceLog("info", "account_token_persisted", {
+        user_id: maskIdentifier(userId),
+        token_kind: token.access_token?.split(".").length === 3 ? "jwt_like" : "opaque",
+      })
     } catch {
+      workspaceLog("warn", "account_token_persist_failed", { user_id: maskIdentifier(userId) })
       // token 持久化失败不阻断当前会话。
     }
   }
@@ -102,27 +180,64 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   const restoreStoredToken = (userId: string) => {
     try {
       const raw = localStorage.getItem(`sectl_token:${userId}`)
-      if (raw) sectlAuth.restoreToken(JSON.parse(raw))
+      if (raw) {
+        sectlAuth.restoreToken(JSON.parse(raw))
+        workspaceLog("info", "account_token_restored", { user_id: maskIdentifier(userId) })
+      } else {
+        workspaceLog("debug", "account_token_restore_skipped", { user_id: maskIdentifier(userId) })
+      }
     } catch {
+      workspaceLog("warn", "account_token_restore_failed", { user_id: maskIdentifier(userId) })
       // 该账号没有可恢复的凭据时，保留未登录状态。
     }
   }
 
   const remoteRequest = async (path: string, init: RequestInit = {}) => {
+    const startedAt = performance.now()
+    const method = init.method || "GET"
     const token = sectlAuth.getAccessToken()
-    if (!token) throw new Error("请先登录 SECTL 账号")
+    if (!token) {
+      workspaceLog("warn", "remote_request_skipped_no_token", { method, path })
+      throw new Error("请先登录 SECTL 账号")
+    }
     const serverUrl = (localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787").replace(/\/$/, "")
-    const response = await fetch(`${serverUrl}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        ...(init.headers || {}),
-      },
-    })
-    const body = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(body.error || body.message || `请求失败 (${response.status})`)
-    return body
+    workspaceLog("info", "remote_request_start", { method, path })
+    try {
+      const response = await fetch(`${serverUrl}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(init.headers || {}),
+        },
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        workspaceLog("warn", "remote_request_failed", {
+          method,
+          path,
+          status: response.status,
+          duration_ms: Math.round(performance.now() - startedAt),
+          message: body.error || body.message || `请求失败 (${response.status})`,
+        })
+        throw new Error(body.error || body.message || `请求失败 (${response.status})`)
+      }
+      workspaceLog("info", "remote_request_complete", {
+        method,
+        path,
+        status: response.status,
+        duration_ms: Math.round(performance.now() - startedAt),
+      })
+      return body
+    } catch (error) {
+      workspaceLog("error", "remote_request_exception", {
+        method,
+        path,
+        duration_ms: Math.round(performance.now() - startedAt),
+        error: String(error),
+      })
+      throw error
+    }
   }
 
   const createClass = () => {
@@ -143,9 +258,14 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   }) => {
     const userId = userInfo.user_id || userInfo.id
     if (!userId) {
+      workspaceLog("warn", "oauth_success_missing_user_id")
       messageApi.error("登录结果缺少用户 ID")
       return
     }
+    workspaceLog("info", "oauth_login_success", {
+      user_id: maskIdentifier(userId),
+      has_email: Boolean(userInfo.email),
+    })
     persistCurrentToken()
     try {
       const token = sectlAuth.getToken()

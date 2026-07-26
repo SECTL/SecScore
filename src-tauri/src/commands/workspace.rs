@@ -1,4 +1,5 @@
 use parking_lot::RwLock;
+use serde_json::Value;
 use std::sync::Arc;
 use tauri::{Emitter, State};
 
@@ -7,16 +8,48 @@ use crate::state::AppState;
 
 use super::response::IpcResponse;
 
-async fn emit_workspace_changed(state: &Arc<RwLock<AppState>>) -> Result<WorkspaceState, String> {
+fn mask_identifier(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 8 {
+        return "***".to_string();
+    }
+    format!(
+        "{}…{}",
+        chars[..4].iter().collect::<String>(),
+        chars[chars.len() - 4..].iter().collect::<String>()
+    )
+}
+
+fn workspace_log(state: &Arc<RwLock<AppState>>, event: &str, meta: Value) {
     let state_guard = state.read();
-    let workspace = state_guard
-        .workspace
-        .write()
-        .clone()
-        .ok_or_else(|| "工作空间尚未初始化".to_string())?;
-    let next = workspace.list_state().await?;
     state_guard
-        .app_handle
+        .logger
+        .read()
+        .info_with_meta(&format!("[workspace] {}", event), meta);
+}
+
+async fn emit_workspace_changed(state: &Arc<RwLock<AppState>>) -> Result<WorkspaceState, String> {
+    let (next, app_handle) = {
+        let state_guard = state.read();
+        let workspace = state_guard
+            .workspace
+            .write()
+            .clone()
+            .ok_or_else(|| "工作空间尚未初始化".to_string())?;
+        let next = workspace.list_state().await?;
+        (next, state_guard.app_handle.clone())
+    };
+    workspace_log(
+        state,
+        "state_changed",
+        serde_json::json!({
+            "account_count": next.accounts.len(),
+            "class_count": next.classes.len(),
+            "current_account_id": mask_identifier(&next.current_account_id),
+            "current_class_id": mask_identifier(&next.current_class_id),
+        }),
+    );
+    app_handle
         .emit("workspace:changed", &next)
         .map_err(|e| e.to_string())?;
     Ok(next)
@@ -30,12 +63,17 @@ fn replace_active_connection(
     *state_guard.local_sqlite.write() = Some(connection.clone());
     *state_guard.db.write() = Some(connection.clone());
     state_guard.settings.write().attach_db(Some(connection));
+    state_guard.logger.read().info_with_meta(
+        "[workspace] active_class_database_replaced",
+        serde_json::json!({ "message": "已切换当前班级数据库连接" }),
+    );
 }
 
 #[tauri::command]
 pub async fn workspace_get_state(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(state.inner(), "get_state_requested", serde_json::json!({}));
     let state_guard = state.read();
     let workspace = state_guard
         .workspace
@@ -51,6 +89,11 @@ pub async fn workspace_create_local_class(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "create_local_class_requested",
+        serde_json::json!({ "name_length": name.trim().chars().count() }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -74,6 +117,11 @@ pub async fn workspace_switch_class(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "switch_class_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id) }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -97,6 +145,11 @@ pub async fn workspace_switch_account(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "switch_account_requested",
+        serde_json::json!({ "account_id": mask_identifier(&account_id) }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -122,6 +175,11 @@ pub async fn workspace_upsert_sectl_account(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "upsert_sectl_account_requested",
+        serde_json::json!({ "user_id": mask_identifier(&user_id) }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -144,6 +202,11 @@ pub async fn workspace_remove_account(
     account_id: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(
+        state.inner(),
+        "remove_account_requested",
+        serde_json::json!({ "account_id": mask_identifier(&account_id) }),
+    );
     let state_guard = state.read();
     let mut workspace = state_guard
         .workspace
@@ -166,6 +229,11 @@ pub async fn workspace_add_online_class(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "add_online_class_requested",
+        serde_json::json!({ "remote_id": mask_identifier(&remote_id) }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -191,6 +259,11 @@ pub async fn workspace_mark_class_online(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
     let state_arc = state.inner().clone();
+    workspace_log(
+        &state_arc,
+        "mark_class_online_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id), "remote_id": mask_identifier(&remote_id) }),
+    );
     let connection = {
         let state_guard = state_arc.read();
         let mut workspace = state_guard
@@ -216,6 +289,11 @@ pub async fn workspace_rename_class(
     name: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(
+        state.inner(),
+        "rename_class_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id), "name_length": name.trim().chars().count() }),
+    );
     let state_guard = state.read();
     let mut workspace = state_guard
         .workspace
@@ -233,6 +311,11 @@ pub async fn workspace_update_class_code(
     join_code: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(
+        state.inner(),
+        "update_class_code_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id) }),
+    );
     let state_guard = state.read();
     let mut workspace = state_guard
         .workspace
@@ -249,6 +332,11 @@ pub async fn workspace_mark_class_deleted(
     class_id: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(
+        state.inner(),
+        "mark_class_deleted_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id) }),
+    );
     let state_guard = state.read();
     let mut workspace = state_guard
         .workspace
@@ -265,6 +353,11 @@ pub async fn workspace_leave_class(
     class_id: String,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<WorkspaceState>, String> {
+    workspace_log(
+        state.inner(),
+        "leave_class_requested",
+        serde_json::json!({ "class_id": mask_identifier(&class_id) }),
+    );
     let state_arc = state.inner().clone();
     let connection = {
         let state_guard = state_arc.read();

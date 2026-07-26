@@ -21,6 +21,12 @@ const getCurrentClassId = (): string => {
 
 const scopedKey = (key: string): string => `${key}:${getCurrentClassId()}`
 
+const maskIdentifier = (value: string | null | undefined): string => {
+  if (!value) return "none"
+  if (value.length <= 8) return "***"
+  return `${value.slice(0, 4)}…${value.slice(-4)}`
+}
+
 const getScopedValue = (key: string, fallback: string): string => {
   try {
     return localStorage.getItem(scopedKey(key)) || fallback
@@ -169,7 +175,11 @@ class SyncClient {
         ? result.data?.classes?.find((item: { is_current?: boolean }) => item.is_current)
         : null
       return current?.remote_id || null
-    } catch {
+    } catch (error) {
+      syncLog("warn", "读取当前云端班级失败", {
+        local_class_id: getCurrentClassId(),
+        error: String(error),
+      })
       return null
     }
   }
@@ -234,6 +244,7 @@ class SyncClient {
   requestSnapshot(): void {
     this.snapshotRequested = true
     this.snapshotPullRequested = false
+    syncLog("debug", "已登记上传快照请求", { local_class_id: getCurrentClassId() })
     this.snapshotAbortController?.abort()
     if (!this.enabled || this.snapshotRequestTimer !== null) return
     this.snapshotRequestTimer = window.setTimeout(() => {
@@ -244,6 +255,7 @@ class SyncClient {
 
   private requestSnapshotFromServer(): void {
     if (!this.snapshotRequested) this.snapshotPullRequested = true
+    syncLog("debug", "已登记拉取远端快照请求", { local_class_id: getCurrentClassId() })
     this.snapshotAbortController?.abort()
     if (!this.enabled || this.snapshotRequestTimer !== null) return
     this.snapshotRequestTimer = window.setTimeout(() => {
@@ -294,6 +306,7 @@ class SyncClient {
     outbox.push(operation)
     setJson(OUTBOX_KEY, outbox)
     syncLog("info", "积分操作已加入待同步队列", {
+      local_class_id: getCurrentClassId(),
       op_id: operation.op_id,
       operation_type: operation.operation_type,
       student_name: operation.payload.student_name,
@@ -457,6 +470,8 @@ class SyncClient {
       ].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
     )
     syncLog("info", "开始上传业务数据快照", {
+      local_class_id: getCurrentClassId(),
+      remote_class_id: classId,
       request_id: requestId,
       server_url: serverUrl,
       device_id: deviceId,
@@ -480,6 +495,8 @@ class SyncClient {
       })
       if (!response.ok) {
         syncLog("error", "业务数据快照上传失败", {
+          local_class_id: getCurrentClassId(),
+          remote_class_id: classId,
           request_id: requestId,
           status: response.status,
           body: responseText.slice(0, 1000),
@@ -491,6 +508,8 @@ class SyncClient {
       // 用户在请求期间产生了新积分时，不应用旧快照，避免覆盖刚写入的本地余额。
       if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
         syncLog("info", "快照响应已收到，但存在新的积分操作，跳过本地快照写入", {
+          local_class_id: getCurrentClassId(),
+          remote_class_id: classId,
           device_id: deviceId,
         })
         return
@@ -513,6 +532,7 @@ class SyncClient {
       applied?.success ? "info" : "error",
       applied?.success ? "业务数据快照已应用到本地" : "业务数据快照写入本地失败",
       {
+        local_class_id: getCurrentClassId(),
         device_id: deviceId,
         merged_counts: Object.fromEntries(
           Object.entries(snapshot).map(([key, value]) => [
@@ -538,6 +558,8 @@ class SyncClient {
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
     syncLog("info", "开始拉取服务器最新业务数据快照", {
+      local_class_id: getCurrentClassId(),
+      remote_class_id: classId,
       request_id: requestId,
       server_url: serverUrl,
       device_id: deviceId,
@@ -559,6 +581,8 @@ class SyncClient {
       if (!response.ok) {
         const message = `snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`
         syncLog("error", "拉取服务器快照失败", {
+          local_class_id: getCurrentClassId(),
+          remote_class_id: classId,
           request_id: requestId,
           status: response.status,
           body: responseText.slice(0, 1000),
@@ -567,6 +591,8 @@ class SyncClient {
       }
       if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
         syncLog("info", "拉取快照响应已收到，但存在待同步积分操作，跳过本地快照写入", {
+          local_class_id: getCurrentClassId(),
+          remote_class_id: classId,
           device_id: deviceId,
         })
         return
@@ -587,9 +613,10 @@ class SyncClient {
     if (requestId) requestHeaders["X-Request-Id"] = requestId
     if (token) {
       syncLog("debug", "准备携带 OAuth 令牌发送同步请求", {
+        local_class_id: getCurrentClassId(),
         request_id: requestId,
         device_id: this.getDeviceId(),
-        user_id: sectlAuth.getUserId(),
+        user_id: maskIdentifier(sectlAuth.getUserId()),
         ...describeAccessToken(token),
       })
       requestHeaders.Authorization = `Bearer ${token}`
@@ -598,9 +625,10 @@ class SyncClient {
       }
     }
     syncLog("warn", "未找到 OAuth 令牌，同步请求将由服务器拒绝", {
+      local_class_id: getCurrentClassId(),
       request_id: requestId,
       device_id: this.getDeviceId(),
-      user_id: sectlAuth.getUserId(),
+      user_id: maskIdentifier(sectlAuth.getUserId()),
       ...describeAccessToken(token),
     })
     return requestHeaders
@@ -626,7 +654,8 @@ class SyncClient {
     this.tokenRecoveryInProgress = true
     this.lastTokenRecoveryAt = now
     syncLog("warn", "检测到同步认证失败，尝试使用 refresh_token 恢复会话", {
-      user_id: sectlAuth.getUserId(),
+      local_class_id: getCurrentClassId(),
+      user_id: maskIdentifier(sectlAuth.getUserId()),
       device_id: this.getDeviceId(),
     })
     try {
@@ -639,7 +668,8 @@ class SyncClient {
         lastError: null,
       })
       syncLog("info", "同步 OAuth 会话恢复成功，将重新建立实时连接", {
-        user_id: sectlAuth.getUserId(),
+        local_class_id: getCurrentClassId(),
+        user_id: maskIdentifier(sectlAuth.getUserId()),
         device_id: this.getDeviceId(),
       })
       return true
@@ -776,12 +806,14 @@ class SyncClient {
           const controller = new AbortController()
           this.changeStreamAbortController = controller
           syncLog("info", "发起同步长连接请求", {
+            local_class_id: getCurrentClassId(),
+            remote_class_id: classId,
             request_id: requestId,
             server_url: serverUrl,
             device_id: deviceId,
             cursor,
             authenticated: sectlAuth.isAuthenticated(),
-            user_id: sectlAuth.getUserId(),
+            user_id: maskIdentifier(sectlAuth.getUserId()),
           })
           const response = await fetch(
             `${serverUrl}/v1/changes?class_id=${encodeURIComponent(classId)}&last_server_change_seq=${cursor}&device_id=${encodeURIComponent(deviceId)}`,
@@ -791,6 +823,8 @@ class SyncClient {
             const responseText = await response.text().catch(() => "")
             const message = `changes HTTP ${response.status}: ${responseText.slice(0, 500)}`
             syncLog("error", "同步长连接请求失败", {
+              local_class_id: getCurrentClassId(),
+              remote_class_id: classId,
               request_id: requestId,
               status: response.status,
               response_bytes: responseText.length,
@@ -803,6 +837,8 @@ class SyncClient {
             throw error
           }
           syncLog("info", "同步长连接已建立", {
+            local_class_id: getCurrentClassId(),
+            remote_class_id: classId,
             request_id: requestId,
             status: response.status,
             content_type: response.headers.get("content-type"),
@@ -883,7 +919,10 @@ class SyncClient {
     if (this.syncing) {
       this.syncRequested = true
       this.syncRequestedForceSnapshot ||= forceSnapshot
-      syncLog("debug", "同步正在进行，已登记后续同步请求", { force_snapshot: forceSnapshot })
+      syncLog("debug", "同步正在进行，已登记后续同步请求", {
+        local_class_id: getCurrentClassId(),
+        force_snapshot: forceSnapshot,
+      })
       return
     }
     const requestedSnapshot = this.snapshotRequested
@@ -908,6 +947,7 @@ class SyncClient {
       lastError: null,
     })
     syncLog("info", "同步周期开始", {
+      local_class_id: getCurrentClassId(),
       request_id: requestId,
       server_url: serverUrl,
       device_id: deviceId,
@@ -917,7 +957,18 @@ class SyncClient {
     })
     try {
       const classId = await this.getRemoteClassId()
-      if (!classId) return
+      if (!classId) {
+        syncLog("debug", "当前班级未绑定云端班级，跳过同步", {
+          local_class_id: getCurrentClassId(),
+          request_id: requestId,
+        })
+        return
+      }
+      syncLog("debug", "已解析当前云端班级上下文", {
+        local_class_id: getCurrentClassId(),
+        remote_class_id: classId,
+        request_id: requestId,
+      })
       const now = Date.now()
       const shouldSnapshot =
         forceSnapshot ||
@@ -959,6 +1010,8 @@ class SyncClient {
           lastError: errorMessage,
         })
         syncLog("error", "增量同步请求失败", {
+          local_class_id: getCurrentClassId(),
+          remote_class_id: classId,
           request_id: requestId,
           status: response.status,
           body: responseText.slice(0, 1000),
@@ -989,6 +1042,8 @@ class SyncClient {
         }
       }
       syncLog("info", "同步周期完成", {
+        local_class_id: getCurrentClassId(),
+        remote_class_id: classId,
         request_id: requestId,
         duration_ms: Date.now() - startedAt,
         accepted_count: result.accepted_operations.length,
@@ -1016,6 +1071,7 @@ class SyncClient {
         lastError: error instanceof Error ? error.message : String(error),
       })
       syncLog("error", "同步周期异常", {
+        local_class_id: getCurrentClassId(),
         request_id: requestId,
         duration_ms: Date.now() - startedAt,
         error: String(error),
@@ -1071,7 +1127,7 @@ class SyncClient {
       this.oauthHandler = () => {
         syncLog("info", "检测到 OAuth 登录状态变化", {
           authenticated: sectlAuth.isAuthenticated(),
-          user_id: sectlAuth.getUserId(),
+          user_id: maskIdentifier(sectlAuth.getUserId()),
           ...describeAccessToken(sectlAuth.getAccessToken()),
         })
         this.changeStreamConnected = false

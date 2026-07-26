@@ -3,6 +3,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 const LOCAL_ACCOUNT_ID: &str = "local-account";
@@ -54,11 +55,41 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 
+fn masked_identifier(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 8 {
+        return "***".to_string();
+    }
+    format!(
+        "{}…{}",
+        chars[..4].iter().collect::<String>(),
+        chars[chars.len() - 4..].iter().collect::<String>()
+    )
+}
+
+fn masked_join_code(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= 2 {
+        return "**".to_string();
+    }
+    format!(
+        "{}…{}",
+        chars[..2].iter().collect::<String>(),
+        chars[chars.len() - 1]
+    )
+}
+
 impl WorkspaceService {
     pub async fn initialize(
         root: PathBuf,
         legacy_path: &Path,
     ) -> Result<(Self, DatabaseConnection), String> {
+        info!(
+            event = "workspace_initialize_start",
+            root = %root.display(),
+            legacy_exists = legacy_path.exists(),
+            "初始化本地工作空间"
+        );
         fs::create_dir_all(root.join("classes")).map_err(|e| e.to_string())?;
         let catalog_path = root.join("workspace.sql");
         let catalog = create_sqlite_connection(
@@ -182,6 +213,13 @@ impl WorkspaceService {
             let class_path = root.join("classes").join(format!("{}.sql", id));
             if legacy_path.exists() && !class_path.exists() {
                 fs::copy(legacy_path, &class_path).map_err(|e| e.to_string())?;
+                info!(
+                    event = "workspace_legacy_data_migrated",
+                    class_id = %masked_identifier(&id),
+                    source = %legacy_path.display(),
+                    target = %class_path.display(),
+                    "已将旧本地数据迁移到默认班级"
+                );
             }
             let timestamp = now();
             catalog
@@ -222,6 +260,12 @@ impl WorkspaceService {
             current_class_id,
         };
         let connection = service.open_current_class().await?;
+        info!(
+            event = "workspace_initialize_complete",
+            account_id = %masked_identifier(&service.current_account_id),
+            class_id = %masked_identifier(&service.current_class_id),
+            "本地工作空间初始化完成"
+        );
         Ok((service, connection))
     }
 
@@ -275,6 +319,13 @@ impl WorkspaceService {
 
     async fn open_current_class(&self) -> Result<DatabaseConnection, String> {
         let path = self.current_class_path().await?;
+        info!(
+            event = "workspace_open_class_database",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&self.current_class_id),
+            path = %path.display(),
+            "打开当前班级数据库"
+        );
         let connection = create_sqlite_connection(
             path.to_str()
                 .ok_or_else(|| "班级数据库路径无效".to_string())?,
@@ -288,6 +339,12 @@ impl WorkspaceService {
     }
 
     pub async fn open_class(&mut self, class_id: &str) -> Result<DatabaseConnection, String> {
+        info!(
+            event = "workspace_switch_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(class_id),
+            "开始切换班级"
+        );
         let permitted = self
             .catalog
             .query_one(Statement::from_string(
@@ -301,11 +358,24 @@ impl WorkspaceService {
             .map_err(|e| e.to_string())?
             .is_some();
         if !permitted {
+            warn!(
+                event = "workspace_switch_class_denied",
+                account_id = %masked_identifier(&self.current_account_id),
+                class_id = %masked_identifier(class_id),
+                "当前账号未关联目标班级"
+            );
             return Err("当前账号未关联该班级".to_string());
         }
         self.current_class_id = class_id.to_string();
         Self::set_state(&self.catalog, "current_class_id", class_id).await?;
-        self.open_current_class().await
+        let connection = self.open_current_class().await?;
+        info!(
+            event = "workspace_switch_class_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(class_id),
+            "班级切换完成"
+        );
+        Ok(connection)
     }
 
     pub async fn create_local_class(&mut self, name: String) -> Result<DatabaseConnection, String> {
@@ -314,6 +384,12 @@ impl WorkspaceService {
             return Err("班级名称不能为空".to_string());
         }
         let id = Uuid::new_v4().to_string();
+        info!(
+            event = "workspace_create_local_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&id),
+            "创建本地班级"
+        );
         let path = self.root.join("classes").join(format!("{}.sql", id));
         let timestamp = now();
         self.catalog
@@ -336,7 +412,14 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.open_class(&id).await
+        let connection = self.open_class(&id).await?;
+        info!(
+            event = "workspace_create_local_class_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&id),
+            "本地班级创建完成"
+        );
+        Ok(connection)
     }
 
     pub async fn upsert_sectl_account(
@@ -346,6 +429,12 @@ impl WorkspaceService {
         email: Option<String>,
     ) -> Result<DatabaseConnection, String> {
         let account_id = format!("sectl:{}", user_id);
+        info!(
+            event = "workspace_upsert_sectl_account_start",
+            account_id = %masked_identifier(&account_id),
+            user_id = %masked_identifier(&user_id),
+            "保存 SECTL 账号"
+        );
         let timestamp = now();
         self.catalog
             .execute(Statement::from_string(
@@ -372,7 +461,14 @@ impl WorkspaceService {
             Self::set_state(&self.catalog, "current_account_id", &account_id).await?;
         }
         Self::set_state(&self.catalog, "current_class_id", &self.current_class_id).await?;
-        self.open_current_class().await
+        let connection = self.open_current_class().await?;
+        info!(
+            event = "workspace_upsert_sectl_account_complete",
+            account_id = %masked_identifier(&account_id),
+            current_class_id = %masked_identifier(&self.current_class_id),
+            "SECTL 账号保存完成"
+        );
+        Ok(connection)
     }
 
     pub async fn add_online_class(
@@ -386,6 +482,14 @@ impl WorkspaceService {
             return Err("在线班级信息不完整".to_string());
         }
         let id = Uuid::new_v4().to_string();
+        info!(
+            event = "workspace_add_online_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&id),
+            remote_id = %masked_identifier(remote_id.trim()),
+            join_code = %masked_join_code(&join_code),
+            "缓存在线班级"
+        );
         let path = self.root.join("classes").join(format!("{}.sql", id));
         let timestamp = now();
         self.catalog
@@ -408,7 +512,14 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.open_class(&id).await
+        let connection = self.open_class(&id).await?;
+        info!(
+            event = "workspace_add_online_class_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&id),
+            "在线班级缓存完成"
+        );
+        Ok(connection)
     }
 
     pub async fn mark_class_online(
@@ -417,6 +528,14 @@ impl WorkspaceService {
         remote_id: String,
         join_code: String,
     ) -> Result<DatabaseConnection, String> {
+        info!(
+            event = "workspace_mark_class_online_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            remote_id = %masked_identifier(remote_id.trim()),
+            join_code = %masked_join_code(&join_code),
+            "发布本地班级并绑定云端班级"
+        );
         let timestamp = now();
         self.catalog
             .execute(Statement::from_string(
@@ -428,10 +547,23 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.open_class(&class_id).await
+        let connection = self.open_class(&class_id).await?;
+        info!(
+            event = "workspace_mark_class_online_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            "本地班级已绑定云端班级"
+        );
+        Ok(connection)
     }
 
     pub async fn switch_account(&mut self, account_id: &str) -> Result<DatabaseConnection, String> {
+        info!(
+            event = "workspace_switch_account_start",
+            from_account_id = %masked_identifier(&self.current_account_id),
+            to_account_id = %masked_identifier(account_id),
+            "开始切换账号"
+        );
         let exists = self
             .catalog
             .query_one(Statement::from_string(
@@ -465,10 +597,23 @@ impl WorkspaceService {
         self.current_class_id = class_id;
         Self::set_state(&self.catalog, "current_account_id", account_id).await?;
         Self::set_state(&self.catalog, "current_class_id", &self.current_class_id).await?;
-        self.open_current_class().await
+        let connection = self.open_current_class().await?;
+        info!(
+            event = "workspace_switch_account_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&self.current_class_id),
+            "账号切换完成"
+        );
+        Ok(connection)
     }
 
     pub async fn remove_account(&mut self, account_id: &str) -> Result<(), String> {
+        info!(
+            event = "workspace_remove_account_start",
+            account_id = %masked_identifier(account_id),
+            current_account_id = %masked_identifier(&self.current_account_id),
+            "移除本机账号"
+        );
         if account_id == LOCAL_ACCOUNT_ID {
             return Err("本地账号不能移除".to_string());
         }
@@ -496,6 +641,12 @@ impl WorkspaceService {
             self.current_account_id = LOCAL_ACCOUNT_ID.to_string();
             Self::set_state(&self.catalog, "current_account_id", LOCAL_ACCOUNT_ID).await?;
         }
+        info!(
+            event = "workspace_remove_account_complete",
+            account_id = %masked_identifier(account_id),
+            current_account_id = %masked_identifier(&self.current_account_id),
+            "本机账号已移除"
+        );
         Ok(())
     }
 
@@ -574,6 +725,12 @@ impl WorkspaceService {
         class_id: String,
         name: String,
     ) -> Result<WorkspaceState, String> {
+        info!(
+            event = "workspace_rename_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            "重命名班级"
+        );
         let trimmed = name.trim();
         if trimmed.is_empty() {
             return Err("班级名称不能为空".to_string());
@@ -590,7 +747,9 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.list_state().await
+        let state = self.list_state().await?;
+        info!(event = "workspace_rename_class_complete", class_id = %masked_identifier(&class_id), "班级重命名完成");
+        Ok(state)
     }
 
     pub async fn update_class_code(
@@ -598,6 +757,13 @@ impl WorkspaceService {
         class_id: String,
         join_code: String,
     ) -> Result<WorkspaceState, String> {
+        info!(
+            event = "workspace_update_class_code_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            join_code = %masked_join_code(&join_code),
+            "更新本地班级邀请码"
+        );
         self.catalog
             .execute(Statement::from_string(
                 DbBackend::Sqlite,
@@ -610,10 +776,18 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.list_state().await
+        let state = self.list_state().await?;
+        info!(event = "workspace_update_class_code_complete", class_id = %masked_identifier(&class_id), "本地班级邀请码已更新");
+        Ok(state)
     }
 
     pub async fn mark_class_deleted(&mut self, class_id: String) -> Result<WorkspaceState, String> {
+        info!(
+            event = "workspace_mark_class_deleted_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            "将本地班级标记为已删除"
+        );
         self.catalog
             .execute(Statement::from_string(
                 DbBackend::Sqlite,
@@ -625,10 +799,18 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        self.list_state().await
+        let state = self.list_state().await?;
+        info!(event = "workspace_mark_class_deleted_complete", class_id = %masked_identifier(&class_id), "本地班级已标记为已删除");
+        Ok(state)
     }
 
     pub async fn leave_class(&mut self, class_id: String) -> Result<DatabaseConnection, String> {
+        info!(
+            event = "workspace_leave_class_start",
+            account_id = %masked_identifier(&self.current_account_id),
+            class_id = %masked_identifier(&class_id),
+            "退出班级"
+        );
         let current = class_id == self.current_class_id;
         self.catalog
             .execute(Statement::from_string(
@@ -689,6 +871,13 @@ impl WorkspaceService {
             self.current_class_id = id;
         }
         Self::set_state(&self.catalog, "current_class_id", &self.current_class_id).await?;
-        self.open_current_class().await
+        let connection = self.open_current_class().await?;
+        info!(
+            event = "workspace_leave_class_complete",
+            account_id = %masked_identifier(&self.current_account_id),
+            current_class_id = %masked_identifier(&self.current_class_id),
+            "退出班级完成"
+        );
+        Ok(connection)
     }
 }
