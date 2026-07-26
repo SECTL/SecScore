@@ -11,6 +11,7 @@ import {
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
+import { WorkspaceManager } from "./WorkspaceManager"
 import appLogo from "../assets/logoHD.svg"
 
 const loadHome = () => import("./Home")
@@ -826,6 +827,7 @@ export function ContentArea({
           }
         >
           <Space size="small">
+            {!isLanBrowser && <WorkspaceManager compact />}
             {!isLanBrowser && (
               <Popover
                 trigger="click"

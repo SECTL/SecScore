@@ -685,6 +685,10 @@ class SectlAuthService {
     }
   }
 
+  restoreToken(tokenData: TokenData): void {
+    this.saveToken(tokenData)
+  }
+
   getAccessToken(): string | null {
     return this.accessToken
   }

@@ -1,6 +1,6 @@
 # SecScore Sync Server
 
-本目录是第一版本地同步后端，使用 Rust + Axum + PostgreSQL。
+本目录是 SecScore 班级同步后端，使用 Rust + Axum + PostgreSQL。业务租户是班级，SECTL 用户通过班级成员关系访问数据。
 
 ## 启动
 
@@ -91,7 +91,9 @@ cd sync-server
 ./scripts/smoke-multiclient.sh
 ```
 
-新同步模式会额外调用 `POST /v1/snapshot`，同步学生、理由、奖励、标签、学生标签关系、历史积分事件、兑换记录、结算记录、看板配置和用户级业务设置。积分调整仍通过 `POST /v1/sync` 的增量操作合并，避免并发加分丢失。设备 ID、认证信息、服务器地址和数据库连接配置不会同步。
+新同步模式会额外调用 `POST /v1/snapshot`，请求必须携带 `class_id`，同步学生、理由、奖励、标签、学生标签关系、历史积分事件、兑换记录、结算记录、看板配置和班级业务设置。积分调整仍通过 `POST /v1/sync` 的增量操作合并，避免并发加分丢失。设备 ID、认证信息、服务器地址和数据库连接配置不会同步。
+
+班级接口包括：`GET/POST /v1/classes`、`POST /v1/classes/join`、`PATCH/DELETE /v1/classes/:class_id`、`POST /v1/classes/:class_id/rotate-code` 和 `POST /v1/classes/:class_id/leave`。班级 ID 为 6 位大写英文字母，加入时不区分大小写。
 
 脚本会模拟设备 A 离线产生 `+5`、设备 B 离线产生 `+3`，最终余额应为 `score=8`、`reward_points=8`，再重复上传设备 A 的操作验证幂等性。
 

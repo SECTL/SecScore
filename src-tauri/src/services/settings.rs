@@ -41,7 +41,7 @@ impl Default for SettingsSpec {
             dashboards_config: JsonValue::Array(vec![]),
             pg_connection_string: String::new(),
             pg_connection_status: serde_json::json!({"connected": false, "type": "sqlite"}),
-            sync_method: "postgresql".to_string(),
+            sync_method: "sectl_cloud_v2".to_string(),
             mobile_bottom_nav_items: serde_json::json!([
                 "home",
                 "students",
@@ -455,7 +455,7 @@ impl SettingsService {
             SettingsKey::SyncMethod,
             SettingDefinition {
                 kind: SettingValueKind::String,
-                default_value: SettingsValue::String("postgresql".to_string()),
+                default_value: SettingsValue::String("sectl_cloud_v2".to_string()),
                 write_permission: PermissionRequirement::Admin,
                 validate: Some(|v| {
                     if let SettingsValue::String(s) = v {
@@ -665,7 +665,7 @@ impl SettingsService {
             },
             sync_method: match self.get_value(SettingsKey::SyncMethod) {
                 SettingsValue::String(s) => s,
-                _ => "postgresql".to_string(),
+                _ => "sectl_cloud_v2".to_string(),
             },
             mobile_bottom_nav_items: match self.get_value(SettingsKey::MobileBottomNavItems) {
                 SettingsValue::Json(j) => j,

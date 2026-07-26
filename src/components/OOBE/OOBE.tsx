@@ -510,9 +510,6 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
             <Button type="primary" size="large" onClick={() => setCurrentStep("language")}>
               {t("oobe.steps.entry.enterOobe")}
             </Button>
-            <Button size="large" onClick={() => setCurrentStep("postgresql")}>
-              {t("oobe.steps.entry.connectPostgresAutoSync")}
-            </Button>
             <Button size="large" onClick={handleSkipToApp} loading={loading}>
               {t("oobe.steps.entry.skipDirect")}
             </Button>

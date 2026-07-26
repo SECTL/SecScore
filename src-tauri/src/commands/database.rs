@@ -1138,6 +1138,14 @@ pub async fn db_test_connection(
     connection_string: String,
     _state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<TestConnectionResult>, String> {
+    if connection_string.starts_with("postgres://")
+        || connection_string.starts_with("postgresql://")
+    {
+        return Ok(IpcResponse::success(TestConnectionResult {
+            success: false,
+            error: Some("PostgreSQL 直连模式已移除，请使用 SECTL 云同步".to_string()),
+        }));
+    }
     let result = if connection_string.starts_with("sqlite://") {
         let path = connection_string
             .strip_prefix("sqlite://")
@@ -1208,6 +1216,14 @@ pub async fn db_switch_connection(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<SwitchConnectionResult>, String> {
     check_admin_permission(&state)?;
+
+    if connection_string.starts_with("postgres://")
+        || connection_string.starts_with("postgresql://")
+    {
+        return Ok(IpcResponse::error(
+            "PostgreSQL 直连模式已移除，请使用 SECTL 云同步",
+        ));
+    }
 
     let state_guard = state.read();
     let logger = state_guard.logger.read();

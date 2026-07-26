@@ -587,7 +587,7 @@ function MainContent(): React.JSX.Element {
     }
   }, [messageApi, refreshPermissionFromAuth, t])
 
-  const handleOAuthSuccess = (userInfo: {
+  const handleOAuthSuccess = async (userInfo: {
     user_id?: string
     id?: string
     email?: string
@@ -597,6 +597,17 @@ function MainContent(): React.JSX.Element {
   }) => {
     // OAuth 登录仅用于云服务，不修改本地权限
     setOAuthUserName(userInfo.name || null)
+    const accountId = userInfo.user_id || userInfo.id
+    if (accountId && (window as any).api?.workspaceUpsertSectlAccount) {
+      const workspaceResult = await (window as any).api.workspaceUpsertSectlAccount(
+        accountId,
+        userInfo.name || userInfo.email || accountId,
+        userInfo.email || null
+      )
+      if (!workspaceResult?.success) {
+        messageApi.error(workspaceResult?.message || "关联本地班级失败")
+      }
+    }
     window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: userInfo } }))
     messageApi.success(t("auth.oauthSuccess", "登录成功"))
   }

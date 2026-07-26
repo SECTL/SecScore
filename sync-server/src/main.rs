@@ -5,7 +5,7 @@ use axum::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse,
     },
-    routing::{get, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use chrono::{DateTime, Local, Utc};
@@ -47,6 +47,7 @@ struct ApiError {
 
 #[derive(Debug, Deserialize)]
 struct SyncRequest {
+    class_id: Uuid,
     device_id: Uuid,
     #[serde(default)]
     last_server_change_seq: i64,
@@ -58,12 +59,14 @@ struct SyncRequest {
 
 #[derive(Debug, Deserialize)]
 struct SnapshotRequest {
+    class_id: Uuid,
     device_id: Uuid,
     snapshot: Value,
 }
 
 #[derive(Debug, Deserialize)]
 struct OperationRequest {
+    class_id: Uuid,
     device_id: Uuid,
     #[serde(default)]
     last_server_change_seq: i64,
@@ -72,10 +75,16 @@ struct OperationRequest {
 
 #[derive(Debug, Deserialize)]
 struct ChangesQuery {
+    class_id: Uuid,
     #[serde(default)]
     last_server_change_seq: i64,
     #[serde(default)]
     device_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClassQuery {
+    class_id: Uuid,
 }
 
 fn default_limit() -> i64 {
@@ -162,6 +171,30 @@ struct AuthUser {
     sectl_user_id: String,
 }
 
+#[derive(Debug, Serialize)]
+struct ClassSummary {
+    id: Uuid,
+    name: String,
+    join_code: String,
+    status: String,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateClassRequest {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct JoinClassRequest {
+    join_code: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateClassRequest {
+    name: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let log_dir = PathBuf::from(env::var("SYNC_LOG_DIR").unwrap_or_else(|_| "logs".into()));
@@ -232,6 +265,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let app = Router::new()
         .route("/health", get(health))
+        .route("/v1/classes", get(classes_list).post(classes_create))
+        .route("/v1/classes/join", post(classes_join))
+        .route(
+            "/v1/classes/:class_id",
+            patch(classes_update).delete(classes_delete),
+        )
+        .route(
+            "/v1/classes/:class_id/rotate-code",
+            post(classes_rotate_code),
+        )
+        .route("/v1/classes/:class_id/leave", post(classes_leave))
         .route("/v1/sync", post(sync))
         .route("/v1/operations", post(operation))
         .route("/v1/changes", get(changes))
@@ -272,6 +316,7 @@ async fn operation(
         State(state),
         headers,
         Json(SyncRequest {
+            class_id: request.class_id,
             device_id: request.device_id,
             last_server_change_seq: request.last_server_change_seq,
             operations: vec![request.operation],
@@ -291,9 +336,7 @@ async fn changes(
 > {
     let request_id = request_id_from_headers(&headers);
     let user = authenticate(&state, &headers).await?;
-    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
-        .await
-        .map_err(|error| internal(error.to_string()))?;
+    let account_id = ensure_class_member(&state.pool, &user.sectl_user_id, query.class_id).await?;
     let receiver = state.changes.subscribe();
     let last_seq = query.last_server_change_seq;
     let subscriber_device_id = query.device_id;
@@ -633,11 +676,350 @@ fn internal(message: impl Into<String>) -> (StatusCode, Json<ApiError>) {
     )
 }
 
-async fn ensure_account(pool: &PgPool, sectl_user_id: &str) -> Result<Uuid, sqlx::Error> {
-    let account_id = Uuid::now_v7();
-    let row = sqlx::query("INSERT INTO accounts (id, sectl_user_id) VALUES ($1, $2) ON CONFLICT (sectl_user_id) DO UPDATE SET sectl_user_id = EXCLUDED.sectl_user_id RETURNING id")
-        .bind(account_id).bind(sectl_user_id).fetch_one(pool).await?;
-    row.try_get("id")
+fn generate_join_code() -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let bytes = *Uuid::new_v4().as_bytes();
+    bytes
+        .iter()
+        .take(6)
+        .map(|byte| ALPHABET[(*byte as usize) % ALPHABET.len()] as char)
+        .collect()
+}
+
+async fn ensure_class_tenant(pool: &PgPool, class_id: Uuid) -> Result<Uuid, sqlx::Error> {
+    let synthetic_user_id = format!("class:{}", class_id);
+    sqlx::query(
+        "INSERT INTO accounts (id, sectl_user_id) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(class_id)
+    .bind(synthetic_user_id)
+    .execute(pool)
+    .await?;
+    Ok(class_id)
+}
+
+async fn ensure_legacy_personal_class(pool: &PgPool, user_id: &str) -> Result<(), sqlx::Error> {
+    let already_has_class = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM class_members WHERE sectl_user_id = $1)",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+    if already_has_class {
+        return Ok(());
+    }
+    let Some(legacy_account_id) =
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM accounts WHERE sectl_user_id = $1")
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await?
+    else {
+        return Ok(());
+    };
+
+    let class_id = Uuid::now_v7();
+    let code = loop {
+        let candidate = generate_join_code();
+        let used = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM classes WHERE join_code = $1)",
+        )
+        .bind(&candidate)
+        .fetch_one(pool)
+        .await?;
+        if !used {
+            break candidate;
+        }
+    };
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "INSERT INTO accounts (id, sectl_user_id) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(class_id)
+    .bind(format!("class:{}", class_id))
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "INSERT INTO classes (id, name, join_code, created_by) VALUES ($1, '我的班级', $2, $3)",
+    )
+    .bind(class_id)
+    .bind(code)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query("INSERT INTO class_members (class_id, sectl_user_id) VALUES ($1, $2)")
+        .bind(class_id)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    for table in [
+        "devices",
+        "students",
+        "operations",
+        "account_changes",
+        "ledger_entries",
+        "student_balances",
+        "account_snapshots",
+    ] {
+        sqlx::query(&format!(
+            "UPDATE {} SET account_id = $1 WHERE account_id = $2",
+            table
+        ))
+        .bind(class_id)
+        .bind(legacy_account_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await
+}
+
+async fn ensure_class_member(
+    pool: &PgPool,
+    user_id: &str,
+    class_id: Uuid,
+) -> Result<Uuid, (StatusCode, Json<ApiError>)> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM class_members m JOIN classes c ON c.id = m.class_id WHERE m.class_id = $1 AND m.sectl_user_id = $2 AND c.status = 'active')",
+    )
+    .bind(class_id)
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| internal(e.to_string()))?;
+    if !exists {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ApiError {
+                error: "not a member of this class".into(),
+            }),
+        ));
+    }
+    ensure_class_tenant(pool, class_id)
+        .await
+        .map_err(|e| internal(e.to_string()))
+}
+
+async fn classes_list(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<ClassSummary>>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    ensure_legacy_personal_class(&state.pool, &user.sectl_user_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    let rows = sqlx::query(
+        "SELECT c.id, c.name, c.join_code, c.status, c.created_at FROM classes c JOIN class_members m ON m.class_id = c.id WHERE m.sectl_user_id = $1 ORDER BY c.updated_at DESC",
+    )
+    .bind(&user.sectl_user_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|e| internal(e.to_string()))?;
+    let classes = rows
+        .into_iter()
+        .map(|row| {
+            Ok(ClassSummary {
+                id: row.try_get("id").map_err(|e| internal(e.to_string()))?,
+                name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
+                join_code: row
+                    .try_get("join_code")
+                    .map_err(|e| internal(e.to_string()))?,
+                status: row.try_get("status").map_err(|e| internal(e.to_string()))?,
+                created_at: row
+                    .try_get("created_at")
+                    .map_err(|e| internal(e.to_string()))?,
+            })
+        })
+        .collect::<Result<Vec<_>, (StatusCode, Json<ApiError>)>>()?;
+    Ok(Json(classes))
+}
+
+async fn classes_create(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<CreateClassRequest>,
+) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    let name = request.name.trim();
+    if name.is_empty() || name.len() > 100 {
+        return Err(bad_request("class name must contain 1-100 characters"));
+    }
+    let class_id = Uuid::now_v7();
+    let mut inserted = None;
+    for _ in 0..10 {
+        let code = generate_join_code();
+        let row = sqlx::query("INSERT INTO classes (id, name, join_code, created_by) VALUES ($1, $2, $3, $4) ON CONFLICT (join_code) DO NOTHING RETURNING id, name, join_code, status, created_at")
+            .bind(class_id).bind(name).bind(&code).bind(&user.sectl_user_id)
+            .fetch_optional(&state.pool).await.map_err(|e| internal(e.to_string()))?;
+        if let Some(row) = row {
+            inserted = Some(row);
+            break;
+        }
+    }
+    let row = inserted.ok_or_else(|| internal("could not allocate a unique class ID"))?;
+    sqlx::query("INSERT INTO class_members (class_id, sectl_user_id) VALUES ($1, $2)")
+        .bind(class_id)
+        .bind(&user.sectl_user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    ensure_class_tenant(&state.pool, class_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    Ok(Json(ClassSummary {
+        id: row.try_get("id").map_err(|e| internal(e.to_string()))?,
+        name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
+        join_code: row
+            .try_get("join_code")
+            .map_err(|e| internal(e.to_string()))?,
+        status: row.try_get("status").map_err(|e| internal(e.to_string()))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| internal(e.to_string()))?,
+    }))
+}
+
+async fn classes_join(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(request): Json<JoinClassRequest>,
+) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    let code = request.join_code.trim().to_uppercase();
+    let row = sqlx::query(
+        "SELECT id, name, join_code, status, created_at FROM classes WHERE join_code = $1",
+    )
+    .bind(&code)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| internal(e.to_string()))?
+    .ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(ApiError {
+                error: "class not found".into(),
+            }),
+        )
+    })?;
+    let class_id: Uuid = row.try_get("id").map_err(|e| internal(e.to_string()))?;
+    let status: String = row.try_get("status").map_err(|e| internal(e.to_string()))?;
+    if status != "active" {
+        return Err(bad_request("class is not active"));
+    }
+    sqlx::query("INSERT INTO class_members (class_id, sectl_user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
+        .bind(class_id).bind(&user.sectl_user_id).execute(&state.pool).await
+        .map_err(|e| internal(e.to_string()))?;
+    ensure_class_tenant(&state.pool, class_id)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    Ok(Json(ClassSummary {
+        id: class_id,
+        name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
+        join_code: code,
+        status,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| internal(e.to_string()))?,
+    }))
+}
+
+async fn classes_update(
+    State(state): State<Arc<AppState>>,
+    Path(class_id): Path<Uuid>,
+    headers: HeaderMap,
+    Json(request): Json<UpdateClassRequest>,
+) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err(bad_request("class name cannot be empty"));
+    }
+    sqlx::query("UPDATE classes SET name = $1, updated_at = now() WHERE id = $2")
+        .bind(name)
+        .bind(class_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    class_by_id(&state.pool, class_id).await
+}
+
+async fn classes_rotate_code(
+    State(state): State<Arc<AppState>>,
+    Path(class_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
+    for _ in 0..10 {
+        let code = generate_join_code();
+        let result = sqlx::query("UPDATE classes SET join_code = $1, updated_at = now() WHERE id = $2 AND status = 'active'")
+            .bind(&code).bind(class_id).execute(&state.pool).await.map_err(|e| internal(e.to_string()))?;
+        if result.rows_affected() > 0 {
+            return class_by_id(&state.pool, class_id).await;
+        }
+    }
+    Err(internal("could not allocate a unique class ID"))
+}
+
+async fn classes_leave(
+    State(state): State<Arc<AppState>>,
+    Path(class_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
+    sqlx::query("DELETE FROM class_members WHERE class_id = $1 AND sectl_user_id = $2")
+        .bind(class_id)
+        .bind(&user.sectl_user_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn classes_delete(
+    State(state): State<Arc<AppState>>,
+    Path(class_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    let user = authenticate(&state, &headers).await?;
+    ensure_class_member(&state.pool, &user.sectl_user_id, class_id).await?;
+    sqlx::query("UPDATE classes SET status = 'deleted', updated_at = now() WHERE id = $1")
+        .bind(class_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| internal(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn class_by_id(
+    pool: &PgPool,
+    class_id: Uuid,
+) -> Result<Json<ClassSummary>, (StatusCode, Json<ApiError>)> {
+    let row =
+        sqlx::query("SELECT id, name, join_code, status, created_at FROM classes WHERE id = $1")
+            .bind(class_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| internal(e.to_string()))?
+            .ok_or_else(|| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ApiError {
+                        error: "class not found".into(),
+                    }),
+                )
+            })?;
+    Ok(Json(ClassSummary {
+        id: row.try_get("id").map_err(|e| internal(e.to_string()))?,
+        name: row.try_get("name").map_err(|e| internal(e.to_string()))?,
+        join_code: row
+            .try_get("join_code")
+            .map_err(|e| internal(e.to_string()))?,
+        status: row.try_get("status").map_err(|e| internal(e.to_string()))?,
+        created_at: row
+            .try_get("created_at")
+            .map_err(|e| internal(e.to_string()))?,
+    }))
 }
 
 async fn register_device(
@@ -670,9 +1052,8 @@ async fn sync(
     if request.limit <= 0 || request.limit > 2000 {
         return Err(bad_request("limit must be between 1 and 2000"));
     }
-    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let account_id =
+        ensure_class_member(&state.pool, &user.sectl_user_id, request.class_id).await?;
     register_device(&state.pool, account_id, request.device_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
@@ -843,9 +1224,8 @@ async fn snapshot(
         incoming_counts = %incoming_counts,
         "收到业务数据快照"
     );
-    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let account_id =
+        ensure_class_member(&state.pool, &user.sectl_user_id, request.class_id).await?;
     register_device(&state.pool, account_id, request.device_id)
         .await
         .map_err(|e| internal(e.to_string()))?;
@@ -902,11 +1282,10 @@ async fn snapshot(
 async fn snapshot_get(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
+    Query(query): Query<ClassQuery>,
 ) -> Result<Json<SnapshotResponse>, (StatusCode, Json<ApiError>)> {
     let user = authenticate(&state, &headers).await?;
-    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let account_id = ensure_class_member(&state.pool, &user.sectl_user_id, query.class_id).await?;
     let snapshot = sqlx::query_scalar::<_, Value>(
         "SELECT snapshot FROM account_snapshots WHERE account_id = $1",
     )
@@ -1127,8 +1506,15 @@ fn apply_snapshot_balance_deltas(
 
 #[cfg(test)]
 mod tests {
-    use super::merge_snapshots;
+    use super::{generate_join_code, merge_snapshots};
     use serde_json::json;
+
+    #[test]
+    fn generated_join_code_is_six_uppercase_letters() {
+        let code = generate_join_code();
+        assert_eq!(code.len(), 6);
+        assert!(code.chars().all(|character| character.is_ascii_uppercase()));
+    }
 
     #[test]
     fn merges_business_records_by_logical_key() {
@@ -1249,11 +1635,10 @@ async fn balance(
     State(state): State<Arc<AppState>>,
     Path(student_id): Path<Uuid>,
     headers: HeaderMap,
+    Query(query): Query<ClassQuery>,
 ) -> Result<Json<Balance>, (StatusCode, Json<ApiError>)> {
     let user = authenticate(&state, &headers).await?;
-    let account_id = ensure_account(&state.pool, &user.sectl_user_id)
-        .await
-        .map_err(|e| internal(e.to_string()))?;
+    let account_id = ensure_class_member(&state.pool, &user.sectl_user_id, query.class_id).await?;
     let row = sqlx::query("SELECT student_id, score, reward_points FROM student_balances WHERE account_id = $1 AND student_id = $2").bind(account_id).bind(student_id).fetch_optional(&state.pool).await.map_err(|e| internal(e.to_string()))?;
     let row = row.ok_or_else(|| {
         (

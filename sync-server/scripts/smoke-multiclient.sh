@@ -17,22 +17,24 @@ request() {
     "$@"
 }
 
+class_id="$(request -X POST "${base_url}/v1/classes" --data '{"name":"多客户端烟测班级"}' | jq -r '.id')"
+
 snapshot_a="$(jq -nc --arg name "$student" --arg now "$now" '{version:1,students:[{name:$name,group_name:"A",score:0,reward_points:0}],reasons:[{content:"自动化理由",category:"测试",delta:1,updated_at:$now}],reward_settings:[{name:"自动化奖励",cost_points:2,created_at:$now,updated_at:$now}],tags:[{name:"自动化标签",created_at:$now,updated_at:$now}],student_tags:[{student_name:$name,tag_name:"自动化标签",created_at:$now}],score_events:[],reward_redemptions:[],settlements:[],board_configs:[],settings:{mobile_bottom_nav_items:["home"]}}')"
 snapshot_b="$(jq -nc --arg name "$student" --arg now "$now" '{version:1,students:[{name:$name,group_name:"B",score:0,reward_points:0}],reasons:[{content:"自动化理由B",category:"测试",delta:2,updated_at:$now}],reward_settings:[{name:"自动化奖励B",cost_points:3,created_at:$now,updated_at:$now}],tags:[{name:"自动化标签B",created_at:$now,updated_at:$now}],student_tags:[{student_name:$name,tag_name:"自动化标签B",created_at:$now}],score_events:[],reward_redemptions:[],settlements:[],board_configs:[],settings:{mobile_bottom_nav_items:["home","students"]}}')"
 
-request -X POST "${base_url}/v1/snapshot" --data "$(jq -nc --arg d "$device_a" --argjson s "$snapshot_a" '{device_id:$d,snapshot:$s}')" >/tmp/secscore-multiclient-a.json
-merged="$(request -X POST "${base_url}/v1/snapshot" --data "$(jq -nc --arg d "$device_b" --argjson s "$snapshot_b" '{device_id:$d,snapshot:$s}')")"
+request -X POST "${base_url}/v1/snapshot" --data "$(jq -nc --arg c "$class_id" --arg d "$device_a" --argjson s "$snapshot_a" '{class_id:$c,device_id:$d,snapshot:$s}')" >/tmp/secscore-multiclient-a.json
+merged="$(request -X POST "${base_url}/v1/snapshot" --data "$(jq -nc --arg c "$class_id" --arg d "$device_b" --argjson s "$snapshot_b" '{class_id:$c,device_id:$d,snapshot:$s}')")"
 
 test "$(printf '%s' "$merged" | jq '[.snapshot.students,.snapshot.reasons,.snapshot.reward_settings,.snapshot.tags,.snapshot.student_tags] | map(length) | add')" -ge 6
 
 upload() {
   local device="$1" op="$2" seq="$3" delta="$4"
-  request -X POST "${base_url}/v1/sync" --data "$(jq -nc --arg d "$device" --arg op "$op" --arg student "$student" --arg now "$now" --argjson delta "$delta" --argjson seq "$seq" '{device_id:$d,last_server_change_seq:0,operations:[{op_id:$op,client_seq:$seq,lamport:$seq,entity_type:"student",entity_id:"00000000-0000-5000-8000-000000000001",operation_type:"score.adjust",payload:{student_name:$student,score_delta:$delta,reward_delta:$delta},client_created_at:$now}],limit:500}')"
+  request -X POST "${base_url}/v1/sync" --data "$(jq -nc --arg c "$class_id" --arg d "$device" --arg op "$op" --arg student "$student" --arg now "$now" --argjson delta "$delta" --argjson seq "$seq" '{class_id:$c,device_id:$d,last_server_change_seq:0,operations:[{op_id:$op,client_seq:$seq,lamport:$seq,entity_type:"student",entity_id:"00000000-0000-5000-8000-000000000001",operation_type:"score.adjust",payload:{student_name:$student,score_delta:$delta,reward_delta:$delta},client_created_at:$now}],limit:500}')"
 }
 
 upload "$device_a" "$op_a" 1 5 >/tmp/secscore-multiclient-op-a.json
 upload "$device_b" "$op_b" 1 3 >/tmp/secscore-multiclient-op-b.json
-balance="$(request "${base_url}/v1/students/00000000-0000-5000-8000-000000000001/balance")"
+balance="$(request "${base_url}/v1/students/00000000-0000-5000-8000-000000000001/balance?class_id=${class_id}")"
 test "$(printf '%s' "$balance" | jq -r '.score')" = 8
 
 printf 'multiclient_sync_ok account=%s student=%s score=%s\n' "$account" "$student" "$(printf '%s' "$balance" | jq -r '.score')"

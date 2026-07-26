@@ -8,7 +8,8 @@ use tokio::sync::Mutex;
 use crate::services::{
     auth::AuthService, auto_score::AutoScoreService, data::DataService, logger::LoggerService,
     permission::PermissionService, plugin::PluginService, security::SecurityService,
-    settings::SettingsService, theme::ThemeService, SettingsKey, SettingsValue,
+    settings::SettingsService, theme::ThemeService, workspace::WorkspaceService, SettingsKey,
+    SettingsValue,
 };
 
 pub struct AppState {
@@ -29,6 +30,7 @@ pub struct AppState {
     pub plugins: Arc<RwLock<PluginService>>,
     pub http_client: Client,
     pub app_handle: AppHandle,
+    pub workspace: Arc<RwLock<Option<WorkspaceService>>>,
 }
 
 impl AppState {
@@ -45,6 +47,7 @@ impl AppState {
         let db = Arc::new(RwLock::new(None));
         let local_sqlite = Arc::new(RwLock::new(None));
         let local_write_lock = Arc::new(Mutex::new(()));
+        let workspace = Arc::new(RwLock::new(None));
 
         let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -66,6 +69,7 @@ impl AppState {
             plugins,
             http_client,
             app_handle,
+            workspace,
         }
     }
 

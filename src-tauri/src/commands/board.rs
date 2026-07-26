@@ -416,7 +416,11 @@ pub async fn board_query_sql(
             _ => String::new(),
         };
 
-        let sqlite_path = sqlite_db_path(&app_handle)?;
+        let sqlite_path = if let Some(workspace) = state_guard.workspace.write().clone() {
+            workspace.current_db_path().await?
+        } else {
+            sqlite_db_path(&app_handle)?
+        };
         (backend, sqlite_path, pg_url)
     };
 

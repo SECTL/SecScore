@@ -19,12 +19,14 @@ echo "Health:"
 request "${base_url}/health"
 echo
 
+class_id="$(request -X POST "${base_url}/v1/classes" --data '{"name":"同步烟测班级"}' | jq -r '.id')"
+
 op_a="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 op_b="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
 echo "Device A uploads offline +5:"
 request -X POST "${base_url}/v1/sync" --data "{\
-  \"device_id\": \"${device_a}\", \"last_server_change_seq\": 0,
+  \"class_id\": \"${class_id}\", \"device_id\": \"${device_a}\", \"last_server_change_seq\": 0,
   \"operations\": [{\
     \"op_id\": \"${op_a}\", \"client_seq\": 1, \"lamport\": 1,
     \"entity_type\": \"student\", \"entity_id\": \"${student_id}\",
@@ -37,7 +39,7 @@ echo
 
 echo "Device B uploads offline +3:"
 request -X POST "${base_url}/v1/sync" --data "{\
-  \"device_id\": \"${device_b}\", \"last_server_change_seq\": 0,
+  \"class_id\": \"${class_id}\", \"device_id\": \"${device_b}\", \"last_server_change_seq\": 0,
   \"operations\": [{\
     \"op_id\": \"${op_b}\", \"client_seq\": 1, \"lamport\": 1,
     \"entity_type\": \"student\", \"entity_id\": \"${student_id}\",
@@ -49,12 +51,12 @@ request -X POST "${base_url}/v1/sync" --data "{\
 echo
 
 echo "Expected merged balance: score=8, reward_points=8"
-request "${base_url}/v1/students/${student_id}/balance"
+request "${base_url}/v1/students/${student_id}/balance?class_id=${class_id}"
 echo
 
 echo "Uploading the same operation again (idempotency):"
 request -X POST "${base_url}/v1/sync" --data "{\
-  \"device_id\": \"${device_a}\", \"last_server_change_seq\": 0,
+  \"class_id\": \"${class_id}\", \"device_id\": \"${device_a}\", \"last_server_change_seq\": 0,
   \"operations\": [{\
     \"op_id\": \"${op_a}\", \"client_seq\": 1, \"lamport\": 1,
     \"entity_type\": \"student\", \"entity_id\": \"${student_id}\",
@@ -64,4 +66,3 @@ request -X POST "${base_url}/v1/sync" --data "{\
   }]
 }"
 echo
-

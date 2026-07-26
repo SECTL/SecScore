@@ -21,6 +21,7 @@ pub mod sync;
 pub mod tag;
 pub mod theme;
 pub mod window;
+pub mod workspace;
 
 pub use app::*;
 pub use auth::*;
@@ -45,3 +46,4 @@ pub use sync::*;
 pub use tag::*;
 pub use theme::*;
 pub use window::*;
+pub use workspace::*;

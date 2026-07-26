@@ -6,9 +6,9 @@ pub mod state;
 pub mod utils;
 
 use crate::db::connection::DatabaseType;
-use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
 use crate::db::migration::run_migration;
 use crate::services::settings::{SettingsKey, SettingsValue};
+use crate::services::WorkspaceService;
 use crate::{commands::*, state::AppState};
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -21,7 +21,6 @@ use tauri::{
     WindowEvent,
 };
 use tauri::{App, Manager};
-use tokio::time::{timeout, Duration};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -139,6 +138,18 @@ pub fn run() {
             db_switch_connection,
             db_use_local_sqlite,
             db_get_status,
+            workspace_get_state,
+            workspace_create_local_class,
+            workspace_switch_class,
+            workspace_switch_account,
+            workspace_upsert_sectl_account,
+            workspace_remove_account,
+            workspace_add_online_class,
+            workspace_mark_class_online,
+            workspace_rename_class,
+            workspace_update_class_code,
+            workspace_mark_class_deleted,
+            workspace_leave_class,
             db_sync,
             db_sync_preview,
             db_sync_apply,
@@ -246,11 +257,8 @@ fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-    const DB_CONNECT_TIMEOUT_SECS: u64 = 15;
-    const DB_MIGRATION_TIMEOUT_SECS: u64 = 20;
-
     let handle = app.handle().clone();
-    let db_path = if cfg!(all(debug_assertions, desktop)) {
+    let legacy_path = if cfg!(all(debug_assertions, desktop)) {
         std::path::PathBuf::from("data.sql")
     } else {
         let app_data_dir = handle
@@ -263,151 +271,49 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         data_dir.join("data.sql")
     };
 
-    let db_path_str = db_path.to_str().ok_or("Invalid database path")?.to_string();
+    let workspace_root = if cfg!(all(debug_assertions, desktop)) {
+        std::path::PathBuf::from(".secscore-workspace")
+    } else {
+        let app_data_dir = handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+        app_data_dir.join("data").join("workspace")
+    };
 
     let db_result = tauri::async_runtime::block_on(async {
-        let sqlite_conn = create_sqlite_connection(&db_path_str).await?;
-        run_migration(&sqlite_conn, DatabaseType::SQLite).await?;
-
         let state = handle.state::<crate::state::SafeAppState>();
         let state_guard = state.write();
-        let mut active_conn = sqlite_conn.clone();
-        // 缓存本地 SQLite 连接，供 realtime_dual_write_sync 复用，
-        // 避免每次写命令都新建连接池。
-        *state_guard.local_sqlite.write() = Some(sqlite_conn.clone());
-
+        let (workspace, active_conn) =
+            WorkspaceService::initialize(workspace_root, &legacy_path).await?;
+        run_migration(&active_conn, DatabaseType::SQLite).await?;
+        *state_guard.workspace.write() = Some(workspace);
+        *state_guard.local_sqlite.write() = Some(active_conn.clone());
+        *state_guard.db.write() = Some(active_conn.clone());
         {
             let mut settings = state_guard.settings.write();
-            settings.attach_db(Some(sqlite_conn.clone()));
+            settings.attach_db(Some(active_conn));
             settings
                 .initialize()
                 .await
                 .map_err(|e| format!("Failed to initialize settings from sqlite: {}", e))?;
-
-            let pg_connection_string = match settings.get_value(SettingsKey::PgConnectionString) {
-                SettingsValue::String(s) => s,
-                _ => String::new(),
-            };
-            let sync_method = match settings.get_value(SettingsKey::SyncMethod) {
-                SettingsValue::String(s) => s,
-                _ => "postgresql".to_string(),
-            };
-
-            if sync_method != "sectl_cloud_v2" && !pg_connection_string.trim().is_empty() {
-                match timeout(
-                    Duration::from_secs(DB_CONNECT_TIMEOUT_SECS),
-                    create_postgres_connection(&pg_connection_string),
+            settings
+                .set_value(
+                    SettingsKey::PgConnectionStatus,
+                    SettingsValue::Json(serde_json::json!({
+                        "connected": true,
+                        "type": "sqlite"
+                    })),
                 )
                 .await
-                {
-                    Err(_) => {
-                        let timeout_message = "PostgreSQL auto-connect timeout".to_string();
-                        eprintln!(
-                            "PostgreSQL auto-connect timed out on startup, fallback to sqlite"
-                        );
-                        settings
-                            .set_value(
-                                SettingsKey::PgConnectionStatus,
-                                SettingsValue::Json(serde_json::json!({
-                                    "connected": false,
-                                    "type": "sqlite",
-                                    "error": timeout_message
-                                })),
-                            )
-                            .await
-                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
-                    }
-                    Ok(Err(e)) => {
-                        eprintln!("PostgreSQL auto-connect failed, fallback to sqlite: {}", e);
-                        settings
-                            .set_value(
-                                SettingsKey::PgConnectionStatus,
-                                SettingsValue::Json(serde_json::json!({
-                                    "connected": false,
-                                    "type": "sqlite",
-                                    "error": e.to_string()
-                                })),
-                            )
-                            .await
-                            .map_err(|err| format!("Failed to save pg status: {}", err))?;
-                    }
-                    Ok(Ok(pg_conn)) => {
-                        let migration_result = timeout(
-                            Duration::from_secs(DB_MIGRATION_TIMEOUT_SECS),
-                            run_migration(&pg_conn, DatabaseType::PostgreSQL),
-                        )
-                        .await;
-
-                        if let Err(_) = migration_result {
-                            let timeout_message = "PostgreSQL migration timeout".to_string();
-                            eprintln!(
-                                "PostgreSQL migration timed out on startup, fallback to sqlite"
-                            );
-                            settings
-                                .set_value(
-                                    SettingsKey::PgConnectionStatus,
-                                    SettingsValue::Json(serde_json::json!({
-                                        "connected": false,
-                                        "type": "sqlite",
-                                        "error": timeout_message
-                                    })),
-                                )
-                                .await
-                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
-                        } else if let Ok(Err(e)) = migration_result {
-                            eprintln!(
-                                "PostgreSQL migration failed on startup, fallback to sqlite: {}",
-                                e
-                            );
-                            settings
-                                .set_value(
-                                    SettingsKey::PgConnectionStatus,
-                                    SettingsValue::Json(serde_json::json!({
-                                        "connected": false,
-                                        "type": "sqlite",
-                                        "error": e.to_string()
-                                    })),
-                                )
-                                .await
-                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
-                        } else {
-                            active_conn = pg_conn;
-                            settings
-                                .set_value(
-                                    SettingsKey::PgConnectionStatus,
-                                    SettingsValue::Json(serde_json::json!({
-                                        "connected": true,
-                                        "type": "postgresql"
-                                    })),
-                                )
-                                .await
-                                .map_err(|err| format!("Failed to save pg status: {}", err))?;
-                            eprintln!("Auto connected to PostgreSQL from saved connection string");
-                        }
-                    }
-                }
-            } else {
-                if sync_method == "sectl_cloud_v2" {
-                    eprintln!(
-                        "New cloud sync mode restored on startup; PostgreSQL auto-connect skipped"
-                    );
-                }
-                settings
-                    .set_value(
-                        SettingsKey::PgConnectionStatus,
-                        SettingsValue::Json(serde_json::json!({
-                            "connected": true,
-                            "type": "sqlite"
-                        })),
-                    )
-                    .await
-                    .map_err(|err| format!("Failed to save sqlite status: {}", err))?;
-            }
-        }
-
-        {
-            let mut db_guard = state_guard.db.write();
-            *db_guard = Some(active_conn);
+                .map_err(|err| format!("Failed to save sqlite status: {}", err))?;
+            settings
+                .set_value(
+                    SettingsKey::SyncMethod,
+                    SettingsValue::String("sectl_cloud_v2".to_string()),
+                )
+                .await
+                .map_err(|err| format!("Failed to enable SECTL cloud sync: {}", err))?;
         }
 
         state_guard
@@ -421,10 +327,7 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = db_result {
         eprintln!("Failed to connect to database: {}", e);
     } else {
-        eprintln!(
-            "Database bootstrap completed, sqlite settings db: {}",
-            db_path_str
-        );
+        eprintln!("Database bootstrap completed with isolated workspace SQLite files");
     }
 
     Ok(())

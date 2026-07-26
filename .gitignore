@@ -64,4 +64,6 @@ desktop.ini
 
 # Tauri local/generated artifacts
 src-tauri/data.sql
+src-tauri/.secscore-workspace/
+.secscore-workspace/
 src-tauri/gen/

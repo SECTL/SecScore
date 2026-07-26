@@ -146,7 +146,92 @@ export interface httpServerShareUrl {
   is_192_168?: boolean
 }
 
+export interface AccountRecord {
+  id: string
+  kind: "local" | "sectl"
+  user_id?: string | null
+  name: string
+  email?: string | null
+  is_active: boolean
+}
+
+export interface ClassRecord {
+  id: string
+  name: string
+  kind: "local" | "online"
+  remote_id?: string | null
+  join_code?: string | null
+  status: string
+  db_path: string
+  is_current: boolean
+  is_member: boolean
+}
+
+export interface WorkspaceState {
+  current_account_id: string
+  current_class_id: string
+  accounts: AccountRecord[]
+  classes: ClassRecord[]
+}
+
 const api = {
+  workspaceGetState: (): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_get_state"),
+  workspaceCreateLocalClass: (
+    name: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_create_local_class", { name }),
+  workspaceSwitchClass: (
+    classId: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_switch_class", { classId }),
+  workspaceSwitchAccount: (
+    accountId: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_switch_account", { accountId }),
+  workspaceUpsertSectlAccount: (
+    userId: string,
+    name: string,
+    email?: string | null
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_upsert_sectl_account", { userId, name, email }),
+  workspaceRemoveAccount: (
+    accountId: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_remove_account", { accountId }),
+  workspaceAddOnlineClass: (
+    name: string,
+    remoteId: string,
+    joinCode: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_add_online_class", { name, remoteId, joinCode }),
+  workspaceMarkClassOnline: (
+    classId: string,
+    remoteId: string,
+    joinCode: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_mark_class_online", { classId, remoteId, joinCode }),
+  workspaceRenameClass: (
+    classId: string,
+    name: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_rename_class", { classId, name }),
+  workspaceUpdateClassCode: (
+    classId: string,
+    joinCode: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_update_class_code", { classId, joinCode }),
+  workspaceMarkClassDeleted: (
+    classId: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_mark_class_deleted", { classId }),
+  workspaceLeaveClass: (
+    classId: string
+  ): Promise<{ success: boolean; data?: WorkspaceState; message?: string }> =>
+    invoke("workspace_leave_class", { classId }),
+  onWorkspaceChanged: (callback: (state: WorkspaceState) => void): Promise<UnlistenFn> =>
+    listen<WorkspaceState>("workspace:changed", (event) => callback(event.payload)),
+
   // Theme
   getThemes: (): Promise<{ success: boolean; data: themeConfig[] }> => invoke("theme_list"),
   getCurrentTheme: (): Promise<{ success: boolean; data: themeConfig }> => invoke("theme_current"),

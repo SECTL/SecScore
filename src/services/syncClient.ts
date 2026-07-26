@@ -11,6 +11,28 @@ const SYNC_REQUEST_TIMEOUT_MS = 10_000
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
 const SNAPSHOT_RETRY_INTERVAL_MS = 60_000
 
+const getCurrentClassId = (): string => {
+  try {
+    return localStorage.getItem("ss_current_class_id") || "default"
+  } catch {
+    return "default"
+  }
+}
+
+const scopedKey = (key: string): string => `${key}:${getCurrentClassId()}`
+
+const getScopedValue = (key: string, fallback: string): string => {
+  try {
+    return localStorage.getItem(scopedKey(key)) || fallback
+  } catch {
+    return fallback
+  }
+}
+
+const setScopedValue = (key: string, value: string) => {
+  localStorage.setItem(scopedKey(key), value)
+}
+
 export type SyncConnectionState =
   | "disabled"
   | "connecting"
@@ -74,7 +96,7 @@ interface SyncResponse {
 
 const getJson = <T>(key: string, fallback: T): T => {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = localStorage.getItem(scopedKey(key))
     return raw ? (JSON.parse(raw) as T) : fallback
   } catch {
     return fallback
@@ -82,7 +104,7 @@ const getJson = <T>(key: string, fallback: T): T => {
 }
 
 const setJson = (key: string, value: unknown) => {
-  localStorage.setItem(key, JSON.stringify(value))
+  localStorage.setItem(scopedKey(key), JSON.stringify(value))
 }
 
 const newUuid = () => {
@@ -138,6 +160,18 @@ class SyncClient {
 
   getStatus(): SyncStatus {
     return { ...this.status }
+  }
+
+  private async getRemoteClassId(): Promise<string | null> {
+    try {
+      const result = await (window as any).api?.workspaceGetState?.()
+      const current = result?.success
+        ? result.data?.classes?.find((item: { is_current?: boolean }) => item.is_current)
+        : null
+      return current?.remote_id || null
+    } catch {
+      return null
+    }
   }
 
   subscribeStatus(listener: (status: SyncStatus) => void): () => void {
@@ -227,8 +261,8 @@ class SyncClient {
   }
 
   private getNextSequence(): number {
-    const next = Number(localStorage.getItem("ss_sync_client_seq") || "0") + 1
-    localStorage.setItem("ss_sync_client_seq", String(next))
+    const next = Number(getScopedValue("ss_sync_client_seq", "0")) + 1
+    setScopedValue("ss_sync_client_seq", String(next))
     return next
   }
 
@@ -239,8 +273,8 @@ class SyncClient {
     operationId?: string
   ): PendingOperation {
     const clientSeq = this.getNextSequence()
-    const lamport = Math.max(Number(localStorage.getItem("ss_sync_lamport") || "0"), clientSeq) + 1
-    localStorage.setItem("ss_sync_lamport", String(lamport))
+    const lamport = Math.max(Number(getScopedValue("ss_sync_lamport", "0")), clientSeq) + 1
+    setScopedValue("ss_sync_lamport", String(lamport))
     return {
       op_id: operationId || newUuid(),
       client_seq: clientSeq,
@@ -403,6 +437,8 @@ class SyncClient {
   private async syncSnapshot(): Promise<void> {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
+    const classId = await this.getRemoteClassId()
+    if (!classId) return
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const snapshot = await this.buildSnapshot()
@@ -433,7 +469,7 @@ class SyncClient {
       const response = await fetch(`${serverUrl}/v1/snapshot`, {
         method: "POST",
         headers: await this.headers(requestId),
-        body: JSON.stringify({ device_id: deviceId, snapshot }),
+        body: JSON.stringify({ class_id: classId, device_id: deviceId, snapshot }),
         signal: controller.signal,
       })
       const responseText = await response.text()
@@ -496,6 +532,8 @@ class SyncClient {
   private async pullSnapshot(): Promise<void> {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
+    const classId = await this.getRemoteClassId()
+    if (!classId) return
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
@@ -508,7 +546,7 @@ class SyncClient {
     this.snapshotAbortController = controller
     const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
     try {
-      const response = await fetch(`${serverUrl}/v1/snapshot`, {
+      const response = await fetch(`${serverUrl}/v1/snapshot?class_id=${encodeURIComponent(classId)}`, {
         headers: await this.headers(requestId),
         signal: controller.signal,
       })
@@ -697,7 +735,7 @@ class SyncClient {
       CURSOR_KEY,
       String(
         result.has_more
-          ? lastRemoteSeq || Number(localStorage.getItem(CURSOR_KEY) || "0")
+          ? lastRemoteSeq || Number(getScopedValue(CURSOR_KEY, "0"))
           : result.server_change_seq
       )
     )
@@ -712,8 +750,8 @@ class SyncClient {
     operation: PendingOperation & { server_change_seq: number; device_id: string }
   ): Promise<void> {
     await this.applyRemoteOperationOnce(operation)
-    if (operation.server_change_seq > Number(localStorage.getItem(CURSOR_KEY) || "0")) {
-      localStorage.setItem(CURSOR_KEY, String(operation.server_change_seq))
+    if (operation.server_change_seq > Number(getScopedValue(CURSOR_KEY, "0"))) {
+      setScopedValue(CURSOR_KEY, String(operation.server_change_seq))
     }
     window.dispatchEvent(
       new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
@@ -728,7 +766,12 @@ class SyncClient {
         try {
           const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
           const requestId = newUuid()
-          const cursor = Number(localStorage.getItem(CURSOR_KEY) || "0")
+          const classId = await this.getRemoteClassId()
+          if (!classId) {
+            await new Promise((resolve) => window.setTimeout(resolve, 5000))
+            continue
+          }
+          const cursor = Number(getScopedValue(CURSOR_KEY, "0"))
           const deviceId = this.getDeviceId()
           const controller = new AbortController()
           this.changeStreamAbortController = controller
@@ -741,7 +784,7 @@ class SyncClient {
             user_id: sectlAuth.getUserId(),
           })
           const response = await fetch(
-            `${serverUrl}/v1/changes?last_server_change_seq=${cursor}&device_id=${encodeURIComponent(deviceId)}`,
+            `${serverUrl}/v1/changes?class_id=${encodeURIComponent(classId)}&last_server_change_seq=${cursor}&device_id=${encodeURIComponent(deviceId)}`,
             { headers: await this.headers(requestId), signal: controller.signal }
           )
           if (!response.ok || !response.body) {
@@ -870,9 +913,11 @@ class SyncClient {
       device_id: deviceId,
       authenticated: sectlAuth.isAuthenticated(),
       outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length,
-      cursor: Number(localStorage.getItem(CURSOR_KEY) || "0"),
+      cursor: Number(getScopedValue(CURSOR_KEY, "0")),
     })
     try {
+      const classId = await this.getRemoteClassId()
+      if (!classId) return
       const now = Date.now()
       const shouldSnapshot =
         forceSnapshot ||
@@ -887,7 +932,8 @@ class SyncClient {
         headers: await this.headers(requestId),
         body: JSON.stringify({
           device_id: this.getDeviceId(),
-          last_server_change_seq: Number(localStorage.getItem(CURSOR_KEY) || "0"),
+          class_id: classId,
+          last_server_change_seq: Number(getScopedValue(CURSOR_KEY, "0")),
           operations: outbox,
           limit: 500,
         }),
@@ -948,7 +994,7 @@ class SyncClient {
         accepted_count: result.accepted_operations.length,
         remote_count: result.remote_operations.length,
         balance_count: result.balances.length,
-        cursor: localStorage.getItem(CURSOR_KEY),
+      cursor: getScopedValue(CURSOR_KEY, "0"),
       })
       this.updateStatus({
         state: this.changeStreamConnected

@@ -7,6 +7,7 @@ pub mod plugin;
 pub mod security;
 pub mod settings;
 pub mod theme;
+pub mod workspace;
 
 pub use auth::AuthService;
 pub use auto_score::{
@@ -22,3 +23,4 @@ pub use plugin::{Plugin, PluginManifest, PluginRuntimeModule, PluginService, Plu
 pub use security::SecurityService;
 pub use settings::{SettingsKey, SettingsService, SettingsSpec, SettingsValue};
 pub use theme::{ThemeConfig, ThemeService};
+pub use workspace::{AccountRecord, ClassRecord, WorkspaceService, WorkspaceState};

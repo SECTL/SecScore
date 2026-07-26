@@ -226,7 +226,7 @@ export const Settings: React.FC<{
     }
   }
 
-  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud_v2">("postgresql")
+  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud_v2">("sectl_cloud_v2")
   const [syncServerUrl, setSyncServerUrl] = useState(
     localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
   )
@@ -373,7 +373,7 @@ export const Settings: React.FC<{
         setSyncMethod("sectl_cloud_v2")
       } else {
         // 旧版 SECTL 云同步不再提供入口，历史配置降级为本地 PostgreSQL 模式。
-        setSyncMethod("postgresql")
+        setSyncMethod("sectl_cloud_v2")
       }
       savedFontFamily = res.data.font_family || "system"
     }
@@ -1441,6 +1441,10 @@ export const Settings: React.FC<{
               onChange={async (e) => {
                 const next = e.target.value as "postgresql" | "sectl_cloud_v2"
                 const previous = syncMethod
+                if (next === "postgresql") {
+                  messageApi.info("PostgreSQL 直连模式已移除，请使用 SECTL 云同步")
+                  return
+                }
                 if (syncMethodChangeInFlight) {
                   logSyncMethodEvent("sync_method:selection_ignored_in_flight", {
                     previous,
