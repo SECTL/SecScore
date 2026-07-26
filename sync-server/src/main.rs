@@ -236,16 +236,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn health(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let database = if sqlx::query("SELECT 1").execute(&state.pool).await.is_ok() {
-        "ok"
+    let database_ok = sqlx::query("SELECT 1").execute(&state.pool).await.is_ok();
+    let status = if database_ok {
+        StatusCode::OK
     } else {
-        "error"
+        StatusCode::SERVICE_UNAVAILABLE
     };
     (
-        StatusCode::OK,
+        status,
         Json(Health {
-            status: "ok",
-            database,
+            status: if database_ok { "ok" } else { "error" },
+            database: if database_ok { "ok" } else { "error" },
         }),
     )
 }

@@ -4,12 +4,40 @@
 
 ## 启动
 
+### 生产环境
+
+首次部署时复制并填写生产配置：
+
+```bash
+cd sync-server
+cp .env.production.example .env.production
+```
+
+至少需要替换 `POSTGRES_PASSWORD`、`DATABASE_URL` 中对应的密码和
+`SECTL_CLIENT_ID`。密码建议使用 URL-safe 字符，且生产环境必须保持
+`DEV_AUTH=false`。随后一键构建并启动后端和 PostgreSQL：
+
+```bash
+docker compose up -d --build
+```
+
+后端监听宿主机 `8787` 端口，PostgreSQL 只加入 Docker 内部网络，不直接暴露到宿主机。
+数据和服务日志分别保存在 Docker volume `secscore_sync_postgres_data` 与
+`secscore_sync_server_logs` 中。查看状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f sync-server
+```
+
+### 本地开发
+
 ```bash
 cd sync-server
 ./scripts/start-local.sh
 ```
 
-脚本会启动 PostgreSQL 16 容器，映射到本机 `54329` 端口，数据库、用户名和密码都是 `secscore`，然后启动 API 服务 `127.0.0.1:8787`。如果 Docker 尚未启动，需要先启动 Docker Desktop。
+脚本会使用开发 compose 文件启动 PostgreSQL 16 容器，映射到本机 `54329` 端口，数据库、用户名和密码都是 `secscore`，然后启动 API 服务 `127.0.0.1:8787`。如果 Docker 尚未启动，需要先启动 Docker Desktop。
 
 如果本机已经有 PostgreSQL 容器，建议为同步服务单独创建数据库，不要直接使用当前 SecScore 旧数据库，避免表名冲突。例如：
 
