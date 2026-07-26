@@ -22,7 +22,7 @@ DEV_AUTH=true \
 cargo run --manifest-path sync-server/Cargo.toml
 ```
 
-本地开发模式下，服务使用 `X-Dev-User-Id` 区分账号；生产模式必须关闭 `DEV_AUTH`，改用 SECTL access token。
+本地开发模式下，服务使用 `X-Dev-User-Id` 区分账号，此模式只允许绑定 loopback 地址；生产模式必须关闭 `DEV_AUTH`，改用 SECTL access token。服务启动时会校验这两个安全条件，配置错误会直接退出。
 
 本地试验时使用 `X-Dev-User-Id` 作为账号身份：
 
@@ -35,6 +35,7 @@ curl http://127.0.0.1:8787/health
 ```bash
 export SECTL_INTROSPECT_URL='https://appwrite.sectl.cn/api/oauth/introspect'
 export SECTL_CLIENT_ID='你的 SECTL platform id'
+export DEV_AUTH=false
 ```
 
 客户端请求使用：
@@ -44,6 +45,7 @@ Authorization: Bearer <SECTL access token>
 ```
 
 后端不会访问 SECTL 数据库，只调用 SECTL 的 token introspection 接口验证 token，并使用返回的 `user_id` 作为账号映射依据。
+服务端不会信任客户端提交的 `username`、`user_id` 或 `X-Dev-User-Id` 来覆盖已验证身份；生产请求始终以 introspection 返回的用户和平台归属为准。
 
 ## 模拟两个离线设备合并
 

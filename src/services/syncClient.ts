@@ -7,13 +7,16 @@ const OUTBOX_KEY = "ss_sync_outbox"
 const APPLIED_KEY = "ss_sync_applied_operations"
 const CURSOR_KEY = "ss_sync_cursor"
 const SYNC_ENABLED_KEY = "ss_sync_enabled"
-const DEFAULT_SERVER_URL =
-  (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
+const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
 const SYNC_REQUEST_TIMEOUT_MS = 10_000
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
 const SNAPSHOT_RETRY_INTERVAL_MS = 60_000
 
-const syncLog = (level: "debug" | "info" | "warn" | "error", message: string, meta: Record<string, unknown> = {}) => {
+const syncLog = (
+  level: "debug" | "info" | "warn" | "error",
+  message: string,
+  meta: Record<string, unknown> = {}
+) => {
   try {
     void (window as any).api?.writeLog?.({
       level,
@@ -251,12 +254,17 @@ class SyncClient {
         })
         return
       }
-      const operation = this.createOperation("reward.redeem", input.student_name, {
-        student_name: input.student_name,
-        reward_id: input.reward_id,
-        reward_name: rewardSetting.name,
-        cost_points: Number(rewardSetting.cost_points),
-      }, input.operation_id)
+      const operation = this.createOperation(
+        "reward.redeem",
+        input.student_name,
+        {
+          student_name: input.student_name,
+          reward_id: input.reward_id,
+          reward_name: rewardSetting.name,
+          cost_points: Number(rewardSetting.cost_points),
+        },
+        input.operation_id
+      )
       this.appendOperation(operation)
       void this.syncNow()
     } catch (error) {
@@ -271,20 +279,31 @@ class SyncClient {
 
   private async buildSnapshot(): Promise<Record<string, unknown>> {
     const api = (window as any).api
-    const [students, reasons, rewards, tags, events, redemptions, settlements, boards, settings, rules, batches] =
-      await Promise.all([
-        api.queryStudents(),
-        api.queryReasons(),
-        api.rewardSettingQuery(),
-        api.tagsGetAll(),
-        api.queryEvents({ limit: 100000 }),
-        api.rewardRedemptionQuery({ limit: 100000 }),
-        api.querySettlements(),
-        api.boardGetConfigs(),
-        api.getAllSettings(),
-        api.autoScoreGetRules(),
-        api.autoScoreQueryBatches(),
-      ])
+    const [
+      students,
+      reasons,
+      rewards,
+      tags,
+      events,
+      redemptions,
+      settlements,
+      boards,
+      settings,
+      rules,
+      batches,
+    ] = await Promise.all([
+      api.queryStudents(),
+      api.queryReasons(),
+      api.rewardSettingQuery(),
+      api.tagsGetAll(),
+      api.queryEvents({ limit: 100000 }),
+      api.rewardRedemptionQuery({ limit: 100000 }),
+      api.querySettlements(),
+      api.boardGetConfigs(),
+      api.getAllSettings(),
+      api.autoScoreGetRules(),
+      api.autoScoreQueryBatches(),
+    ])
 
     const studentRows = Array.isArray(students?.data) ? students.data : []
     const studentTags = (
@@ -326,7 +345,17 @@ class SyncClient {
     const deviceId = this.getDeviceId()
     const snapshot = await this.buildSnapshot()
     const counts = Object.fromEntries(
-      ["students", "reasons", "reward_settings", "tags", "student_tags", "score_events", "reward_redemptions", "settlements", "board_configs"].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
+      [
+        "students",
+        "reasons",
+        "reward_settings",
+        "tags",
+        "student_tags",
+        "score_events",
+        "reward_redemptions",
+        "settlements",
+        "board_configs",
+      ].map((key) => [key, Array.isArray(snapshot[key]) ? (snapshot[key] as unknown[]).length : 0])
     )
     syncLog("info", "开始上传业务数据快照", { server_url: serverUrl, device_id: deviceId, counts })
     const controller = new AbortController()
@@ -341,12 +370,19 @@ class SyncClient {
       })
       const responseText = await response.text()
       if (!response.ok) {
-        syncLog("error", "业务数据快照上传失败", { status: response.status, body: responseText.slice(0, 1000), server_url: serverUrl, device_id: deviceId })
+        syncLog("error", "业务数据快照上传失败", {
+          status: response.status,
+          body: responseText.slice(0, 1000),
+          server_url: serverUrl,
+          device_id: deviceId,
+        })
         throw new Error(`snapshot HTTP ${response.status}`)
       }
       // 用户在请求期间产生了新积分时，不应用旧快照，避免覆盖刚写入的本地余额。
       if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
-        syncLog("info", "快照响应已收到，但存在新的积分操作，跳过本地快照写入", { device_id: deviceId })
+        syncLog("info", "快照响应已收到，但存在新的积分操作，跳过本地快照写入", {
+          device_id: deviceId,
+        })
         return
       }
       const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
@@ -357,7 +393,10 @@ class SyncClient {
     }
   }
 
-  private async applySnapshotResult(snapshot: Record<string, unknown>, deviceId: string): Promise<void> {
+  private async applySnapshotResult(
+    snapshot: Record<string, unknown>,
+    deviceId: string
+  ): Promise<void> {
     const api = (window as any).api
     const applied = await api.syncApplySnapshot(snapshot)
     syncLog(
@@ -366,13 +405,18 @@ class SyncClient {
       {
         device_id: deviceId,
         merged_counts: Object.fromEntries(
-          Object.entries(snapshot).map(([key, value]) => [key, Array.isArray(value) ? value.length : typeof value])
+          Object.entries(snapshot).map(([key, value]) => [
+            key,
+            Array.isArray(value) ? value.length : typeof value,
+          ])
         ),
         message: applied?.message,
       }
     )
     if (!applied?.success) throw new Error(applied?.message || "sync_apply_snapshot failed")
-    window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
+    window.dispatchEvent(
+      new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+    )
   }
 
   private async pullSnapshot(): Promise<void> {
@@ -380,7 +424,10 @@ class SyncClient {
     if (!api?.syncApplySnapshot) return
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
-    syncLog("info", "开始拉取服务器最新业务数据快照", { server_url: serverUrl, device_id: deviceId })
+    syncLog("info", "开始拉取服务器最新业务数据快照", {
+      server_url: serverUrl,
+      device_id: deviceId,
+    })
     const controller = new AbortController()
     this.snapshotAbortController = controller
     const timeout = window.setTimeout(() => controller.abort(), SNAPSHOT_REQUEST_TIMEOUT_MS)
@@ -390,9 +437,12 @@ class SyncClient {
         signal: controller.signal,
       })
       const responseText = await response.text()
-      if (!response.ok) throw new Error(`snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`)
+      if (!response.ok)
+        throw new Error(`snapshot pull HTTP ${response.status}: ${responseText.slice(0, 500)}`)
       if (getJson<PendingOperation[]>(OUTBOX_KEY, []).length > 0) {
-        syncLog("info", "拉取快照响应已收到，但存在待同步积分操作，跳过本地快照写入", { device_id: deviceId })
+        syncLog("info", "拉取快照响应已收到，但存在待同步积分操作，跳过本地快照写入", {
+          device_id: deviceId,
+        })
         return
       }
       const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
@@ -407,10 +457,9 @@ class SyncClient {
     const token = sectlAuth.getAccessToken()
     if (token) {
       syncLog("debug", "使用 OAuth 令牌同步", { device_id: this.getDeviceId() })
-      // DEV_AUTH 服务端会优先使用开发账号；生产服务端会忽略该头并校验 Bearer token。
+      // 携带 OAuth Token 时不再发送开发身份头，服务端必须从 Token 推导账号。
       return {
         Authorization: `Bearer ${token}`,
-        "X-Dev-User-Id": this.getDevUserId(),
         "Content-Type": "application/json",
       }
     }
@@ -468,7 +517,10 @@ class SyncClient {
   private async applySyncResponse(result: SyncResponse): Promise<void> {
     const acceptedIds = new Set(result.accepted_operations.map((item) => item.op_id))
     const currentOutbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
-    setJson(OUTBOX_KEY, currentOutbox.filter((operation) => !acceptedIds.has(operation.op_id)))
+    setJson(
+      OUTBOX_KEY,
+      currentOutbox.filter((operation) => !acceptedIds.has(operation.op_id))
+    )
 
     const applied = getJson<string[]>(APPLIED_KEY, [])
     const appliedSet = new Set(applied)
@@ -479,7 +531,8 @@ class SyncClient {
     for (const operation of result.remote_operations) {
       if (appliedSet.has(operation.op_id)) continue
       if (
-        (operation.operation_type === "score.adjust" || operation.operation_type === "reward.redeem") &&
+        (operation.operation_type === "score.adjust" ||
+          operation.operation_type === "reward.redeem") &&
         typeof operation.payload.student_name !== "string"
       ) {
         syncLog("warn", "跳过缺少 student_name 的历史远端操作", {
@@ -498,19 +551,29 @@ class SyncClient {
     const lastRemoteSeq = result.remote_operations.at(-1)?.server_change_seq
     localStorage.setItem(
       CURSOR_KEY,
-      String(result.has_more ? lastRemoteSeq || Number(localStorage.getItem(CURSOR_KEY) || "0") : result.server_change_seq)
+      String(
+        result.has_more
+          ? lastRemoteSeq || Number(localStorage.getItem(CURSOR_KEY) || "0")
+          : result.server_change_seq
+      )
     )
     if (result.remote_operations.length > 0) {
-      window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
+      window.dispatchEvent(
+        new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+      )
     }
   }
 
-  private async applyStreamOperation(operation: PendingOperation & { server_change_seq: number; device_id: string }): Promise<void> {
+  private async applyStreamOperation(
+    operation: PendingOperation & { server_change_seq: number; device_id: string }
+  ): Promise<void> {
     await this.applyRemoteOperationOnce(operation)
     if (operation.server_change_seq > Number(localStorage.getItem(CURSOR_KEY) || "0")) {
       localStorage.setItem(CURSOR_KEY, String(operation.server_change_seq))
     }
-    window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } }))
+    window.dispatchEvent(
+      new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
+    )
   }
 
   private startChangeStream() {
@@ -587,33 +650,40 @@ class SyncClient {
     const startedAt = Date.now()
     const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
-    syncLog("info", "同步周期开始", { server_url: serverUrl, device_id: deviceId, dev_user_id: this.getDevUserId(), outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length, cursor: Number(localStorage.getItem(CURSOR_KEY) || "0") })
+    syncLog("info", "同步周期开始", {
+      server_url: serverUrl,
+      device_id: deviceId,
+      dev_user_id: this.getDevUserId(),
+      outbox_count: getJson<PendingOperation[]>(OUTBOX_KEY, []).length,
+      cursor: Number(localStorage.getItem(CURSOR_KEY) || "0"),
+    })
     try {
       const now = Date.now()
       const shouldSnapshot =
         forceSnapshot ||
         requestedSnapshot ||
         requestedSnapshotPull ||
-        (now - this.lastSnapshotAt >= 5 * 60_000 && now - this.lastSnapshotAttemptAt >= SNAPSHOT_RETRY_INTERVAL_MS)
+        (now - this.lastSnapshotAt >= 5 * 60_000 &&
+          now - this.lastSnapshotAttemptAt >= SNAPSHOT_RETRY_INTERVAL_MS)
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
       // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
-      const response = await fetch(
-        `${serverUrl}/v1/sync`,
-        {
-          method: "POST",
-          headers: await this.headers(),
-          body: JSON.stringify({
-            device_id: this.getDeviceId(),
-            last_server_change_seq: Number(localStorage.getItem(CURSOR_KEY) || "0"),
-            operations: outbox,
-            limit: 500,
-          }),
-          signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
-        }
-      )
+      const response = await fetch(`${serverUrl}/v1/sync`, {
+        method: "POST",
+        headers: await this.headers(),
+        body: JSON.stringify({
+          device_id: this.getDeviceId(),
+          last_server_change_seq: Number(localStorage.getItem(CURSOR_KEY) || "0"),
+          operations: outbox,
+          limit: 500,
+        }),
+        signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
+      })
       const responseText = await response.text()
       if (!response.ok) {
-        syncLog("error", "增量同步请求失败", { status: response.status, body: responseText.slice(0, 1000) })
+        syncLog("error", "增量同步请求失败", {
+          status: response.status,
+          body: responseText.slice(0, 1000),
+        })
         return
       }
       const result = JSON.parse(responseText) as SyncResponse
@@ -628,7 +698,10 @@ class SyncClient {
           }
           this.lastSnapshotAt = Date.now()
         } catch (error) {
-          const message = error instanceof DOMException && error.name === "AbortError" ? "快照已取消或超时" : String(error)
+          const message =
+            error instanceof DOMException && error.name === "AbortError"
+              ? "快照已取消或超时"
+              : String(error)
           syncLog("warn", "增量同步完成但快照阶段未完成", { error: message })
         }
       }
@@ -640,7 +713,11 @@ class SyncClient {
         cursor: localStorage.getItem(CURSOR_KEY),
       })
     } catch (error) {
-      syncLog("error", "同步周期异常", { duration_ms: Date.now() - startedAt, error: String(error), stack: error instanceof Error ? error.stack : undefined })
+      syncLog("error", "同步周期异常", {
+        duration_ms: Date.now() - startedAt,
+        error: String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
     } finally {
       this.syncing = false
       if (this.syncRequested) {

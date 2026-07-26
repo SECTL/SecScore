@@ -226,9 +226,9 @@ export const Settings: React.FC<{
     }
   }
 
-  const [syncMethod, setSyncMethod] = useState<
-    "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
-  >("postgresql")
+  const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud" | "sectl_cloud_v2">(
+    "postgresql"
+  )
   const [syncServerUrl, setSyncServerUrl] = useState(
     localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
   )
@@ -309,59 +309,56 @@ export const Settings: React.FC<{
     }
   }, [])
 
-  const loadSystemFonts = useCallback(
-    async (selectedFontValue?: string) => {
-      setIsLoadingFonts(true)
+  const loadSystemFonts = useCallback(async (selectedFontValue?: string) => {
+    setIsLoadingFonts(true)
 
-      const applySelectedFont = (options: FontOption[]) => {
-        const current = findFontOption(options, selectedFontValue || "system")
-        if (current) applyFontFamily(current.fontFamily)
-      }
+    const applySelectedFont = (options: FontOption[]) => {
+      const current = findFontOption(options, selectedFontValue || "system")
+      if (current) applyFontFamily(current.fontFamily)
+    }
 
-      const api = (window as any).api
-      if (!api?.getSystemFonts) {
+    const api = (window as any).api
+    if (!api?.getSystemFonts) {
+      setFontOptions(defaultFontOptions)
+      applySelectedFont(defaultFontOptions)
+      setIsLoadingFonts(false)
+      return
+    }
+
+    try {
+      const res = await api.getSystemFonts()
+      if (res.success && Array.isArray(res.data)) {
+        const remoteOptions = res.data
+          .map((name: string) => String(name || "").trim())
+          .filter((name: string) => Boolean(name))
+          .map((name: string) => {
+            const label = formatFontDisplayName(name)
+            return {
+              value: buildSystemFontValue(name),
+              label,
+              fontFamily: buildSystemFontFamily(name),
+              searchText: buildFontSearchText(name, label),
+            } satisfies FontOption
+          })
+          .sort((a: FontOption, b: FontOption) =>
+            a.label.localeCompare(b.label, "zh-Hans-CN-u-co-pinyin")
+          )
+
+        const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
+        setFontOptions(mergedOptions)
+        applySelectedFont(mergedOptions)
+      } else {
         setFontOptions(defaultFontOptions)
         applySelectedFont(defaultFontOptions)
-        setIsLoadingFonts(false)
-        return
       }
-
-      try {
-        const res = await api.getSystemFonts()
-        if (res.success && Array.isArray(res.data)) {
-          const remoteOptions = res.data
-            .map((name: string) => String(name || "").trim())
-            .filter((name: string) => Boolean(name))
-            .map((name: string) => {
-              const label = formatFontDisplayName(name)
-              return {
-                value: buildSystemFontValue(name),
-                label,
-                fontFamily: buildSystemFontFamily(name),
-                searchText: buildFontSearchText(name, label),
-              } satisfies FontOption
-            })
-            .sort((a: FontOption, b: FontOption) =>
-              a.label.localeCompare(b.label, "zh-Hans-CN-u-co-pinyin")
-            )
-
-          const mergedOptions = mergeFontOptions([...defaultFontOptions, ...remoteOptions])
-          setFontOptions(mergedOptions)
-          applySelectedFont(mergedOptions)
-        } else {
-          setFontOptions(defaultFontOptions)
-          applySelectedFont(defaultFontOptions)
-        }
-      } catch (error) {
-        console.error("Failed to load system fonts:", error)
-        setFontOptions(defaultFontOptions)
-        applySelectedFont(defaultFontOptions)
-      } finally {
-        setIsLoadingFonts(false)
-      }
-    },
-    []
-  )
+    } catch (error) {
+      console.error("Failed to load system fonts:", error)
+      setFontOptions(defaultFontOptions)
+      applySelectedFont(defaultFontOptions)
+    } finally {
+      setIsLoadingFonts(false)
+    }
+  }, [])
 
   const loadAll = useCallback(async () => {
     const api = (window as any).api
@@ -1448,10 +1445,7 @@ export const Settings: React.FC<{
             <Radio.Group
               value={syncMethod}
               onChange={async (e) => {
-                const next = e.target.value as
-                  | "postgresql"
-                  | "sectl_cloud"
-                  | "sectl_cloud_v2"
+                const next = e.target.value as "postgresql" | "sectl_cloud" | "sectl_cloud_v2"
                 const previous = syncMethod
                 if (syncMethodChangeInFlight) {
                   logSyncMethodEvent("sync_method:selection_ignored_in_flight", {
@@ -1662,9 +1656,7 @@ export const Settings: React.FC<{
                     borderColor:
                       syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary)" : undefined,
                     backgroundColor:
-                      syncMethod === "sectl_cloud_v2"
-                        ? "var(--ant-color-primary-bg)"
-                        : undefined,
+                      syncMethod === "sectl_cloud_v2" ? "var(--ant-color-primary-bg)" : undefined,
                     cursor: "pointer",
                   }}
                 >
@@ -1736,30 +1728,38 @@ export const Settings: React.FC<{
                   保存并连接
                 </Button>
               </Space.Compact>
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ marginBottom: "6px", fontSize: "12px" }}>开发账号（DEV_AUTH）</div>
-                <Space.Compact style={{ width: "100%" }}>
-                  <Input
-                    value={syncDevUserId}
-                    onChange={(event) => setSyncDevUserId(event.target.value)}
-                    placeholder="local-demo-user"
-                    disabled={!canAdmin}
-                  />
-                  <Button
-                    disabled={!canAdmin || !syncDevUserId.trim()}
-                    onClick={() => {
-                      syncClient.setDevUserId(syncDevUserId)
-                      void syncClient.syncNow()
-                      messageApi.success("开发账号已保存并开始同步")
+              {import.meta.env.DEV && (
+                <div style={{ marginTop: "12px" }}>
+                  <div style={{ marginBottom: "6px", fontSize: "12px" }}>开发账号（DEV_AUTH）</div>
+                  <Space.Compact style={{ width: "100%" }}>
+                    <Input
+                      value={syncDevUserId}
+                      onChange={(event) => setSyncDevUserId(event.target.value)}
+                      placeholder="local-demo-user"
+                      disabled={!canAdmin}
+                    />
+                    <Button
+                      disabled={!canAdmin || !syncDevUserId.trim()}
+                      onClick={() => {
+                        syncClient.setDevUserId(syncDevUserId)
+                        void syncClient.syncNow()
+                        messageApi.success("开发账号已保存并开始同步")
+                      }}
+                    >
+                      保存账号并同步
+                    </Button>
+                  </Space.Compact>
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      color: "var(--ss-text-secondary)",
                     }}
                   >
-                    保存账号并同步
-                  </Button>
-                </Space.Compact>
-                <div style={{ marginTop: "6px", fontSize: "12px", color: "var(--ss-text-secondary)" }}>
-                  A、B 两端必须填写相同账号。若客户端已登录 OAuth，将优先使用 OAuth 账号。
+                    A、B 两端必须填写相同账号。若客户端已登录 OAuth，将优先使用 OAuth 账号。
+                  </div>
                 </div>
-              </div>
+              )}
             </Card>
           )}
 

@@ -21,6 +21,7 @@ use std::{
     net::SocketAddr,
     path::PathBuf,
     sync::Arc,
+    time::Duration,
 };
 use tokio::sync::broadcast;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
@@ -182,6 +183,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log_path.display()
     );
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is required");
+    let bind_addr = env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into());
+    let addr: SocketAddr = bind_addr.parse()?;
+    let dev_auth = env::var("DEV_AUTH").unwrap_or_default() == "true";
+    let sectl_introspect_url = env::var("SECTL_INTROSPECT_URL").ok();
+    let sectl_client_id = env::var("SECTL_CLIENT_ID").ok();
+
+    if dev_auth && !addr.ip().is_loopback() {
+        return Err("DEV_AUTH=true 仅允许绑定 loopback 地址；生产环境必须使用 SECTL Token".into());
+    }
+    if !dev_auth && (sectl_introspect_url.is_none() || sectl_client_id.is_none()) {
+        return Err("DEV_AUTH=false 时必须配置 SECTL_INTROSPECT_URL 和 SECTL_CLIENT_ID".into());
+    }
+
     let pool = PgPoolOptions::new()
         .max_connections(10)
         .connect(&database_url)
@@ -191,15 +205,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (change_tx, _) = broadcast::channel(512);
     let state = Arc::new(AppState {
         pool,
-        http: Client::new(),
-        sectl_introspect_url: env::var("SECTL_INTROSPECT_URL").ok(),
-        sectl_client_id: env::var("SECTL_CLIENT_ID").ok(),
-        dev_auth: env::var("DEV_AUTH").unwrap_or_default() == "true",
+        http: Client::builder().timeout(Duration::from_secs(5)).build()?,
+        sectl_introspect_url,
+        sectl_client_id,
+        dev_auth,
         changes: change_tx,
     });
     info!(
         event = "server_config",
-        bind_addr = %env::var("BIND_ADDR").unwrap_or_else(|_| "127.0.0.1:8787".into()),
+        bind_addr = %bind_addr,
         dev_auth = state.dev_auth,
         database = %database_url.chars().take(12).collect::<String>(),
         "同步服务配置已加载"
@@ -215,9 +229,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
-    let addr: SocketAddr = env::var("BIND_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:8787".into())
-        .parse()?;
     info!(%addr, "SecScore sync server started");
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
@@ -311,18 +322,26 @@ async fn authenticate(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<AuthUser, (StatusCode, Json<ApiError>)> {
-    if state.dev_auth {
-        if let Some(user) = headers.get("x-dev-user-id").and_then(|v| v.to_str().ok()) {
-            return Ok(AuthUser {
-                sectl_user_id: user.to_string(),
-            });
-        }
-    }
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| unauthorized("missing bearer token"))?;
+        .filter(|value| !value.trim().is_empty());
+
+    // 只有没有 Bearer Token 时才允许使用本地开发身份；一旦请求携带 Token，
+    // 必须以 SECTL introspection 的结果为准，避免开发头覆盖真实登录用户。
+    if token.is_none() && state.dev_auth {
+        if let Some(user) = headers.get("x-dev-user-id").and_then(|v| v.to_str().ok()) {
+            if user.trim().is_empty() {
+                return Err(unauthorized("empty development user id"));
+            }
+            return Ok(AuthUser {
+                sectl_user_id: user.trim().to_string(),
+            });
+        }
+    }
+
+    let token = token.ok_or_else(|| unauthorized("missing bearer token"))?;
     let url = state
         .sectl_introspect_url
         .as_ref()
@@ -348,13 +367,29 @@ async fn authenticate(
     if data.get("active").and_then(Value::as_bool) != Some(true) {
         return Err(unauthorized("inactive token"));
     }
+
+    // SECTL 的 introspection 请求已经携带服务端配置的 client_id；如果响应
+    // 返回平台归属，则必须再次核对，不能接受另一个平台签发的 Token。
+    let returned_client_id = data
+        .get("client_id")
+        .or_else(|| data.get("platform_id"))
+        .and_then(Value::as_str);
+    if let Some(returned_client_id) = returned_client_id {
+        if returned_client_id != client_id {
+            return Err(unauthorized("token belongs to another SECTL platform"));
+        }
+    }
+
     let user_id = data
         .get("user_id")
         .and_then(Value::as_str)
         .or_else(|| data.get("sub").and_then(Value::as_str))
         .ok_or_else(|| unauthorized("SECTL response has no user id"))?;
+    if user_id.trim().is_empty() {
+        return Err(unauthorized("SECTL response has an empty user id"));
+    }
     Ok(AuthUser {
-        sectl_user_id: user_id.to_string(),
+        sectl_user_id: user_id.trim().to_string(),
     })
 }
 

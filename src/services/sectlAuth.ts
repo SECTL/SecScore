@@ -159,7 +159,9 @@ class SectlAuthService {
   async getAuthorizationUrl(scope?: string[]): Promise<string> {
     const t0 = performance.now()
     const log = (step: string) =>
-      console.log(`[sectlAuth.getAuthorizationUrl] ${step} +${Math.round(performance.now() - t0)}ms`)
+      console.log(
+        `[sectlAuth.getAuthorizationUrl] ${step} +${Math.round(performance.now() - t0)}ms`
+      )
 
     const state = this.generateRandomState()
     this.authorizationState = state
@@ -196,24 +198,58 @@ class SectlAuthService {
 
     const authUrl = await this.getAuthorizationUrl(scope)
     const authWindow = window.open(authUrl, "_blank", "width=600,height=700")
+    if (!authWindow) {
+      throw new Error("无法打开 OAuth 授权窗口")
+    }
 
     return new Promise((resolve, reject) => {
-      window.addEventListener("message", async (event) => {
-        if (event.data.type === "oauth-callback" && event.data.code) {
-          try {
-            const token = await this.exchangeCodeForToken(event.data.code, scope)
-            authWindow?.close()
-            resolve(token)
-          } catch (error) {
-            reject(error)
-          }
+      let settled = false
+      const expectedState = this.authorizationState || localStorage.getItem("sectl_oauth_state")
+      const allowedOrigins = new Set([
+        new URL(SECTL_CONFIG.authUrl).origin,
+        new URL(SECTL_CONFIG.callbackUrl).origin,
+        window.location.origin,
+      ])
+
+      const cleanup = () => {
+        window.removeEventListener("message", onMessage)
+        window.clearInterval(checkInterval)
+      }
+      const fail = (error: unknown) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
+      const onMessage = async (event: MessageEvent) => {
+        if (
+          !allowedOrigins.has(event.origin) ||
+          event.source !== authWindow ||
+          event.data?.type !== "oauth-callback" ||
+          !event.data.code ||
+          !expectedState ||
+          event.data.state !== expectedState
+        ) {
+          return
         }
-      })
+
+        try {
+          const token = await this.exchangeCodeForToken(event.data.code, scope)
+          if (settled) return
+          settled = true
+          cleanup()
+          authWindow.close()
+          resolve(token)
+        } catch (error) {
+          fail(error)
+        }
+      }
+
+      window.addEventListener("message", onMessage)
 
       const checkInterval = setInterval(() => {
-        if (authWindow?.closed) {
-          clearInterval(checkInterval)
-          reject(new Error("授权窗口已关闭"))
+        if (authWindow.closed) {
+          fail(new Error("授权窗口已关闭"))
         }
       }, 1000)
     })
