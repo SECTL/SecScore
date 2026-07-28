@@ -9,6 +9,11 @@ import { fileURLToPath } from "node:url"
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const envFile = resolve(rootDir, process.env.SYNC_SERVER_ENV_FILE || ".env.sync-server.development.local")
 const port = Number(process.env.SYNC_SERVER_PORT || "8787")
+const embeddedServerDir = resolve(rootDir, "sync-server")
+const configuredServerDir = process.env.SYNC_SERVER_DIR
+  ? resolve(rootDir, process.env.SYNC_SERVER_DIR)
+  : null
+const siblingServerDir = resolve(rootDir, "..", "SecScore-Sync-Server")
 
 const parseEnvFile = (filePath) => {
   if (!existsSync(filePath)) return {}
@@ -101,14 +106,30 @@ const killPort = () => {
   }
 }
 
-killPort()
+const serverDir =
+  (configuredServerDir && existsSync(resolve(configuredServerDir, "Cargo.toml")) && configuredServerDir) ||
+  (existsSync(resolve(siblingServerDir, "Cargo.toml")) && siblingServerDir) ||
+  (existsSync(resolve(embeddedServerDir, "Cargo.toml")) && embeddedServerDir) ||
+  null
 
 const fileEnv = parseEnvFile(envFile)
+const connectOnly = process.env.SYNC_SERVER_ONLY === "true" || fileEnv.SYNC_SERVER_ONLY === "true"
 const childEnv = {
   ...fileEnv,
   ...process.env,
   BIND_ADDR: process.env.BIND_ADDR || fileEnv.BIND_ADDR || `0.0.0.0:${port}`,
 }
+
+if (connectOnly || !serverDir) {
+  console.log(
+    `[sync-server] no local backend repository; use the already running server at ${
+      childEnv.SYNC_SERVER_URL || `http://127.0.0.1:${port}`
+    }`
+  )
+  process.exit(0)
+}
+
+killPort()
 
 if (!childEnv.DATABASE_URL) {
   console.error(`[sync-server] DATABASE_URL is missing; create ${envFile}`)
@@ -116,10 +137,12 @@ if (!childEnv.DATABASE_URL) {
 }
 
 console.log(`[sync-server] using ${envFile}`)
+console.log(`[sync-server] backend directory: ${serverDir}`)
+const manifestPath = resolve(serverDir, "Cargo.toml")
 const child = spawn(
   "cargo",
-  ["run", "--manifest-path", resolve(rootDir, "sync-server/Cargo.toml")],
-  { cwd: rootDir, env: childEnv, stdio: "inherit" }
+  ["run", "--manifest-path", manifestPath],
+  { cwd: serverDir, env: childEnv, stdio: "inherit" }
 )
 
 const forwardSignal = (signal) => {

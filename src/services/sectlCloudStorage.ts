@@ -4,6 +4,7 @@
  */
 
 import { SECTL_CONFIG, sectlAuth } from "./sectlAuth"
+import { backendErrorMessage, backendFetch } from "./backendApi"
 
 export interface CloudFile {
   file_id: string
@@ -79,21 +80,16 @@ class SectlCloudStorageService {
   ): Promise<CloudFile> {
     const formData = new FormData()
     formData.append("file", file, options?.filename)
-    formData.append("client_id", SECTL_CONFIG.platformId)
-    const userId = sectlAuth.getUserId()
-    if (userId) formData.append("user_id", userId)
     if (options?.description) formData.append("description", options.description)
     if (options?.tags) formData.append("tags", JSON.stringify(options.tags))
 
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/upload`, {
+    const response = await backendFetch("/v1/cloud/files", {
       method: "POST",
-      headers: this.getAuthHeaders(),
       body: formData,
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "文件上传失败")
+      throw new Error(await backendErrorMessage(response, "文件上传失败"))
     }
     return response.json()
   }
@@ -103,44 +99,34 @@ class SectlCloudStorageService {
     limit?: number
     offset?: number
   }): Promise<{ files: CloudFile[]; total: number }> {
-    const params = this.buildParams()
-    if (options?.folder) params.append("folder", options.folder)
+    const params = new URLSearchParams()
     if (options?.limit) params.append("limit", String(options.limit))
     if (options?.offset) params.append("offset", String(options.offset))
-
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files?${params}`, {
-      headers: this.getAuthHeaders(),
-    })
+    const suffix = params.toString() ? `?${params}` : ""
+    const response = await backendFetch(`/v1/cloud/files${suffix}`)
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "获取文件列表失败")
+      throw new Error(await backendErrorMessage(response, "获取文件列表失败"))
     }
     return response.json()
   }
 
   async getFileInfo(fileId: string): Promise<CloudFile> {
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
-      headers: this.getAuthHeaders(),
-    })
+    const response = await backendFetch(`/v1/cloud/files/${encodeURIComponent(fileId)}`)
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "获取文件信息失败")
+      throw new Error(await backendErrorMessage(response, "获取文件信息失败"))
     }
     return response.json()
   }
 
   async downloadFile(fileId: string): Promise<Blob> {
-    const params = this.buildParams()
-    const response = await fetch(
-      `${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}/download?${params}`,
-      { headers: this.getAuthHeaders() }
+    const response = await backendFetch(
+      `/v1/cloud/files/${encodeURIComponent(fileId)}/download`
     )
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "下载文件失败")
+      throw new Error(await backendErrorMessage(response, "下载文件失败"))
     }
     return response.blob()
   }
@@ -159,35 +145,26 @@ class SectlCloudStorageService {
     return response.json()
   }
 
-  async deleteFile(fileId: string, userId?: string): Promise<void> {
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
+  async deleteFile(fileId: string, _userId?: string): Promise<void> {
+    const response = await backendFetch(`/v1/cloud/files/${encodeURIComponent(fileId)}`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
-      body: JSON.stringify({
-        client_id: SECTL_CONFIG.platformId,
-        ...(userId ? { user_id: userId } : {}),
-      }),
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "删除文件失败")
+      throw new Error(await backendErrorMessage(response, "删除文件失败"))
     }
   }
 
   async renameFile(fileId: string, newFilename: string): Promise<CloudFile> {
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/files/${fileId}`, {
+    const response = await backendFetch(`/v1/cloud/files/${encodeURIComponent(fileId)}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
       body: JSON.stringify({
-        client_id: SECTL_CONFIG.platformId,
         filename: newFilename,
       }),
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "重命名文件失败")
+      throw new Error(await backendErrorMessage(response, "重命名文件失败"))
     }
     return response.json()
   }
@@ -196,21 +173,16 @@ class SectlCloudStorageService {
     fileId: string,
     options?: { expiresIn?: number; password?: string; userId?: string }
   ): Promise<ShareLink> {
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/share`, {
+    const response = await backendFetch("/v1/cloud/share", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...this.getAuthHeaders() },
       body: JSON.stringify({
-        client_id: SECTL_CONFIG.platformId,
         file_id: fileId,
         ...(options?.expiresIn ? { expires_in: options.expiresIn } : {}),
-        ...(options?.password ? { password: options.password } : {}),
-        ...(options?.userId ? { user_id: options.userId } : {}),
       }),
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "创建分享链接失败")
+      throw new Error(await backendErrorMessage(response, "创建分享链接失败"))
     }
     return response.json()
   }
@@ -277,14 +249,10 @@ class SectlCloudStorageService {
   }
 
   async getStorageUsage(): Promise<StorageUsage> {
-    const params = this.buildParams()
-    const response = await fetch(`${SECTL_CONFIG.baseUrl}/api/cloud/storage/usage?${params}`, {
-      headers: this.getAuthHeaders(),
-    })
+    const response = await backendFetch("/v1/cloud/usage")
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || "获取存储使用情况失败")
+      throw new Error(await backendErrorMessage(response, "获取存储使用情况失败"))
     }
     return response.json()
   }

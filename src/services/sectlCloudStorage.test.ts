@@ -34,7 +34,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.uploadFile(file, { filename: "test.txt" })
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${SECTL_CONFIG.baseUrl}/api/cloud/upload`,
+        "http://127.0.0.1:8787/v1/cloud/files",
         expect.objectContaining({
           method: "POST",
         })
@@ -53,7 +53,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.listFiles({ limit: 10, offset: 0 })
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining(`${SECTL_CONFIG.baseUrl}/api/cloud/files`),
+        expect.stringContaining("http://127.0.0.1:8787/v1/cloud/files"),
         expect.any(Object)
       )
     })
@@ -70,7 +70,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.getFileInfo("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${SECTL_CONFIG.baseUrl}/api/cloud/files/file-123`,
+        "http://127.0.0.1:8787/v1/cloud/files/file-123",
         expect.any(Object)
       )
     })
@@ -87,7 +87,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.downloadFile("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining(`${SECTL_CONFIG.baseUrl}/api/cloud/files/file-123/download`),
+        expect.stringContaining("http://127.0.0.1:8787/v1/cloud/files/file-123/download"),
         expect.any(Object)
       )
     })
@@ -104,7 +104,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.renameFile("file-123", "new.txt")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${SECTL_CONFIG.baseUrl}/api/cloud/files/file-123`,
+        "http://127.0.0.1:8787/v1/cloud/files/file-123",
         expect.objectContaining({
           method: "PUT",
         })
@@ -123,7 +123,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.createShare("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `${SECTL_CONFIG.baseUrl}/api/cloud/share`,
+        "http://127.0.0.1:8787/v1/cloud/share",
         expect.objectContaining({
           method: "POST",
         })
