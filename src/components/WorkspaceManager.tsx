@@ -1,6 +1,6 @@
 import { AppstoreOutlined, LoginOutlined, PlusOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons"
 import { Button, Divider, Input, List, Modal, Space, Tag, message } from "antd"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
 import type { WorkspaceState } from "../preload/types"
 import { getBackendBaseUrl } from "../services/backendApi"
@@ -41,8 +41,11 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   const [newClassName, setNewClassName] = useState("")
   const [joinCode, setJoinCode] = useState("")
   const [messageApi, contextHolder] = message.useMessage()
+  const currentClassIdRef = useRef<string | null>(null)
 
   const applyState = useCallback((next: WorkspaceState) => {
+    const previousClassId = currentClassIdRef.current
+    currentClassIdRef.current = next.current_class_id
     setState(next)
     workspaceLog("debug", "state_applied", {
       account_count: next.accounts.length,
@@ -55,6 +58,14 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       localStorage.setItem("ss_current_account_id", next.current_account_id)
     } catch {
       // 非桌面环境可能没有持久化存储，Tauri 目录库仍是最终状态。
+    }
+
+    if (previousClassId && previousClassId !== next.current_class_id) {
+      window.dispatchEvent(
+        new CustomEvent("ss:data-updated", {
+          detail: { category: "all", source: "workspace" },
+        })
+      )
     }
   }, [])
 
