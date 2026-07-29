@@ -1,14 +1,8 @@
 import { sectlAuth } from "./sectlAuth"
-
-const DEFAULT_BACKEND_URL =
-  (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
+import { DEFAULT_SYNC_SERVER_URL } from "./syncServerConfig"
 
 export const getBackendBaseUrl = (): string => {
-  try {
-    return (localStorage.getItem("ss_sync_server_url") || DEFAULT_BACKEND_URL).replace(/\/$/, "")
-  } catch {
-    return DEFAULT_BACKEND_URL
-  }
+  return DEFAULT_SYNC_SERVER_URL
 }
 
 export const backendFetch = async (path: string, init: RequestInit = {}): Promise<Response> => {

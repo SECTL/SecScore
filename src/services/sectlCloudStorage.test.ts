@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { sectlCloudStorage } from "./sectlCloudStorage"
 import { SECTL_CONFIG, sectlAuth } from "./sectlAuth"
+import { DEFAULT_SYNC_SERVER_URL } from "./syncServerConfig"
 
 // Mock fetch and sectlAuth
 global.fetch = vi.fn()
@@ -34,7 +35,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.uploadFile(file, { filename: "test.txt" })
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8787/v1/cloud/files",
+        `${DEFAULT_SYNC_SERVER_URL}/v1/cloud/files`,
         expect.objectContaining({
           method: "POST",
         })
@@ -53,7 +54,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.listFiles({ limit: 10, offset: 0 })
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining("http://127.0.0.1:8787/v1/cloud/files"),
+        expect.stringContaining(`${DEFAULT_SYNC_SERVER_URL}/v1/cloud/files`),
         expect.any(Object)
       )
     })
@@ -70,7 +71,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.getFileInfo("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8787/v1/cloud/files/file-123",
+        `${DEFAULT_SYNC_SERVER_URL}/v1/cloud/files/file-123`,
         expect.any(Object)
       )
     })
@@ -87,7 +88,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.downloadFile("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining("http://127.0.0.1:8787/v1/cloud/files/file-123/download"),
+        expect.stringContaining(`${DEFAULT_SYNC_SERVER_URL}/v1/cloud/files/file-123/download`),
         expect.any(Object)
       )
     })
@@ -104,7 +105,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.renameFile("file-123", "new.txt")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8787/v1/cloud/files/file-123",
+        `${DEFAULT_SYNC_SERVER_URL}/v1/cloud/files/file-123`,
         expect.objectContaining({
           method: "PUT",
         })
@@ -123,7 +124,7 @@ describe("sectlCloudStorage", () => {
       await sectlCloudStorage.createShare("file-123")
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:8787/v1/cloud/share",
+        `${DEFAULT_SYNC_SERVER_URL}/v1/cloud/share`,
         expect.objectContaining({
           method: "POST",
         })

@@ -1,12 +1,12 @@
 import { sectlAuth } from "./sectlAuth"
+import { DEFAULT_SYNC_SERVER_URL } from "./syncServerConfig"
 
-const SERVER_URL_KEY = "ss_sync_server_url"
 const DEVICE_ID_KEY = "ss_sync_device_id"
 const OUTBOX_KEY = "ss_sync_outbox"
 const APPLIED_KEY = "ss_sync_applied_operations"
 const CURSOR_KEY = "ss_sync_cursor"
 const SYNC_ENABLED_KEY = "ss_sync_enabled"
-const DEFAULT_SERVER_URL = (import.meta as any).env?.VITE_SYNC_SERVER_URL || "http://127.0.0.1:8787"
+const DEFAULT_SERVER_URL = DEFAULT_SYNC_SERVER_URL
 const SYNC_REQUEST_TIMEOUT_MS = 10_000
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 15_000
 const SNAPSHOT_RETRY_INTERVAL_MS = 60_000
@@ -160,7 +160,7 @@ class SyncClient {
     authenticated: sectlAuth.isAuthenticated(),
     realtimeConnected: false,
     isSyncing: false,
-    serverUrl: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
+    serverUrl: DEFAULT_SERVER_URL,
     lastSyncAt: null,
     lastError: null,
   }
@@ -214,7 +214,7 @@ class SyncClient {
     })
     localStorage.setItem(SYNC_ENABLED_KEY, String(enabled))
     syncLog("info", enabled ? "同步已启用" : "同步已停用", {
-      server_url: localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL,
+      server_url: DEFAULT_SERVER_URL,
       authenticated: sectlAuth.isAuthenticated(),
     })
     if (enabled && changed) {
@@ -229,13 +229,6 @@ class SyncClient {
     if (value === "true") return true
     if (value === "false") return false
     return null
-  }
-
-  setServerUrl(url: string) {
-    const normalizedUrl = url.replace(/\/$/, "")
-    localStorage.setItem(SERVER_URL_KEY, normalizedUrl)
-    this.updateStatus({ serverUrl: normalizedUrl })
-    syncLog("info", "同步服务器地址已更新", { server_url: localStorage.getItem(SERVER_URL_KEY) })
   }
 
   createOperationId(): string {
@@ -453,7 +446,7 @@ class SyncClient {
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
     if (!classId) return
-    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const serverUrl = DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const snapshot = await this.buildSnapshot()
     const requestId = newUuid()
@@ -555,7 +548,7 @@ class SyncClient {
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
     if (!classId) return
-    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const serverUrl = DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
     syncLog("info", "开始拉取服务器最新业务数据快照", {
@@ -795,7 +788,7 @@ class SyncClient {
     void (async () => {
       while (this.enabled) {
         try {
-          const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+          const serverUrl = DEFAULT_SERVER_URL
           const requestId = newUuid()
           const classId = await this.getRemoteClassId()
           if (!classId) {
@@ -932,7 +925,7 @@ class SyncClient {
     this.snapshotPullRequested = false
     this.syncing = true
     const startedAt = Date.now()
-    const serverUrl = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_SERVER_URL
+    const serverUrl = DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
     this.updateStatus({

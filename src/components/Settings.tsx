@@ -227,9 +227,6 @@ export const Settings: React.FC<{
   }
 
   const [syncMethod, setSyncMethod] = useState<"postgresql" | "sectl_cloud_v2">("sectl_cloud_v2")
-  const [syncServerUrl, setSyncServerUrl] = useState(
-    localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787"
-  )
 
   useEffect(() => {
     logSyncMethodEvent("sync_method:settings_state", {
@@ -1667,26 +1664,8 @@ export const Settings: React.FC<{
                   color: "var(--ss-text-secondary)",
                 }}
               >
-                开发环境默认连接本机 8787 端口，也可以填写已部署的 HTTPS 地址。
+                默认连接线上同步服务；开发时可通过 VITE_SYNC_SERVER_URL 环境变量指定其他地址。
               </div>
-              <Space.Compact style={{ width: "100%" }}>
-                <Input
-                  value={syncServerUrl}
-                  onChange={(event) => setSyncServerUrl(event.target.value)}
-                  placeholder="http://127.0.0.1:8787"
-                  disabled={!canAdmin}
-                />
-                <Button
-                  disabled={!canAdmin || !syncServerUrl.trim()}
-                  onClick={() => {
-                    syncClient.setServerUrl(syncServerUrl.trim())
-                    void syncClient.syncNow()
-                    messageApi.success("同步服务器地址已保存")
-                  }}
-                >
-                  保存并连接
-                </Button>
-              </Space.Compact>
               <div style={{ marginTop: "12px" }}>
                 <Tag color={oauthUserInfo || sectlAuth.isAuthenticated() ? "success" : "warning"}>
                   {oauthUserInfo || sectlAuth.isAuthenticated()

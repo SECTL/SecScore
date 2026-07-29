@@ -3,6 +3,7 @@ import { Button, Divider, Input, List, Modal, Space, Tag, message } from "antd"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
 import type { WorkspaceState } from "../preload/types"
+import { getBackendBaseUrl } from "../services/backendApi"
 import { sectlAuth } from "../services/sectlAuth"
 import { syncClient } from "../services/syncClient"
 
@@ -207,7 +208,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       workspaceLog("warn", "remote_request_skipped_no_token", { method, path })
       throw new Error("请先登录 SECTL 账号")
     }
-    const serverUrl = (localStorage.getItem("ss_sync_server_url") || "http://127.0.0.1:8787").replace(/\/$/, "")
+    const serverUrl = getBackendBaseUrl()
     workspaceLog("info", "remote_request_start", { method, path })
     try {
       const response = await fetch(`${serverUrl}${path}`, {
