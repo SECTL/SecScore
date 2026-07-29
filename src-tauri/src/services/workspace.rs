@@ -750,7 +750,7 @@ impl WorkspaceService {
                     == self.current_class_id,
                 is_member: row.try_get_by::<i64, _>("is_member").unwrap_or(0) != 0,
             })
-            .filter(|class| class.is_member)
+            .filter(|class| class.is_member && class.status != "deleted")
             .collect();
         Ok(WorkspaceState {
             current_account_id: self.current_account_id.clone(),
