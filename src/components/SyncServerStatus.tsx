@@ -15,6 +15,7 @@ const STATUS_META: Record<
   { label: string; color: string; icon: React.ReactNode }
 > = {
   disabled: { label: "未启用", color: "default", icon: <CloudOutlined /> },
+  unbound: { label: "未绑定云端班级", color: "warning", icon: <CloudOutlined /> },
   connecting: { label: "连接中", color: "processing", icon: <LoadingOutlined spin /> },
   online: { label: "在线", color: "success", icon: <CheckCircleOutlined /> },
   offline: { label: "离线", color: "error", icon: <DisconnectOutlined /> },
@@ -72,6 +73,11 @@ export const SyncServerStatus: React.FC = () => {
         <Typography.Text type="secondary" style={{ fontSize: "12px" }}>
           上次成功同步：{formatSyncTime(status.lastSyncAt)}
         </Typography.Text>
+        {status.state === "unbound" && (
+          <Typography.Text type="warning" style={{ fontSize: "12px" }}>
+            请在“账号和班级”中发布当前本地班级，或加入已有的线上班级。
+          </Typography.Text>
+        )}
         {status.lastError && (
           <Typography.Text type="danger" style={{ fontSize: "12px" }}>
             {status.lastError}

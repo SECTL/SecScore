@@ -41,6 +41,7 @@ const setScopedValue = (key: string, value: string) => {
 
 export type SyncConnectionState =
   | "disabled"
+  | "unbound"
   | "connecting"
   | "online"
   | "offline"
@@ -958,6 +959,13 @@ class SyncClient {
     try {
       const classId = await this.getRemoteClassId()
       if (!classId) {
+        this.updateStatus({
+          state: "unbound",
+          authenticated: sectlAuth.isAuthenticated(),
+          realtimeConnected: false,
+          isSyncing: false,
+          lastError: null,
+        })
         syncLog("debug", "当前班级未绑定云端班级，跳过同步", {
           local_class_id: getCurrentClassId(),
           request_id: requestId,
