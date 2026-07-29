@@ -17,6 +17,44 @@ interface OAuthLoginProps {
   }) => void
 }
 
+async function persistLoginState(
+  tokenData: {
+    access_token: string
+    refresh_token?: string
+    token_type?: string
+    expires_in?: number
+  },
+  userInfo: {
+    user_id?: string
+    id?: string
+    email?: string
+    name?: string
+  }
+): Promise<void> {
+  const api = (window as any).api
+  const userId = userInfo.user_id || userInfo.id
+  if (!api?.oauthSaveLoginState || !userId) return
+
+  try {
+    const result = await api.oauthSaveLoginState({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || "",
+      token_type: tokenData.token_type || "Bearer",
+      expires_in: tokenData.expires_in || 0,
+      user_id: userId,
+      email: userInfo.email || "",
+      name: userInfo.name || userInfo.email || userId,
+      login_time: new Date().toISOString(),
+    })
+    if (!result?.success) {
+      console.warn("[OAuthLogin] Failed to persist login state:", result?.message)
+    }
+  } catch (error) {
+    // 持久化失败不能让已完成的 OAuth 登录被误判为失败。
+    console.warn("[OAuthLogin] Failed to persist login state:", error)
+  }
+}
+
 export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
@@ -90,6 +128,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         if (result) {
           completedRef.current = true
           const userInfo = await sectlAuth.getUserInfo()
+          await persistLoginState(result, userInfo)
           onSuccess(userInfo)
           onClose()
         }

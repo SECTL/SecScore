@@ -181,8 +181,15 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     try {
       const raw = localStorage.getItem(`sectl_token:${userId}`)
       if (raw) {
-        sectlAuth.restoreToken(JSON.parse(raw))
-        workspaceLog("info", "account_token_restored", { user_id: maskIdentifier(userId) })
+        const token = JSON.parse(raw)
+        if (sectlAuth.restoreToken(token)) {
+          workspaceLog("info", "account_token_restored", { user_id: maskIdentifier(userId) })
+        } else {
+          localStorage.removeItem(`sectl_token:${userId}`)
+          workspaceLog("warn", "account_token_expired_removed", {
+            user_id: maskIdentifier(userId),
+          })
+        }
       } else {
         workspaceLog("debug", "account_token_restore_skipped", { user_id: maskIdentifier(userId) })
       }

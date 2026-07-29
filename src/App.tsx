@@ -32,6 +32,7 @@ import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { OAuthLogin } from "./components/OAuth/OAuthLogin"
 import { OAuthCallback } from "./components/OAuth/OAuthCallback"
+import { sectlAuth } from "./services/sectlAuth"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
@@ -559,6 +560,7 @@ function MainContent(): React.JSX.Element {
     // 退出时同时清理 OAuth 持久化状态，避免刷新后又自动恢复权限
     try {
       await api.oauthClearLoginState()
+      sectlAuth.clearLocalSession()
       setOAuthUserName(null)
       window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
     } catch (error) {
@@ -578,6 +580,7 @@ function MainContent(): React.JSX.Element {
 
     try {
       await api.oauthClearLoginState()
+      sectlAuth.clearLocalSession()
       setOAuthUserName(null)
       window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
       await refreshPermissionFromAuth()

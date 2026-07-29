@@ -136,6 +136,33 @@ function extractPlatformIdFromJwt(accessToken: string): string | null {
   }
 }
 
+function extractExpiryFromJwt(accessToken: string): number | null {
+  try {
+    const parts = accessToken.split(".")
+    if (parts.length !== 3) return null
+    let payload = parts[1]
+    const padding = 4 - (payload.length % 4)
+    if (padding !== 4) payload += "=".repeat(padding)
+    const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
+    const exp = JSON.parse(decoded).exp
+    return typeof exp === "number" && Number.isFinite(exp) ? exp : null
+  } catch {
+    return null
+  }
+}
+
+function getAccessTokenFromData(tokenData: TokenData): string {
+  return String(tokenData.access_token || "").split("|")[0]
+}
+
+function getTokenExpiry(tokenData: TokenData): number | null {
+  if (tokenData.expires_at) {
+    const expiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
+    if (Number.isFinite(expiresAt)) return expiresAt
+  }
+  return extractExpiryFromJwt(getAccessTokenFromData(tokenData))
+}
+
 const PUBLIC_IP_ENDPOINTS = [
   "https://api.ipify.org?format=text",
   "https://ddns.oray.com/checkip",
@@ -569,10 +596,6 @@ class SectlAuthService {
       authLog("error", "OAuth 登出请求失败", { error: String(error) })
       console.error("登出失败:", error)
     } finally {
-      this.accessToken = null
-      this.refreshToken = null
-      this.tokenExpiresAt = null
-      this.userId = null
       this.clearToken()
       authLog("info", "OAuth 本地登录状态已清除", {
         platform_id: SECTL_CONFIG.platformId,
@@ -598,23 +621,31 @@ class SectlAuthService {
       SECTL_CONFIG.platformId = jwtPlatformId
     }
 
-    if (tokenData.expires_at) {
-      this.tokenExpiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
-    } else if (tokenData.expires_in) {
+    // JWT 的 exp 是签发时确定的绝对过期时间。不要在客户端重启或恢复账号
+    // 缓存时重新按 expires_in 计算，否则过期 token 会被误认为重新获得一小时有效期。
+    this.tokenExpiresAt = getTokenExpiry(tokenData)
+    if (!this.tokenExpiresAt && tokenData.expires_in) {
       this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
     }
+
+    const expiresAt = this.tokenExpiresAt
+      ? new Date(this.tokenExpiresAt * 1000).toISOString()
+      : tokenData.expires_at
 
     const storableData: TokenData = {
       access_token: rawAccessToken,
       refresh_token: tokenData.refresh_token,
       token_type: tokenData.token_type,
       expires_in: tokenData.expires_in,
-      expires_at: tokenData.expires_at,
+      expires_at: expiresAt,
       scope: tokenData.scope,
       user_id: this.userId || undefined,
     }
 
     localStorage.setItem("sectl_token", JSON.stringify(storableData))
+    if (this.userId) {
+      localStorage.setItem(`sectl_token:${this.userId}`, JSON.stringify(storableData))
+    }
     authLog("info", "OAuth token 已保存", {
       platform_id: SECTL_CONFIG.platformId,
       user_id: this.userId,
@@ -646,11 +677,8 @@ class SectlAuthService {
 
         this.userId = tokenData.user_id || extractUserIdFromJwt(this.accessToken)
 
-        if (tokenData.expires_at) {
-          this.tokenExpiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
-        } else if (tokenData.expires_in) {
-          this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
-        }
+        // 缓存中的 expires_in 是原始响应的相对时长，重启后不能再拿它续期。
+        this.tokenExpiresAt = getTokenExpiry(tokenData)
         authLog("info", "已从本地恢复 OAuth token", {
           user_id: this.userId,
           ...describeToken(this.accessToken),
@@ -665,7 +693,9 @@ class SectlAuthService {
   }
 
   private clearToken(): void {
+    const userId = this.userId
     localStorage.removeItem("sectl_token")
+    if (userId) localStorage.removeItem(`sectl_token:${userId}`)
     localStorage.removeItem("sectl_code_verifier")
     localStorage.removeItem("sectl_oauth_state")
     this.accessToken = null
@@ -681,12 +711,27 @@ class SectlAuthService {
     return {
       access_token: this.accessToken,
       refresh_token: this.refreshToken || undefined,
+      expires_at: this.tokenExpiresAt
+        ? new Date(this.tokenExpiresAt * 1000).toISOString()
+        : undefined,
       user_id: this.userId || undefined,
     }
   }
 
-  restoreToken(tokenData: TokenData): void {
+  isTokenDataExpired(tokenData: TokenData): boolean {
+    const expiresAt = getTokenExpiry(tokenData)
+    return expiresAt !== null && Date.now() / 1000 >= expiresAt
+  }
+
+  restoreToken(tokenData: TokenData): boolean {
+    if (this.isTokenDataExpired(tokenData)) {
+      authLog("warn", "拒绝恢复已过期 OAuth token", {
+        user_id: tokenData.user_id || extractUserIdFromJwt(getAccessTokenFromData(tokenData)),
+      })
+      return false
+    }
     this.saveToken(tokenData)
+    return true
   }
 
   getAccessToken(): string | null {
@@ -698,7 +743,7 @@ class SectlAuthService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.accessToken
+    return !!this.accessToken && !this.isTokenExpired()
   }
 
   isTokenExpired(): boolean {

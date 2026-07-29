@@ -426,6 +426,7 @@ export const Settings: React.FC<{
 
     try {
       await api.oauthClearLoginState()
+      sectlAuth.clearLocalSession()
       setOAuthUserInfo(null)
       window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
       messageApi.success(t("settings.account.logoutSuccess", "已退出云账号"))
