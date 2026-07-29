@@ -50,6 +50,21 @@ describe("sectlAuth token persistence", () => {
     expect(sectlAuth.isAuthenticated()).toBe(false)
   })
 
+  it("can restore an expired native token only for refreshing it", async () => {
+    const { sectlAuth } = await import("./sectlAuth")
+    const userId = "user-native-expired"
+    const expiredToken = createToken(userId, Math.floor(Date.now() / 1000) - 60)
+
+    expect(
+      sectlAuth.restoreToken(
+        { access_token: expiredToken, refresh_token: "refresh", user_id: userId },
+        { allowExpired: true }
+      )
+    ).toBe(false)
+    expect(sectlAuth.getAccessToken()).toBe(expiredToken)
+    expect(sectlAuth.isAuthenticated()).toBe(false)
+  })
+
   it("persists a fresh login for its account and rejects an expired account cache", async () => {
     const { sectlAuth } = await import("./sectlAuth")
     const userId = "user-current"

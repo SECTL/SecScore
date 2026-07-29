@@ -723,15 +723,16 @@ class SectlAuthService {
     return expiresAt !== null && Date.now() / 1000 >= expiresAt
   }
 
-  restoreToken(tokenData: TokenData): boolean {
-    if (this.isTokenDataExpired(tokenData)) {
+  restoreToken(tokenData: TokenData, options: { allowExpired?: boolean } = {}): boolean {
+    const expired = this.isTokenDataExpired(tokenData)
+    if (expired && !options.allowExpired) {
       authLog("warn", "拒绝恢复已过期 OAuth token", {
         user_id: tokenData.user_id || extractUserIdFromJwt(getAccessTokenFromData(tokenData)),
       })
       return false
     }
     this.saveToken(tokenData)
-    return true
+    return !expired
   }
 
   getAccessToken(): string | null {
