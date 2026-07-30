@@ -62,6 +62,7 @@ export function TitleBar({ children }: TitleBarProps): React.JSX.Element {
 
   return (
     <div
+      className="ss-title-bar"
       style={
         {
           height: "32px",

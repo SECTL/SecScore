@@ -67,6 +67,47 @@ function MainContent(): React.JSX.Element {
   }, [])
   const [immersiveMode] = useState(!isManagementWindow)
 
+  // 对齐 SECTL Button.vue：水波纹在 click（即松开）后从实际点击坐标扩散。
+  // Ant Design 的 Button 没有可插槽的 ripple API，因此在应用根部以事件委托补上，
+  // 同时避开主页的学生卡片与积分操作专用面板。
+  useEffect(() => {
+    const handleButtonClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      const button = target?.closest<HTMLButtonElement>(".ant-btn")
+      if (!button || button.disabled || button.getAttribute("aria-disabled") === "true") return
+
+      if (
+        button.closest(
+          ".ss-operation-drawer, .ss-home-operation-morph-modal, .ss-operation-panel, .ss-immersive-toolbar"
+        )
+      ) {
+        return
+      }
+
+      const isSectlSurface = Boolean(
+        button.closest(".ss-sectl-page, .ss-app-header, .ss-sidebar, .ss-title-bar, .ant-modal, .ant-drawer")
+      )
+      if (!isSectlSurface) return
+
+      const rect = button.getBoundingClientRect()
+      const size = Math.max(rect.width, rect.height)
+      const originX = event.detail === 0 ? rect.width / 2 : event.clientX - rect.left
+      const originY = event.detail === 0 ? rect.height / 2 : event.clientY - rect.top
+      const ripple = document.createElement("span")
+
+      ripple.className = "ss-sectl-ripple"
+      ripple.style.width = `${size}px`
+      ripple.style.height = `${size}px`
+      ripple.style.left = `${originX - size / 2}px`
+      ripple.style.top = `${originY - size / 2}px`
+      ripple.addEventListener("animationend", () => ripple.remove(), { once: true })
+      button.appendChild(ripple)
+    }
+
+    document.addEventListener("click", handleButtonClick)
+    return () => document.removeEventListener("click", handleButtonClick)
+  }, [])
+
   const normalizeStoredBottomKeys = (raw: unknown): MobileNavKey[] => {
     if (Array.isArray(raw)) {
       return sanitizeMobileNavKeys(raw, []).slice(0, 4)

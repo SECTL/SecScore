@@ -2283,6 +2283,7 @@ export const Settings: React.FC<{
 
   return (
     <div
+      className="ss-settings-page"
       style={{
         padding: "24px",
         maxWidth: "900px",

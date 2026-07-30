@@ -129,6 +129,7 @@ export function ContentArea({
   const isSubPage = location.pathname !== "/" && !location.pathname.startsWith("/home")
   const shouldAnimateSubPage = isPortraitMode && isSubPage
   const normalizedPath = location.pathname === "/" ? "/home" : location.pathname
+  const isHomeRoute = normalizedPath.startsWith("/home")
   const isBoardPage = normalizedPath.startsWith("/boards")
   const isMobileHeaderMode = isPortraitMode && isMobileDevice && !immersiveMode
   const isPrimaryMobilePage =
@@ -697,6 +698,7 @@ export function ContentArea({
       }}
     >
       <div
+        className="ss-app-header"
         style={
           {
             height: "40px",
@@ -945,7 +947,7 @@ export function ContentArea({
         >
           <div
             key={location.pathname}
-            className={`ss-route-page${shouldAnimateSubPage ? " is-subpage-enter" : ""}${isBoardPage ? " is-board-page" : ""}`}
+            className={`ss-route-page${isHomeRoute ? " is-home-route" : " ss-sectl-page"}${shouldAnimateSubPage ? " is-subpage-enter" : ""}${isBoardPage ? " is-board-page" : ""}`}
           >
             <Routes>
               {showHomeRoute && (

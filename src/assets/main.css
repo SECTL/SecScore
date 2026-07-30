@@ -1094,3 +1094,557 @@ html.platform-macos body {
     animation: none !important;
   }
 }
+
+/*
+ * SECTL 网站通用界面风格
+ *
+ * 主页学生卡片与积分操作面板是 SecScore 的独立交互设计，故只将此层作用于
+ * 非主页路由；弹窗的专用选择器也会保留其原有样式。
+ */
+:root {
+  /* 读取主题编辑器写入的 --ss-bg-color；它可以是纯色，也可以是渐变。 */
+  --ss-sectl-canvas: var(--ss-bg-color, #050505);
+  --ss-sectl-section: #0a0a0a;
+  --ss-sectl-panel: rgba(20, 20, 20, 0.92);
+  --ss-sectl-panel-hover: rgba(28, 28, 28, 0.96);
+  --ss-sectl-input: #101010;
+  --ss-sectl-table-head: color-mix(in srgb, var(--ss-primary-color, #8aaaf5) 13%, #121212);
+  --ss-sectl-strong: #faf6ed;
+  --ss-sectl-muted: #aaa69f;
+  --ss-sectl-border: rgba(245, 240, 230, 0.12);
+  --ss-sectl-border-strong: rgba(245, 240, 230, 0.2);
+  --ss-sectl-blue: var(--ss-primary-color, #8aaaf5);
+  --ss-sectl-blue-surface: rgba(var(--ss-primary-rgb, 138, 170, 245), 0.22);
+  --ss-sectl-primary-bg: color-mix(in srgb, var(--ss-primary-color, #8aaaf5) 16%, #1a1a1a);
+  --ss-sectl-primary-hover: color-mix(in srgb, var(--ss-primary-color, #8aaaf5) 24%, #242424);
+  --ss-sectl-primary-text: #faf6ed;
+  --ss-sectl-radius-sm: 4px;
+  --ss-sectl-radius: 8px;
+  --ss-sectl-font:
+    Inter, "PingFang SC", "PingFangTC-Regular", "Hiragino Sans GB", "Noto Sans CJK SC",
+    "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[theme-mode="light"] {
+  --ss-sectl-canvas: var(--ss-bg-color, #f4f1ea);
+  --ss-sectl-section: #ebe7df;
+  --ss-sectl-panel: rgba(255, 253, 248, 0.9);
+  --ss-sectl-panel-hover: #ffffff;
+  --ss-sectl-input: #fffdf8;
+  --ss-sectl-table-head: color-mix(in srgb, var(--ss-primary-color, #243f83) 9%, #f5f2eb);
+  --ss-sectl-strong: #171717;
+  --ss-sectl-muted: #716e68;
+  --ss-sectl-border: rgba(30, 29, 27, 0.14);
+  --ss-sectl-border-strong: rgba(30, 29, 27, 0.24);
+  --ss-sectl-blue: var(--ss-primary-color, #243f83);
+  --ss-sectl-blue-surface: rgba(var(--ss-primary-rgb, 36, 63, 131), 0.1);
+  --ss-sectl-primary-bg: color-mix(in srgb, var(--ss-primary-color, #243f83) 18%, #1f1f1f);
+  --ss-sectl-primary-hover: color-mix(in srgb, var(--ss-primary-color, #243f83) 28%, #303030);
+  --ss-sectl-primary-text: #fffdf8;
+}
+
+.ss-title-bar,
+.ss-app-header,
+.ss-sidebar,
+.ss-sectl-page {
+  font-family: var(--ss-sectl-font);
+}
+
+.ss-title-bar,
+.ss-app-header {
+  background:
+    linear-gradient(rgba(var(--ss-primary-rgb, 0, 82, 217), 0.045), rgba(var(--ss-primary-rgb, 0, 82, 217), 0.045)),
+    var(--ss-bg-color, var(--ss-sectl-section)) !important;
+  background-attachment: fixed !important;
+  border-color: var(--ss-sectl-border) !important;
+  color: var(--ss-sectl-strong);
+}
+
+.ss-title-bar .ant-btn,
+.ss-app-header .ant-btn {
+  border-radius: var(--ss-sectl-radius-sm);
+  color: var(--ss-sectl-strong);
+}
+
+.ss-title-bar .ant-btn:hover,
+.ss-app-header .ant-btn:hover {
+  background: var(--ss-sectl-blue-surface) !important;
+}
+
+.ss-sidebar,
+.ss-immersive-sidebar {
+  background:
+    linear-gradient(rgba(var(--ss-primary-rgb, 0, 82, 217), 0.055), rgba(var(--ss-primary-rgb, 0, 82, 217), 0.055)),
+    var(--ss-bg-color, var(--ss-sectl-section)) !important;
+  background-attachment: fixed !important;
+}
+
+.ss-sidebar .ant-layout-sider,
+.ss-immersive-sidebar .ant-layout-sider {
+  background: transparent !important;
+  border-color: var(--ss-sectl-border) !important;
+}
+
+.ss-sidebar .ant-menu-item {
+  border-radius: var(--ss-sectl-radius-sm) !important;
+  color: var(--ss-sectl-muted) !important;
+  font-weight: 500;
+  margin-inline: 12px !important;
+  width: calc(100% - 24px) !important;
+}
+
+.ss-sidebar .ant-menu-item:hover,
+.ss-sidebar .ant-menu-item-selected {
+  background: var(--ss-sectl-blue-surface) !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sidebar .ant-menu-item-selected::after {
+  display: none;
+}
+
+.ss-content-scroll-container {
+  background: var(--ss-sectl-canvas) !important;
+  background-attachment: fixed !important;
+}
+
+.ss-sectl-page {
+  --ant-color-bg-container: var(--ss-sectl-panel);
+  --ant-color-bg-elevated: var(--ss-sectl-panel);
+  --ant-color-text: var(--ss-sectl-strong);
+  --ant-color-text-secondary: var(--ss-sectl-muted);
+  --ant-color-border: var(--ss-sectl-border);
+  --ant-color-split: var(--ss-sectl-border);
+  min-height: 100%;
+  color: var(--ss-sectl-strong);
+}
+
+.ss-settings-page {
+  max-width: 980px !important;
+  padding: 32px 28px 56px !important;
+}
+
+.ss-settings-page > div:first-of-type h2,
+.ss-sectl-page h2.ant-typography,
+.ss-sectl-page > div > h2 {
+  color: var(--ss-sectl-strong) !important;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.ss-sectl-page .ant-card {
+  overflow: hidden;
+  border: 1px solid var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius) !important;
+  background: var(--ss-sectl-panel) !important;
+  box-shadow: none !important;
+  color: var(--ss-sectl-strong);
+}
+
+.ss-sectl-page .ant-card:hover {
+  border-color: var(--ss-sectl-border-strong) !important;
+  background: var(--ss-sectl-panel-hover) !important;
+}
+
+.ss-sectl-page .ant-card-head {
+  min-height: 52px;
+  border-bottom-color: var(--ss-sectl-border) !important;
+  color: var(--ss-sectl-strong);
+}
+
+.ss-sectl-page .ant-card-head-title,
+.ss-sectl-page .ant-form-item-label > label,
+.ss-sectl-page .ant-descriptions-item-label,
+.ss-sectl-page .ant-table-thead > tr > th {
+  color: var(--ss-sectl-strong) !important;
+  font-weight: 650;
+}
+
+.ss-sectl-page .ant-tabs-nav {
+  margin-bottom: 24px;
+}
+
+.ss-sectl-page .ant-tabs-nav::before,
+.ss-sectl-page .ant-tabs-tab {
+  border-color: var(--ss-sectl-border) !important;
+}
+
+.ss-sectl-page .ant-tabs-tab {
+  color: var(--ss-sectl-muted);
+  font-weight: 600;
+}
+
+.ss-sectl-page .ant-tabs-tab:hover,
+.ss-sectl-page .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-tabs-ink-bar {
+  height: 2px;
+  background: var(--ss-sectl-blue) !important;
+}
+
+.ss-sectl-page .ant-btn {
+  border-radius: var(--ss-sectl-radius-sm);
+  border-color: var(--ss-sectl-border-strong);
+  background: transparent;
+  color: var(--ss-sectl-strong);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.ss-sectl-page .ant-btn:hover:not(:disabled) {
+  border-color: var(--ss-sectl-blue) !important;
+  background: var(--ss-sectl-blue-surface) !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-btn-primary:not(.ant-btn-dangerous) {
+  border-color: var(--ss-sectl-border-strong) !important;
+  background: var(--ss-sectl-primary-bg) !important;
+  color: var(--ss-sectl-primary-text) !important;
+}
+
+.ss-sectl-page .ant-btn-primary:not(.ant-btn-dangerous):hover:not(:disabled) {
+  border-color: var(--ss-sectl-blue) !important;
+  background: var(--ss-sectl-primary-hover) !important;
+  color: var(--ss-sectl-primary-text) !important;
+}
+
+.ss-sectl-page .ant-btn-link {
+  border-color: transparent;
+  color: var(--ss-sectl-blue);
+}
+
+.ss-sectl-page .ant-input,
+.ss-sectl-page .ant-input-affix-wrapper,
+.ss-sectl-page .ant-input-number,
+.ss-sectl-page .ant-select-selector,
+.ss-sectl-page .ant-picker {
+  border-color: var(--ss-sectl-border-strong) !important;
+  border-radius: var(--ss-sectl-radius-sm) !important;
+  background: var(--ss-sectl-input) !important;
+  box-shadow: none !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-input::placeholder,
+.ss-sectl-page .ant-input-number-input::placeholder,
+.ss-sectl-page textarea.ant-input::placeholder,
+.ss-sectl-page .ant-select-selection-placeholder {
+  color: var(--ss-sectl-muted) !important;
+  opacity: 1;
+}
+
+.ss-sectl-page .ant-input-number-input,
+.ss-sectl-page .ant-input-number-input-wrap,
+.ss-sectl-page .ant-input-textarea textarea {
+  background: transparent !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-input:focus,
+.ss-sectl-page .ant-input-affix-wrapper-focused,
+.ss-sectl-page .ant-select-focused .ant-select-selector,
+.ss-sectl-page .ant-picker-focused {
+  border-color: var(--ss-sectl-blue) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ss-sectl-blue) 24%, transparent) !important;
+}
+
+.ss-sectl-page .ant-table-wrapper .ant-table,
+.ss-sectl-page .ant-table-wrapper .ant-table-container,
+.ss-sectl-page .ant-table-thead > tr > th,
+.ss-sectl-page .ant-table-tbody > tr > td {
+  background: transparent !important;
+  color: var(--ss-sectl-strong) !important;
+  border-color: var(--ss-sectl-border) !important;
+}
+
+.ss-sectl-page .ant-table-thead > tr > th {
+  background: var(--ss-sectl-table-head) !important;
+  font-size: 12px;
+}
+
+.ss-sectl-page .ant-table-tbody > tr:hover > td {
+  background: var(--ss-sectl-blue-surface) !important;
+}
+
+.ss-sectl-page .ant-descriptions-bordered .ant-descriptions-item-label,
+.ss-sectl-page .ant-descriptions-bordered .ant-descriptions-item-content,
+.ss-sectl-page .ant-collapse,
+.ss-sectl-page .ant-collapse > .ant-collapse-item,
+.ss-sectl-page .ant-collapse-content {
+  border-color: var(--ss-sectl-border) !important;
+  background: transparent !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-tag {
+  border-color: var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius-sm);
+  background: var(--ss-sectl-blue-surface);
+  color: var(--ss-sectl-strong);
+  font-weight: 600;
+}
+
+/* SECTL Button.vue 的按压和 click 后水波纹行为。 */
+.ss-sectl-page .ant-btn,
+.ss-app-header .ant-btn,
+.ss-sidebar .ant-btn,
+.ss-title-bar .ant-btn,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-btn,
+.ant-drawer:not(.ss-operation-drawer) .ant-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease !important;
+  will-change: transform;
+}
+
+.ss-sectl-page .ant-btn:not(:disabled):active,
+.ss-app-header .ant-btn:not(:disabled):active,
+.ss-sidebar .ant-btn:not(:disabled):active,
+.ss-title-bar .ant-btn:not(:disabled):active,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-btn:not(:disabled):active,
+.ant-drawer:not(.ss-operation-drawer) .ant-btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.ss-sectl-ripple {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 35%, transparent);
+  pointer-events: none;
+  transform: scale(0);
+  animation: ss-sectl-ripple 600ms ease-out forwards;
+}
+
+@keyframes ss-sectl-ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Ant 的浮层会挂到 document.body；因此保持全局选择器，保证下拉和弹窗不丢失主题。 */
+.ant-select-dropdown,
+.ant-dropdown,
+.ant-popover .ant-popover-inner,
+.ant-tooltip .ant-tooltip-inner,
+.ant-picker-dropdown .ant-picker-panel-container,
+.ant-cascader-dropdown,
+.ant-auto-complete-dropdown,
+.ant-mentions-dropdown,
+.ant-notification-notice,
+.ant-message-notice-content {
+  border: 1px solid var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius) !important;
+  background: var(--ss-sectl-panel) !important;
+  box-shadow: none !important;
+  color: var(--ss-sectl-strong) !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.ant-select-dropdown .ant-select-item,
+.ant-dropdown .ant-dropdown-menu-item,
+.ant-dropdown .ant-dropdown-menu-submenu-title,
+.ant-cascader-menu-item,
+.ant-picker-cell,
+.ant-picker-header,
+.ant-picker-content th,
+.ant-popover,
+.ant-tooltip,
+.ant-message,
+.ant-notification {
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ant-select-dropdown .ant-select-item,
+.ant-dropdown .ant-dropdown-menu-item,
+.ant-dropdown .ant-dropdown-menu-submenu-title {
+  margin: 2px 4px;
+  border-radius: var(--ss-sectl-radius-sm);
+}
+
+.ant-select-dropdown .ant-select-item-option-active,
+.ant-select-dropdown .ant-select-item-option-selected,
+.ant-dropdown .ant-dropdown-menu-item:hover,
+.ant-dropdown .ant-dropdown-menu-submenu-title:hover,
+.ant-cascader-menu-item:hover,
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+  background: var(--ss-sectl-blue-surface) !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ant-popover .ant-popover-arrow::before,
+.ant-tooltip .ant-tooltip-arrow::before {
+  background: var(--ss-sectl-panel) !important;
+}
+
+.ss-sectl-page .ant-switch,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-switch,
+.ant-drawer:not(.ss-operation-drawer) .ant-switch {
+  border: 1px solid var(--ss-sectl-border-strong);
+  border-radius: var(--ss-sectl-radius-sm);
+  background: color-mix(in srgb, var(--ss-sectl-panel) 76%, #000) !important;
+  box-shadow: none;
+}
+
+.ss-sectl-page .ant-switch.ant-switch-checked,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-switch.ant-switch-checked,
+.ant-drawer:not(.ss-operation-drawer) .ant-switch.ant-switch-checked {
+  border-color: var(--ss-sectl-blue) !important;
+  background: var(--ss-sectl-blue) !important;
+}
+
+.ss-sectl-page .ant-checkbox-inner,
+.ss-sectl-page .ant-radio-inner,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-checkbox-inner,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-radio-inner {
+  border-color: var(--ss-sectl-border-strong) !important;
+  background: transparent !important;
+}
+
+.ss-sectl-page .ant-checkbox-checked .ant-checkbox-inner,
+.ss-sectl-page .ant-radio-checked .ant-radio-inner,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-checkbox-checked .ant-checkbox-inner,
+.ant-modal:not(.ss-home-operation-morph-modal) .ant-radio-checked .ant-radio-inner {
+  border-color: var(--ss-sectl-blue) !important;
+  background: var(--ss-sectl-blue) !important;
+}
+
+.ss-sectl-page .ant-radio-button-wrapper {
+  border-color: var(--ss-sectl-border-strong) !important;
+  background: var(--ss-sectl-input) !important;
+  color: var(--ss-sectl-strong) !important;
+  box-shadow: none !important;
+}
+
+.ss-sectl-page .ant-radio-button-wrapper:not(:first-child)::before {
+  background: var(--ss-sectl-border-strong) !important;
+}
+
+.ss-sectl-page .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  border-color: var(--ss-sectl-primary-bg) !important;
+  background: var(--ss-sectl-primary-bg) !important;
+  color: var(--ss-sectl-primary-text) !important;
+}
+
+.ss-sectl-page .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before {
+  background: var(--ss-sectl-primary-bg) !important;
+}
+
+.ss-sectl-page .ant-segmented {
+  padding: 3px;
+  border: 1px solid var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius-sm);
+  background: var(--ss-sectl-input) !important;
+  box-shadow: none !important;
+}
+
+.ss-sectl-page .ant-segmented-item {
+  border-radius: 2px;
+  color: var(--ss-sectl-muted) !important;
+  font-weight: 600;
+}
+
+.ss-sectl-page .ant-segmented-item-selected {
+  background: var(--ss-sectl-primary-bg) !important;
+  box-shadow: none !important;
+  color: var(--ss-sectl-primary-text) !important;
+}
+
+.ss-sectl-page .ant-alert,
+.ss-sectl-page .ant-empty-description,
+.ss-sectl-page .ant-pagination,
+.ss-sectl-page .ant-pagination .ant-pagination-item a,
+.ss-sectl-page .ant-pagination .ant-pagination-item-link,
+.ss-sectl-page .ant-radio-wrapper,
+.ss-sectl-page .ant-checkbox-wrapper {
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ss-sectl-page .ant-alert {
+  border-color: var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius-sm);
+  background: var(--ss-sectl-blue-surface) !important;
+}
+
+.ss-sectl-page .ant-pagination .ant-pagination-item,
+.ss-sectl-page .ant-pagination .ant-pagination-item-link {
+  border-color: var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius-sm);
+  background: transparent !important;
+}
+
+.ss-sectl-page .ant-pagination .ant-pagination-item-active {
+  border-color: var(--ss-sectl-blue) !important;
+  background: var(--ss-sectl-blue-surface) !important;
+}
+
+.ant-modal-mask,
+.ant-drawer-mask {
+  background: rgba(0, 0, 0, 0.72) !important;
+}
+
+.ant-modal-content,
+.ant-drawer-content {
+  border: 1px solid var(--ss-sectl-border) !important;
+  border-radius: var(--ss-sectl-radius) !important;
+  background: var(--ss-sectl-section) !important;
+  box-shadow: none !important;
+  color: var(--ss-sectl-strong) !important;
+}
+
+.ant-modal-header,
+.ant-drawer-header {
+  border-bottom-color: var(--ss-sectl-border) !important;
+  background: transparent !important;
+}
+
+.ant-modal-title,
+.ant-drawer-title,
+.ant-modal-close,
+.ant-drawer-close {
+  color: var(--ss-sectl-strong) !important;
+}
+
+/* Home 的积分操作弹窗为专用设计，始终优先于通用弹窗层。 */
+.ss-home-operation-morph-modal .ant-modal-content,
+.ss-operation-drawer .ant-drawer-content {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+}
+
+@media (max-width: 768px) {
+  .ss-settings-page {
+    padding: 20px 16px 40px !important;
+  }
+
+  .ss-sectl-page .ant-card-body {
+    padding: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-sectl-page .ant-btn,
+  .ss-app-header .ant-btn,
+  .ss-sidebar .ant-btn,
+  .ss-title-bar .ant-btn,
+  .ant-modal:not(.ss-home-operation-morph-modal) .ant-btn,
+  .ant-drawer:not(.ss-operation-drawer) .ant-btn,
+  .ss-sectl-ripple {
+    transition: none !important;
+    animation: none !important;
+  }
+}
