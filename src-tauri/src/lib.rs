@@ -185,6 +185,13 @@ pub fn run() {
 }
 
 pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    // 主窗口由静态配置创建。Windows/Linux 在窗口显示前移除系统装饰，
+    // 让前端的 ss-app-header 成为唯一标题栏；macOS 保留 Overlay 红绿灯。
+    #[cfg(not(target_os = "macos"))]
+    if let Some(window) = app.get_webview_window("main") {
+        window.set_decorations(false)?;
+    }
+
     setup_database(app)?;
 
     setup_tray(app)?;

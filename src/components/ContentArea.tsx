@@ -699,6 +699,7 @@ export function ContentArea({
     >
       <div
         className="ss-app-header"
+        data-tauri-drag-region
         style={
           {
             height: "40px",
@@ -710,6 +711,8 @@ export function ContentArea({
             paddingLeft: macTrafficLightsInset ? "80px" : 0,
             WebkitAppRegion: "drag",
             position: "relative",
+            // 标题栏必须高于 Modal/Drawer 的遮罩，确保任何状态下均可拖动窗口。
+            zIndex: 2147483647,
           } as React.CSSProperties
         }
       >
@@ -825,6 +828,8 @@ export function ContentArea({
               alignItems: "center",
               paddingRight: "8px",
               WebkitAppRegion: "no-drag",
+              position: "relative",
+              zIndex: 1,
             } as React.CSSProperties
           }
         >

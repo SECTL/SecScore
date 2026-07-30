@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react"
-import { Button, ColorPicker, Input, Segmented, Space, Typography, message } from "antd"
+import { Button, ColorPicker, Input, Segmented, Space, Typography } from "antd"
 import type { Color } from "antd/es/color-picker"
 import { useTranslation } from "react-i18next"
 import { useTheme } from "../contexts/ThemeContext"
@@ -71,10 +71,8 @@ const buildGradient = (a: string, b: string, dir: "v" | "h" | "d"): string => {
 export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
   const { t } = useTranslation()
   const { currentTheme, setTheme, themes, applyTheme } = useTheme()
-  const [messageApi, holder] = message.useMessage()
 
   const [workingTheme, setWorkingTheme] = useState<themeConfig | null>(null)
-  const [saving, setSaving] = useState(false)
 
   const [primaryInput, setPrimaryInput] = useState("")
   const primaryColor = useMemo(() => {
@@ -105,19 +103,6 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
     applyTheme(workingTheme)
   }, [workingTheme, applyTheme])
 
-  const ensureCustomThemeSelected = async (theme: themeConfig): Promise<boolean> => {
-    if (!(window as any).api) return false
-    const exists = themes.some((t) => t.id === theme.id)
-    if (!exists) {
-      const res = await (window as any).api.saveTheme(theme)
-      if (!res?.success) return false
-    }
-    if (currentTheme?.id !== theme.id) {
-      await setTheme(theme.id)
-    }
-    return true
-  }
-
   const saveThemeToDb = async (theme: themeConfig) => {
     if (!(window as any).api) return false
     try {
@@ -133,23 +118,6 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
       return res?.success
     } catch {
       return false
-    }
-  }
-
-  const save = async () => {
-    if (!(window as any).api) return
-    if (!workingTheme) return
-    setSaving(true)
-    try {
-      const ok = await ensureCustomThemeSelected(workingTheme)
-      if (!ok) throw new Error("保存失败")
-      const res = await (window as any).api.saveTheme(workingTheme)
-      if (!res?.success) throw new Error(res?.message || "保存失败")
-      messageApi.success(t("theme.saved"))
-    } catch (e: any) {
-      messageApi.error(e?.message || t("theme.saveFailed"))
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -197,16 +165,7 @@ export const ThemeQuickSettings: React.FC<props> = ({ compact }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: compact ? 12 : 16 }}>
-      {holder}
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Typography.Text strong>{t("theme.colorAndBackground")}</Typography.Text>
-        <Space>
-          <Button type="primary" loading={saving} onClick={save}>
-            {t("common.save")}
-          </Button>
-        </Space>
-      </div>
+      <Typography.Text strong>{t("theme.colorAndBackground")}</Typography.Text>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <Typography.Text>{t("theme.mode")}</Typography.Text>

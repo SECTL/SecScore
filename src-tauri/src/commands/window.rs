@@ -1,6 +1,8 @@
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tauri::{AppHandle, WebviewWindow};
+#[cfg(target_os = "macos")]
+use tauri::{LogicalPosition, TitleBarStyle};
 #[cfg(desktop)]
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -181,20 +183,30 @@ pub fn show_management_window(app: &AppHandle) -> Result<(), String> {
             return Ok(());
         }
 
-        let window = WebviewWindowBuilder::new(
+        let window_builder = WebviewWindowBuilder::new(
             app,
             "management",
             WebviewUrl::App("index.html?window=management#/students".into()),
         )
-        .title("SecScore 管理")
+        .title("")
         .inner_size(1180.0, 680.0)
         .min_inner_size(360.0, 640.0)
         .resizable(true)
-        .decorations(true)
         .transparent(true)
-        .center()
-        .build()
-        .map_err(|e| e.to_string())?;
+        .center();
+
+        // Windows/Linux 使用前端自绘标题栏和窗口控制按钮；macOS 则以 Overlay
+        // 隐藏系统标题文本，同时保留系统红绿灯以维持平台原生交互。
+        #[cfg(target_os = "macos")]
+        let window_builder = window_builder
+            .decorations(true)
+            .title_bar_style(TitleBarStyle::Overlay)
+            .traffic_light_position(LogicalPosition::new(16.0, 22.0));
+
+        #[cfg(not(target_os = "macos"))]
+        let window_builder = window_builder.decorations(false);
+
+        let window = window_builder.build().map_err(|e| e.to_string())?;
 
         #[cfg(target_os = "macos")]
         {

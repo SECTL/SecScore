@@ -64,6 +64,8 @@ export function WindowControls(): React.JSX.Element {
           WebkitAppRegion: "no-drag",
           height: "100%",
           flexShrink: 0,
+          position: "relative",
+          zIndex: 1,
         } as React.CSSProperties
       }
     >
