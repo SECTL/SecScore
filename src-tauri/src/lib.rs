@@ -172,6 +172,8 @@ pub fn run() {
             mcp_server_start,
             mcp_server_stop,
             mcp_server_status,
+            secagent_registration_status,
+            secagent_register,
             register_url_protocol,
             check_url_protocol_status,
             unregister_url_protocol,

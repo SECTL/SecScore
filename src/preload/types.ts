@@ -978,6 +978,21 @@ const api = {
       url?: string | null
     }
   }> => invoke("mcp_server_status"),
+  secagentRegistrationStatus: (): Promise<{
+    success: boolean
+    data?: {
+      workspace?: string | null
+      skill_registered: boolean
+      mcp_registered: boolean
+      server_running: boolean
+    }
+    message?: string
+  }> => invoke("secagent_registration_status"),
+  secagentRegister: (): Promise<{
+    success: boolean
+    data?: { workspace: string; skill_path: string; mcp_path: string; config_path: string }
+    message?: string
+  }> => invoke("secagent_register"),
 
   // File System
   fsGetConfigStructure: (): Promise<{

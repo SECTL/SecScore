@@ -19,6 +19,8 @@
 
 - `add_score`：给指定学生加分或扣分，并写入 `score_events` 记录。
 - `list_students`：获取学生列表（姓名、积分、奖励积分、标签）。
+- `find_students`：按姓名关键词查找学生。
+- `undo_score`：按 `event_uuid` 与 `student_id` 撤销一条未结算积分记录。
 
 ## 2. 启动与停止 MCP 服务
 
@@ -96,9 +98,31 @@ curl -X POST http://127.0.0.1:3901/mcp \
 
 `add_score` 参数：
 
-- `student_name`（string，必填）：学生姓名。
+- `student_id`（integer，推荐）：学生 ID。与 `student_name` 至少提供一个；优先使用 ID，避免同名学生误操作。
+- `student_name`（string，可选）：学生姓名，兼容旧客户端。
 - `delta`（integer，必填）：分值变化，正数加分，负数扣分。
 - `reason_content`（string，可选）：原因，默认 `MCP 加分`。
+
+### 3.5 tools/call（撤销 add_score）
+
+只能撤销未结算记录；两个参数均来自此前 `add_score` 的结果及学生列表。
+
+```bash
+curl -X POST http://127.0.0.1:3901/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "undo_score",
+      "arguments": {
+        "event_uuid": "<add_score 返回的 event_uuid>",
+        "student_id": 1
+      }
+    }
+  }'
+```
 
 ### 3.4 tools/call（调用 list_students）
 
@@ -122,6 +146,22 @@ curl -X POST http://127.0.0.1:3901/mcp \
 
 - `limit`（integer，可选）：最多返回多少条，默认返回全部学生。
 
+### 3.5 tools/call（按姓名查学生）
+
+```bash
+curl -X POST http://127.0.0.1:3901/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "tools/call",
+    "params": {
+      "name": "find_students",
+      "arguments": { "query": "李", "limit": 20 }
+    }
+  }'
+```
+
 ## 4. 返回结果说明
 
 调用 `add_score` 成功时：
@@ -130,6 +170,7 @@ curl -X POST http://127.0.0.1:3901/mcp \
 - `result.structuredContent` 包含：
   - `event_id`
   - `event_uuid`
+  - `student_id`
   - `student_name`
   - `delta`
   - `val_prev`

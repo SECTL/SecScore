@@ -18,9 +18,12 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
 };
+use sea_orm::prelude::Expr;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::fs;
 use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{Emitter, State};
 use tokio::sync::{oneshot, Mutex};
@@ -33,6 +36,127 @@ use crate::state::AppState;
 
 use super::database::realtime_dual_write_sync_if_legacy;
 use super::response::IpcResponse;
+
+const SECAGENT_SERVER_NAME: &str = "secscore";
+const SECAGENT_SERVER_URL: &str = "http://127.0.0.1:3901/mcp";
+const SECAGENT_SKILL_DIR: &str = "secscore";
+const SECAGENT_SKILL: &str = r#"---
+name: SecScore
+description: 查询学生、调整积分和撤销积分操作。
+---
+# SecScore
+
+SecScore 提供学生查询、积分变更和撤销工具。涉及写入时，先确认学生身份和变更原因；完成后用中文简洁说明真实结果。
+
+## 工具
+
+- `secscore__list_students`：列出学生。参数：`limit`（可选，整数）。
+- `secscore__find_students`：按姓名或关键词查找学生。参数：`query`（字符串）、`limit`（可选，整数）。
+- `secscore__add_score`：给学生增加或扣减积分。参数：`student_id`（可选整数）、`student_name`（可选字符串，用于二次确认）、`delta`（整数，负数表示扣分）、`reason_content`（可选字符串）。
+- `secscore__undo_score`：撤销一条积分操作。参数：`event_uuid`（字符串）、`student_id`（整数）。只能撤销真实存在且允许撤销的记录。
+
+优先使用查询工具确认学生，再执行写入；不要臆造学生 ID、事件 UUID 或操作结果。
+"#;
+const SECAGENT_MCP: &str = r#"{
+  "name": "secscore",
+  "transport": "http",
+  "url": "http://127.0.0.1:3901/mcp",
+  "tools": ["list_students", "find_students", "add_score", "undo_score"]
+}
+"#;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SecAgentRegistrationStatus {
+    pub workspace: Option<String>,
+    pub skill_registered: bool,
+    pub mcp_registered: bool,
+    pub server_running: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SecAgentRegistrationResult {
+    pub workspace: String,
+    pub skill_path: String,
+    pub mcp_path: String,
+    pub config_path: String,
+}
+
+fn secagent_workspace() -> PathBuf {
+    std::env::var_os("SECAGENT_WORKSPACE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join("SecAgentWorkspace"))
+}
+
+fn secagent_paths() -> (PathBuf, PathBuf, PathBuf, PathBuf) {
+    let root = secagent_workspace();
+    (
+        root.clone(),
+        root.join("secagent.yaml"),
+        root.join("skills").join(SECAGENT_SKILL_DIR).join("SKILL.md"),
+        root.join("mcp").join("secscore-server.json"),
+    )
+}
+
+fn secagent_config_enabled(path: &Path) -> bool {
+    let Ok(raw) = fs::read_to_string(path) else { return false };
+    let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&raw) else { return false };
+    value.get("mcp")
+        .and_then(|v| v.get("servers"))
+        .and_then(|v| v.get(SECAGENT_SERVER_NAME))
+        .map(|server| {
+            server.get("enabled").and_then(serde_yaml::Value::as_bool) == Some(true)
+                && server.get("url").and_then(serde_yaml::Value::as_str) == Some(SECAGENT_SERVER_URL)
+        })
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+pub async fn secagent_registration_status(
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<SecAgentRegistrationStatus>, String> {
+    let (root, config, skill, mcp) = secagent_paths();
+    Ok(IpcResponse::success(SecAgentRegistrationStatus {
+        workspace: if config.is_file() { Some(root.to_string_lossy().into_owned()) } else { None },
+        skill_registered: skill.is_file(),
+        mcp_registered: mcp.is_file()
+            && fs::read_to_string(&mcp).ok().as_deref() == Some(SECAGENT_MCP)
+            && secagent_config_enabled(&config),
+        server_running: MCP_SERVER_STATE.lock().await.is_running,
+    }))
+}
+
+#[tauri::command]
+pub async fn secagent_register(
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<SecAgentRegistrationResult>, String> {
+    let (root, config, skill, mcp) = secagent_paths();
+    if !config.is_file() {
+        return Ok(IpcResponse::error(&format!("未找到 SecAgent 配置：{}，请先初始化 SecAgent。", config.display())));
+    }
+    let raw = fs::read_to_string(&config).map_err(|e| format!("读取 SecAgent 配置失败：{}", e))?;
+    let mut yaml = serde_yaml::from_str::<serde_yaml::Value>(&raw).map_err(|e| format!("SecAgent 配置不是有效 YAML：{}", e))?;
+    let root_map = yaml.as_mapping_mut().ok_or("SecAgent 配置根节点必须是对象。")?;
+    let mcp_map = root_map.entry(serde_yaml::Value::String("mcp".into())).or_insert_with(|| serde_yaml::Value::Mapping(Default::default())).as_mapping_mut().ok_or("SecAgent 配置的 mcp 节点必须是对象。")?;
+    let servers_map = mcp_map.entry(serde_yaml::Value::String("servers".into())).or_insert_with(|| serde_yaml::Value::Mapping(Default::default())).as_mapping_mut().ok_or("SecAgent 配置的 mcp.servers 节点必须是对象。")?;
+    servers_map.insert(serde_yaml::Value::String(SECAGENT_SERVER_NAME.into()), serde_yaml::Mapping::from_iter([
+        (serde_yaml::Value::String("transport".into()), serde_yaml::Value::String("http".into())),
+        (serde_yaml::Value::String("url".into()), serde_yaml::Value::String(SECAGENT_SERVER_URL.into())),
+        (serde_yaml::Value::String("enabled".into()), serde_yaml::Value::Bool(true)),
+    ]).into());
+    let serialized = serde_yaml::to_string(&yaml).map_err(|e| format!("生成 SecAgent 配置失败：{}", e))?;
+    fs::create_dir_all(skill.parent().unwrap()).map_err(|e| format!("创建 Skill 目录失败：{}", e))?;
+    fs::create_dir_all(mcp.parent().unwrap()).map_err(|e| format!("创建 MCP 目录失败：{}", e))?;
+    fs::write(&skill, SECAGENT_SKILL).map_err(|e| format!("写入 Skill 失败：{}", e))?;
+    fs::write(&mcp, SECAGENT_MCP).map_err(|e| format!("写入 MCP 配置失败：{}", e))?;
+    fs::copy(&config, config.with_extension("yaml.bak")).map_err(|e| format!("备份 SecAgent 配置失败：{}", e))?;
+    let temp = config.with_extension(format!("yaml.tmp.{}", uuid::Uuid::new_v4().simple()));
+    fs::write(&temp, serialized).map_err(|e| format!("写入临时配置失败：{}", e))?;
+    fs::rename(&temp, &config).map_err(|e| format!("替换 SecAgent 配置失败：{}", e))?;
+    Ok(IpcResponse::success(SecAgentRegistrationResult {
+        workspace: root.to_string_lossy().into_owned(), skill_path: skill.to_string_lossy().into_owned(),
+        mcp_path: mcp.to_string_lossy().into_owned(), config_path: config.to_string_lossy().into_owned(),
+    }))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
@@ -84,7 +208,10 @@ impl Default for McpServerState {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct AddScoreArgs {
-    student_name: String,
+    #[serde(default)]
+    student_id: Option<i32>,
+    #[serde(default)]
+    student_name: Option<String>,
     delta: i32,
     #[serde(default)]
     reason_content: Option<String>,
@@ -96,10 +223,18 @@ struct ListStudentsArgs {
     limit: Option<u64>,
 }
 
+#[derive(Debug, Deserialize, Default, schemars::JsonSchema)]
+struct FindStudentsArgs {
+    query: String,
+    #[serde(default)]
+    limit: Option<u64>,
+}
+
 #[derive(Debug, Serialize, schemars::JsonSchema)]
 struct AddScoreResult {
     event_id: i32,
     event_uuid: String,
+    student_id: i32,
     student_name: String,
     delta: i32,
     val_prev: i32,
@@ -112,6 +247,7 @@ struct AddScoreResult {
 struct StudentListItem {
     id: i32,
     name: String,
+    group_name: Option<String>,
     score: i32,
     reward_points: i32,
     tags: Vec<String>,
@@ -121,6 +257,21 @@ struct StudentListItem {
 struct ListStudentsResult {
     total: usize,
     students: Vec<StudentListItem>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct UndoScoreArgs {
+    event_uuid: String,
+    student_id: i32,
+}
+
+#[derive(Debug, Serialize, schemars::JsonSchema)]
+struct UndoScoreResult {
+    event_uuid: String,
+    student_id: i32,
+    student_name: String,
+    delta: i32,
+    val_curr: i32,
 }
 
 static MCP_SERVER_STATE: once_cell::sync::Lazy<Arc<Mutex<McpServerState>>> =
@@ -166,7 +317,7 @@ impl SecScoreMcpServer {
 
     #[tool(
         name = "add_score",
-        description = "给指定学生加分/扣分，并写入 score_events 记录。"
+        description = "给指定学生加分/扣分，并写入 score_events 记录。优先传入 student_id，避免同名学生误操作。"
     )]
     async fn add_score(
         &self,
@@ -234,6 +385,48 @@ impl SecScoreMcpServer {
             }
         }
     }
+
+    #[tool(
+        name = "find_students",
+        description = "按姓名关键词查找学生。"
+    )]
+    async fn find_students(
+        &self,
+        Parameters(args): Parameters<FindStudentsArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        match mcp_find_students(&self.app_state, args).await {
+            Ok(payload) => {
+                let text = format!("找到 {} 名学生", payload.total);
+                let structured = serde_json::to_value(&payload)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                let mut result = CallToolResult::structured(structured);
+                result.content = vec![Content::text(text)];
+                Ok(result)
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!("查询学生失败: {}", e))])),
+        }
+    }
+
+    #[tool(
+        name = "undo_score",
+        description = "撤销一条未结算积分记录。必须同时提供 add_score 返回的 event_uuid 与 student_id。"
+    )]
+    async fn undo_score(
+        &self,
+        Parameters(args): Parameters<UndoScoreArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        match mcp_undo_score(&self.app_state, args).await {
+            Ok(payload) => {
+                let text = format!("已撤销：{} {:+} 分", payload.student_name, -payload.delta);
+                let structured = serde_json::to_value(&payload)
+                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
+                let mut result = CallToolResult::structured(structured);
+                result.content = vec![Content::text(text)];
+                Ok(result)
+            }
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!("撤销失败: {}", e))])),
+        }
+    }
 }
 
 #[tool_handler]
@@ -266,15 +459,11 @@ async fn mcp_add_score(
         "mcp:tool_call_started",
         json!({
             "tool": "add_score",
+            "student_id": args.student_id,
             "student_name": args.student_name.clone(),
             "delta": args.delta
         }),
     );
-
-    let student_name = args.student_name.trim();
-    if student_name.is_empty() {
-        return Err("student_name 不能为空".to_string());
-    }
 
     let reason_content = args
         .reason_content
@@ -290,12 +479,26 @@ async fn mcp_add_score(
     }
     .ok_or_else(|| "Database not connected".to_string())?;
 
-    let student = students::Entity::find()
-        .filter(students::Column::Name.eq(student_name))
-        .one(&db_conn)
-        .await
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| format!("Student not found: {}", student_name))?;
+    let student = if let Some(student_id) = args.student_id {
+        students::Entity::find_by_id(student_id)
+            .one(&db_conn)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Student not found: {}", student_id))?
+    } else {
+        let student_name = args.student_name.as_deref().unwrap_or("").trim();
+        if student_name.is_empty() {
+            return Err("student_id 或 student_name 至少提供一个".to_string());
+        }
+        students::Entity::find()
+            .filter(students::Column::Name.eq(student_name))
+            .one(&db_conn)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Student not found: {}", student_name))?
+    };
+    let student_id = student.id;
+    let student_name = student.name.clone();
 
     let val_prev = student.score;
     let val_curr = val_prev + args.delta;
@@ -310,7 +513,7 @@ async fn mcp_add_score(
     let new_event = score_events::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         uuid: Set(event_uuid.clone()),
-        student_name: Set(student_name.to_string()),
+        student_name: Set(student_name.clone()),
         reason_content: Set(reason_content.clone()),
         delta: Set(args.delta),
         val_prev: Set(val_prev),
@@ -350,6 +553,7 @@ async fn mcp_add_score(
         json!({
             "tool": "add_score",
             "student_name": student_name,
+            "student_id": student_id,
             "delta": args.delta,
             "event_id": inserted.id,
             "event_uuid": event_uuid
@@ -359,12 +563,94 @@ async fn mcp_add_score(
     Ok(AddScoreResult {
         event_id: inserted.id,
         event_uuid,
-        student_name: student_name.to_string(),
+        student_id,
+        student_name,
         delta: args.delta,
         val_prev,
         val_curr,
         reason_content,
         event_time,
+    })
+}
+
+async fn mcp_undo_score(
+    app_state: &Arc<RwLock<AppState>>,
+    args: UndoScoreArgs,
+) -> Result<UndoScoreResult, String> {
+    let event_uuid = args.event_uuid.trim();
+    if event_uuid.is_empty() {
+        return Err("event_uuid 不能为空".to_string());
+    }
+
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_started",
+        json!({ "tool": "undo_score", "event_uuid": event_uuid, "student_id": args.student_id }),
+    );
+
+    let db_conn = {
+        let state_guard = app_state.read();
+        let db_guard = state_guard.db.read();
+        db_guard.clone()
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let event = score_events::Entity::find()
+        .filter(score_events::Column::Uuid.eq(event_uuid))
+        .one(&db_conn)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Event not found".to_string())?;
+    if event.settlement_id.is_some() {
+        return Err("该记录已结算，无法撤销".to_string());
+    }
+
+    let student = students::Entity::find_by_id(args.student_id)
+        .one(&db_conn)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Student not found: {}", args.student_id))?;
+    if student.name != event.student_name {
+        return Err("学生与积分事件不匹配，拒绝撤销".to_string());
+    }
+
+    let next_score = student.score - event.delta;
+    let next_reward_points = student.reward_points - event.delta;
+    let now = chrono::Utc::now()
+        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string();
+    let txn = db_conn.begin().await.map_err(|e| e.to_string())?;
+    let mut active: students::ActiveModel = student.into();
+    active.score = Set(next_score);
+    active.reward_points = Set(next_reward_points);
+    active.updated_at = Set(now);
+    active.update(&txn).await.map_err(|e| e.to_string())?;
+    score_events::Entity::delete_by_id(event.id)
+        .exec(&txn)
+        .await
+        .map_err(|e| e.to_string())?;
+    txn.commit().await.map_err(|e| e.to_string())?;
+
+    realtime_dual_write_sync_if_legacy(app_state).await?;
+    {
+        let state_guard = app_state.read();
+        let _ = state_guard.app_handle.emit(
+            "ss:data-updated",
+            json!({ "category": "all", "source": "mcp" }),
+        );
+    }
+    mcp_log_info(
+        app_state,
+        "mcp:tool_call_succeeded",
+        json!({ "tool": "undo_score", "event_uuid": event_uuid, "student_id": args.student_id }),
+    );
+
+    Ok(UndoScoreResult {
+        event_uuid: event_uuid.to_string(),
+        student_id: args.student_id,
+        student_name: event.student_name,
+        delta: event.delta,
+        val_curr: next_score,
     })
 }
 
@@ -401,6 +687,7 @@ async fn mcp_list_students(
         .map(|row| StudentListItem {
             id: row.id,
             name: row.name,
+            group_name: row.group_name,
             score: row.score,
             reward_points: row.reward_points,
             tags: serde_json::from_str::<Vec<String>>(&row.tags).unwrap_or_default(),
@@ -420,6 +707,45 @@ async fn mcp_list_students(
         total: students.len(),
         students,
     })
+}
+
+async fn mcp_find_students(
+    app_state: &Arc<RwLock<AppState>>,
+    args: FindStudentsArgs,
+) -> Result<ListStudentsResult, String> {
+    let query = args.query.trim();
+    if query.is_empty() {
+        return Err("query 不能为空".to_string());
+    }
+    let db_conn = {
+        let state_guard = app_state.read();
+        let db_guard = state_guard.db.read();
+        db_guard.clone()
+    }
+    .ok_or_else(|| "Database not connected".to_string())?;
+
+    let mut student_query = students::Entity::find()
+        .filter(Expr::col(students::Column::Name).like(format!("%{}%", query)))
+        .order_by_asc(students::Column::Name);
+    if let Some(limit) = args.limit {
+        student_query = student_query.limit(limit.min(i64::MAX as u64));
+    }
+    let rows = student_query.all(&db_conn).await.map_err(|e| e.to_string())?;
+    let students = rows
+        .into_iter()
+        .map(|row| StudentListItem {
+            id: row.id,
+            name: row.name,
+            group_name: row.group_name,
+            score: row.score,
+            reward_points: row.reward_points,
+            tags: serde_json::from_str::<Vec<String>>(&row.tags).unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+    mcp_log_info(app_state, "mcp:tool_call_succeeded", json!({
+        "tool": "find_students", "query": query, "total": students.len()
+    }));
+    Ok(ListStudentsResult { total: students.len(), students })
 }
 
 #[tauri::command]

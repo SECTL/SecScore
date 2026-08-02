@@ -212,6 +212,13 @@ export const Settings: React.FC<{
     config: { host: "127.0.0.1", port: 3901 },
     url: null,
   })
+  const [secAgentRegistration, setSecAgentRegistration] = useState<{
+    workspace?: string | null
+    skill_registered: boolean
+    mcp_registered: boolean
+    server_running: boolean
+  }>({ skill_registered: false, mcp_registered: false, server_running: false })
+  const [secAgentRegisterLoading, setSecAgentRegisterLoading] = useState(false)
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -296,6 +303,17 @@ export const Settings: React.FC<{
           setMcpConfig({ host: res.data.config.host, port: res.data.config.port })
         }
       }
+    } catch {
+      // ignore status polling errors in settings page
+    }
+  }, [])
+
+  const loadSecAgentRegistrationStatus = useCallback(async () => {
+    const api = (window as any).api
+    if (!api?.secagentRegistrationStatus) return
+    try {
+      const res = await api.secagentRegistrationStatus()
+      if (res.success && res.data) setSecAgentRegistration(res.data)
     } catch {
       // ignore status polling errors in settings page
     }
@@ -389,6 +407,7 @@ export const Settings: React.FC<{
     }
 
     await loadMcpStatus()
+    await loadSecAgentRegistrationStatus()
     await loadSystemFonts(savedFontFamily)
 
     if (api.checkElevation) {
@@ -412,7 +431,7 @@ export const Settings: React.FC<{
         // ignore
       }
     }
-  }, [loadMcpStatus, loadSystemFonts])
+  }, [loadMcpStatus, loadSecAgentRegistrationStatus, loadSystemFonts])
 
   const handleOAuthLogout = async () => {
     const api = (window as any).api
@@ -978,6 +997,25 @@ export const Settings: React.FC<{
     } finally {
       await loadMcpStatus()
       setMcpLoading(false)
+    }
+  }
+
+  const registerSecAgent = async () => {
+    const api = (window as any).api
+    if (!api?.secagentRegister) return
+    setSecAgentRegisterLoading(true)
+    try {
+      const res = await api.secagentRegister()
+      if (res.success) {
+        messageApi.success("SecAgent 注册完成")
+      } else {
+        messageApi.error(res.message || "SecAgent 注册失败")
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || "SecAgent 注册失败")
+    } finally {
+      await loadSecAgentRegistrationStatus()
+      setSecAgentRegisterLoading(false)
     }
   }
 
@@ -1937,6 +1975,107 @@ export const Settings: React.FC<{
       ),
     },
     {
+      key: "secagent",
+      label: "SecAgent 联动",
+      children: (
+        <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
+          <h3 style={{ marginTop: 0 }}>SecAgent 联动</h3>
+          <p style={{ color: "var(--ss-text-secondary)" }}>
+            注册 SecScore 的 Skill 和 MCP 配置到 SecAgent 工作目录，并控制本地 MCP 服务。
+          </p>
+          <Divider />
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>SecAgent 注册状态</div>
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Tag color={secAgentRegistration.workspace ? "success" : "warning"}>
+              {secAgentRegistration.workspace ? "已找到工作目录" : "未找到工作目录"}
+            </Tag>
+            <Tag color={secAgentRegistration.skill_registered ? "success" : "default"}>
+              Skill {secAgentRegistration.skill_registered ? "已注册" : "未注册"}
+            </Tag>
+            <Tag color={secAgentRegistration.mcp_registered ? "success" : "default"}>
+              MCP 配置 {secAgentRegistration.mcp_registered ? "已注册" : "未注册"}
+            </Tag>
+          </Space>
+          <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 12 }}>
+            {secAgentRegistration.workspace ||
+              "默认目录：~/SecAgentWorkspace；也可通过 SECAGENT_WORKSPACE 指定。"}
+          </div>
+          <Button
+            type="primary"
+            loading={secAgentRegisterLoading}
+            disabled={!canAdmin}
+            onClick={registerSecAgent}
+          >
+            注册 / 修复 SecAgent
+          </Button>
+          <Divider />
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>{t("settings.mcp.title")}</div>
+          <div style={{ color: "var(--ss-text-secondary)", marginBottom: 12, fontSize: 12 }}>
+            {t("settings.mcp.description")}
+          </div>
+          <Space style={{ marginBottom: 12 }} wrap>
+            <Tag color={mcpStatus.is_running ? "success" : "default"}>
+              {mcpStatus.is_running ? t("settings.mcp.running") : t("settings.mcp.stopped")}
+            </Tag>
+            {mcpStatus.url ? (
+              <Tag color="blue">{mcpStatus.url}</Tag>
+            ) : (
+              <Tag>{t("settings.mcp.noUrl")}</Tag>
+            )}
+          </Space>
+          <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
+            <Form.Item label={t("settings.mcp.host")}>
+              <Input
+                value={mcpConfig.host}
+                onChange={(e) => setMcpConfig((prev) => ({ ...prev, host: e.target.value }))}
+                disabled={!canAdmin || mcpStatus.is_running}
+                style={{ width: 280 }}
+                placeholder="127.0.0.1"
+              />
+            </Form.Item>
+            <Form.Item label={t("settings.mcp.port")}>
+              <Input
+                value={String(mcpConfig.port)}
+                onChange={(e) => {
+                  const next = Number(e.target.value.replace(/[^\d]/g, ""))
+                  setMcpConfig((prev) => ({ ...prev, port: Number.isFinite(next) ? next : 0 }))
+                }}
+                disabled={!canAdmin || mcpStatus.is_running}
+                style={{ width: 180 }}
+                placeholder="3901"
+              />
+            </Form.Item>
+            <Form.Item label={t("common.operation")}>
+              <Space>
+                <Button
+                  type="primary"
+                  onClick={startMcpServer}
+                  loading={mcpLoading}
+                  disabled={!canAdmin || mcpStatus.is_running}
+                >
+                  {t("settings.mcp.start")}
+                </Button>
+                <Button
+                  danger
+                  onClick={stopMcpServer}
+                  loading={mcpLoading}
+                  disabled={!canAdmin || !mcpStatus.is_running}
+                >
+                  {t("settings.mcp.stop")}
+                </Button>
+                <Button onClick={loadMcpStatus} disabled={mcpLoading}>
+                  {t("settings.mcp.refresh")}
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+          <div style={{ color: "var(--ss-text-secondary)", marginTop: -8, fontSize: 12 }}>
+            {t("settings.mcp.hint")}
+          </div>
+        </Card>
+      ),
+    },
+    {
       key: "url",
       label: t("settings.tabs.urlProtocol"),
       children: (
@@ -2187,78 +2326,6 @@ export const Settings: React.FC<{
           </Form>
           <Divider />
           <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
-            {t("settings.mcp.title")}
-          </div>
-          <div
-            style={{ color: "var(--ss-text-secondary)", marginBottom: "12px", fontSize: "12px" }}
-          >
-            {t("settings.mcp.description")}
-          </div>
-          <Space style={{ marginBottom: "12px" }}>
-            <Tag color={mcpStatus.is_running ? "success" : "default"}>
-              {mcpStatus.is_running ? t("settings.mcp.running") : t("settings.mcp.stopped")}
-            </Tag>
-            {mcpStatus.url ? (
-              <Tag color="blue">{mcpStatus.url}</Tag>
-            ) : (
-              <Tag>{t("settings.mcp.noUrl")}</Tag>
-            )}
-          </Space>
-          <Form layout="horizontal" labelCol={{ span: 4 }} wrapperCol={{ span: 20 }}>
-            <Form.Item label={t("settings.mcp.host")}>
-              <Input
-                value={mcpConfig.host}
-                onChange={(e) => setMcpConfig((prev) => ({ ...prev, host: e.target.value }))}
-                disabled={!canAdmin || mcpStatus.is_running}
-                style={{ width: "280px" }}
-                placeholder="127.0.0.1"
-              />
-            </Form.Item>
-            <Form.Item label={t("settings.mcp.port")}>
-              <Input
-                value={String(mcpConfig.port)}
-                onChange={(e) => {
-                  const next = Number(e.target.value.replace(/[^\d]/g, ""))
-                  if (Number.isFinite(next) && next > 0) {
-                    setMcpConfig((prev) => ({ ...prev, port: next }))
-                  } else if (!e.target.value) {
-                    setMcpConfig((prev) => ({ ...prev, port: 0 }))
-                  }
-                }}
-                disabled={!canAdmin || mcpStatus.is_running}
-                style={{ width: "180px" }}
-                placeholder="3901"
-              />
-            </Form.Item>
-            <Form.Item label={t("common.operation")}>
-              <Space>
-                <Button
-                  type="primary"
-                  onClick={startMcpServer}
-                  loading={mcpLoading}
-                  disabled={!canAdmin || mcpStatus.is_running}
-                >
-                  {t("settings.mcp.start")}
-                </Button>
-                <Button
-                  danger
-                  onClick={stopMcpServer}
-                  loading={mcpLoading}
-                  disabled={!canAdmin || !mcpStatus.is_running}
-                >
-                  {t("settings.mcp.stop")}
-                </Button>
-                <Button onClick={loadMcpStatus} disabled={mcpLoading}>
-                  {t("settings.mcp.refresh")}
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-          <div style={{ color: "var(--ss-text-secondary)", marginTop: "-8px", fontSize: "12px" }}>
-            {t("settings.mcp.hint")}
-          </div>
-          <Divider />
-          <div style={{ fontSize: "16px", fontWeight: 600, marginBottom: "8px" }}>
             {t("settings.app.title")}
           </div>
           <div
@@ -2416,7 +2483,9 @@ export const Settings: React.FC<{
         onClose={() => setOAuthLoginVisible(false)}
         onSuccess={(userInfo) => {
           setOAuthUserInfo(userInfo)
-          window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: userInfo } }))
+          window.dispatchEvent(
+            new CustomEvent("ss:oauth-user-updated", { detail: { user: userInfo } })
+          )
           messageApi.success(t("settings.account.loginSuccess"))
         }}
       />
