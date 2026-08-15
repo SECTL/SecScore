@@ -204,6 +204,21 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     setup_lan_http_server(app)?;
 
+    setup_secagent_http_server(app)?;
+
+    Ok(())
+}
+
+fn setup_secagent_http_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = app.handle().clone();
+    let state = handle.state::<crate::state::SafeAppState>().inner().clone();
+
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = crate::commands::secagent_http_server_start(state).await {
+            eprintln!("Failed to start SecAgent HTTP server: {}", error);
+        }
+    });
+
     Ok(())
 }
 

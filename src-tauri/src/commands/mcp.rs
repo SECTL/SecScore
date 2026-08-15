@@ -207,20 +207,20 @@ impl Default for McpServerState {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
-struct AddScoreArgs {
+pub(crate) struct AddScoreArgs {
     #[serde(default)]
-    student_id: Option<i32>,
+    pub(crate) student_id: Option<i32>,
     #[serde(default)]
-    student_name: Option<String>,
-    delta: i32,
+    pub(crate) student_name: Option<String>,
+    pub(crate) delta: i32,
     #[serde(default)]
-    reason_content: Option<String>,
+    pub(crate) reason_content: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default, schemars::JsonSchema)]
-struct ListStudentsArgs {
+pub(crate) struct ListStudentsArgs {
     #[serde(default)]
-    limit: Option<u64>,
+    pub(crate) limit: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Default, schemars::JsonSchema)]
@@ -231,7 +231,7 @@ struct FindStudentsArgs {
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
-struct AddScoreResult {
+pub(crate) struct AddScoreResult {
     event_id: i32,
     event_uuid: String,
     student_id: i32,
@@ -244,7 +244,7 @@ struct AddScoreResult {
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
-struct StudentListItem {
+pub(crate) struct StudentListItem {
     id: i32,
     name: String,
     group_name: Option<String>,
@@ -254,7 +254,7 @@ struct StudentListItem {
 }
 
 #[derive(Debug, Serialize, schemars::JsonSchema)]
-struct ListStudentsResult {
+pub(crate) struct ListStudentsResult {
     total: usize,
     students: Vec<StudentListItem>,
 }
@@ -450,7 +450,7 @@ impl ServerHandler for SecScoreMcpServer {
     }
 }
 
-async fn mcp_add_score(
+pub(crate) async fn mcp_add_score(
     app_state: &Arc<RwLock<AppState>>,
     args: AddScoreArgs,
 ) -> Result<AddScoreResult, String> {
@@ -471,6 +471,9 @@ async fn mcp_add_score(
         .unwrap_or("MCP 加分")
         .trim()
         .to_string();
+
+    let local_write_lock = { app_state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
 
     let db_conn = {
         let state_guard = app_state.read();
@@ -654,7 +657,7 @@ async fn mcp_undo_score(
     })
 }
 
-async fn mcp_list_students(
+pub(crate) async fn mcp_list_students(
     app_state: &Arc<RwLock<AppState>>,
     args: ListStudentsArgs,
 ) -> Result<ListStudentsResult, String> {

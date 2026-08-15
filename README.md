@@ -106,6 +106,10 @@ SecScore 是一款教育积分管理软件，基于 Electron + React + TypeScrip
 
 - [MCP-使用说明](./MCP-使用说明.md)
 
+## SecAgent HTTP 联动
+
+SecScore 启动后会自动在 `127.0.0.1:18791` 提供 SecAgent connector 使用的普通 HTTP JSON 服务，接口为 `/health`、`/tools` 和 `POST /tools/{toolName}`。SecAgent 侧使用仓库中的 `SecScore-SecAgent-Connector` 插件即可连接；该服务不依赖 SecScore 插件系统，也不需要配置 MCP。
+
 ### 环境要求
 
 - Node.js（建议使用 LTS 版本）
