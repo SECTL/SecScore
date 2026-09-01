@@ -2,6 +2,7 @@
 
 :root {
   --ss-app-height: 100vh;
+  --ss-app-header-height: 40px;
   --ss-safe-area-top: env(safe-area-inset-top, 0px);
   --ss-safe-area-right: env(safe-area-inset-right, 0px);
   --ss-safe-area-bottom: env(safe-area-inset-bottom, 0px);
@@ -1433,6 +1434,11 @@ html.platform-macos body {
 }
 
 /* Ant 的浮层会挂到 document.body；因此保持全局选择器，保证下拉和弹窗不丢失主题。 */
+/* Message 挂载在 body 下，需避开固定在最上层的自绘标题栏。 */
+.ant-message {
+  top: calc(var(--ss-safe-area-top) + var(--ss-app-header-height)) !important;
+}
+
 .ant-select-dropdown,
 .ant-dropdown,
 .ant-popover .ant-popover-inner,

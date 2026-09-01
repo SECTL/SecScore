@@ -702,7 +702,7 @@ export function ContentArea({
         data-tauri-drag-region
         style={
           {
-            height: "40px",
+            height: "var(--ss-app-header-height)",
             display: "flex",
             alignItems: "center",
             background: "var(--ss-header-bg)",
