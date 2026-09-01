@@ -39,7 +39,7 @@ async function main() {
       withGlobalTauri: true,
     },
     build: {
-      beforeDevCommand: `npm run dev -- --host --port ${port}`,
+      beforeDevCommand: `pnpm exec vite --host --port ${port}`,
       devUrl: `http://localhost:${port}`,
     },
   }

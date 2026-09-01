@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.secscore.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm exec vite --host --port 1420",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"

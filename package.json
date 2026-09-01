@@ -5,7 +5,7 @@
   "author": "example.com",
   "homepage": "https://example.org",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/tauri-dev.cjs",
     "build": "node scripts/generate-about-content.mjs && vite build",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.cjs",
