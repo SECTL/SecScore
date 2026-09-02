@@ -832,7 +832,7 @@ export const Home: React.FC<HomeProps> = ({
 
   const playOperationMorph = useCallback(
     (attempt = 0) => {
-      if (isPortraitMode || !operationOriginRect) return false
+      if (isPortraitMode) return false
       const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
       if (!modalEl) {
         const byClassCount = document.querySelectorAll(`.${operationModalClass}`).length
@@ -851,6 +851,25 @@ export const Home: React.FC<HomeProps> = ({
       const modalSurfaceEl =
         (modalEl.querySelector(".ant-modal-container, .ant-modal-content") as HTMLElement | null) ??
         modalEl
+
+      if (!operationOriginRect) {
+        // Batch operation: there is no source card to morph from, so a previous
+        // single-student open/close may have left the surface fixed at the old
+        // card rect with visibility:hidden. Clear any leftover morph styling and
+        // animations so the panel renders in place instead of staying invisible.
+        for (const animation of modalSurfaceEl.getAnimations()) animation.cancel()
+        modalEl.classList.remove("ss-operation-morph-active", "ss-operation-morph-closing")
+        modalSurfaceEl.style.position = ""
+        modalSurfaceEl.style.left = ""
+        modalSurfaceEl.style.top = ""
+        modalSurfaceEl.style.width = ""
+        modalSurfaceEl.style.height = ""
+        modalSurfaceEl.style.margin = ""
+        modalSurfaceEl.style.transform = ""
+        modalSurfaceEl.style.visibility = ""
+        modalSurfaceEl.style.willChange = ""
+        return false
+      }
 
       logHome("operation:morph:surface-found", {
         attempt,
