@@ -60,33 +60,43 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   const [loading, setLoading] = useState(false)
   // 标记本次登录流程是否已完成，避免回调重复触发
   const completedRef = useRef(false)
+  const loginTimeoutRef = useRef<number | null>(null)
   const callbackServerPromiseRef = useRef<Promise<{ success: boolean; data?: { url: string }; message?: string }> | null>(null)
+
+  const clearLoginTimeout = () => {
+    if (loginTimeoutRef.current !== null) {
+      window.clearTimeout(loginTimeoutRef.current)
+      loginTimeoutRef.current = null
+    }
+  }
 
   useEffect(() => {
     if (!visible) return
 
     const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
     if (platformId) {
-      const callbackUrl = "http://localhost:51267/oauth/callback"
-      sectlAuth.initialize(platformId, callbackUrl)
+      sectlAuth.initialize(platformId, SECTL_CONFIG.callbackUrl)
 
-      const api = (window as any).api
-      if (api?.oauthStartCallbackServer) {
-        callbackServerPromiseRef.current = api.oauthStartCallbackServer()
-          .then((result: { success: boolean; data?: { url: string }; message?: string }) => {
-            if (result.success && result.data?.url) {
-              sectlAuth.initialize(platformId, result.data.url)
-            }
-            return result
-          })
-          .catch((error: unknown) => {
-            callbackServerPromiseRef.current = null
-            throw error
-          })
+      if (SECTL_CONFIG.callbackUrl.startsWith("http://localhost")) {
+        const api = (window as any).api
+        if (api?.oauthStartCallbackServer) {
+          callbackServerPromiseRef.current = api.oauthStartCallbackServer()
+            .then((result: { success: boolean; data?: { url: string }; message?: string }) => {
+              if (result.success && result.data?.url) {
+                sectlAuth.initialize(platformId, result.data.url)
+              }
+              return result
+            })
+            .catch((error: unknown) => {
+              callbackServerPromiseRef.current = null
+              throw error
+            })
+        }
       }
     }
 
     return () => {
+      clearLoginTimeout()
       callbackServerPromiseRef.current = null
     }
   }, [visible])
@@ -120,7 +130,11 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
         return
       }
 
-      console.log("[OAuthLogin] Received deep link callback:", { code, state })
+      console.log("[OAuthLogin] Received OAuth callback", {
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+      })
+      clearLoginTimeout()
 
       try {
         // 使用 code 交换 token
@@ -195,20 +209,24 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
 
     try {
       const api = (window as any).api
-      if (!api?.oauthStartCallbackServer) {
-        throw new Error("OAuth 本地回调服务器不可用")
+      if (SECTL_CONFIG.callbackUrl.startsWith("http://localhost")) {
+        if (!api?.oauthStartCallbackServer) {
+          throw new Error("OAuth 本地回调服务器不可用")
+        }
+
+        const callbackServer = await (callbackServerPromiseRef.current || api.oauthStartCallbackServer())
+        if (!callbackServer.success || !callbackServer.data?.url) {
+          throw new Error(callbackServer.message || "启动 OAuth 回调服务器失败")
+        }
+
+        // 使用服务器实际监听的地址，确保 redirect_uri 两次请求完全一致。
+        sectlAuth.initialize(SECTL_CONFIG.platformId, callbackServer.data.url)
       }
 
-      const callbackServer = await (callbackServerPromiseRef.current || api.oauthStartCallbackServer())
-      if (!callbackServer.success || !callbackServer.data?.url) {
-        throw new Error(callbackServer.message || "启动 OAuth 回调服务器失败")
-      }
-
-      // 使用服务器实际监听的地址，确保 redirect_uri 两次请求完全一致。
-      sectlAuth.initialize(SECTL_CONFIG.platformId, callbackServer.data.url)
-
-      const authUrl = await sectlAuth.getAuthorizationUrl()
-      console.log("[OAuthLogin] OAuth redirect_uri:", SECTL_CONFIG.callbackUrl)
+      const authUrl = await sectlAuth.getAuthorizationUrl(["user:read"])
+      console.log("[OAuthLogin] OAuth callback configured", {
+        transport: SECTL_CONFIG.callbackUrl.startsWith("http://localhost") ? "loopback" : "deep-link",
+      })
       log("after getAuthorizationUrl")
       // 通过 Rust 启动脱离当前进程的系统浏览器，避免 macOS open 命令等待几十秒。
       const openBrowser = api.oauthOpenBrowser
@@ -222,7 +240,9 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
       }
 
       // 设置超时
-      setTimeout(() => {
+      clearLoginTimeout()
+      loginTimeoutRef.current = window.setTimeout(() => {
+        loginTimeoutRef.current = null
         if (!completedRef.current) {
           log("login timeout")
           setLoading(false)
@@ -237,6 +257,7 @@ export function OAuthLogin({ visible, onClose, onSuccess }: OAuthLoginProps) {
   }
 
   const handleModalClose = () => {
+    clearLoginTimeout()
     setLoading(false)
     onClose()
   }

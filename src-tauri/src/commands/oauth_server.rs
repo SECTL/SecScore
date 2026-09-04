@@ -275,6 +275,97 @@ pub async fn oauth_stop_callback_server(
     Ok(IpcResponse::success(()))
 }
 
+#[derive(Clone, Copy)]
+enum CallbackPageStatus {
+    Received,
+    Error,
+    Invalid,
+}
+
+fn render_callback_page(status: CallbackPageStatus) -> String {
+    let (title, heading, message, tone, icon_path) = match status {
+        CallbackPageStatus::Received => (
+            "OAuth 授权结果",
+            "已收到授权结果",
+            "请返回 SecScore 查看登录结果",
+            "#2ba471",
+            "M5 13l4 4L19 7",
+        ),
+        CallbackPageStatus::Error => (
+            "OAuth 授权未完成",
+            "授权未完成",
+            "请返回 SecScore 查看错误信息并重试",
+            "#d54941",
+            "M6 6l12 12M18 6L6 18",
+        ),
+        CallbackPageStatus::Invalid => (
+            "无效的 OAuth 回调",
+            "无效的授权回调",
+            "请返回 SecScore 重新发起登录",
+            "#d9822b",
+            "M12 8v5m0 3h.01",
+        ),
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #f4f7fb;
+      color: #181818;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }}
+    main {{
+      width: min(100%, 420px);
+      padding: 40px 32px;
+      text-align: center;
+      background: #ffffff;
+      border: 1px solid #dfe5ec;
+      border-radius: 12px;
+    }}
+    .icon {{
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      background: {tone}12;
+      color: {tone};
+    }}
+    svg {{ width: 28px; height: 28px; }}
+    h1 {{ margin: 0 0 12px; font-size: 24px; font-weight: 600; line-height: 1.35; }}
+    p {{ margin: 0; color: #5f6670; font-size: 15px; line-height: 1.7; }}
+    .hint {{ margin-top: 18px; color: #8b929b; font-size: 13px; }}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="{icon_path}" />
+      </svg>
+    </div>
+    <h1>{heading}</h1>
+    <p>{message}</p>
+    <p class="hint">现在可以关闭此页面</p>
+  </main>
+</body>
+</html>"#
+    )
+}
+
 async fn handle_oauth_callback(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
     axum::extract::Extension(app_handle): axum::extract::Extension<tauri::AppHandle>,
@@ -285,8 +376,10 @@ async fn handle_oauth_callback(
     let error_description = params.get("error_description").cloned();
 
     println!(
-        "[OAuth Callback] 收到回调 - code: {:?}, state: {:?}, error: {:?}",
-        code, state, error
+        "[OAuth Callback] 收到回调 - has_code: {}, has_state: {}, error: {}",
+        code.is_some(),
+        state.is_some(),
+        error.as_deref().unwrap_or("none")
     );
 
     let result = OAuthCallbackResult {
@@ -301,226 +394,54 @@ async fn handle_oauth_callback(
         Err(e) => println!("[OAuth Callback] Event 发送失败：{:?}", e),
     }
 
-    let html = r#"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>OAuth 授权完成</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-                color: #e4e4e4;
-            }
-            .container {
-                text-align: center;
-                padding: 48px 40px;
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 20px;
-                backdrop-filter: blur(20px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
-                            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-                animation: slideUp 0.5s ease-out;
-            }
-            @keyframes slideUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            .icon {
-                width: 80px;
-                height: 80px;
-                margin: 0 auto 24px;
-                background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 20px rgba(74, 222, 128, 0.4);
-                animation: scaleIn 0.5s ease-out 0.2s both;
-            }
-            @keyframes scaleIn {
-                from {
-                    opacity: 0;
-                    transform: scale(0.5);
-                }
-                to {
-                    opacity: 1;
-                    transform: scale(1);
-                }
-            }
-            .icon svg {
-                width: 40px;
-                height: 40px;
-                color: white;
-            }
-            h1 {
-                margin: 0 0 12px 0;
-                font-size: 28px;
-                font-weight: 600;
-                background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-            p {
-                margin: 0;
-                color: #a0a0a0;
-                font-size: 15px;
-                line-height: 1.6;
-            }
-            .hint {
-                margin-top: 20px;
-                font-size: 13px;
-                color: #666;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-            </div>
-            <h1>授权成功</h1>
-            <p>请返回 SecScore 应用查看登录结果</p>
-            <p class="hint">此窗口可以关闭</p>
-        </div>
-        <script>
-            setTimeout(() => {
-                window.close();
-            }, 3000);
-        </script>
-    </body>
-    </html>
-    "#;
-
-    let error_html = r#"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <title>OAuth 授权失败</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-                color: #e4e4e4;
-            }
-            .container {
-                text-align: center;
-                padding: 48px 40px;
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 20px;
-                backdrop-filter: blur(20px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 
-                            0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-                animation: slideUp 0.5s ease-out;
-            }
-            @keyframes slideUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(20px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-            .icon {
-                width: 80px;
-                height: 80px;
-                margin: 0 auto 24px;
-                background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 20px rgba(248, 113, 113, 0.4);
-                animation: scaleIn 0.5s ease-out 0.2s both;
-            }
-            @keyframes scaleIn {
-                from {
-                    opacity: 0;
-                    transform: scale(0.5);
-                }
-                to {
-                    opacity: 1;
-                    transform: scale(1);
-                }
-            }
-            .icon svg {
-                width: 40px;
-                height: 40px;
-                color: white;
-            }
-            h1 {
-                margin: 0 0 12px 0;
-                font-size: 28px;
-                font-weight: 600;
-                background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-            p {
-                margin: 0;
-                color: #a0a0a0;
-                font-size: 15px;
-                line-height: 1.6;
-            }
-            .hint {
-                margin-top: 20px;
-                font-size: 13px;
-                color: #666;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </div>
-            <h1>授权失败</h1>
-            <p>请返回 SecScore 应用查看错误信息</p>
-            <p class="hint">此窗口可以关闭</p>
-        </div>
-    </body>
-    </html>
-    "#;
-
-    let response_html = if error.is_some() { error_html } else { html };
+    let page_status = if error.is_some() {
+        CallbackPageStatus::Error
+    } else if code.is_some() && state.is_some() {
+        CallbackPageStatus::Received
+    } else {
+        CallbackPageStatus::Invalid
+    };
+    let response_html = render_callback_page(page_status);
 
     (
         axum::http::StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
+            (axum::http::header::CACHE_CONTROL, "no-store"),
+            (axum::http::header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        ],
         response_html,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{render_callback_page, CallbackPageStatus};
+
+    #[test]
+    fn renders_received_callback_without_claiming_login_succeeded() {
+        let html = render_callback_page(CallbackPageStatus::Received);
+        assert!(html.contains("已收到授权结果"));
+        assert!(!html.contains("登录成功"));
+    }
+
+    #[test]
+    fn renders_error_and_invalid_callback_states() {
+        assert!(render_callback_page(CallbackPageStatus::Error).contains("授权未完成"));
+        assert!(render_callback_page(CallbackPageStatus::Invalid).contains("无效的授权回调"));
+    }
+
+    #[test]
+    fn callback_page_does_not_contain_credentials() {
+        for status in [
+            CallbackPageStatus::Received,
+            CallbackPageStatus::Error,
+            CallbackPageStatus::Invalid,
+        ] {
+            let html = render_callback_page(status);
+            assert!(!html.contains("code="));
+            assert!(!html.contains("state="));
+            assert!(!html.contains("error_description"));
+        }
+    }
 }

@@ -464,8 +464,10 @@ pub async fn oauth_exchange_code(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthTokenResponse>, String> {
     println!(
-        "[OAuth] 换取令牌 - code: {}, platform_id: {}, callback_url: {}",
-        code, platform_id, callback_url
+        "[OAuth] 换取令牌 - has_code: {}, platform_id: {}, callback_url: {}",
+        !code.is_empty(),
+        platform_id,
+        callback_url
     );
 
     let device_uuid = get_or_create_device_uuid();
@@ -607,8 +609,9 @@ pub async fn oauth_get_user_info(
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<OAuthUserInfo>, String> {
     println!(
-        "[OAuth] 获取用户信息 - access_token: {}...",
-        &access_token[..20.min(access_token.len())]
+        "[OAuth] 获取用户信息 - has_access_token: {}, token_length: {}",
+        !access_token.is_empty(),
+        access_token.len()
     );
 
     let state_guard = state.read();

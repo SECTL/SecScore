@@ -17,6 +17,7 @@ yarn-error.log*
 .env
 .env.local
 *.env.*
+!.env.production
 !.env.sync-server.development.example
 !.env.production.example
 .env.sync-server.development.local

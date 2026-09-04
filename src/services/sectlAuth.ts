@@ -9,8 +9,10 @@ export const SECTL_CONFIG = {
   baseUrl: "https://appwrite.sectl.cn",
   authUrl: "https://sectl.cn",
   platformId: String((import.meta as any).env?.VITE_OAUTH_PLATFORM_ID || "").trim(),
-  // 本地 HTTP 回调地址；授权请求和 Token 请求必须保持完全一致。
-  callbackUrl: "http://localhost:51267/oauth/callback",
+  // 回调地址是公开配置；授权请求和 Token 请求必须保持完全一致。
+  callbackUrl: String(
+    (import.meta as any).env?.VITE_OAUTH_CALLBACK_URL || "http://localhost:51267/oauth/callback"
+  ).trim(),
   callbackPort: 51267,
 }
 

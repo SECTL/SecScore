@@ -90,4 +90,58 @@ describe("sectlAuth token persistence", () => {
     expect(storage.getItem("sectl_token")).toBeNull()
     expect(storage.getItem(`sectl_token:${userId}`)).toBeNull()
   })
+
+  it("rejects a mismatched state without exchanging the code", async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+    const { sectlAuth } = await import("./sectlAuth")
+    storage.setItem("sectl_oauth_state", "expected-state")
+    storage.setItem("sectl_code_verifier", "verifier")
+
+    await expect(sectlAuth.exchangeCode("code", "wrong-state")).rejects.toThrow(
+      "OAuth state 校验失败"
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("uses PKCE and the same callback when exchanging a code", async () => {
+    vi.stubGlobal("performance", { now: vi.fn(() => 0) })
+    vi.stubGlobal("crypto", {
+      getRandomValues: (array: Uint8Array) => array.fill(7),
+      subtle: { digest: vi.fn(async () => new Uint8Array(32).buffer) },
+    })
+    vi.stubGlobal("btoa", (value: string) => Buffer.from(value, "binary").toString("base64"))
+
+    const token = createToken("user-pkce", Math.floor(Date.now() / 1000) + 3600)
+    vi.stubGlobal("window", {
+      setTimeout,
+      clearTimeout,
+    })
+    const tokenRequests: RequestInit[] = []
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      if (input.includes("api.ipify.org")) return { ok: true, text: async () => "203.0.113.10" }
+      if (input.includes("/api/oauth/token")) {
+        tokenRequests.push(init || {})
+        return { ok: true, status: 200, json: async () => ({ access_token: token }) }
+      }
+      throw new Error(`Unexpected request: ${input}`)
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { sectlAuth } = await import("./sectlAuth")
+    const callbackUrl = "http://localhost:51267/oauth/callback"
+    sectlAuth.initialize("platform-test", callbackUrl)
+    const authorizationUrl = new URL(await sectlAuth.getAuthorizationUrl(["user:read"]))
+    const state = authorizationUrl.searchParams.get("state")!
+    await sectlAuth.exchangeCode("authorization-code", state)
+
+    expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(callbackUrl)
+    expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe("S256")
+
+    expect(tokenRequests).toHaveLength(1)
+    const payload = JSON.parse(String(tokenRequests[0].body))
+    expect(payload.redirect_uri).toBe(callbackUrl)
+    expect(payload.code_verifier).toBeTruthy()
+    expect(payload).not.toHaveProperty("client_secret")
+  })
 })
