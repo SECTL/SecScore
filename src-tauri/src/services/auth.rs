@@ -54,6 +54,12 @@ impl AuthService {
         sender_id: Option<u32>,
         permissions: &mut super::permission::PermissionService,
     ) -> AuthStatus {
+        // 权限服务里缓存的是否"已设密码"标志必须与设置表实际内容保持一致，
+        // 否则默认权限恒为 Admin，锁定将毫无作用。这里每次读取状态时校准一次。
+        permissions.update_password_status(
+            settings.has_secret(SETTINGS_SECURITY_ADMIN),
+            settings.has_secret(SETTINGS_SECURITY_POINTS),
+        );
         let permission = if let Some(id) = sender_id {
             permissions.get_permission(id)
         } else {
@@ -74,7 +80,6 @@ impl AuthService {
         permissions: &mut super::permission::PermissionService,
         sender_id: u32,
         password: &str,
-        iv_hex: &str,
     ) -> LoginResult {
         if !SecurityService::is_six_digit(password) {
             permissions.set_permission(sender_id, permissions.get_default_permission());
@@ -88,12 +93,8 @@ impl AuthService {
         let admin_cipher = settings.get_raw(SETTINGS_SECURITY_ADMIN);
         let points_cipher = settings.get_raw(SETTINGS_SECURITY_POINTS);
 
-        let admin_plain = security
-            .decrypt_secret(&admin_cipher, iv_hex)
-            .unwrap_or_default();
-        let points_plain = security
-            .decrypt_secret(&points_cipher, iv_hex)
-            .unwrap_or_default();
+        let admin_plain = security.decrypt_secret(&admin_cipher).unwrap_or_default();
+        let points_plain = security.decrypt_secret(&points_cipher).unwrap_or_default();
 
         if !admin_cipher.is_empty() && admin_plain == password {
             permissions.set_permission(sender_id, PermissionLevel::Admin);
@@ -136,7 +137,6 @@ impl AuthService {
         permissions: &mut super::permission::PermissionService,
         sender_id: u32,
         payload: SetPasswordsPayload,
-        iv_hex: &str,
     ) -> SetPasswordsResult {
         let has_admin = settings.has_secret(SETTINGS_SECURITY_ADMIN);
         if has_admin && !permissions.require_permission(sender_id, PermissionLevel::Admin) {
@@ -159,7 +159,7 @@ impl AuthService {
                         message: Some("Admin password must be 6 digits".to_string()),
                     };
                 }
-                match security.encrypt_secret(trimmed, iv_hex) {
+                match security.encrypt_secret(trimmed) {
                     Ok(encrypted) => {
                         let _ = settings.set_raw(SETTINGS_SECURITY_ADMIN, &encrypted).await;
                     }
@@ -186,7 +186,7 @@ impl AuthService {
                         message: Some("Points password must be 6 digits".to_string()),
                     };
                 }
-                match security.encrypt_secret(trimmed, iv_hex) {
+                match security.encrypt_secret(trimmed) {
                     Ok(encrypted) => {
                         let _ = settings.set_raw(SETTINGS_SECURITY_POINTS, &encrypted).await;
                     }
@@ -203,7 +203,7 @@ impl AuthService {
 
         if !settings.has_secret(SETTINGS_SECURITY_RECOVERY) {
             let recovery = SecurityService::generate_recovery_string();
-            match security.encrypt_secret(&recovery, iv_hex) {
+            match security.encrypt_secret(&recovery) {
                 Ok(encrypted) => {
                     let _ = settings
                         .set_raw(SETTINGS_SECURITY_RECOVERY, &encrypted)
@@ -236,7 +236,6 @@ impl AuthService {
         security: &SecurityService,
         permissions: &mut super::permission::PermissionService,
         sender_id: u32,
-        iv_hex: &str,
     ) -> SetPasswordsResult {
         if settings.has_secret(SETTINGS_SECURITY_ADMIN)
             && !permissions.require_permission(sender_id, PermissionLevel::Admin)
@@ -249,7 +248,7 @@ impl AuthService {
         }
 
         let recovery = SecurityService::generate_recovery_string();
-        match security.encrypt_secret(&recovery, iv_hex) {
+        match security.encrypt_secret(&recovery) {
             Ok(encrypted) => {
                 let _ = settings
                     .set_raw(SETTINGS_SECURITY_RECOVERY, &encrypted)
@@ -274,10 +273,9 @@ impl AuthService {
         permissions: &mut super::permission::PermissionService,
         sender_id: u32,
         recovery_string: &str,
-        iv_hex: &str,
     ) -> SetPasswordsResult {
         let cipher = settings.get_raw(SETTINGS_SECURITY_RECOVERY);
-        let plain = security.decrypt_secret(&cipher, iv_hex).unwrap_or_default();
+        let plain = security.decrypt_secret(&cipher).unwrap_or_default();
 
         if plain.is_empty() || plain != recovery_string.trim() {
             return SetPasswordsResult {
@@ -291,7 +289,7 @@ impl AuthService {
         let _ = settings.set_raw(SETTINGS_SECURITY_POINTS, "").await;
 
         let new_recovery = SecurityService::generate_recovery_string();
-        match security.encrypt_secret(&new_recovery, iv_hex) {
+        match security.encrypt_secret(&new_recovery) {
             Ok(encrypted) => {
                 let _ = settings
                     .set_raw(SETTINGS_SECURITY_RECOVERY, &encrypted)

@@ -77,6 +77,45 @@ impl AppState {
         self.settings.write().initialize().await?;
         self.logger.write().initialize(&self.app_handle).await?;
 
+        // 一次性的安全状态校准。
+        // 1) 旧版本用"每次请求随机生成的 IV"加密密码但从不持久化 IV，导致遗留密文
+        //    无法用当前密钥解密。若不清除，应用启动后会因这些"永远无法解锁"的密码
+        //    而默认降为只读，把用户锁在门外。这里将无法解密的遗留密文置空，等用户重新设置。
+        // 2) 用设置表里密码的真实存在情况校准权限服务缓存的"已设密码"标志，否则
+        //    默认权限恒为 Admin，锁定（登出）不会真正降为只读。
+        {
+            let secrets = [
+                crate::services::auth::SETTINGS_SECURITY_ADMIN,
+                crate::services::auth::SETTINGS_SECURITY_POINTS,
+                crate::services::auth::SETTINGS_SECURITY_RECOVERY,
+            ];
+            let mut legacy_keys: Vec<&'static str> = Vec::new();
+            {
+                let settings = self.settings.read();
+                let security = self.security.read();
+                for key in secrets {
+                    let raw = settings.get_raw(key);
+                    if !raw.is_empty() && security.decrypt_secret(&raw).is_err() {
+                        legacy_keys.push(key);
+                    }
+                }
+            }
+            if !legacy_keys.is_empty() {
+                let mut settings = self.settings.write();
+                for key in legacy_keys {
+                    let _ = settings.set_raw(key, "").await;
+                }
+            }
+        }
+        {
+            let settings = self.settings.read();
+            let mut permissions = self.permissions.write();
+            permissions.update_password_status(
+                settings.has_secret(crate::services::auth::SETTINGS_SECURITY_ADMIN),
+                settings.has_secret(crate::services::auth::SETTINGS_SECURITY_POINTS),
+            );
+        }
+
         {
             let settings = self.settings.read();
             let current_theme_id = match settings.get_value(SettingsKey::CurrentThemeId) {

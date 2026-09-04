@@ -4,12 +4,22 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::services::{
-    auth::{AuthService, SetPasswordsPayload},
-    SecurityService,
+    auth::{AuthService, SetPasswordsPayload, SETTINGS_SECURITY_ADMIN, SETTINGS_SECURITY_POINTS},
+    permission::PermissionService,
+    settings::SettingsService,
 };
 use crate::state::AppState;
 
 use super::response::IpcResponse;
+
+/// 用设置表里密码的真实存在情况校准权限服务缓存的"已设密码"标志。
+/// 若不同步，默认权限恒为 Admin，锁定（登出）不会真正降为只读。
+fn sync_permission_flags(settings: &SettingsService, permissions: &mut PermissionService) {
+    permissions.update_password_status(
+        settings.has_secret(SETTINGS_SECURITY_ADMIN),
+        settings.has_secret(SETTINGS_SECURITY_POINTS),
+    );
+}
 
 /// 生成标准 UUID v4
 fn generate_uuid() -> String {
@@ -86,7 +96,11 @@ async fn get_local_ip() -> Result<String, String> {
     Ok("127.0.0.1".to_string())
 }
 
+// 注意：Tauri 命令的入参会把 JS camelCase 自动映射到 Rust snake 参数，但返回值
+// 按 serde 默认 snake_case 序列化。前端(api 类型声明)按 camelCase 读取这些字段，
+// 因此这里显式 rename_all = "camelCase"，避免出现"已保存但仍显示未设置"这类错位。
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthStatusResponse {
     pub permission: String,
     pub has_admin_password: bool,
@@ -100,6 +114,7 @@ pub struct LoginResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SetPasswordsResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recovery_string: Option<String>,
@@ -158,10 +173,6 @@ pub struct OAuthAuthorizationUrlResponse {
     pub code_verifier: String,
 }
 
-fn get_iv_hex() -> String {
-    SecurityService::generate_iv_hex()
-}
-
 #[tauri::command]
 pub async fn auth_get_status(
     sender_id: Option<u32>,
@@ -194,8 +205,6 @@ pub async fn auth_login(
 ) -> Result<IpcResponse<LoginResponse>, String> {
     let sender = sender_id.unwrap_or(0);
 
-    let iv_hex = get_iv_hex();
-
     let result = {
         let state_guard = state.read();
         let db_conn = state_guard.db.read().clone();
@@ -205,15 +214,7 @@ pub async fn auth_login(
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
-        AuthService::login(
-            &mut settings,
-            &security,
-            &mut permissions,
-            sender,
-            &password,
-            &iv_hex,
-        )
-        .await
+        AuthService::login(&mut settings, &security, &mut permissions, sender, &password).await
     };
 
     if result.success {
@@ -258,8 +259,6 @@ pub async fn auth_set_passwords(
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
     let sender = sender_id.unwrap_or(0);
 
-    let iv_hex = get_iv_hex();
-
     let payload = SetPasswordsPayload {
         admin_password,
         points_password,
@@ -274,15 +273,10 @@ pub async fn auth_set_passwords(
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
-        AuthService::set_passwords(
-            &mut settings,
-            &security,
-            &mut permissions,
-            sender,
-            payload,
-            &iv_hex,
-        )
-        .await
+        let res = AuthService::set_passwords(&mut settings, &security, &mut permissions, sender, payload)
+            .await;
+        sync_permission_flags(&settings, &mut permissions);
+        res
     };
 
     if result.success {
@@ -305,8 +299,6 @@ pub async fn auth_generate_recovery(
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
     let sender = sender_id.unwrap_or(0);
 
-    let iv_hex = get_iv_hex();
-
     let result = {
         let state_guard = state.read();
         let db_conn = state_guard.db.read().clone();
@@ -316,8 +308,11 @@ pub async fn auth_generate_recovery(
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
-        AuthService::generate_recovery(&mut settings, &security, &mut permissions, sender, &iv_hex)
-            .await
+        let res =
+            AuthService::generate_recovery(&mut settings, &security, &mut permissions, sender)
+                .await;
+        sync_permission_flags(&settings, &mut permissions);
+        res
     };
 
     if result.success {
@@ -341,8 +336,6 @@ pub async fn auth_reset_by_recovery(
 ) -> Result<IpcResponse<SetPasswordsResponse>, String> {
     let sender = sender_id.unwrap_or(0);
 
-    let iv_hex = get_iv_hex();
-
     let result = {
         let state_guard = state.read();
         let db_conn = state_guard.db.read().clone();
@@ -352,15 +345,16 @@ pub async fn auth_reset_by_recovery(
         let security = state_guard.security.read();
         let mut permissions = state_guard.permissions.write();
 
-        AuthService::reset_by_recovery(
+        let res = AuthService::reset_by_recovery(
             &mut settings,
             &security,
             &mut permissions,
             sender,
             &recovery_string,
-            &iv_hex,
         )
-        .await
+        .await;
+        sync_permission_flags(&settings, &mut permissions);
+        res
     };
 
     if result.success {
@@ -391,7 +385,9 @@ pub async fn auth_clear_all(
         settings.initialize().await?;
         let mut permissions = state_guard.permissions.write();
 
-        AuthService::clear_all(&mut settings, &mut permissions, sender).await
+        let res = AuthService::clear_all(&mut settings, &mut permissions, sender).await;
+        sync_permission_flags(&settings, &mut permissions);
+        res
     };
 
     match result {

@@ -6,7 +6,6 @@ type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
 type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
 
 const SALT: &[u8] = b"secscore-salt";
-const IV_KEY: &str = "security_crypto_iv";
 
 pub struct SecurityService {
     app_data_dir: Option<String>,
@@ -38,30 +37,19 @@ impl SecurityService {
         key
     }
 
-    fn generate_iv() -> [u8; 16] {
-        use rand::RngCore;
+    // AES-CBC 的加解密必须使用同一个 IV。历史上这里曾由命令层每次请求传入一个
+    // 随机 IV，既不持久化也不复用，导致"设密码后永远无法用密码解锁"。这里改为由
+    // 密钥确定性派生 IV：同一份密钥下，无论进程重启、还是切换本地班级，加密与解密
+    // 都得到一致的 IV，密文可跨会话解密。
+    fn derive_iv(&self) -> [u8; 16] {
+        let key = self.derive_key();
         let mut iv = [0u8; 16];
-        rand::thread_rng().fill_bytes(&mut iv);
+        iv.copy_from_slice(&key[..16]);
         iv
     }
 
-    fn iv_hex_to_bytes(hex: &str) -> Option<[u8; 16]> {
-        if hex.len() != 32 {
-            return None;
-        }
-        let mut bytes = [0u8; 16];
-        for i in 0..16 {
-            bytes[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()?;
-        }
-        Some(bytes)
-    }
-
-    fn bytes_to_iv_hex(bytes: &[u8; 16]) -> String {
-        bytes.iter().map(|b| format!("{:02x}", b)).collect()
-    }
-
-    pub fn encrypt_secret(&self, plain_text: &str, iv_hex: &str) -> Result<String, String> {
-        let iv = Self::iv_hex_to_bytes(iv_hex).ok_or("Invalid IV hex string")?;
+    pub fn encrypt_secret(&self, plain_text: &str) -> Result<String, String> {
+        let iv = self.derive_iv();
         let key = self.derive_key();
 
         let cipher = Aes256CbcEnc::new(&key.into(), &iv.into());
@@ -77,12 +65,12 @@ impl SecurityService {
         Ok(hex::encode(ciphertext))
     }
 
-    pub fn decrypt_secret(&self, cipher_text: &str, iv_hex: &str) -> Result<String, String> {
+    pub fn decrypt_secret(&self, cipher_text: &str) -> Result<String, String> {
         if cipher_text.is_empty() {
             return Ok(String::new());
         }
 
-        let iv = Self::iv_hex_to_bytes(iv_hex).ok_or("Invalid IV hex string")?;
+        let iv = self.derive_iv();
         let key = self.derive_key();
 
         let mut ciphertext = hex::decode(cipher_text).map_err(|e| e.to_string())?;
@@ -99,19 +87,10 @@ impl SecurityService {
         s.len() == 6 && s.chars().all(|c| c.is_ascii_digit())
     }
 
-    pub fn generate_iv_hex() -> String {
-        let iv = Self::generate_iv();
-        Self::bytes_to_iv_hex(&iv)
-    }
-
     pub fn generate_recovery_string() -> String {
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let bytes: [u8; 18] = rng.gen();
         URL_SAFE_NO_PAD.encode(&bytes)
-    }
-
-    pub fn get_iv_key() -> &'static str {
-        IV_KEY
     }
 }
