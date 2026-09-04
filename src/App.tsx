@@ -1,7 +1,6 @@
 import {
   Layout,
   Modal,
-  Input,
   message,
   ConfigProvider,
   theme as antTheme,
@@ -28,6 +27,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { HashRouter, useLocation, useNavigate, Routes, Route } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { Sidebar } from "./components/Sidebar"
+import { PinPad } from "./components/PinPad"
 import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { OAuthLogin } from "./components/OAuth/OAuthLogin"
@@ -206,6 +206,44 @@ function MainContent(): React.JSX.Element {
       setAuthVisible(anyPwd && authRes.data.permission === "view")
     }
   }, [])
+
+  // 解锁弹窗每次打开都清空九宫格已输入内容，避免上次取消留下的残留。
+  useEffect(() => {
+    if (authVisible) {
+      setAuthPassword("")
+    }
+  }, [authVisible])
+
+  // 解锁弹窗打开期间支持物理键盘输入：数字键 0-9 输入，退格删除。
+  // 输满 6 位自动调用 login（与九宫格点满一致）。
+  useEffect(() => {
+    if (!authVisible) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (authLoading) return
+      // 不拦截组合键，避免影响全局快捷键
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const k = e.key
+      if (/^[0-9]$/.test(k)) {
+        e.preventDefault()
+        if (authPassword.length >= 6) return
+        const next = (authPassword + k).slice(0, 6)
+        setAuthPassword(next)
+        if (next.length === 6) {
+          void login(next)
+        }
+        return
+      }
+      if (k === "Backspace") {
+        e.preventDefault()
+        if (authPassword.length > 0) {
+          setAuthPassword(authPassword.slice(0, -1))
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authVisible, authPassword, authLoading])
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
@@ -609,10 +647,12 @@ function MainContent(): React.JSX.Element {
     }
   }, [permission])
 
-  const login = async () => {
-    if (!(window as any).api) return
+  const login = async (password?: string) => {
+    const api = (window as any).api
+    if (!api) return
+    const pwd = password ?? authPassword
     setAuthLoading(true)
-    const res = await (window as any).api.authLogin(authPassword)
+    const res = await api.authLogin(pwd)
     setAuthLoading(false)
     if (res.success && res.data) {
       setPermission(res.data.permission)
@@ -620,6 +660,8 @@ function MainContent(): React.JSX.Element {
       setAuthPassword("")
       messageApi.success(t("auth.unlocked"))
     } else {
+      // 清空已输入的密码，方便用九宫格重新输入
+      setAuthPassword("")
       messageApi.error(res.message || t("common.error"))
     }
   }
@@ -1189,22 +1231,25 @@ function MainContent(): React.JSX.Element {
           title={t("auth.unlock")}
           open={authVisible}
           onCancel={() => setAuthVisible(false)}
-          onOk={login}
+          onOk={() => login()}
           confirmLoading={authLoading}
           okText={t("auth.unlockButton")}
           cancelText={t("common.cancel")}
+          width={400}
+          centered
+          destroyOnHidden
         >
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <div style={{ color: "var(--ss-text-secondary)", fontSize: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+            <div style={{ color: "var(--ss-text-secondary)", fontSize: "12px", textAlign: "center" }}>
               {t("auth.unlockHint")} 本地权限由本机密码控制；SECTL 登录仅用于在线班级和云同步。
             </div>
-            <Input
+            <PinPad
               value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              placeholder={t("auth.passwordPlaceholder")}
-              maxLength={6}
+              onChange={setAuthPassword}
+              disabled={authLoading}
+              onFull={(pwd) => void login(pwd)}
             />
-            <div style={{ textAlign: "center", marginTop: "8px" }}>
+            <div style={{ textAlign: "center", marginTop: "4px" }}>
               <Button
                 type="link"
                 onClick={() => {
