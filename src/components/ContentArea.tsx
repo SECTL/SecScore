@@ -711,8 +711,8 @@ export function ContentArea({
             paddingLeft: macTrafficLightsInset ? "80px" : 0,
             WebkitAppRegion: "drag",
             position: "relative",
-            // 标题栏必须高于 Modal/Drawer 的遮罩，确保任何状态下均可拖动窗口。
-            zIndex: 2147483647,
+            // 全窗口 Modal/Drawer 遮罩需要覆盖标题栏，避免遮罩只覆盖内容区域。
+            zIndex: 1,
           } as React.CSSProperties
         }
       >
