@@ -451,7 +451,8 @@
     "passwordPlaceholder": "например, 123456",
     "passwordError": "Неверный пароль",
     "enterPassword": "Введите пароль",
-    "lock": "Заблокировать"
+    "lock": "Заблокировать",
+    "needToSetPassword": "Сначала задайте пароль в Настройки → Безопасность"
   },
   "languages": {
     "zh-CN": "简体中文",

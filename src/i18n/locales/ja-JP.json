@@ -451,7 +451,8 @@
     "passwordPlaceholder": "例：123456",
     "passwordError": "パスワードが間違っています",
     "enterPassword": "パスワードを入力",
-    "lock": "ロック"
+    "lock": "ロック",
+    "needToSetPassword": "先に設定→セキュリティでパスワードを設定してください"
   },
   "languages": {
     "zh-CN": "简体中文",

@@ -451,7 +451,8 @@
     "passwordPlaceholder": "z. B. 123456",
     "passwordError": "Falsches Passwort",
     "enterPassword": "Passwort eingeben",
-    "lock": "Sperren"
+    "lock": "Sperren",
+    "needToSetPassword": "Bitte legen Sie zuerst ein Passwort unter Einstellungen → Sicherheit fest"
   },
   "languages": {
     "zh-CN": "简体中文",

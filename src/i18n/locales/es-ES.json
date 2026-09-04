@@ -451,7 +451,8 @@
     "passwordPlaceholder": "ej. 123456",
     "passwordError": "Contraseña incorrecta",
     "enterPassword": "Ingresar contraseña",
-    "lock": "Bloquear"
+    "lock": "Bloquear",
+    "needToSetPassword": "Primero establezca una contraseña en Ajustes → Seguridad"
   },
   "languages": {
     "zh-CN": "简体中文",

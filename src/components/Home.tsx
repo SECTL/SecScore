@@ -13,6 +13,7 @@ import {
   Divider,
   Dropdown,
   Popover,
+  Tooltip,
 } from "antd"
 import {
   SearchOutlined,
@@ -21,6 +22,8 @@ import {
   UploadOutlined,
   CopyOutlined,
   MenuOutlined,
+  LockOutlined,
+  UnlockOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
@@ -139,12 +142,20 @@ interface HomeProps {
   canEdit: boolean
   isPortraitMode?: boolean
   immersiveMode?: boolean
+  permission?: "admin" | "points" | "view"
+  hasAnyPassword?: boolean
+  onLock?: () => void
+  onUnlock?: () => void
 }
 
 export const Home: React.FC<HomeProps> = ({
   canEdit,
   isPortraitMode = false,
   immersiveMode = false,
+  permission = "admin",
+  hasAnyPassword = false,
+  onLock,
+  onUnlock,
 }) => {
   const { t } = useTranslation()
   const breakpoint = useResponsive()
@@ -3553,6 +3564,62 @@ export const Home: React.FC<HomeProps> = ({
     borderRadius: "8px",
   }
 
+  // 锁定 / 解锁控制按钮：可在不同布局下复用。
+  // - fullWidth：沉浸模式竖屏「更多」菜单里全宽展示
+  // - 否则以胶囊/普通按钮内联展示在标题栏或沉浸横屏工具栏
+  const lockControl = (opts: { fullWidth?: boolean; closeMenu?: () => void } = {}) => {
+    const { fullWidth = false, closeMenu } = opts
+    const handleUnlock = () => {
+      closeMenu?.()
+      onUnlock?.()
+    }
+    const handleLock = () => {
+      closeMenu?.()
+      onLock?.()
+    }
+    const btnStyle: React.CSSProperties = fullWidth
+      ? immersiveActionButtonStyle
+      : {
+          borderRadius: immersiveMode ? "999px" : undefined,
+          flexShrink: isMobile ? 1 : 0,
+        }
+
+    if (permission === "view") {
+      return (
+        <Button
+          icon={<UnlockOutlined />}
+          onClick={handleUnlock}
+          style={btnStyle}
+        >
+          {t("auth.enterPassword")}
+        </Button>
+      )
+    }
+
+    const lockBtn = (
+      <Button icon={<LockOutlined />} disabled style={btnStyle}>
+        {t("auth.lock")}
+      </Button>
+    )
+
+    if (!hasAnyPassword) {
+      // 禁用态 Button 不触发悬浮事件，包一层 span 让 Tooltip 生效
+      return fullWidth ? (
+        <Tooltip title={t("auth.needToSetPassword")}>{lockBtn}</Tooltip>
+      ) : (
+        <Tooltip title={t("auth.needToSetPassword")}>
+          <span style={{ display: "inline-block" }}>{lockBtn}</span>
+        </Tooltip>
+      )
+    }
+
+    return (
+      <Button icon={<LockOutlined />} onClick={handleLock} style={btnStyle}>
+        {t("auth.lock")}
+      </Button>
+    )
+  }
+
   const immersiveMenuContent = (
     <div className="ss-immersive-toolbar-menu">
       <Select
@@ -3661,6 +3728,9 @@ export const Home: React.FC<HomeProps> = ({
             </Button>
           </Space>
         ))}
+      <div style={{ borderTop: "1px solid var(--ss-border-color)", margin: "6px 0", paddingTop: "6px" }}>
+        {lockControl({ fullWidth: true, closeMenu: () => setImmersiveMenuOpen(false) })}
+      </div>
     </div>
   )
 
@@ -3697,6 +3767,11 @@ export const Home: React.FC<HomeProps> = ({
               <p style={{ margin: "4px 0 0", color: "var(--ss-text-secondary)", fontSize: "13px" }}>
                 {t("home.subtitle", { count: students.length })}
               </p>
+              {permission === "view" && (
+                <Tag style={{ marginTop: 6 }} color="default">
+                  {t("common.readOnly")}
+                </Tag>
+              )}
             </div>
 
             <Space
@@ -3864,6 +3939,7 @@ export const Home: React.FC<HomeProps> = ({
                 {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
               </Button>
               {batchToolbar}
+              {lockControl()}
             </Space>
           </>
         )}
@@ -4194,6 +4270,7 @@ export const Home: React.FC<HomeProps> = ({
                 {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
               </Button>
               <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
+              <div style={{ flexShrink: 0 }}>{lockControl()}</div>
             </>
           )}
           {canShowSearchKeyboard && showPinyinKeyboard && (

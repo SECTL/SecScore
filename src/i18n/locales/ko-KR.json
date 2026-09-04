@@ -451,7 +451,8 @@
     "passwordPlaceholder": "예: 123456",
     "passwordError": "비밀번호가 잘못되었습니다",
     "enterPassword": "비밀번호 입력",
-    "lock": "잠그기"
+    "lock": "잠그기",
+    "needToSetPassword": "먼저 설정 → 보안에서 비밀번호를 설정하세요"
   },
   "languages": {
     "zh-CN": "简体中文",

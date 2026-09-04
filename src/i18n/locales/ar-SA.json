@@ -451,7 +451,8 @@
     "passwordPlaceholder": "مثال: 123456",
     "passwordError": "كلمة المرور غير صحيحة",
     "enterPassword": "إدخال كلمة المرور",
-    "lock": "قفل"
+    "lock": "قفل",
+    "needToSetPassword": "يرجى تعيين كلمة مرور أولاً في الإعدادات → الأمان"
   },
   "languages": {
     "zh-CN": "简体中文",

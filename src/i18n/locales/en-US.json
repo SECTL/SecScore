@@ -452,7 +452,8 @@
     "passwordPlaceholder": "e.g. 123456",
     "passwordError": "Incorrect password",
     "enterPassword": "Enter Password",
-    "lock": "Lock"
+    "lock": "Lock",
+    "needToSetPassword": "Set a password first in Settings → Security"
   },
   "languages": {
     "zh-CN": "简体中文",

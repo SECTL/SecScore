@@ -966,6 +966,10 @@ export function ContentArea({
                       canEdit={permission === "admin" || permission === "points"}
                       isPortraitMode={isPortraitMode}
                       immersiveMode={immersiveMode}
+                      permission={permission}
+                      hasAnyPassword={hasAnyPassword}
+                      onLock={onLogout}
+                      onUnlock={onAuthClick}
                     />
                   }
                 />

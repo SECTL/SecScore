@@ -452,7 +452,8 @@
     "passwordPlaceholder": "例如 123456",
     "passwordError": "密码错误",
     "enterPassword": "输入密码",
-    "lock": "锁定"
+    "lock": "锁定",
+    "needToSetPassword": "请在设置→安全中先设置密码"
   },
   "languages": {
     "zh-CN": "简体中文",

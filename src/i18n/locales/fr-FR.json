@@ -451,7 +451,8 @@
     "passwordPlaceholder": "ex. 123456",
     "passwordError": "Mot de passe incorrect",
     "enterPassword": "Entrer le mot de passe",
-    "lock": "Verrouiller"
+    "lock": "Verrouiller",
+    "needToSetPassword": "Définissez d'abord un mot de passe dans Paramètres → Sécurité"
   },
   "languages": {
     "zh-CN": "简体中文",
