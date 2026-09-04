@@ -218,8 +218,8 @@ export const Home: React.FC<HomeProps> = ({
   const submitInFlightRef = useRef(false)
   const operationModalRootClass = "ss-home-operation-morph-root"
   const operationModalClass = "ss-home-operation-morph-modal"
-  const operationMorphOpenDuration = 480
-  const operationMorphCloseDuration = 360
+  const operationMorphOpenDuration = 300
+  const operationMorphCloseDuration = 240
   const operationMorphEasing = "cubic-bezier(0.2, 0, 0, 1)"
   const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
 
