@@ -208,9 +208,24 @@ class SectlAuthService {
   private userId: string | null = null
   private codeVerifier: string | null = null
   private authorizationState: string | null = null
+  private tokenGeneration = 0
+  private readonly sessionListeners = new Set<() => void>()
 
   constructor() {
     this.loadToken()
+  }
+
+  subscribeSession(listener: () => void): () => void {
+    this.sessionListeners.add(listener)
+    return () => this.sessionListeners.delete(listener)
+  }
+
+  getTokenGeneration(): number {
+    return this.tokenGeneration
+  }
+
+  private notifySessionChanged(): void {
+    for (const listener of this.sessionListeners) listener()
   }
 
   initialize(platformId: string, callbackUrl?: string) {
@@ -635,8 +650,10 @@ class SectlAuthService {
       : tokenData.expires_at
 
     const storableData: TokenData = {
-      access_token: rawAccessToken,
-      refresh_token: tokenData.refresh_token,
+      // 只持久化规范化后的 access token，不能把 JWT|refresh_token
+      // 兼容格式原样带入后续 Bearer 请求。
+      access_token: this.accessToken,
+      refresh_token: this.refreshToken || undefined,
       token_type: tokenData.token_type,
       expires_in: tokenData.expires_in,
       expires_at: expiresAt,
@@ -648,6 +665,8 @@ class SectlAuthService {
     if (this.userId) {
       localStorage.setItem(`sectl_token:${this.userId}`, JSON.stringify(storableData))
     }
+    this.tokenGeneration += 1
+    this.notifySessionChanged()
     authLog("info", "OAuth token 已保存", {
       platform_id: SECTL_CONFIG.platformId,
       user_id: this.userId,
@@ -706,6 +725,8 @@ class SectlAuthService {
     this.userId = null
     this.codeVerifier = null
     this.authorizationState = null
+    this.tokenGeneration += 1
+    this.notifySessionChanged()
   }
 
   getToken(): TokenData | null {

@@ -147,6 +147,10 @@ class SyncClient {
   private changeStreamAuthError = false
   private tokenRecoveryInProgress = false
   private lastTokenRecoveryAt = 0
+  private authenticationBlocked = false
+  private changeStreamGeneration = 0
+  private syncContextGeneration = 0
+  private sessionUnsubscribe: (() => void) | null = null
   private readonly appliedOperationIds = new Set<string>()
   private readonly applyingOperationPromises = new Map<string, Promise<boolean>>()
   private onlineHandler: (() => void) | null = null
@@ -200,7 +204,9 @@ class SyncClient {
   setEnabled(enabled: boolean) {
     const changed = this.enabled !== enabled
     this.enabled = enabled
+    if (enabled && sectlAuth.isAuthenticated()) this.authenticationBlocked = false
     if (!enabled) {
+      this.changeStreamGeneration += 1
       this.changeStreamAbortController?.abort()
       this.changeStreamConnected = false
       this.changeStreamAuthError = false
@@ -217,7 +223,7 @@ class SyncClient {
       server_url: DEFAULT_SERVER_URL,
       authenticated: sectlAuth.isAuthenticated(),
     })
-    if (enabled && changed) {
+    if (enabled && changed && !this.authenticationBlocked) {
       this.startChangeStream()
       // 启动阶段由 start() 发起唯一一次强制同步；运行中切换到云同步时才立即补一次快照。
       if (this.timer !== null) void this.syncNow(true)
@@ -233,6 +239,23 @@ class SyncClient {
 
   createOperationId(): string {
     return newUuid()
+  }
+
+  switchClass(): void {
+    this.changeStreamGeneration += 1
+    this.syncContextGeneration += 1
+    this.changeStreamAbortController?.abort()
+    this.snapshotAbortController?.abort()
+    this.changeStreamConnected = false
+    this.changeStreamAuthError = false
+    this.snapshotRequested = false
+    this.snapshotPullRequested = true
+    this.authenticationBlocked = false
+    syncLog("info", "同步上下文已切换到新班级", { local_class_id: getCurrentClassId() })
+    if (this.enabled && sectlAuth.isAuthenticated()) {
+      this.startChangeStream()
+      void this.syncNow(true)
+    }
   }
 
   requestSnapshot(): void {
@@ -441,7 +464,7 @@ class SyncClient {
     }
   }
 
-  private async syncSnapshot(): Promise<void> {
+  private async syncSnapshot(expectedContextGeneration = this.syncContextGeneration): Promise<void> {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
@@ -509,7 +532,9 @@ class SyncClient {
         return
       }
       const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
-      if (result.snapshot) await this.applySnapshotResult(result.snapshot, deviceId)
+      if (result.snapshot && expectedContextGeneration === this.syncContextGeneration) {
+        await this.applySnapshotResult(result.snapshot, deviceId)
+      }
     } finally {
       window.clearTimeout(timeout)
       if (this.snapshotAbortController === controller) this.snapshotAbortController = null
@@ -543,7 +568,7 @@ class SyncClient {
     )
   }
 
-  private async pullSnapshot(): Promise<void> {
+  private async pullSnapshot(expectedContextGeneration = this.syncContextGeneration): Promise<void> {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
@@ -592,7 +617,9 @@ class SyncClient {
         return
       }
       const result = JSON.parse(responseText) as { snapshot?: Record<string, unknown> }
-      if (result.snapshot) await this.applySnapshotResult(result.snapshot, deviceId)
+      if (result.snapshot && expectedContextGeneration === this.syncContextGeneration) {
+        await this.applySnapshotResult(result.snapshot, deviceId)
+      }
     } finally {
       window.clearTimeout(timeout)
       if (this.snapshotAbortController === controller) this.snapshotAbortController = null
@@ -601,6 +628,9 @@ class SyncClient {
 
   private async headers(requestId?: string): Promise<HeadersInit> {
     const token = sectlAuth.getAccessToken()
+    if (!token || !sectlAuth.isAuthenticated() || this.authenticationBlocked) {
+      throw new Error("OAuth 会话未就绪或已失效")
+    }
     const requestHeaders: Record<string, string> = {
       "Content-Type": "application/json",
     }
@@ -655,6 +685,8 @@ class SyncClient {
     try {
       await sectlAuth.refreshAccessToken()
       this.changeStreamAuthError = false
+      this.authenticationBlocked = false
+      this.changeStreamAbortController?.abort()
       this.updateStatus({
         state: this.enabled ? "connecting" : "disabled",
         authenticated: true,
@@ -668,6 +700,17 @@ class SyncClient {
       })
       return true
     } catch (error) {
+      this.authenticationBlocked = true
+      this.changeStreamAbortController?.abort()
+      this.changeStreamConnected = false
+      sectlAuth.clearLocalSession()
+      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+      this.updateStatus({
+        state: "auth_error",
+        authenticated: false,
+        realtimeConnected: false,
+        lastError: "OAuth 会话已失效，请重新登录",
+      })
       syncLog("warn", "同步 OAuth 会话恢复失败，需要重新登录", { error: String(error) })
       return false
     } finally {
@@ -783,10 +826,15 @@ class SyncClient {
   }
 
   private startChangeStream() {
-    if (this.changeStreamRunning) return
+    if (this.changeStreamRunning || this.authenticationBlocked || !sectlAuth.isAuthenticated()) return
     this.changeStreamRunning = true
+    const generation = this.changeStreamGeneration
     void (async () => {
-      while (this.enabled) {
+      while (
+        this.enabled &&
+        !this.authenticationBlocked &&
+        generation === this.changeStreamGeneration
+      ) {
         try {
           const serverUrl = DEFAULT_SERVER_URL
           const requestId = newUuid()
@@ -848,7 +896,11 @@ class SyncClient {
           const reader = response.body.getReader()
           const decoder = new TextDecoder()
           let buffer = ""
-          while (this.enabled) {
+          while (
+            this.enabled &&
+            !this.authenticationBlocked &&
+            generation === this.changeStreamGeneration
+          ) {
             const { done, value } = await reader.read()
             if (done) {
               syncLog("warn", "同步长连接由服务端关闭", { request_id: requestId })
@@ -880,9 +932,9 @@ class SyncClient {
             }
           }
         } catch (error) {
-          if (this.enabled) {
+          if (this.enabled && generation === this.changeStreamGeneration) {
             const status = (error as Error & { status?: number })?.status
-            const isAuthError = status === 401 || status === 403
+            const isAuthError = status === 401
             this.changeStreamConnected = false
             this.changeStreamAuthError = isAuthError
             this.updateStatus({
@@ -901,15 +953,24 @@ class SyncClient {
             )
           }
         } finally {
-          this.changeStreamAbortController = null
+          if (generation === this.changeStreamGeneration) {
+            this.changeStreamAbortController = null
+          }
         }
       }
-      this.changeStreamRunning = false
+      if (generation === this.changeStreamGeneration) {
+        this.changeStreamRunning = false
+      }
     })()
   }
 
   async syncNow(forceSnapshot = false): Promise<void> {
-    if (!this.enabled || !(window as any).api?.syncApplyRemoteOperation) return
+    if (
+      !this.enabled ||
+      this.authenticationBlocked ||
+      !sectlAuth.isAuthenticated() ||
+      !(window as any).api?.syncApplyRemoteOperation
+    ) return
     if (this.syncing) {
       this.syncRequested = true
       this.syncRequestedForceSnapshot ||= forceSnapshot
@@ -919,6 +980,7 @@ class SyncClient {
       })
       return
     }
+    const contextGeneration = this.syncContextGeneration
     const requestedSnapshot = this.snapshotRequested
     const requestedSnapshotPull = this.snapshotPullRequested
     this.snapshotRequested = false
@@ -999,10 +1061,13 @@ class SyncClient {
       })
       if (!response.ok) {
         const errorMessage = `sync HTTP ${response.status}: ${responseText.slice(0, 500)}`
-        const isAuthError = response.status === 401 || response.status === 403
+        // 403 还可能只是当前账号不是该班级成员，不能因此熔断整个账号的同步。
+        const isAuthError = response.status === 401
         if (isAuthError) {
           this.changeStreamConnected = false
           this.changeStreamAuthError = true
+          this.changeStreamAbortController?.abort()
+          this.authenticationBlocked = true
         }
         this.updateStatus({
           state: this.getFailureState(new Error(errorMessage), response.status),
@@ -1024,14 +1089,18 @@ class SyncClient {
         return
       }
       const result = JSON.parse(responseText) as SyncResponse
+      if (contextGeneration !== this.syncContextGeneration) {
+        syncLog("info", "丢弃旧班级同步响应", { request_id: requestId })
+        return
+      }
       await this.applySyncResponse(result)
       if (shouldSnapshot && getJson<PendingOperation[]>(OUTBOX_KEY, []).length === 0) {
         this.lastSnapshotAttemptAt = Date.now()
         try {
           if (requestedSnapshotPull && !requestedSnapshot) {
-            await this.pullSnapshot()
+            await this.pullSnapshot(contextGeneration)
           } else {
-            await this.syncSnapshot()
+            await this.syncSnapshot(contextGeneration)
           }
           this.lastSnapshotAt = Date.now()
         } catch (error) {
@@ -1092,6 +1161,17 @@ class SyncClient {
 
   start() {
     if (this.timer !== null) return
+    if (!this.sessionUnsubscribe) {
+      this.sessionUnsubscribe = sectlAuth.subscribeSession(() => {
+        if (sectlAuth.isAuthenticated()) {
+          this.authenticationBlocked = false
+          if (this.enabled) {
+            this.startChangeStream()
+            void this.syncNow(true)
+          }
+        }
+      })
+    }
     void this.syncNow(true)
     this.timer = window.setInterval(() => void this.syncNow(), 10_000)
     if (this.enabled) this.startChangeStream()
@@ -1134,6 +1214,7 @@ class SyncClient {
         this.changeStreamConnected = false
         this.changeStreamAuthError = false
         this.lastTokenRecoveryAt = 0
+        this.authenticationBlocked = false
         this.changeStreamAbortController?.abort()
         this.updateStatus({
           authenticated: sectlAuth.isAuthenticated(),
@@ -1152,6 +1233,7 @@ class SyncClient {
       window.clearInterval(this.timer)
       this.timer = null
     }
+    this.authenticationBlocked = false
     this.enabled = false
     this.snapshotRequested = false
     this.snapshotPullRequested = false
@@ -1160,6 +1242,8 @@ class SyncClient {
       window.clearTimeout(this.snapshotRequestTimer)
       this.snapshotRequestTimer = null
     }
+    this.changeStreamGeneration += 1
+    this.syncContextGeneration += 1
     this.changeStreamAbortController?.abort()
     this.changeStreamConnected = false
     this.changeStreamAuthError = false
@@ -1176,6 +1260,8 @@ class SyncClient {
       window.removeEventListener("ss:oauth-user-updated", this.oauthHandler)
       this.oauthHandler = null
     }
+    this.sessionUnsubscribe?.()
+    this.sessionUnsubscribe = null
     this.updateStatus({
       enabled: false,
       state: "disabled",

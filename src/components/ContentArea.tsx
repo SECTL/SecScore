@@ -12,6 +12,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 import { WorkspaceManager } from "./WorkspaceManager"
+import { sectlAuth } from "../services/sectlAuth"
 import appLogo from "../assets/logoHD.svg"
 
 const loadHome = () => import("./Home")
@@ -264,11 +265,13 @@ export function ContentArea({
         return
       }
 
-      const usageRes = await api.oauthGetStorageUsage(
-        oauthState.access_token,
-        platformId,
-        oauthState.user_id
-      )
+      const accessToken = sectlAuth.getAccessToken()
+      if (!accessToken || !sectlAuth.isAuthenticated()) {
+        setStorageUsage(null)
+        setStorageUsageError("云账号会话已失效，请重新登录")
+        return
+      }
+      const usageRes = await api.oauthGetStorageUsage(accessToken, platformId, oauthState.user_id)
       if (!usageRes?.success || !usageRes.data) {
         throw new Error(usageRes?.message || "获取云空间用量失败")
       }

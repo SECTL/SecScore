@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use tauri::{Emitter, State};
 
-use crate::services::WorkspaceState;
+use crate::services::{OnlineClassInput, WorkspaceState};
 use crate::state::AppState;
 
 use super::response::IpcResponse;
@@ -249,6 +249,27 @@ pub async fn workspace_add_online_class(
     Ok(IpcResponse::success(
         emit_workspace_changed(&state_arc).await?,
     ))
+}
+
+#[tauri::command]
+pub async fn workspace_upsert_online_classes(
+    classes: Vec<OnlineClassInput>,
+    state: State<'_, Arc<RwLock<AppState>>>,
+) -> Result<IpcResponse<WorkspaceState>, String> {
+    let state_arc = state.inner().clone();
+    let next = {
+        let state_guard = state_arc.read();
+        let mut workspace = state_guard.workspace.write().take().ok_or_else(|| "工作空间尚未初始化".to_string())?;
+        let result = async {
+            workspace.upsert_online_classes(classes).await?;
+            workspace.list_state().await
+        }
+        .await;
+        *state_guard.workspace.write() = Some(workspace);
+        result?
+    };
+    state_arc.read().app_handle.emit("workspace:changed", &next).map_err(|e| e.to_string())?;
+    Ok(IpcResponse::success(next))
 }
 
 #[tauri::command]

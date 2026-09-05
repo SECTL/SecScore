@@ -154,7 +154,14 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   }
 
   const openClass = (classId: string) =>
-    run(`class:${classId}`, () => (window as any).api.workspaceSwitchClass(classId))
+    run(`class:${classId}`, async () => {
+      const result = await (window as any).api.workspaceSwitchClass(classId)
+      if (result?.success) {
+        applyState(result.data)
+        syncClient.switchClass()
+      }
+      return result
+    })
 
   const openAccount = (accountId: string) =>
     run(`account:${accountId}`, async () => {
@@ -162,7 +169,9 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       const result = await (window as any).api.workspaceSwitchAccount(accountId)
       if (result?.success) {
         const target = result.data?.accounts?.find((item: { id: string }) => item.id === accountId)
+        applyState(result.data)
         if (target?.user_id) restoreStoredToken(target.user_id)
+        syncClient.switchClass()
       }
       return result
     })
@@ -294,8 +303,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
         throw new Error("在线班级列表格式无效")
       }
 
-      let latestState: WorkspaceState | undefined
-      let upsertedCount = 0
+      const validClasses: Array<{ name: string; remote_id: string; join_code: string; status: string }> = []
       for (const item of remoteClasses) {
         const name = typeof item?.name === "string" ? item.name.trim() : ""
         const remoteId = typeof item?.id === "string" ? item.id.trim() : ""
@@ -308,25 +316,21 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
           })
           continue
         }
-        const result = await (window as any).api.workspaceUpsertOnlineClass(
+        validClasses.push({
           name,
-          remoteId,
-          joinCode,
-          typeof item.status === "string" ? item.status : "active"
-        )
-        if (!result?.success) {
-          throw new Error(result?.message || `缓存班级失败: ${remoteId}`)
-        }
-        latestState = result.data || latestState
-        upsertedCount += 1
+          remote_id: remoteId,
+          join_code: joinCode,
+          status: typeof item.status === "string" ? item.status : "active",
+        })
       }
 
-      if (latestState) applyState(latestState)
-      const result = { success: true, data: latestState }
+      const result = await (window as any).api.workspaceUpsertOnlineClasses(validClasses)
+      if (!result?.success) throw new Error(result?.message || "缓存班级失败")
+      if (result.data) applyState(result.data)
       workspaceLog("info", "remote_classes_refresh_complete", {
         account_id: maskIdentifier(activeAccountId),
         remote_count: remoteClasses.length,
-        upserted_count: upsertedCount,
+        upserted_count: validClasses.length,
         duration_ms: Math.round(performance.now() - startedAt),
       })
       return result
