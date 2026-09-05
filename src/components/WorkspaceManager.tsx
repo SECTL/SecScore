@@ -1,4 +1,4 @@
-import { AppstoreOutlined, LoginOutlined, PlusOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons"
+import { AppstoreOutlined, PlusOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons"
 import { Button, Divider, Input, List, Modal, Space, Tag, message } from "antd"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
@@ -37,6 +37,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   const [state, setState] = useState<WorkspaceState | null>(null)
   const [open, setOpen] = useState(false)
   const [oauthOpen, setOAuthOpen] = useState(false)
+  const [oauthSessionExpired, setOAuthSessionExpired] = useState(false)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [newClassName, setNewClassName] = useState("")
   const [joinCode, setJoinCode] = useState("")
@@ -225,8 +226,9 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     const method = init.method || "GET"
     const token = sectlAuth.getAccessToken()
     if (!token) {
+      setOAuthSessionExpired(true)
       workspaceLog("warn", "remote_request_skipped_no_token", { method, path })
-      throw new Error("请先登录 SECTL 账号")
+      throw new Error("SECTL 会话已失效，请点击‘添加 SECTL 账号’重新登录")
     }
     const serverUrl = getBackendBaseUrl()
     workspaceLog("info", "remote_request_start", { method, path })
@@ -284,7 +286,8 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     if (sectlAuth.getUserId() !== activeUserId) {
       restoreStoredToken(activeUserId)
     }
-    if (!sectlAuth.getAccessToken()) {
+    if (!sectlAuth.getAccessToken() || !sectlAuth.isAuthenticated()) {
+      setOAuthSessionExpired(true)
       workspaceLog("warn", "remote_classes_refresh_skipped", {
         reason: "current_account_token_missing",
         user_id: maskIdentifier(activeUserId),
@@ -379,6 +382,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       user_id: maskIdentifier(userId),
       has_email: Boolean(userInfo.email),
     })
+    setOAuthSessionExpired(false)
     persistCurrentToken()
     try {
       const token = sectlAuth.getToken()
@@ -545,13 +549,13 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
                 </List.Item>
               )}
             />
-            <Button
-              style={{ marginTop: 8 }}
-              icon={<LoginOutlined />}
-              onClick={() => setOAuthOpen(true)}
-            >
-              添加 SECTL 账号
-            </Button>
+              <Button
+                type="primary"
+                style={{ marginTop: 8 }}
+                onClick={() => setOAuthOpen(true)}
+              >
+                {oauthSessionExpired ? "SECTL 会话已失效，重新登录" : "添加 SECTL 账号"}
+              </Button>
           </div>
 
           <Divider style={{ margin: 0 }} />

@@ -201,6 +201,15 @@ class SyncClient {
     for (const listener of this.statusListeners) listener(nextStatus)
   }
 
+  async restoreAuthentication(): Promise<boolean> {
+    try {
+      return await sectlAuth.restorePersistedSession()
+    } catch (error) {
+      syncLog("warn", "启动时恢复 OAuth 会话失败", { error: String(error) })
+      return false
+    }
+  }
+
   setEnabled(enabled: boolean) {
     const changed = this.enabled !== enabled
     this.enabled = enabled
@@ -704,7 +713,9 @@ class SyncClient {
       this.changeStreamAbortController?.abort()
       this.changeStreamConnected = false
       sectlAuth.clearLocalSession()
-      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+      window.dispatchEvent(
+        new CustomEvent("ss:oauth-user-updated", { detail: { user: null, reason: "expired" } })
+      )
       this.updateStatus({
         state: "auth_error",
         authenticated: false,

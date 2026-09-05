@@ -37,6 +37,7 @@ import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
 import { getPluginRuntime } from "./plugins/runtime"
+import { useIsMobileViewport } from "./hooks/useResponsive"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
 const DEFAULT_MOBILE_BOTTOM_PRIMARY_KEYS: MobileNavKey[] = DEFAULT_MOBILE_BOTTOM_NAV_ITEMS.slice(
@@ -57,6 +58,9 @@ function MainContent(): React.JSX.Element {
   const { currentTheme } = useTheme()
   const [messageApi, contextHolder] = message.useMessage()
   const { isIosDevice, isAndroidDevice, defaultPortraitMode } = useMemo(getMobileDeviceInfo, [])
+  const isLanBrowser = Boolean((window as any).__SECSCORE_LAN__)
+  const isMobileViewport = useIsMobileViewport()
+  const effectivePortraitMode = defaultPortraitMode || (isLanBrowser && isMobileViewport)
   const isMacDesktop =
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
@@ -163,6 +167,7 @@ function MainContent(): React.JSX.Element {
   const [authPassword, setAuthPassword] = useState("")
   const [authLoading, setAuthLoading] = useState(false)
   const [oauthVisible, setOAuthVisible] = useState(false)
+  const [oauthSessionExpired, setOAuthSessionExpired] = useState(false)
   const [oauthUserName, setOAuthUserName] = useState<string | null>(null)
   const [mobileBottomNavItems, setMobileBottomNavItems] = useState<MobileNavKey[]>(
     DEFAULT_MOBILE_BOTTOM_NAV_ITEMS
@@ -177,8 +182,8 @@ function MainContent(): React.JSX.Element {
     list: "bottom" | "more"
     index: number
   } | null>(null)
-  const [isPortraitMode] = useState(defaultPortraitMode)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(defaultPortraitMode)
+  const isPortraitMode = effectivePortraitMode
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(effectivePortraitMode)
   const [floatingSidebarExpanded, setFloatingSidebarExpanded] = useState(false)
   const [syncConflictVisible, setSyncConflictVisible] = useState(false)
   const [syncConflicts, setSyncConflicts] = useState<
@@ -285,6 +290,8 @@ function MainContent(): React.JSX.Element {
         if (!tokenIsActive) {
           void sectlAuth.refreshAccessToken().catch(() => {
             sectlAuth.clearLocalSession()
+            setOAuthUserName(null)
+            setOAuthSessionExpired(true)
           })
         }
       } else {
@@ -312,12 +319,17 @@ function MainContent(): React.JSX.Element {
     const handleOAuthUserUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<{
         user?: { name?: string } | null
+        reason?: string
       }>
       const userName = customEvent?.detail?.user?.name
+      const expired = customEvent?.detail?.reason === "expired"
       if (typeof userName === "string" && userName.trim()) {
         setOAuthUserName(userName)
+        setOAuthSessionExpired(false)
       } else {
         setOAuthUserName(null)
+        setOAuthSessionExpired(expired)
+        if (expired) messageApi.warning("SECTL 会话已失效，请重新登录云端账号")
         void refreshPermissionFromAuth()
       }
     }
@@ -326,7 +338,7 @@ function MainContent(): React.JSX.Element {
     return () => {
       window.removeEventListener("ss:oauth-user-updated", handleOAuthUserUpdated as EventListener)
     }
-  }, [refreshPermissionFromAuth])
+  }, [refreshPermissionFromAuth, messageApi])
 
   // 监听 Deep Link 事件（用于 OAuth 回调）
   useEffect(() => {
@@ -657,8 +669,9 @@ function MainContent(): React.JSX.Element {
     avatar?: string
     avatar_url?: string
   }) => {
-    // OAuth 登录仅用于云服务，不修改本地权限
-    setOAuthUserName(userInfo.name || null)
+    const userName = userInfo.name || null
+    setOAuthUserName(userName)
+    setOAuthSessionExpired(false)
     const accountId = userInfo.user_id || userInfo.id
     if (accountId && (window as any).api?.workspaceUpsertSectlAccount) {
       const workspaceResult = await (window as any).api.workspaceUpsertSectlAccount(
@@ -876,7 +889,7 @@ function MainContent(): React.JSX.Element {
         )}
         <ContentArea
           permission={permission}
-          oauthUserName={oauthUserName}
+          oauthUserName={oauthSessionExpired ? "SECTL 会话已失效" : oauthUserName}
           onOAuthLogout={logoutOAuthFromHeader}
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
@@ -1183,7 +1196,7 @@ function MainContent(): React.JSX.Element {
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ color: "var(--ss-text-secondary)", fontSize: "12px" }}>
-              {t("auth.unlockHint")}
+              {t("auth.unlockHint")} 本地权限由本机密码控制；SECTL 登录仅用于在线班级和云同步。
             </div>
             <Input
               value={authPassword}
@@ -1196,10 +1209,11 @@ function MainContent(): React.JSX.Element {
                 type="link"
                 onClick={() => {
                   setAuthVisible(false)
+                  setOAuthSessionExpired(false)
                   setOAuthVisible(true)
                 }}
               >
-                {t("auth.useOAuth", "使用 SECTL Auth 登录")}
+                {t("auth.useOAuth", "登录云端 SECTL（用于在线班级同步）")}
               </Button>
             </div>
           </div>

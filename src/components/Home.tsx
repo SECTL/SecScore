@@ -3453,14 +3453,16 @@ export const Home: React.FC<HomeProps> = ({
             </Tag>
           </div>
         )}
-        <Button
-          type="text"
-          className="ss-operation-designed-close"
-          aria-label={t("common.cancel")}
-          onClick={closeOperationModal}
-        >
-          ×
-        </Button>
+        {!isPortraitMode && (
+          <Button
+            type="text"
+            className="ss-operation-designed-close"
+            aria-label={t("common.cancel")}
+            onClick={closeOperationModal}
+          >
+            ×
+          </Button>
+        )}
       </div>
 
       <div className="ss-operation-designed-quick-buttons">
@@ -4304,7 +4306,6 @@ export const Home: React.FC<HomeProps> = ({
           }}
           footer={
             <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button onClick={closeOperationModal}>{t("common.cancel")}</Button>
               <Button type="primary" onClick={handleSubmit} loading={submitLoading}>
                 {t("home.submitOperation")}
               </Button>

@@ -20,6 +20,8 @@ const defaultBreakpoints: Breakpoints = {
   xxl: 1600,
 }
 
+export const MOBILE_VIEWPORT_MAX_WIDTH = defaultBreakpoints.md
+
 export function useResponsive(customBreakpoints?: Partial<Breakpoints>): Breakpoint {
   const [breakpoint, setBreakpoint] = useState<Breakpoint>("lg")
   const breakpoints = useMemo(
@@ -78,6 +80,11 @@ export function useScreenSize() {
 export function useIsMobile() {
   const breakpoint = useResponsive()
   return breakpoint === "xs" || breakpoint === "sm"
+}
+
+export function useIsMobileViewport(): boolean {
+  const breakpoint = useResponsive()
+  return breakpoint === "xs" || breakpoint === "sm" || breakpoint === "md"
 }
 
 export function useIsTablet() {

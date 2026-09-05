@@ -43,8 +43,18 @@ if (!(window as any).__SECSCORE_LAN__) {
         const status: any = await withTimeout((window as any).api?.dbGetStatus?.(), 800)
         const result: any = await withTimeout((window as any).api?.getAllSettings?.(), 800)
         if (result?.success && typeof result.data?.sync_method === "string") {
-          // 启动时设置服务可能先返回默认值；已有用户选择以本地持久化标记为准，
-          // 但仍等待真实数据库连接，避免在数据库尚未接管时启动同步。
+          // OAuth 状态必须先恢复/刷新完成，再启动 SSE 和轮询；否则启动首轮请求会携带旧 token 或没有 token。
+          const authReady = await withTimeout(
+            (window as any).api?.oauthLoadLoginState
+              ? syncClient.restoreAuthentication()
+              : undefined,
+            5000
+          )
+          if (authReady === false && result.data.sync_method === "sectl_cloud_v2") {
+            syncClient.setEnabled(false)
+            syncClient.start()
+            return
+          }
           if (status?.data?.connected) {
             syncClient.setEnabled(result.data.sync_method === "sectl_cloud_v2")
             syncClient.start()

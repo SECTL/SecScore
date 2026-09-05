@@ -210,9 +210,30 @@ class SectlAuthService {
   private authorizationState: string | null = null
   private tokenGeneration = 0
   private readonly sessionListeners = new Set<() => void>()
+  private persistedRestorePromise: Promise<Record<string, any> | null> | null = null
 
   constructor() {
     this.loadToken()
+  }
+
+  async restorePersistedSession(): Promise<boolean> {
+    if (this.persistedRestorePromise) return Boolean(await this.persistedRestorePromise)
+    this.persistedRestorePromise = (async () => {
+      const result = await (window as any).api?.oauthLoadLoginState?.()
+      const data = result?.success ? result.data : null
+      if (!data?.access_token || !data.user_id) return null
+      this.restoreToken(data, { allowExpired: true })
+      if (!this.isAuthenticated()) {
+        await this.refreshAccessToken()
+      }
+      return data
+    })()
+    try {
+      await this.persistedRestorePromise
+      return this.isAuthenticated()
+    } finally {
+      this.persistedRestorePromise = null
+    }
   }
 
   subscribeSession(listener: () => void): () => void {
@@ -582,6 +603,24 @@ class SectlAuthService {
 
       const data: TokenData = await response.json()
       this.saveToken(data)
+      try {
+        const api = (window as any).api
+        const userInfo = await this.getUserInfo()
+        if (api?.oauthSaveLoginState && userInfo?.user_id) {
+          await api.oauthSaveLoginState({
+            access_token: this.accessToken || data.access_token,
+            refresh_token: this.refreshToken || "",
+            token_type: data.token_type || "Bearer",
+            expires_in: data.expires_in || 0,
+            user_id: userInfo.user_id,
+            email: userInfo.email || "",
+            name: userInfo.name || userInfo.email || userInfo.user_id,
+            login_time: new Date().toISOString(),
+          })
+        }
+      } catch {
+        // renderer token remains authoritative for this process; next login can repair native state.
+      }
       return data
     } catch (error) {
       authLog("error", "OAuth token 刷新失败", { error: String(error) })
