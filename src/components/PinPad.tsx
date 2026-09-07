@@ -42,7 +42,68 @@ export function PinPad(props: {
     onChange("")
   }
 
-  const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+  // 指针按下即输入，而不是等浏览器合成 click。
+  // 触屏上 click 要等完整的按下+抬起才派发，快速连点时第二次点击容易在
+  // React 重渲染/手势判定之间被吞掉（"点快了点不上"）；pointerdown 在手指
+  // 落下的瞬间就触发，最"跟手"且不会丢键。preventDefault 顺带抑制合成 click
+  // 与双击缩放等手势，避免重复输入。
+  const onKeyPointerDown = (
+    e: React.PointerEvent<HTMLButtonElement>,
+    press: () => void,
+  ) => {
+    if (e.button !== 0) return // 只响应主键（左键/触屏）
+    e.preventDefault()
+    press()
+  }
+
+  // 保留键盘可达性：聚焦后用 回车/空格 也能触发（不依赖 click）
+  const onKeyKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    press: () => void,
+  ) => {
+    if (e.key !== "Enter" && e.key !== " ") return
+    e.preventDefault()
+    press()
+  }
+
+  type KeyDef = {
+    id: string
+    label: string
+    title?: string
+    fn?: boolean
+    disabled: boolean
+    press: () => void
+  }
+  const keys: KeyDef[] = [
+    ...Array.from({ length: 9 }, (_, i) => String(i + 1)).map((d) => ({
+      id: `digit-${d}`,
+      label: d,
+      disabled: false,
+      press: () => pressDigit(d),
+    })),
+    {
+      id: "clear",
+      label: "清空",
+      title: "清空",
+      fn: true,
+      disabled: value.length === 0,
+      press: pressClear,
+    },
+    {
+      id: "digit-0",
+      label: "0",
+      disabled: false,
+      press: () => pressDigit("0"),
+    },
+    {
+      id: "back",
+      label: "⌫",
+      title: "退格",
+      fn: true,
+      disabled: value.length === 0,
+      press: pressBackspace,
+    },
+  ]
 
   return (
     <div className="ss-pinpad" aria-disabled={disabled}>
@@ -56,44 +117,20 @@ export function PinPad(props: {
         ))}
       </div>
 
-      <div className="ss-pinpad-grid">
-        {digits.map((d) => (
+      <div className="ss-pinpad-grid" onContextMenu={(e) => e.preventDefault()}>
+        {keys.map((k) => (
           <button
-            key={d}
+            key={k.id}
             type="button"
-            className="ss-pinpad-key"
-            disabled={disabled}
-            onClick={() => pressDigit(d)}
+            title={k.title}
+            className={`ss-pinpad-key${k.fn ? " is-fn" : ""}`}
+            disabled={disabled || k.disabled}
+            onPointerDown={(e) => onKeyPointerDown(e, k.press)}
+            onKeyDown={(e) => onKeyKeyDown(e, k.press)}
           >
-            {d}
+            {k.label}
           </button>
         ))}
-        <button
-          type="button"
-          className="ss-pinpad-key is-fn"
-          disabled={disabled || value.length === 0}
-          onClick={pressClear}
-          title="清空"
-        >
-          清空
-        </button>
-        <button
-          type="button"
-          className="ss-pinpad-key"
-          disabled={disabled}
-          onClick={() => pressDigit("0")}
-        >
-          0
-        </button>
-        <button
-          type="button"
-          className="ss-pinpad-key is-fn"
-          disabled={disabled || value.length === 0}
-          onClick={pressBackspace}
-          title="退格"
-        >
-          ⌫
-        </button>
       </div>
 
       <style>{`
@@ -103,6 +140,8 @@ export function PinPad(props: {
           align-items: center;
           gap: 18px;
           user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
         }
         .ss-pinpad[aria-disabled='true'] {
           opacity: 0.6;
@@ -148,6 +187,7 @@ export function PinPad(props: {
           justify-content: center;
           transition: background-color 120ms ease, transform 80ms ease, box-shadow 120ms ease;
           -webkit-tap-highlight-color: transparent;
+          touch-action: manipulation;
         }
         .ss-pinpad-key:hover:not(:disabled) {
           background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 8%, var(--ss-card-bg, #ffffff));
