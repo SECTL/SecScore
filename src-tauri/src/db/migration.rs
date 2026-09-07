@@ -244,6 +244,24 @@ impl Migration {
 
         let db_backend = Self::get_db_backend(sqlite);
 
+        // 只在全新数据库（reasons 表尚无任何记录）时写入预设理由。
+        // 否则每次启动迁移都会把用户已删除的预设（如迟到/旷课）按内容缺失补种回来。
+        let total_result = conn
+            .query_one(Statement::from_string(
+                db_backend.clone(),
+                "SELECT COUNT(*) as count FROM reasons",
+            ))
+            .await?;
+        let total: i64 = if let Some(row) = total_result {
+            row.try_get("", "count")?
+        } else {
+            0
+        };
+        if total > 0 {
+            info!("Reasons already seeded ({} rows), skip default reasons", total);
+            return Ok(());
+        }
+
         for (content, category, delta, is_system) in default_reasons {
             let check_sql = format!(
                 "SELECT COUNT(*) as count FROM reasons WHERE content = '{}'",
@@ -283,6 +301,23 @@ impl Migration {
         let default_tags = vec!["优秀", "良好", "待进步"];
 
         let db_backend = Self::get_db_backend(sqlite);
+
+        // 与预设理由同理：只在 tags 表为空(全新数据库)时写入默认标签，避免删除后每次启动复现。
+        let total_result = conn
+            .query_one(Statement::from_string(
+                db_backend.clone(),
+                "SELECT COUNT(*) as count FROM tags",
+            ))
+            .await?;
+        let total: i64 = if let Some(row) = total_result {
+            row.try_get("", "count")?
+        } else {
+            0
+        };
+        if total > 0 {
+            info!("Tags already seeded ({} rows), skip default tags", total);
+            return Ok(());
+        }
 
         for tag_name in default_tags {
             let check_sql = format!(
