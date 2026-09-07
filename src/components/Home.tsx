@@ -30,6 +30,11 @@ import { match, pinyin } from "pinyin-pro"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 import { useResponsive } from "../hooks/useResponsive"
 
+/** 触屏长按判定时长(ms)。 */
+const LONG_PRESS_DELAY_MS = 450
+/** 手指移动超过该距离(px)即视为滚动/拖动而非长按。 */
+const LONG_PRESS_MOVE_SLOP_PX = 10
+
 interface student {
   id: number
   name: string
@@ -218,6 +223,7 @@ export const Home: React.FC<HomeProps> = ({
   const [avatarEditorValue, setAvatarEditorValue] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const longPressTimerRef = useRef<number | null>(null)
+  const longPressTouchOriginRef = useRef<{ x: number; y: number } | null>(null)
   const suppressClickRef = useRef(false)
   const fetchRequestIdRef = useRef(0)
   const operationMorphAnimationRef = useRef<Animation | null>(null)
@@ -518,6 +524,21 @@ export const Home: React.FC<HomeProps> = ({
         longPressTimerRef.current = null
       }
     }
+  }, [])
+
+  // 触屏滚动在部分 WebView2 上不一定会派发 touchcancel，这里兜底：
+  // 只要内容真正开始滚动，就取消待触发的长按，并收起已误开的快捷加减分条。
+  useEffect(() => {
+    const cancelOnScroll = () => {
+      longPressTouchOriginRef.current = null
+      if (longPressTimerRef.current !== null) {
+        window.clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+      setQuickActionStudentId(null)
+    }
+    document.addEventListener("scroll", cancelOnScroll, true)
+    return () => document.removeEventListener("scroll", cancelOnScroll, true)
   }, [])
 
   useEffect(() => {
@@ -1570,7 +1591,33 @@ export const Home: React.FC<HomeProps> = ({
       setQuickActionStudentId(student.id)
       suppressClickRef.current = true
       longPressTimerRef.current = null
-    }, 450)
+    }, LONG_PRESS_DELAY_MS)
+  }
+
+  const handleCardTouchStart = (student: student) => (e: React.TouchEvent) => {
+    if (batchMode) return
+    const touch = e.touches[0]
+    longPressTouchOriginRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+    startLongPress(student)
+  }
+
+  const handleCardTouchMove = (e: React.TouchEvent) => {
+    const origin = longPressTouchOriginRef.current
+    const touch = e.touches[0]
+    if (!origin || !touch) return
+    // 手指已明显移动（正在滚动/拖动），不再当作长按。
+    if (
+      Math.abs(touch.clientX - origin.x) >= LONG_PRESS_MOVE_SLOP_PX ||
+      Math.abs(touch.clientY - origin.y) >= LONG_PRESS_MOVE_SLOP_PX
+    ) {
+      longPressTouchOriginRef.current = null
+      cancelLongPress()
+    }
+  }
+
+  const handleCardTouchEnd = () => {
+    longPressTouchOriginRef.current = null
+    cancelLongPress()
   }
 
   const openQuickAction = (student: student) => {
@@ -1798,12 +1845,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => {
-          if (batchMode) return
-          startLongPress(student)
-        }}
-        onTouchEnd={cancelLongPress}
-        onTouchCancel={cancelLongPress}
+        onTouchStart={handleCardTouchStart(student)}
+        onTouchMove={handleCardTouchMove}
+        onTouchEnd={handleCardTouchEnd}
+        onTouchCancel={handleCardTouchEnd}
         onContextMenu={(e) => {
           if (batchMode) return
           e.preventDefault()
@@ -2020,12 +2065,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => {
-          if (batchMode) return
-          startLongPress(student)
-        }}
-        onTouchEnd={cancelLongPress}
-        onTouchCancel={cancelLongPress}
+        onTouchStart={handleCardTouchStart(student)}
+        onTouchMove={handleCardTouchMove}
+        onTouchEnd={handleCardTouchEnd}
+        onTouchCancel={handleCardTouchEnd}
         onContextMenu={(e) => {
           if (batchMode) return
           e.preventDefault()
@@ -2187,12 +2230,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => {
-          if (batchMode) return
-          startLongPress(student)
-        }}
-        onTouchEnd={cancelLongPress}
-        onTouchCancel={cancelLongPress}
+        onTouchStart={handleCardTouchStart(student)}
+        onTouchMove={handleCardTouchMove}
+        onTouchEnd={handleCardTouchEnd}
+        onTouchCancel={handleCardTouchEnd}
         onContextMenu={(e) => {
           if (batchMode) return
           e.preventDefault()
@@ -2409,12 +2450,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
         onMouseUp={cancelLongPress}
         onMouseLeave={cancelLongPress}
-        onTouchStart={() => {
-          if (batchMode) return
-          startLongPress(student)
-        }}
-        onTouchEnd={cancelLongPress}
-        onTouchCancel={cancelLongPress}
+        onTouchStart={handleCardTouchStart(student)}
+        onTouchMove={handleCardTouchMove}
+        onTouchEnd={handleCardTouchEnd}
+        onTouchCancel={handleCardTouchEnd}
         onContextMenu={(e) => {
           if (batchMode) return
           e.preventDefault()
