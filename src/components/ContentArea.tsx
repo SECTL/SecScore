@@ -912,7 +912,7 @@ export function ContentArea({
               </button>
             </Popover>
             {permissionTag}
-            {hasAnyPassword && (
+            {!immersiveMode && hasAnyPassword && (
               <>
                 <Button size="small" onClick={onAuthClick}>
                   {t("auth.enterPassword")}
