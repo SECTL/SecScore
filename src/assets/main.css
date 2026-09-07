@@ -195,6 +195,27 @@ select {
   text-align: center;
 }
 
+/* 紧凑表格（理由管理 / 设置类列表）：缩小单元格内边距与字号 */
+.ss-compact-table .ant-table-thead > tr > th,
+.ss-compact-table .ant-table-tbody > tr > td {
+  padding-block: 6px;
+  padding-inline: 8px;
+}
+
+.ss-compact-table .ant-table-thead > tr > th {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ss-compact-table .ant-table-tbody > tr > td {
+  font-size: 13px;
+}
+
+.ss-compact-table .ant-btn-link {
+  height: auto;
+  padding-inline: 0 6px;
+}
+
 .ss-operation-drawer .ant-drawer-header {
   -webkit-app-region: drag;
   user-select: none;

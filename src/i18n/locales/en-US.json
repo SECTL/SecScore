@@ -703,7 +703,10 @@
     "addFailed": "Add failed",
     "deleteSuccess": "Deleted successfully",
     "deleteFailed": "Delete failed",
-    "others": "Others"
+    "others": "Others",
+    "editTitle": "Edit Reason",
+    "updateSuccess": "Updated successfully",
+    "updateFailed": "Update failed"
   },
   "rewardExchange": {
     "title": "Reward Exchange",

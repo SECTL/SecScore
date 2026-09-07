@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
-import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Popconfirm } from "antd"
+import { Table, Button, Modal, Form, Input, InputNumber, message, Tag, Popconfirm, Space } from "antd"
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
 
@@ -16,6 +16,7 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [data, setData] = useState<reason[]>([])
   const [loading, setLoading] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [editing, setEditing] = useState<reason | null>(null)
   const [form] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -48,7 +49,27 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     return () => window.removeEventListener("ss:data-updated", onDataUpdated as any)
   }, [fetchReasons])
 
-  const handleAdd = async () => {
+  const openAdd = () => {
+    setEditing(null)
+    form.setFieldsValue({
+      category: t("reasons.others"),
+      content: "",
+      delta: null,
+    })
+    setVisible(true)
+  }
+
+  const openEdit = (row: reason) => {
+    setEditing(row)
+    form.setFieldsValue({
+      category: row.category,
+      content: row.content,
+      delta: row.delta,
+    })
+    setVisible(true)
+  }
+
+  const handleSubmit = async () => {
     if (!(window as any).api) return
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
@@ -57,18 +78,28 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     const values = await form.validateFields()
     const content = values.content?.trim()
     const category = values.category?.trim() || t("reasons.others")
+    const delta = Number(values.delta)
 
-    if (data.some((r) => r.content === content && r.category === category)) {
+    if (data.some((r) => r.content === content && r.category === category && r.id !== editing?.id)) {
       messageApi.warning(t("reasons.reasonExists"))
       return
     }
 
-    const res = await (window as any).api.createReason({
-      ...values,
-      content,
-      category,
-      delta: Number(values.delta),
-    })
+    if (editing) {
+      const res = await (window as any).api.updateReason(editing.id, { content, category, delta })
+      if (res.success) {
+        messageApi.success(t("reasons.updateSuccess"))
+        setVisible(false)
+        form.resetFields()
+        fetchReasons()
+        emitDataUpdated("reasons")
+      } else {
+        messageApi.error(res.message || t("reasons.updateFailed"))
+      }
+      return
+    }
+
+    const res = await (window as any).api.createReason({ content, category, delta })
     if (res.success) {
       messageApi.success(t("reasons.addSuccess"))
       setVisible(false)
@@ -104,12 +135,13 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       width: 120,
       render: (category: string) => <Tag>{category}</Tag>,
     },
-    { title: t("reasons.content"), dataIndex: "content", key: "content", width: 250 },
+    { title: t("reasons.content"), dataIndex: "content", key: "content" },
     {
       title: t("reasons.presetPoints"),
       dataIndex: "delta",
       key: "delta",
-      width: 100,
+      width: 90,
+      align: "center",
       render: (delta: number) => (
         <span
           style={{
@@ -124,17 +156,22 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     {
       title: t("common.operation"),
       key: "operation",
-      width: 150,
+      width: 120,
       render: (_, row) => (
-        <Popconfirm
-          title={t("reasons.deleteConfirm")}
-          onConfirm={() => handleDelete(row.id)}
-          disabled={!canEdit}
-        >
-          <Button type="link" danger disabled={!canEdit}>
-            {t("common.delete")}
+        <Space size={0}>
+          <Button type="link" size="small" disabled={!canEdit} onClick={() => openEdit(row)}>
+            {t("common.edit")}
           </Button>
-        </Popconfirm>
+          <Popconfirm
+            title={t("reasons.deleteConfirm")}
+            onConfirm={() => handleDelete(row.id)}
+            disabled={!canEdit}
+          >
+            <Button type="link" size="small" danger disabled={!canEdit}>
+              {t("common.delete")}
+            </Button>
+          </Popconfirm>
+        </Space>
       ),
     },
   ]
@@ -144,7 +181,7 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       {contextHolder}
       <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between" }}>
         <h2 style={{ margin: 0, color: "var(--ss-text-main)" }}>{t("reasons.title")}</h2>
-        <Button type="primary" disabled={!canEdit} onClick={() => setVisible(true)}>
+        <Button type="primary" disabled={!canEdit} onClick={openAdd}>
           {t("reasons.addReason")}
         </Button>
       </div>
@@ -154,17 +191,19 @@ export const ReasonManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         columns={columns}
         rowKey="id"
         loading={loading}
+        size="small"
         bordered
+        className="ss-compact-table"
         pagination={{ pageSize: 50, total: data.length, defaultCurrent: 1 }}
         style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}
       />
 
       <Modal
-        title={t("reasons.addTitle")}
+        title={editing ? t("reasons.editTitle") : t("reasons.addTitle")}
         open={visible}
-        onOk={handleAdd}
+        onOk={handleSubmit}
         onCancel={() => setVisible(false)}
-        okText={t("reasons.addConfirm")}
+        okText={editing ? t("common.save") : t("reasons.addConfirm")}
         cancelText={t("common.cancel")}
         destroyOnHidden
       >

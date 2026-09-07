@@ -703,7 +703,10 @@
     "addFailed": "添加失败",
     "deleteSuccess": "删除成功",
     "deleteFailed": "删除失败",
-    "others": "其他"
+    "others": "其他",
+    "editTitle": "编辑理由",
+    "updateSuccess": "更新成功",
+    "updateFailed": "更新失败"
   },
   "rewardExchange": {
     "title": "奖励兑换",

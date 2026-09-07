@@ -703,7 +703,10 @@
     "addFailed": "追加に失敗しました",
     "deleteSuccess": "削除成功",
     "deleteFailed": "削除に失敗しました",
-    "others": "その他"
+    "others": "その他",
+    "editTitle": "理由を編集",
+    "updateSuccess": "更新しました",
+    "updateFailed": "更新に失敗しました"
   },
   "rewardExchange": {
     "title": "報酬交換",
