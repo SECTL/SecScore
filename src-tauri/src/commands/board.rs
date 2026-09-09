@@ -5,10 +5,11 @@ use serde_json::{Map, Value as JsonValue};
 use sqlx::{Column, Row, SqlitePool};
 use std::collections::HashSet;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::State;
 
 use crate::db::sqlite_connection_url;
 use crate::services::settings::{SettingsKey, SettingsValue};
+use crate::services::storage::local_sqlite_path;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
 
@@ -188,25 +189,6 @@ async fn get_legacy_board_configs_from_settings(
     };
 
     Ok(normalize_board_configs(legacy))
-}
-
-fn sqlite_db_path(app_handle: &AppHandle) -> Result<String, String> {
-    if cfg!(all(debug_assertions, desktop)) {
-        return Ok("data.sql".to_string());
-    }
-
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-    let data_dir = app_data_dir.join("data");
-    std::fs::create_dir_all(&data_dir)
-        .map_err(|e| format!("Failed to create data directory: {}", e))?;
-    let db_path = data_dir.join("data.sql");
-    db_path
-        .to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Invalid sqlite database path".to_string())
 }
 
 fn decode_cell_sqlite(row: &sqlx::sqlite::SqliteRow, index: usize) -> JsonValue {
@@ -420,7 +402,7 @@ pub async fn board_query_sql(
         let sqlite_path = if let Some(workspace) = state_guard.workspace.write().clone() {
             workspace.current_db_path().await?
         } else {
-            sqlite_db_path(&app_handle)?
+            local_sqlite_path(&app_handle)?
         };
         (backend, sqlite_path, pg_url)
     };

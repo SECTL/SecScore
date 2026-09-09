@@ -1,10 +1,44 @@
 const net = require("node:net")
 const { spawn } = require("node:child_process")
-const { writeFileSync, unlinkSync, existsSync } = require("node:fs")
+const { writeFileSync, unlinkSync, existsSync, readFileSync } = require("node:fs")
 const { join } = require("node:path")
 const os = require("node:os")
 
 const START_PORT = Number.parseInt(process.env.TAURI_DEV_PORT_START || "1420", 10)
+
+// Rust 后端不会自动读取 Vite 的 .env，这里把仓库根目录的 .env 显式加载进进程环境，
+// 以便 tauri dev 启动的 Rust 进程能读取 SECSCORE_* 等配置。
+function loadRootDotEnv() {
+  const envPath = join(__dirname, "..", ".env")
+  if (!existsSync(envPath)) {
+    return
+  }
+
+  const content = readFileSync(envPath, "utf8")
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith("#")) {
+      continue
+    }
+    const eqIndex = line.indexOf("=")
+    if (eqIndex <= 0) {
+      continue
+    }
+    const key = line.slice(0, eqIndex).trim()
+    let value = line.slice(eqIndex + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (key && !Object.prototype.hasOwnProperty.call(process.env, key)) {
+      process.env[key] = value
+    }
+  }
+}
+
+loadRootDotEnv()
 
 function canUsePort(port) {
   return new Promise((resolve) => {

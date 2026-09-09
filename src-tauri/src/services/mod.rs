@@ -6,6 +6,7 @@ pub mod permission;
 pub mod plugin;
 pub mod security;
 pub mod settings;
+pub mod storage;
 pub mod theme;
 pub mod workspace;
 

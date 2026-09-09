@@ -2,7 +2,7 @@ use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use tokio::time::{timeout, Duration};
 
 use crate::db::connection::DatabaseType;
@@ -14,6 +14,7 @@ use crate::db::migration::run_migration;
 use crate::services::logger::LogLevel;
 use crate::services::permission::PermissionLevel;
 use crate::services::settings::{SettingsKey, SettingsValue};
+use crate::services::storage::local_sqlite_path;
 use crate::state::AppState;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
@@ -165,25 +166,6 @@ fn normalize_tags(raw: &str) -> String {
     cleaned.sort();
     cleaned.dedup();
     serde_json::to_string(&cleaned).unwrap_or_else(|_| "[]".to_string())
-}
-
-fn sqlite_db_path(app_handle: &AppHandle) -> Result<String, String> {
-    if cfg!(all(debug_assertions, desktop)) {
-        return Ok("data.sql".to_string());
-    }
-
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-    let data_dir = app_data_dir.join("data");
-    std::fs::create_dir_all(&data_dir)
-        .map_err(|e| format!("Failed to create data directory: {}", e))?;
-    let db_path = data_dir.join("data.sql");
-    db_path
-        .to_str()
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Invalid sqlite database path".to_string())
 }
 
 async fn load_students(
@@ -765,7 +747,7 @@ async fn current_remote_and_local_from_state(
     let local_conn = match local_conn {
         Some(conn) => conn,
         None => {
-            let local_path = sqlite_db_path(app_handle)?;
+            let local_path = local_sqlite_path(app_handle)?;
             let conn = create_sqlite_connection(&local_path)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -1344,7 +1326,7 @@ pub async fn db_switch_connection(
     };
 
     {
-        let settings_db_path = sqlite_db_path(&app_handle)?;
+        let settings_db_path = local_sqlite_path(&app_handle)?;
         let settings_conn = create_sqlite_connection(&settings_db_path)
             .await
             .map_err(|e| e.to_string())?;

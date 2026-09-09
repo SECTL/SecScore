@@ -284,28 +284,11 @@ fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
 fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
-    let legacy_path = if cfg!(all(debug_assertions, desktop)) {
-        std::path::PathBuf::from("data.sql")
-    } else {
-        let app_data_dir = handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-        let data_dir = app_data_dir.join("data");
-        std::fs::create_dir_all(&data_dir)
-            .map_err(|e| format!("Failed to create data directory: {}", e))?;
-        data_dir.join("data.sql")
-    };
-
-    let workspace_root = if cfg!(all(debug_assertions, desktop)) {
-        std::path::PathBuf::from(".secscore-workspace")
-    } else {
-        let app_data_dir = handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-        app_data_dir.join("data").join("workspace")
-    };
+    let layout = crate::services::storage::resolve_storage_layout(&handle)
+        .map_err(|e| format!("Failed to resolve storage layout: {}", e))?;
+    layout.ensure_data_dir()?;
+    let legacy_path = layout.legacy_db_path();
+    let workspace_root = layout.workspace_root().to_path_buf();
     let legacy_path_for_log = legacy_path.clone();
     let workspace_root_for_log = workspace_root.clone();
 
