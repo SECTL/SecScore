@@ -187,6 +187,7 @@ export const Home: React.FC<HomeProps> = ({
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [immersiveMenuOpen, setImmersiveMenuOpen] = useState(false)
+  const [immersiveViewMenuOpen, setImmersiveViewMenuOpen] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
   const [disableSearchKeyboard, setDisableSearchKeyboard] = useState(false)
   const canShowSearchKeyboard = !isMobile && !disableSearchKeyboard
@@ -767,7 +768,7 @@ export const Home: React.FC<HomeProps> = ({
     label: string
     value: number
     tone: "success" | "error"
-  }) => (
+  }, text: string) => (
     <Tag
       key={item.key}
       color={item.tone}
@@ -779,7 +780,7 @@ export const Home: React.FC<HomeProps> = ({
         flexShrink: 0,
       }}
     >
-      {item.label}：{formatHomeStatValue(item.value)}
+      {text}
     </Tag>
   )
 
@@ -787,6 +788,8 @@ export const Home: React.FC<HomeProps> = ({
   const renderHomeStatRow = (s: student) => {
     const items = buildHomeStatItems(s)
     if (items.length === 0) return null
+    // 只选一项时不加“总分：/本周：”等前缀，直接显示数字（同原来单个积分的样子）
+    const showLabel = items.length > 1
     return (
       <div
         style={{
@@ -797,7 +800,14 @@ export const Home: React.FC<HomeProps> = ({
           whiteSpace: "nowrap",
         }}
       >
-        {items.map((item) => renderHomeStatTag(item))}
+        {items.map((item) =>
+          renderHomeStatTag(
+            item,
+            showLabel
+              ? `${item.label}：${formatHomeStatValue(item.value)}`
+              : formatHomeStatValue(item.value)
+          )
+        )}
       </div>
     )
   }
@@ -2855,28 +2865,37 @@ export const Home: React.FC<HomeProps> = ({
                     {displayPoints > 0 ? `+${displayPoints}` : displayPoints}
                   </div>
                 )}
-                {useHomeStats && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                    {buildHomeStatItems(student).map((item) => (
-                      <span
-                        key={item.key}
-                        style={{
-                          fontSize: 11,
-                          lineHeight: 1.3,
-                          fontWeight: 700,
-                          color: "#111",
-                          background: "rgba(255,255,255,0.7)",
-                          border: "1px solid rgba(255,255,255,0.85)",
-                          borderRadius: 999,
-                          padding: "1px 7px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {item.label}：{formatHomeStatValue(item.value)}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                {useHomeStats &&
+                  (() => {
+                    const statItems = buildHomeStatItems(student)
+                    if (statItems.length === 0) return null
+                    // 只选一项时不加“总分：/本周：”等前缀，直接显示数字
+                    const statShowLabel = statItems.length > 1
+                    return (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {statItems.map((item) => (
+                          <span
+                            key={item.key}
+                            style={{
+                              fontSize: 11,
+                              lineHeight: 1.3,
+                              fontWeight: 700,
+                              color: "#111",
+                              background: "rgba(255,255,255,0.7)",
+                              border: "1px solid rgba(255,255,255,0.85)",
+                              borderRadius: 999,
+                              padding: "1px 7px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {statShowLabel
+                              ? `${item.label}：${formatHomeStatValue(item.value)}`
+                              : formatHomeStatValue(item.value)}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
               </div>
             )}
           </div>
@@ -3915,6 +3934,45 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  // 底栏(横屏)里“排序 / 展示样式 / 显示信息”折叠进一个 ≡ 菜单的内容
+  const immersiveViewMenuContent = (
+    <div className="ss-immersive-toolbar-menu">
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>排序</div>
+      <Select
+        value={sortType}
+        onChange={(v) => setSortType(v as SortType)}
+        getPopupContainer={getDocumentBodyPopupContainer}
+        popupClassName="ss-immersive-toolbar-select-popup"
+        style={{ width: "100%", marginBottom: 8 }}
+        options={[
+          { value: "alphabet", label: t("home.sortBy.alphabet") },
+          { value: "surname", label: t("home.sortBy.surname") },
+          { value: "group", label: t("home.sortBy.group") },
+          { value: "score", label: t("home.sortBy.score") },
+        ]}
+      />
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
+        展示样式
+      </div>
+      <Select
+        value={layoutType}
+        onChange={(v) => setLayoutType(v as LayoutType)}
+        getPopupContainer={getDocumentBodyPopupContainer}
+        popupClassName="ss-immersive-toolbar-select-popup"
+        style={{ width: "100%", marginBottom: 8 }}
+        options={[
+          { value: "grouped", label: t("home.layoutBy.grouped") },
+          { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
+          { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
+        ]}
+      />
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
+        显示信息
+      </div>
+      {renderHomeStatPicker("menu")}
+    </div>
+  )
+
   const immersiveMenuContent = (
     <div className="ss-immersive-toolbar-menu">
       <Select
@@ -4518,30 +4576,27 @@ export const Home: React.FC<HomeProps> = ({
           />
           {!isPortraitMode && (
             <>
-              <Select
-                value={sortType}
-                onChange={(v) => setSortType(v as SortType)}
-                getPopupContainer={getImmersivePopupContainer}
-                style={{ width: 126, flexShrink: 0 }}
-                options={[
-                  { value: "alphabet", label: t("home.sortBy.alphabet") },
-                  { value: "surname", label: t("home.sortBy.surname") },
-                  { value: "group", label: t("home.sortBy.group") },
-                  { value: "score", label: t("home.sortBy.score") },
-                ]}
-              />
-              <Select
-                value={layoutType}
-                onChange={(v) => setLayoutType(v as LayoutType)}
-                getPopupContainer={getImmersivePopupContainer}
-                style={{ width: 126, flexShrink: 0 }}
-                options={[
-                  { value: "grouped", label: t("home.layoutBy.grouped") },
-                  { value: "squareGrid", label: t("home.layoutBy.squareGrid") },
-                  { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
-                ]}
-              />
-              {renderHomeStatPicker("toolbar")}
+              <Popover
+                trigger="click"
+                placement="top"
+                open={immersiveViewMenuOpen}
+                onOpenChange={setImmersiveViewMenuOpen}
+                content={immersiveViewMenuContent}
+                overlayClassName="ss-immersive-toolbar-popover"
+              >
+                <Button
+                  type="text"
+                  icon={<MenuOutlined />}
+                  aria-label="显示设置"
+                  title="显示设置"
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "999px",
+                    flexShrink: 0,
+                  }}
+                />
+              </Popover>
               <Button
                 icon={<UndoOutlined />}
                 onClick={handleUndoLastEvent}
