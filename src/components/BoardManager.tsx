@@ -29,6 +29,7 @@ type BoardTimeRange =
   | "last7d"
   | "last30d"
   | "thisWeek"
+  | "thisWeekMonFri"
   | "lastWeek"
   | "thisMonth"
   | "lastMonth"
@@ -37,6 +38,24 @@ type BoardReasonMode = "all" | "selected" | "keyword"
 type BoardScoreDirection = "all" | "add" | "deduct"
 type BoardMetric = "addScore" | "deductScore" | "netChange" | "addCount" | "eventCount"
 type BoardSortDirection = "desc" | "asc"
+type BoardShowField =
+  | "totalScore"
+  | "addScore"
+  | "deductScore"
+  | "netChange"
+  | "prevCompare"
+  | "rankChange"
+
+/** 每个学生列表可勾选的“卡片显示信息”选项（中文 literal，与编辑区现状一致）。 */
+const SHOW_FIELD_OPTIONS: { value: BoardShowField; label: string }[] = [
+  { value: "totalScore", label: "总分" },
+  { value: "addScore", label: "区间加分" },
+  { value: "deductScore", label: "区间扣分" },
+  { value: "netChange", label: "区间净变化" },
+  { value: "prevCompare", label: "上期对比" },
+  { value: "rankChange", label: "排名变化" },
+]
+const ALLOWED_SHOW_FIELDS = new Set<string>(SHOW_FIELD_OPTIONS.map((option) => option.value))
 
 interface BoardQueryRuleConfig {
   timeRange: BoardTimeRange
@@ -65,6 +84,7 @@ interface StudentListConfig {
   rule: BoardQueryRuleConfig
   viewMode: BoardStudentViewMode
   scoreDisplayMode: BoardScoreDisplayMode
+  showFields?: BoardShowField[]
 }
 
 interface LayoutLeafNode {
@@ -109,6 +129,7 @@ interface BoardStudentCardData {
   score?: number
   addScore?: number
   deductScore?: number
+  netScoreChange?: number
   hasAddScoreField?: boolean
   hasDeductScoreField?: boolean
   rewardPoints?: number
@@ -191,6 +212,7 @@ const normalizeRule = (input: unknown): BoardQueryRuleConfig => {
     "last7d",
     "last30d",
     "thisWeek",
+    "thisWeekMonFri",
     "lastWeek",
     "thisMonth",
     "lastMonth",
@@ -275,6 +297,12 @@ const getTimeRangeBoundary = (rule: BoardQueryRuleConfig): { startAt?: string; e
     const mondayOffset = (today.getDay() + 6) % 7
     return { startAt: addDays(today, -mondayOffset).toISOString(), endAt: now.toISOString() }
   }
+  if (rule.timeRange === "thisWeekMonFri") {
+    const today = startOfDay(now)
+    const mondayOffset = (today.getDay() + 6) % 7
+    const monday = addDays(today, -mondayOffset)
+    return { startAt: monday.toISOString(), endAt: addDays(monday, 5).toISOString() }
+  }
   if (rule.timeRange === "lastWeek") {
     const today = startOfDay(now)
     const mondayOffset = (today.getDay() + 6) % 7
@@ -340,8 +368,13 @@ const buildSqlFromRule = (ruleInput: BoardQueryRuleConfig): string | null => {
   }
 
   const durationMs = currentEndMs - currentStartMs
-  const prevStart = new Date(currentStartMs - durationMs).toISOString()
-  const prevEnd = new Date(currentStartMs).toISOString()
+  // “本周（周一~周五）”的上一期固定为“上周一~上周五”（等长紧邻会把上周末算回来，故特判）。
+  const prevSpanMs = rule.timeRange === "thisWeekMonFri" ? 7 * 24 * 3600 * 1000 : durationMs
+  const prevStart = new Date(currentStartMs - prevSpanMs).toISOString()
+  const prevEnd =
+    rule.timeRange === "thisWeekMonFri"
+      ? new Date(currentStartMs - prevSpanMs + durationMs).toISOString()
+      : new Date(currentStartMs).toISOString()
 
   const queryStart = rule.comparePreviousPeriod ? prevStart : currentStart
   const queryEnd = currentEnd
@@ -482,6 +515,7 @@ const createDefaultList = (): StudentListConfig => ({
   rule: createDefaultRule(),
   viewMode: "card",
   scoreDisplayMode: "total",
+  showFields: [],
 })
 
 const createLeafForList = (listId: string): LayoutLeafNode => ({
@@ -586,6 +620,12 @@ const normalizeBoards = (input: unknown): BoardConfig[] => {
               list?.scoreDisplayMode === "total" || list?.scoreDisplayMode === "split"
                 ? list.scoreDisplayMode
                 : "total",
+            showFields: Array.isArray(list?.showFields)
+              ? list.showFields.filter(
+                  (field: unknown): field is BoardShowField =>
+                    typeof field === "string" && ALLOWED_SHOW_FIELDS.has(field)
+                )
+              : [],
           }))
         : []
 
@@ -680,6 +720,7 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
       score: parseNumber(data.score),
       addScore,
       deductScore,
+      netScoreChange: parseNumber(data.net_score_change ?? data.netScoreChange),
       hasAddScoreField,
       hasDeductScoreField,
       rewardPoints: parseNumber(data.reward_points ?? data.rewardPoints),
@@ -695,6 +736,100 @@ const toStudentCards = (rows: any[]): BoardStudentCardData[] => {
   })
 
   return cards
+}
+
+/** 单个“显示信息”段：label 用中文 literal，value 有符号，tone 映射到 antd Tag 颜色。 */
+interface ShowSegment {
+  key: string
+  label: string
+  value: number | null
+  tone: "success" | "error" | "blue" | "default"
+  signed?: boolean
+  text?: string
+}
+
+const METRIC_SOURCE_FIELD: Partial<Record<BoardMetric, BoardShowField>> = {
+  addScore: "addScore",
+  deductScore: "deductScore",
+  netChange: "netChange",
+}
+
+const signedTone = (value: number): "success" | "error" => (value >= 0 ? "success" : "error")
+
+const formatSignedValue = (value: number, signed?: boolean): string => {
+  if (signed && value > 0) return `+${value}`
+  return String(value)
+}
+
+/**
+ * 按 list.showFields 生成要展示的“显示信息”段。空集返回 []（渲染走旧默认）。
+ * skipMainMetric=true（网格/大头像）时跳过与“排行指标”同源的一段，避免和主数字重复。
+ */
+const buildShowSegments = (
+  list: StudentListConfig,
+  item: BoardStudentCardData,
+  opts?: { skipMainMetric?: boolean }
+): ShowSegment[] => {
+  const fields = list.showFields ?? []
+  if (fields.length === 0) return []
+  const wanted = new Set<BoardShowField>(fields)
+  const mainField = opts?.skipMainMetric ? METRIC_SOURCE_FIELD[list.rule.metric] : undefined
+  const compare = list.rule.comparePreviousPeriod
+  const segments: ShowSegment[] = []
+  const push = (segment: ShowSegment) => {
+    if (mainField && segment.key === mainField) return
+    segments.push(segment)
+  }
+
+  if (wanted.has("totalScore") && item.score !== undefined) {
+    push({
+      key: "totalScore",
+      label: "总分",
+      value: item.score,
+      tone: signedTone(item.score),
+      signed: true,
+    })
+  }
+  if (wanted.has("addScore") && item.addScore !== undefined) {
+    push({ key: "addScore", label: "区间加分", value: item.addScore, tone: "success", signed: true })
+  }
+  if (wanted.has("deductScore") && item.deductScore !== undefined) {
+    push({ key: "deductScore", label: "区间扣分", value: item.deductScore, tone: "error" })
+  }
+  if (wanted.has("netChange") && item.netScoreChange !== undefined) {
+    push({
+      key: "netChange",
+      label: "区间净变化",
+      value: item.netScoreChange,
+      tone: signedTone(item.netScoreChange),
+      signed: true,
+    })
+  }
+  if (wanted.has("prevCompare") && compare) {
+    if (item.prevMetricValue !== undefined) {
+      push({ key: "prevValue", label: "上期", value: item.prevMetricValue, tone: "blue" })
+    }
+    if (item.metricDelta !== undefined) {
+      push({
+        key: "prevDelta",
+        label: "较上期",
+        value: item.metricDelta,
+        tone: signedTone(item.metricDelta),
+        signed: true,
+      })
+    }
+  }
+  if (wanted.has("rankChange") && compare && item.rankChange !== undefined) {
+    const rc = item.rankChange
+    push({
+      key: "rankChange",
+      label: "排名变化",
+      value: null,
+      tone: rc > 0 ? "success" : rc < 0 ? "error" : "default",
+      text: rc > 0 ? `↑${rc}` : rc < 0 ? `↓${Math.abs(rc)}` : "→0",
+    })
+  }
+  return segments
 }
 
 const getAvatarText = (name: string): string => {
@@ -1088,6 +1223,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
           rule: createDefaultRule(),
           viewMode: "card",
           scoreDisplayMode: "total",
+          showFields: [],
         }
 
         const findLeaf = (node: LayoutNode): LayoutLeafNode | null => {
@@ -1171,6 +1307,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
     const rows = resultMap[list.id] || []
     const studentCards = toStudentCards(rows)
     const useCardView = studentCards.length > 0
+    const hasCustomShow = (list.showFields ?? []).length > 0
     const metricLabelMap: Record<BoardMetric, string> = {
       addScore: "加分总和",
       deductScore: "扣分总和",
@@ -1190,6 +1327,228 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
               value === null || value === undefined || value === "" ? "-" : String(value),
           }))
         : []
+
+    const renderSegmentTags = (segmentsToRender: ShowSegment[]) => (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        {segmentsToRender.map((segment) => (
+          <Tag key={segment.key} color={segment.tone} style={{ marginInlineEnd: 0 }}>
+            {segment.label}：
+            {segment.value !== null
+              ? formatSignedValue(segment.value, segment.signed)
+              : segment.text}
+          </Tag>
+        ))}
+      </div>
+    )
+
+    const renderCustomCardContent = (
+      list: StudentListConfig,
+      item: BoardStudentCardData,
+      primaryMetric: { label: string; value: number } | null,
+      metricValueText: string | null,
+      segments: ShowSegment[]
+    ): React.JSX.Element => {
+      const avatarText = getAvatarText(item.name)
+      const avatarColor = getAvatarColor(item.name)
+      const metricTag = primaryMetric ? (
+        <Tag
+          color={primaryMetric.value >= 0 ? "success" : "error"}
+          style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+        >
+          {primaryMetric.label}:
+          {primaryMetric.value > 0 ? `+${primaryMetric.value}` : primaryMetric.value}
+        </Tag>
+      ) : null
+
+      if (list.viewMode === "largeAvatar") {
+        return (
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              right: 8,
+              bottom: 8,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "62%",
+                  fontWeight: 700,
+                  fontSize: 20,
+                  lineHeight: 1.1,
+                  color: "#111",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  background: "rgba(255,255,255,0.7)",
+                  border: "1px solid rgba(255,255,255,0.85)",
+                  borderRadius: 8,
+                  padding: "3px 8px",
+                }}
+              >
+                {item.name}
+              </div>
+              {metricValueText !== null && (
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 26,
+                    lineHeight: 1,
+                    color:
+                      primaryMetric && primaryMetric.value >= 0 ? "#52c41a" : "#ff4d4f",
+                    background: "rgba(255,255,255,0.7)",
+                    border: "1px solid rgba(255,255,255,0.85)",
+                    borderRadius: 8,
+                    padding: "2px 8px",
+                  }}
+                >
+                  {metricValueText}
+                </div>
+              )}
+            </div>
+            {segments.length > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 3,
+                  justifyContent: "flex-end",
+                }}
+              >
+                {segments.map((segment) => (
+                  <span
+                    key={segment.key}
+                    style={{
+                      fontSize: 11,
+                      lineHeight: 1.4,
+                      color: "#333",
+                      background: "rgba(255,255,255,0.78)",
+                      border: "1px solid rgba(255,255,255,0.85)",
+                      borderRadius: 999,
+                      padding: "1px 7px",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {segment.label}：
+                    {segment.value !== null
+                      ? formatSignedValue(segment.value, segment.signed)
+                      : segment.text}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      if (list.viewMode === "grid") {
+        return (
+          <div
+            style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                backgroundColor: avatarColor,
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: avatarText.length > 1 ? "12px" : "15px",
+              }}
+            >
+              {avatarText}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                width: "100%",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: 13,
+                  color: "var(--ss-text-main)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: "100%",
+                }}
+              >
+                {item.name}
+              </div>
+              {metricTag}
+            </div>
+            {segments.length > 0 && renderSegmentTags(segments)}
+          </div>
+        )
+      }
+
+      // list / card：左侧头像 + 右侧姓名与勾选的信息 chips
+      return (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              backgroundColor: avatarColor,
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              boxShadow: `0 4px 10px ${avatarColor}40`,
+              flexShrink: 0,
+            }}
+          >
+            {avatarText}
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "var(--ss-text-main)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {item.name}
+            </div>
+            <div style={{ marginTop: 4 }}>{renderSegmentTags(segments)}</div>
+          </div>
+        </div>
+      )
+    }
 
     if (!useCardView) {
       return (
@@ -1216,7 +1575,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
           display: "grid",
           gridTemplateColumns:
             list.viewMode === "grid"
-              ? "repeat(auto-fill, minmax(102px, 1fr))"
+              ? `repeat(auto-fill, minmax(${hasCustomShow ? 150 : 102}px, 1fr))`
               : list.viewMode === "largeAvatar"
                 ? "repeat(auto-fill, minmax(180px, 1fr))"
                 : list.viewMode === "list"
@@ -1229,6 +1588,12 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
           const avatarColor = getAvatarColor(item.name)
           const avatarText = getAvatarText(item.name)
           const rankBadge = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : null
+          const segments = hasCustomShow
+            ? buildShowSegments(list, item, {
+                skipMainMetric:
+                  list.viewMode === "grid" || list.viewMode === "largeAvatar",
+              })
+            : []
           const useSplitScore = list.scoreDisplayMode === "split"
           const hasSplitScore = Boolean(item.hasAddScoreField || item.hasDeductScoreField)
           const metricTitle = metricLabelMap[list.rule.metric]
@@ -1288,7 +1653,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
             <div
               key={item.key}
               style={{
-                ...(list.viewMode === "grid"
+                ...(list.viewMode === "grid" && !hasCustomShow
                   ? { aspectRatio: "1 / 1" }
                   : list.viewMode === "largeAvatar"
                     ? { aspectRatio: "1.2 / 1" }
@@ -1341,7 +1706,15 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
                   </div>
                 )}
 
-                {list.viewMode === "grid" ? (
+                {hasCustomShow
+                  ? renderCustomCardContent(
+                      list,
+                      item,
+                      primaryMetric,
+                      metricValueText,
+                      segments
+                    )
+                  : list.viewMode === "grid" ? (
                   <div
                     style={{
                       height: "100%",
@@ -1951,6 +2324,23 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
               />
             </Space>
             <Space wrap>
+              <Typography.Text>显示信息</Typography.Text>
+              <Select
+                mode="multiple"
+                allowClear
+                style={{ minWidth: 360, maxWidth: 560, width: "100%" }}
+                placeholder="留空 = 默认展示（总分 / 加分+扣分 / 上期对比等）"
+                value={editingList.showFields ?? []}
+                options={SHOW_FIELD_OPTIONS}
+                onChange={(showFields: BoardShowField[]) =>
+                  updateList(activeBoard.id, editingList.id, {
+                    showFields: showFields ?? [],
+                  })
+                }
+                disabled={!canManage}
+              />
+            </Space>
+            <Space wrap>
               <Typography.Text>时间范围</Typography.Text>
               <Select
                 style={{ width: 200 }}
@@ -1967,6 +2357,7 @@ export const BoardManager: React.FC<BoardManagerProps> = ({ canManage }) => {
                   { value: "last7d", label: "最近 7 天" },
                   { value: "last30d", label: "最近 30 天" },
                   { value: "thisWeek", label: "本周" },
+                  { value: "thisWeekMonFri", label: "本周（周一~周五）" },
                   { value: "lastWeek", label: "上周" },
                   { value: "thisMonth", label: "本月" },
                   { value: "lastMonth", label: "上月" },

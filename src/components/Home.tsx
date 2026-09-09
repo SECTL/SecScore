@@ -113,6 +113,18 @@ const getCompensatedBorderRadius = (borderRadius: string, scale: number) => {
 type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
+type HomeCardStatKey = "score" | "today" | "week" | "month"
+
+const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
+const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
+  { value: "score", label: "总分" },
+  { value: "today", label: "今日" },
+  { value: "week", label: "本周" },
+  { value: "month", label: "本月" },
+]
+const ALLOWED_HOME_CARD_STATS = new Set<HomeCardStatKey>(
+  HOME_CARD_STAT_OPTIONS.map((option) => option.value)
+)
 
 const T9_KEY_MAP: Record<string, string> = {
   a: "2",
@@ -208,6 +220,27 @@ export const Home: React.FC<HomeProps> = ({
   const [undoLoading, setUndoLoading] = useState(false)
   const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
+  const [homeShowStats, setHomeShowStats] = useState<HomeCardStatKey[]>(() => {
+    try {
+      const raw = localStorage.getItem(HOME_CARD_STATS_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (key: unknown): key is HomeCardStatKey =>
+              typeof key === "string" &&
+              ALLOWED_HOME_CARD_STATS.has(key as HomeCardStatKey)
+          )
+        }
+      }
+    } catch {
+      // 忽略损坏/不可用的本地值
+    }
+    return []
+  })
+  const [periodStats, setPeriodStats] = useState<
+    Record<string, { today: number; week: number; month: number }>
+  >({})
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
   const [rewardMode, setRewardMode] = useState(false)
   const [rewardStudent, setRewardStudent] = useState<student | null>(null)
@@ -390,9 +423,57 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, [])
 
+  // 拉取每名学生的区间积分统计（今日 / 本周[周一~周五] / 本月 的净变化）。
+  // 复用只读的 boardQuerySql 跑单条聚合 SELECT，结果按学生姓名映射。
+  const fetchPeriodStats = useCallback(async () => {
+    const api = (window as any).api
+    if (!api?.boardQuerySql) return
+    const now = new Date()
+    const startOfDayLocal = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const todayStart = startOfDayLocal(now)
+    const monday = startOfDayLocal(now)
+    monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+    const satStart = new Date(monday)
+    satStart.setDate(monday.getDate() + 5)
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const nowIso = now.toISOString()
+    const todayStartIso = todayStart.toISOString()
+    const mondayIso = monday.toISOString()
+    const satStartIso = satStart.toISOString()
+    const monthStartIso = monthStart.toISOString()
+
+    const sql = `SELECT s.name AS name,
+      COALESCE(SUM(CASE WHEN e.event_time >= '${todayStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS today_net,
+      COALESCE(SUM(CASE WHEN e.event_time >= '${mondayIso}' AND e.event_time < '${satStartIso}' THEN e.delta ELSE 0 END), 0) AS week_net,
+      COALESCE(SUM(CASE WHEN e.event_time >= '${monthStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS month_net
+    FROM students s
+    LEFT JOIN score_events e ON e.student_name = s.name
+    GROUP BY s.name`
+
+    try {
+      const res = await api.boardQuerySql({ sql, limit: 500 })
+      if (res?.success && Array.isArray(res.data)) {
+        const next: Record<string, { today: number; week: number; month: number }> = {}
+        res.data.forEach((row: any) => {
+          const name = typeof row?.name === "string" ? row.name.trim() : ""
+          if (!name) return
+          next[name] = {
+            today: Number(row.today_net) || 0,
+            week: Number(row.week_net) || 0,
+            month: Number(row.month_net) || 0,
+          }
+        })
+        setPeriodStats(next)
+      }
+    } catch {
+      // 忽略：统计加载失败不应影响主界面使用
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
     fetchLatestEvent()
+    fetchPeriodStats()
     const onDataUpdated = (e: any) => {
       const category = e?.detail?.category
       logHome("event:ss:data-updated", { detail: e?.detail })
@@ -404,11 +485,12 @@ export const Home: React.FC<HomeProps> = ({
       ) {
         fetchData(true)
         fetchLatestEvent()
+        fetchPeriodStats()
       }
     }
     window.addEventListener("ss:data-updated", onDataUpdated as any)
     return () => window.removeEventListener("ss:data-updated", onDataUpdated as any)
-  }, [fetchData, fetchLatestEvent])
+  }, [fetchData, fetchLatestEvent, fetchPeriodStats])
 
   useEffect(() => {
     const api = (window as any).api
@@ -642,6 +724,83 @@ export const Home: React.FC<HomeProps> = ({
     (s: student) => (rewardMode ? Number(s.reward_points || 0) : Number(s.score || 0)),
     [rewardMode]
   )
+
+  const formatHomeStatValue = (value: number) => (value > 0 ? `+${value}` : String(value))
+
+  /** 根据底部/顶部“显示信息”多选，生成主界面学生卡片上要展示的统计项。 */
+  const buildHomeStatItems = (s: student) => {
+    if (homeShowStats.length === 0 || rewardMode) return []
+    const period = periodStats[s.name]
+    const toneOf = (value: number): "success" | "error" => (value >= 0 ? "success" : "error")
+    const items: {
+      key: HomeCardStatKey
+      label: string
+      value: number
+      tone: "success" | "error"
+    }[] = []
+    if (homeShowStats.includes("score")) {
+      const value = Number(s.score ?? 0)
+      items.push({ key: "score", label: "总分", value, tone: toneOf(value) })
+    }
+    if (period) {
+      if (homeShowStats.includes("today")) {
+        items.push({ key: "today", label: "今日", value: period.today, tone: toneOf(period.today) })
+      }
+      if (homeShowStats.includes("week")) {
+        items.push({ key: "week", label: "本周", value: period.week, tone: toneOf(period.week) })
+      }
+      if (homeShowStats.includes("month")) {
+        items.push({
+          key: "month",
+          label: "本月",
+          value: period.month,
+          tone: toneOf(period.month),
+        })
+      }
+    }
+    return items
+  }
+
+  /** 单个统计项的小标签（与原来总分标签同款）。 */
+  const renderHomeStatTag = (item: {
+    key: HomeCardStatKey
+    label: string
+    value: number
+    tone: "success" | "error"
+  }) => (
+    <Tag
+      key={item.key}
+      color={item.tone}
+      style={{
+        marginInlineEnd: 0,
+        fontSize: 11,
+        lineHeight: "16px",
+        fontWeight: "bold",
+        flexShrink: 0,
+      }}
+    >
+      {item.label}：{formatHomeStatValue(item.value)}
+    </Tag>
+  )
+
+  /** 统计行：不换行。放不下时由外层容器把卡片撑宽，而不是折到第二行。 */
+  const renderHomeStatRow = (s: student) => {
+    const items = buildHomeStatItems(s)
+    if (items.length === 0) return null
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "nowrap",
+          gap: "4px",
+          marginTop: "4px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {items.map((item) => renderHomeStatTag(item))}
+      </div>
+    )
+  }
 
   const sortedStudents = useMemo(() => {
     const filtered = students.filter((s) => matchStudentName(s, searchKeyword))
@@ -1812,6 +1971,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const renderStudentCard = (student: student, index: number) => {
+    const useHomeStats = homeShowStats.length > 0 && !rewardMode
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
 
@@ -1933,9 +2093,15 @@ export const Home: React.FC<HomeProps> = ({
             <div
               style={{
                 flex: 1,
-                overflow: "hidden",
+                overflow: useHomeStats ? "visible" : "hidden",
                 position: "relative",
-                minHeight: isPortraitMode ? "40px" : "44px",
+                // 显示信息时不再为“积分行/长按按钮”预留额外高度；长按弹加减按钮时才恢复
+                minHeight:
+                  useHomeStats && !isQuickActionMode
+                    ? "auto"
+                    : isPortraitMode
+                      ? "40px"
+                      : "44px",
               }}
             >
               <div
@@ -2007,30 +2173,33 @@ export const Home: React.FC<HomeProps> = ({
                 >
                   {student.name}
                 </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
-                >
-                  {isSelected && (
-                    <Tag color="processing" style={{ marginInlineEnd: 0 }}>
-                      {t("home.selected")}
-                    </Tag>
-                  )}
-                  <Tag
-                    data-operation-morph="score"
-                    color={
-                      getDisplayPoints(student) > 0
-                        ? "success"
-                        : getDisplayPoints(student) < 0
-                          ? "error"
-                          : "default"
-                    }
-                    style={{ fontWeight: "bold" }}
+                {useHomeStats && !isQuickActionMode && renderHomeStatRow(student)}
+                {!useHomeStats && (
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
                   >
-                    {getDisplayPoints(student) > 0
-                      ? `+${getDisplayPoints(student)}`
-                      : getDisplayPoints(student)}
-                  </Tag>
-                </div>
+                    {isSelected && (
+                      <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                        {t("home.selected")}
+                      </Tag>
+                    )}
+                    <Tag
+                      data-operation-morph="score"
+                      color={
+                        getDisplayPoints(student) > 0
+                          ? "success"
+                          : getDisplayPoints(student) < 0
+                            ? "error"
+                            : "default"
+                      }
+                      style={{ fontWeight: "bold" }}
+                    >
+                      {getDisplayPoints(student) > 0
+                        ? `+${getDisplayPoints(student)}`
+                        : getDisplayPoints(student)}
+                    </Tag>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2040,6 +2209,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const renderStudentRowCompact = (student: student, isLast: boolean) => {
+    const useHomeStats = homeShowStats.length > 0 && !rewardMode
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
     const isQuickActionMode = quickActionStudentId === student.id
@@ -2132,6 +2302,7 @@ export const Home: React.FC<HomeProps> = ({
             >
               {student.name}
             </div>
+            {useHomeStats && !isQuickActionMode && renderHomeStatRow(student)}
           </div>
 
           {isQuickActionMode ? (
@@ -2176,20 +2347,22 @@ export const Home: React.FC<HomeProps> = ({
                   {t("home.selected")}
                 </Tag>
               )}
-              <Tag
-                color={
-                  getDisplayPoints(student) > 0
-                    ? "success"
-                    : getDisplayPoints(student) < 0
-                      ? "error"
-                      : "default"
-                }
-                style={{ fontWeight: "bold", marginInlineEnd: 0 }}
-              >
-                {getDisplayPoints(student) > 0
-                  ? `+${getDisplayPoints(student)}`
-                  : getDisplayPoints(student)}
-              </Tag>
+              {!useHomeStats && (
+                <Tag
+                  color={
+                    getDisplayPoints(student) > 0
+                      ? "success"
+                      : getDisplayPoints(student) < 0
+                        ? "error"
+                        : "default"
+                  }
+                  style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+                >
+                  {getDisplayPoints(student) > 0
+                    ? `+${getDisplayPoints(student)}`
+                    : getDisplayPoints(student)}
+                </Tag>
+              )}
             </Space>
           )}
         </div>
@@ -2198,6 +2371,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const renderStudentSquareCard = (student: student, index: number) => {
+    const useHomeStats = homeShowStats.length > 0 && !rewardMode
     const avatarText = getDisplayText(student.name)
     const avatarColor = getAvatarColor(student.name)
     const isQuickActionMode = quickActionStudentId === student.id
@@ -2365,49 +2539,54 @@ export const Home: React.FC<HomeProps> = ({
                 </Button>
               </Space>
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  width: "100%",
-                  minWidth: 0,
-                }}
-              >
+              <>
                 <div
                   style={{
-                    fontWeight: 600,
-                    fontSize: "13px",
-                    color: "var(--ss-text-main)",
-                    maxWidth: "100%",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    width: "100%",
+                    minWidth: 0,
                   }}
                 >
-                  {student.name}
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "13px",
+                      color: "var(--ss-text-main)",
+                      maxWidth: "100%",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                  {!useHomeStats && (
+                    <Tag
+                      color={
+                        getDisplayPoints(student) > 0
+                          ? "success"
+                          : getDisplayPoints(student) < 0
+                            ? "error"
+                            : "default"
+                      }
+                      style={{ fontWeight: "bold", marginInlineEnd: 0 }}
+                    >
+                      {getDisplayPoints(student) > 0
+                        ? `+${getDisplayPoints(student)}`
+                        : getDisplayPoints(student)}
+                    </Tag>
+                  )}
+                  {isSelected && (
+                    <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+                      {t("home.selected")}
+                    </Tag>
+                  )}
                 </div>
-                <Tag
-                  color={
-                    getDisplayPoints(student) > 0
-                      ? "success"
-                      : getDisplayPoints(student) < 0
-                        ? "error"
-                        : "default"
-                  }
-                  style={{ fontWeight: "bold", marginInlineEnd: 0 }}
-                >
-                  {getDisplayPoints(student) > 0
-                    ? `+${getDisplayPoints(student)}`
-                    : getDisplayPoints(student)}
-                </Tag>
-                {isSelected && (
-                  <Tag color="processing" style={{ marginInlineEnd: 0 }}>
-                    {t("home.selected")}
-                  </Tag>
-                )}
-              </div>
+                {useHomeStats && renderHomeStatRow(student)}
+              </>
             )}
           </div>
         </Card>
@@ -2422,6 +2601,7 @@ export const Home: React.FC<HomeProps> = ({
     const isSelected = selectedStudentIds.includes(student.id)
     const displayPoints = getDisplayPoints(student)
     const scoreColor = displayPoints > 0 ? "#52c41a" : displayPoints < 0 ? "#ff4d4f" : "#595959"
+    const useHomeStats = homeShowStats.length > 0 && !rewardMode
 
     let rankBadge: string | null = null
     if (sortType === "score" && !searchKeyword) {
@@ -2614,9 +2794,10 @@ export const Home: React.FC<HomeProps> = ({
                   right: 8,
                   bottom: 8,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "8px",
+                  flexDirection: useHomeStats ? "column" : "row",
+                  alignItems: useHomeStats ? "flex-start" : "center",
+                  justifyContent: useHomeStats ? "flex-start" : "space-between",
+                  gap: useHomeStats ? "5px" : "8px",
                   zIndex: 2,
                 }}
               >
@@ -2655,21 +2836,45 @@ export const Home: React.FC<HomeProps> = ({
                     {student.name}
                   </div>
                 </Dropdown>
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: "28px",
-                    lineHeight: 1,
-                    color: scoreColor,
-                    background: "rgba(255,255,255,0.62)",
-                    border: "1px solid rgba(255,255,255,0.82)",
-                    borderRadius: "8px",
-                    padding: "2px 9px",
-                    backdropFilter: "blur(4px)",
-                  }}
-                >
-                  {displayPoints > 0 ? `+${displayPoints}` : displayPoints}
-                </div>
+                {!useHomeStats && (
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "28px",
+                      lineHeight: 1,
+                      color: scoreColor,
+                      background: "rgba(255,255,255,0.62)",
+                      border: "1px solid rgba(255,255,255,0.82)",
+                      borderRadius: "8px",
+                      padding: "2px 9px",
+                      backdropFilter: "blur(4px)",
+                    }}
+                  >
+                    {displayPoints > 0 ? `+${displayPoints}` : displayPoints}
+                  </div>
+                )}
+                {useHomeStats && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {buildHomeStatItems(student).map((item) => (
+                      <span
+                        key={item.key}
+                        style={{
+                          fontSize: 11,
+                          lineHeight: 1.3,
+                          fontWeight: 700,
+                          color: "#111",
+                          background: "rgba(255,255,255,0.7)",
+                          border: "1px solid rgba(255,255,255,0.85)",
+                          borderRadius: 999,
+                          padding: "1px 7px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.label}：{formatHomeStatValue(item.value)}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2679,12 +2884,13 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const renderGroupedCards = () => {
+    const homeStatsActive = homeShowStats.length > 0 && !rewardMode
     if (layoutType === "squareGrid") {
       return (
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(102px, 1fr))",
+            gridTemplateColumns: `repeat(auto-fill, minmax(${homeStatsActive ? 150 : 102}px, 1fr))`,
             gap: isPortraitMode ? "8px" : "10px",
           }}
         >
@@ -2698,7 +2904,7 @@ export const Home: React.FC<HomeProps> = ({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gridTemplateColumns: `repeat(auto-fill, minmax(${homeStatsActive ? 200 : 180}px, 1fr))`,
             gap: isPortraitMode ? "10px" : "14px",
           }}
         >
@@ -2752,11 +2958,16 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         ) : (
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: "16px",
-            }}
+            style={
+              homeStatsActive
+                ? // 显示信息时改为“卡片按内容自动变宽、可换行排列”，数字不换行而是撑宽卡片
+                  { display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "flex-start" }
+                : {
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    gap: "16px",
+                  }
+            }
           >
             {group.students.map((student, idx) => renderStudentCard(student, idx))}
           </div>
@@ -3659,6 +3870,49 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  const renderHomeStatPicker = (variant: "header" | "toolbar" | "menu") => {
+    const isImmersive = variant !== "header"
+    const widthStyle: React.CSSProperties =
+      variant === "menu"
+        ? { width: "100%" }
+        : variant === "toolbar"
+          ? { width: 138, flexShrink: 0, fontSize: 12 }
+          : { width: 150, minWidth: 120, flexShrink: 1 }
+    return (
+      <Select
+        mode="multiple"
+        allowClear
+        maxTagCount="responsive"
+        placeholder={isImmersive ? "显示" : "卡片显示"}
+        value={homeShowStats}
+        options={HOME_CARD_STAT_OPTIONS}
+        getPopupContainer={
+          variant === "header"
+            ? undefined
+            : variant === "toolbar"
+              ? getImmersivePopupContainer
+              : getDocumentBodyPopupContainer
+        }
+        // 底栏里的下拉改为向上弹出、并把浮层提到底栏之上，避免被底栏遮挡
+        placement={isImmersive ? "topLeft" : "bottomLeft"}
+        dropdownStyle={{ zIndex: 1300 }}
+        popupClassName={variant === "menu" ? "ss-immersive-toolbar-select-popup" : undefined}
+        style={widthStyle}
+        onChange={(values) => {
+          const next = ((values ?? []) as HomeCardStatKey[]).filter(
+            (key) => typeof key === "string" && ALLOWED_HOME_CARD_STATS.has(key as HomeCardStatKey)
+          )
+          setHomeShowStats(next)
+          try {
+            localStorage.setItem(HOME_CARD_STATS_STORAGE_KEY, JSON.stringify(next))
+          } catch {
+            // 忽略持久化失败
+          }
+        }}
+      />
+    )
+  }
+
   const immersiveMenuContent = (
     <div className="ss-immersive-toolbar-menu">
       <Select
@@ -3686,6 +3940,7 @@ export const Home: React.FC<HomeProps> = ({
           { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
         ]}
       />
+      {renderHomeStatPicker("menu")}
       <Button
         icon={<UndoOutlined />}
         onClick={() => {
@@ -3948,6 +4203,7 @@ export const Home: React.FC<HomeProps> = ({
                   { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
                 ]}
               />
+              {renderHomeStatPicker("header")}
               <Button
                 icon={<UndoOutlined />}
                 onClick={handleUndoLastEvent}
@@ -4283,6 +4539,7 @@ export const Home: React.FC<HomeProps> = ({
                   { value: "largeAvatar", label: t("home.layoutBy.largeAvatar") },
                 ]}
               />
+              {renderHomeStatPicker("toolbar")}
               <Button
                 icon={<UndoOutlined />}
                 onClick={handleUndoLastEvent}
