@@ -2014,7 +2014,12 @@ export const Home: React.FC<HomeProps> = ({
           e.preventDefault()
           openQuickAction(student)
         }}
-        style={{ cursor: "pointer", position: "relative" }}
+        style={{
+          cursor: "pointer",
+          position: "relative",
+          // 显示信息时给卡片一个最小宽度，保证长按弹出的 +1/-1 按钮能完整放下、不会被压缩
+          ...(useHomeStats ? { minWidth: "200px" } : null),
+        }}
       >
         <Card
           style={{
@@ -2095,13 +2100,8 @@ export const Home: React.FC<HomeProps> = ({
                 flex: 1,
                 overflow: useHomeStats ? "visible" : "hidden",
                 position: "relative",
-                // 显示信息时不再为“积分行/长按按钮”预留额外高度；长按弹加减按钮时才恢复
-                minHeight:
-                  useHomeStats && !isQuickActionMode
-                    ? "auto"
-                    : isPortraitMode
-                      ? "40px"
-                      : "44px",
+                // 显示信息时按内容高度自适应（统计行一直占位），长按按钮随名字列高度即可完整放下
+                minHeight: useHomeStats ? "auto" : isPortraitMode ? "40px" : "44px",
               }}
             >
               <div
@@ -2128,6 +2128,7 @@ export const Home: React.FC<HomeProps> = ({
                     minWidth: "54px",
                     height: "36px",
                     borderRadius: "18px",
+                    flexShrink: 0,
                     fontWeight: 700,
                     paddingInline: "12px",
                   }}
@@ -2145,6 +2146,7 @@ export const Home: React.FC<HomeProps> = ({
                     minWidth: "54px",
                     height: "36px",
                     borderRadius: "18px",
+                    flexShrink: 0,
                     fontWeight: 700,
                     paddingInline: "12px",
                   }}
@@ -2173,7 +2175,7 @@ export const Home: React.FC<HomeProps> = ({
                 >
                   {student.name}
                 </div>
-                {useHomeStats && !isQuickActionMode && renderHomeStatRow(student)}
+                {useHomeStats && renderHomeStatRow(student)}
                 {!useHomeStats && (
                   <div
                     style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}
