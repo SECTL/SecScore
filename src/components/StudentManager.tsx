@@ -114,6 +114,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [groupBoard, setGroupBoard] = useState<Record<string, student[]>>({})
   const [groupBoardOrder, setGroupBoardOrder] = useState<string[]>([])
   const [groupBoardNewGroupName, setGroupBoardNewGroupName] = useState("")
+  const [editingGroupKey, setEditingGroupKey] = useState<string | null>(null)
+  const [editingGroupName, setEditingGroupName] = useState("")
   const [pointerDraggingStudentId, setPointerDraggingStudentId] = useState<number | null>(null)
   const [pointerTargetGroup, setPointerTargetGroup] = useState<string | null>(null)
   const [pointerDragStudentName, setPointerDragStudentName] = useState("")
@@ -453,6 +455,44 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       return normalizeGroupBoardOrder([...withoutUngrouped, name, UNGROUPED_KEY])
     })
     setGroupBoardNewGroupName("")
+  }
+
+  const beginGroupRename = (groupKey: string) => {
+    if (groupKey === UNGROUPED_KEY || !canEdit) return
+    setEditingGroupKey(groupKey)
+    setEditingGroupName(groupKey)
+  }
+
+  const cancelGroupRename = () => {
+    setEditingGroupKey(null)
+    setEditingGroupName("")
+  }
+
+  const commitGroupRename = () => {
+    const oldName = editingGroupKey
+    const newName = editingGroupName.trim()
+    if (!oldName) return
+    if (!newName) {
+      messageApi.warning(t("students.groupBoardGroupNameRequired"))
+      return
+    }
+    if (newName === UNGROUPED_KEY) {
+      messageApi.warning(t("students.groupBoardGroupNameInvalid"))
+      return
+    }
+    if (newName !== oldName && groupBoardOrder.includes(newName)) {
+      messageApi.warning(t("students.groupBoardGroupExists"))
+      return
+    }
+    if (newName !== oldName) {
+      setGroupBoard((prev) => {
+        const next = { ...prev, [newName]: prev[oldName] || [] }
+        delete next[oldName]
+        return next
+      })
+      setGroupBoardOrder((prev) => prev.map((key) => (key === oldName ? newName : key)))
+    }
+    cancelGroupRename()
   }
 
   const moveStudentToGroup = (studentId: number, targetGroup: string) => {
@@ -1616,6 +1656,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         onCancel={() => {
           setGroupBoardVisible(false)
           setGroupBoardNewGroupName("")
+          cancelGroupRename()
           draggingStudentIdRef.current = null
           pointerDragSourceGroupRef.current = null
           pointerDragTargetGroupRef.current = null
@@ -1714,7 +1755,34 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     touchAction: "none",
                   }}
                 >
-                  {groupLabel} ({studentsInGroup.length})
+                  {editingGroupKey === groupKey ? (
+                    <Input
+                      autoFocus
+                      size="small"
+                      value={editingGroupName}
+                      maxLength={32}
+                      onChange={(e) => setEditingGroupName(e.target.value)}
+                      onPressEnter={commitGroupRename}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") cancelGroupRename()
+                      }}
+                      onBlur={commitGroupRename}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={t("students.groupBoardNewGroupPlaceholder")}
+                    />
+                  ) : (
+                    <span
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        beginGroupRename(groupKey)
+                      }}
+                      style={{ cursor: groupKey === UNGROUPED_KEY ? "default" : "text" }}
+                    >
+                      {groupLabel}
+                    </span>
+                  )} ({studentsInGroup.length})
                 </div>
                 <div
                   style={{
