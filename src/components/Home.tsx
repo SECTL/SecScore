@@ -116,6 +116,10 @@ type SearchKeyboardLayout = "t9" | "qwerty26"
 type HomeCardStatKey = "score" | "today" | "week" | "month"
 
 const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
+const HOME_SORT_STORAGE_KEY = "ss_home_sort_type"
+const HOME_LAYOUT_STORAGE_KEY = "ss_home_layout_type"
+const HOME_SORT_TYPES = new Set<SortType>(["alphabet", "surname", "group", "score"])
+const HOME_LAYOUT_TYPES = new Set<LayoutType>(["grouped", "squareGrid", "largeAvatar"])
 const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
   { value: "score", label: "总分" },
   { value: "today", label: "今日" },
@@ -182,8 +186,24 @@ export const Home: React.FC<HomeProps> = ({
   const [reasons, setReasons] = useState<reason[]>([])
   const [rewards, setRewards] = useState<rewardSetting[]>([])
   const [loading, setLoading] = useState(false)
-  const [sortType, setSortType] = useState<SortType>("alphabet")
-  const [layoutType, setLayoutType] = useState<LayoutType>("grouped")
+  const [sortType, setSortType] = useState<SortType>(() => {
+    try {
+      const stored = localStorage.getItem(HOME_SORT_STORAGE_KEY)
+      return stored && HOME_SORT_TYPES.has(stored as SortType) ? (stored as SortType) : "alphabet"
+    } catch {
+      return "alphabet"
+    }
+  })
+  const [layoutType, setLayoutType] = useState<LayoutType>(() => {
+    try {
+      const stored = localStorage.getItem(HOME_LAYOUT_STORAGE_KEY)
+      return stored && HOME_LAYOUT_TYPES.has(stored as LayoutType)
+        ? (stored as LayoutType)
+        : "grouped"
+    } catch {
+      return "grouped"
+    }
+  })
   const [searchKeyword, setSearchKeyword] = useState("")
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [immersiveMenuOpen, setImmersiveMenuOpen] = useState(false)
@@ -239,6 +259,15 @@ export const Home: React.FC<HomeProps> = ({
     }
     return []
   })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOME_SORT_STORAGE_KEY, sortType)
+      localStorage.setItem(HOME_LAYOUT_STORAGE_KEY, layoutType)
+    } catch {
+      // 忽略不可用的本地存储
+    }
+  }, [sortType, layoutType])
   const [periodStats, setPeriodStats] = useState<
     Record<string, { today: number; week: number; month: number }>
   >({})
