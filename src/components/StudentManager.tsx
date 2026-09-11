@@ -42,6 +42,32 @@ interface student {
   tagIds?: number[]
   extra_json?: string | null
   avatarUrl?: string | null
+  groupScoreExcluded?: boolean
+}
+
+const isGroupScoreExcluded = (extraJson?: string | null) => {
+  if (!extraJson) return false
+  try {
+    const parsed = JSON.parse(extraJson)
+    return Boolean(parsed && typeof parsed === "object" && parsed.groupScoreExcluded === true)
+  } catch {
+    return false
+  }
+}
+
+const setGroupScoreExcluded = (extraJson: string | null | undefined, excluded: boolean) => {
+  let parsed: Record<string, unknown> = {}
+  if (extraJson) {
+    try {
+      const value = JSON.parse(extraJson)
+      if (value && typeof value === "object") parsed = value as Record<string, unknown>
+    } catch {
+      parsed = {}
+    }
+  }
+  if (excluded) parsed.groupScoreExcluded = true
+  else delete parsed.groupScoreExcluded
+  return JSON.stringify(parsed)
 }
 
 interface BanYouClassroom {
@@ -124,6 +150,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [pointerDragGroupName, setPointerDragGroupName] = useState("")
   const pointerDragGhostRef = useRef<HTMLDivElement | null>(null)
   const pointerDragPositionRef = useRef<{ x: number; y: number } | null>(null)
+  const pointerDragPendingRef = useRef<{
+    studentId: number
+    studentName: string
+    sourceGroup: string
+    pointerId: number
+    x: number
+    y: number
+  } | null>(null)
   const pointerDragRafRef = useRef<number | null>(null)
   const draggingStudentIdRef = useRef<number | null>(null)
   const pointerDragSourceGroupRef = useRef<string | null>(null)
@@ -218,6 +252,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                 score: s.score,
                 extra_json: s.extra_json ?? null,
                 avatarUrl: getAvatarFromExtraJson(s.extra_json),
+                groupScoreExcluded: isGroupScoreExcluded(s.extra_json),
                 tags,
                 tagIds,
               }
@@ -540,7 +575,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     const changedStudents = data.filter((student) => {
       const originalGroup = student.group_name?.trim() || ""
       const nextGroup = groupByStudentId.get(student.id) ?? ""
-      return originalGroup !== nextGroup
+      const nextStudent = groupBoardOrder.flatMap((key) => groupBoard[key] || []).find((item) => item.id === student.id)
+      return originalGroup !== nextGroup || Boolean(student.groupScoreExcluded) !== Boolean(nextStudent?.groupScoreExcluded)
     })
 
     if (changedStudents.length === 0) {
@@ -552,10 +588,30 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
 
     setGroupBoardSaving(true)
     try {
+      const renamedGroups = groupBoardOrder
+        .filter((groupKey) => groupKey !== UNGROUPED_KEY)
+        .flatMap((newName) => {
+          const oldNames = new Set(
+            (groupBoard[newName] || [])
+              .map((student) => student.group_name?.trim())
+              .filter((name): name is string => Boolean(name) && name !== newName)
+          )
+          return oldNames.size === 1 ? [{ oldName: [...oldNames][0], newName }] : []
+        })
+      for (const rename of renamedGroups) {
+        await (window as any).api.renameGroupScore({
+          old_name: rename.oldName,
+          new_name: rename.newName,
+        })
+      }
       const results = await Promise.allSettled(
         changedStudents.map((student) => {
           const nextGroup = groupByStudentId.get(student.id) ?? ""
-          return (window as any).api.updateStudent(student.id, { group_name: nextGroup })
+          const nextStudent = groupBoardOrder.flatMap((key) => groupBoard[key] || []).find((item) => item.id === student.id)
+          return (window as any).api.updateStudent(student.id, {
+            group_name: nextGroup,
+            extra_json: setGroupScoreExcluded(student.extra_json, Boolean(nextStudent?.groupScoreExcluded)),
+          })
         })
       )
       const failedCount = results.filter(
@@ -586,28 +642,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     sourceGroup: string
   ) => {
     if (e.button !== 0) return
-    e.preventDefault()
-    draggingStudentIdRef.current = studentId
-    pointerDragSourceGroupRef.current = sourceGroup
-    pointerDragTargetGroupRef.current = null
-    setPointerDraggingStudentId(studentId)
-    setPointerDragStudentName(studentName)
-    pointerDragPositionRef.current = { x: e.clientX, y: e.clientY }
-    requestAnimationFrame(() => {
-      if (!pointerDragPositionRef.current) return
-      const ghost = pointerDragGhostRef.current
-      if (!ghost) return
-      ghost.style.transform = `translate3d(${pointerDragPositionRef.current.x + 14}px, ${
-        pointerDragPositionRef.current.y + 14
-      }px, 0)`
-    })
-    setPointerTargetGroup(null)
-    e.currentTarget.setPointerCapture(e.pointerId)
-    console.debug("[GroupBoard] pointer drag start", {
+    pointerDragPendingRef.current = {
       studentId,
       studentName,
-      sourceGroup: sourceGroup === UNGROUPED_KEY ? "ungrouped" : sourceGroup,
-    })
+      sourceGroup,
+      pointerId: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+    }
   }
 
   const schedulePointerDragPositionUpdate = (clientX: number, clientY: number) => {
@@ -624,8 +666,29 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     })
   }
 
-  const trackPointerTarget = (clientX: number, clientY: number) => {
+  const trackPointerTarget = (e: React.PointerEvent<HTMLDivElement>) => {
+    const pending = pointerDragPendingRef.current
+    if (draggingStudentIdRef.current == null && pending) {
+      const deltaX = e.clientX - pending.x
+      const deltaY = e.clientY - pending.y
+      const horizontalDistance = Math.abs(deltaX)
+      const verticalDistance = Math.abs(deltaY)
+      if (horizontalDistance < 24 || horizontalDistance <= verticalDistance * 1.25) return
+
+      e.preventDefault()
+      draggingStudentIdRef.current = pending.studentId
+      pointerDragSourceGroupRef.current = pending.sourceGroup
+      pointerDragTargetGroupRef.current = null
+      setPointerDraggingStudentId(pending.studentId)
+      setPointerDragStudentName(pending.studentName)
+      pointerDragPositionRef.current = { x: e.clientX, y: e.clientY }
+      setPointerTargetGroup(null)
+      e.currentTarget.setPointerCapture(pending.pointerId)
+      pointerDragPendingRef.current = null
+    }
     if (draggingStudentIdRef.current == null) return
+    const clientX = e.clientX
+    const clientY = e.clientY
     schedulePointerDragPositionUpdate(clientX, clientY)
     const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
     const dropZone = element?.closest("[data-group-drop]") as HTMLElement | null
@@ -640,6 +703,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   }
 
   const finishPointerDrag = () => {
+    pointerDragPendingRef.current = null
     const studentId = draggingStudentIdRef.current
     const sourceGroup = pointerDragSourceGroupRef.current
     const targetGroup = pointerDragTargetGroupRef.current
@@ -1797,34 +1861,75 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                   }}
                 >
                   {studentsInGroup.length > 0 ? (
-                    studentsInGroup.map((student) => (
-                      <div
-                        key={`${groupKey}-${student.id}`}
-                        onPointerDown={(e) =>
-                          beginPointerDrag(e, student.id, student.name, groupKey)
-                        }
-                        onPointerMove={(e) => trackPointerTarget(e.clientX, e.clientY)}
-                        onPointerUp={finishPointerDrag}
-                        onPointerCancel={finishPointerDrag}
-                        onLostPointerCapture={finishPointerDrag}
-                        style={{
-                          border: "1px solid var(--ss-border-color)",
-                          borderRadius: 8,
-                          backgroundColor:
-                            pointerDraggingStudentId === student.id
-                              ? "var(--ss-bg-color)"
-                              : "var(--ss-card-bg)",
-                          opacity: pointerDraggingStudentId === student.id ? 0.45 : 1,
-                          padding: "8px 10px",
-                          cursor: pointerDraggingStudentId === student.id ? "grabbing" : "grab",
-                          userSelect: "none",
-                          WebkitUserSelect: "none",
-                          touchAction: "none",
-                        }}
-                      >
-                        {student.name}
-                      </div>
-                    ))
+                    studentsInGroup.map((student) => {
+                      const groupScoreExcluded = Boolean(student.groupScoreExcluded)
+                      return (
+                        <Dropdown
+                          key={`${groupKey}-${student.id}`}
+                          trigger={["contextMenu"]}
+                          menu={{
+                            items: [
+                              {
+                                key: "status",
+                                disabled: true,
+                                label: (
+                                  <span>
+                                    {t("students.excludeFromGroupStats")}：
+                                    <Tag color={groupScoreExcluded ? "warning" : "default"}>
+                                      {groupScoreExcluded ? t("common.yes") : t("common.no")}
+                                    </Tag>
+                                  </span>
+                                ),
+                              },
+                              { type: "divider" },
+                              {
+                                key: "toggle",
+                                label: groupScoreExcluded
+                                  ? t("students.includeInGroupStats")
+                                  : t("students.excludeFromGroupStats"),
+                              },
+                            ],
+                            onClick: ({ key }) => {
+                              if (key !== "toggle") return
+                              setGroupBoard((previous) => ({
+                                ...previous,
+                                [groupKey]: (previous[groupKey] || []).map((item) =>
+                                  item.id === student.id
+                                    ? { ...item, groupScoreExcluded: !groupScoreExcluded }
+                                    : item
+                                ),
+                              }))
+                            },
+                          }}
+                        >
+                          <div
+                            onPointerDown={(e) =>
+                              beginPointerDrag(e, student.id, student.name, groupKey)
+                            }
+                            onPointerMove={trackPointerTarget}
+                            onPointerUp={finishPointerDrag}
+                            onPointerCancel={finishPointerDrag}
+                            onLostPointerCapture={finishPointerDrag}
+                            style={{
+                              border: "1px solid var(--ss-border-color)",
+                              borderRadius: 8,
+                              backgroundColor:
+                                pointerDraggingStudentId === student.id
+                                  ? "var(--ss-bg-color)"
+                                  : "var(--ss-card-bg)",
+                              opacity: pointerDraggingStudentId === student.id ? 0.45 : 1,
+                              padding: "8px 10px",
+                              cursor: pointerDraggingStudentId === student.id ? "grabbing" : "grab",
+                              userSelect: "none",
+                              WebkitUserSelect: "none",
+                              touchAction: "pan-y",
+                            }}
+                          >
+                            {student.name}
+                          </div>
+                        </Dropdown>
+                      )
+                    })
                   ) : (
                     <div style={{ color: "var(--ss-text-secondary)", fontSize: 12 }}>
                       {t("students.groupBoardEmpty")}

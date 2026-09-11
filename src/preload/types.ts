@@ -483,6 +483,12 @@ const api = {
     range: "today" | "week" | "month"
   }): Promise<{ success: boolean; data: { startTime: string; rows: any[] } }> =>
     invoke("leaderboard_query", { params }),
+  queryGroupScores: (): Promise<{ success: boolean; data: Array<{ group_name: string; score: number }> }> =>
+    invoke("group_score_query"),
+  createGroupScore: (data: { group_name: string; delta: number; reason_content: string }): Promise<{ success: boolean; data?: number; message?: string }> =>
+    invoke("group_score_create", { data }),
+  renameGroupScore: (data: { old_name: string; new_name: string }): Promise<{ success: boolean; message?: string }> =>
+    invoke("group_score_rename", { data }),
   boardQuerySql: (params: {
     sql: string
     limit?: number

@@ -8,6 +8,8 @@ pub const TABLE_TAGS: &str = "tags";
 pub const TABLE_STUDENT_TAGS: &str = "student_tags";
 pub const TABLE_REWARD_SETTINGS: &str = "reward_settings";
 pub const TABLE_REWARD_REDEMPTIONS: &str = "reward_redemptions";
+pub const TABLE_GROUP_SCORES: &str = "group_scores";
+pub const TABLE_GROUP_SCORE_EVENTS: &str = "group_score_events";
 
 pub mod students {
     pub const TABLE: &str = "students";
@@ -251,6 +253,18 @@ pub fn get_create_score_events_table_sql(sqlite: bool) -> String {
         )
         "#
         .to_string()
+    }
+}
+
+pub fn get_create_group_scores_table_sql(_sqlite: bool) -> String {
+    "CREATE TABLE IF NOT EXISTS group_scores (group_name TEXT PRIMARY KEY, score INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)".to_string()
+}
+
+pub fn get_create_group_score_events_table_sql(sqlite: bool) -> String {
+    if sqlite {
+        "CREATE TABLE IF NOT EXISTS group_score_events (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT NOT NULL UNIQUE, group_name TEXT NOT NULL, reason_content TEXT NOT NULL, delta INTEGER NOT NULL, val_prev INTEGER NOT NULL, val_curr INTEGER NOT NULL, event_time TEXT NOT NULL, settlement_id INTEGER)".to_string()
+    } else {
+        "CREATE TABLE IF NOT EXISTS group_score_events (id SERIAL PRIMARY KEY, uuid TEXT NOT NULL UNIQUE, group_name TEXT NOT NULL, reason_content TEXT NOT NULL, delta INTEGER NOT NULL, val_prev INTEGER NOT NULL, val_curr INTEGER NOT NULL, event_time TEXT NOT NULL, settlement_id INTEGER)".to_string()
     }
 }
 

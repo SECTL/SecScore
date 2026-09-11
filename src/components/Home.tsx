@@ -24,6 +24,7 @@ import {
   MenuOutlined,
   LockOutlined,
   UnlockOutlined,
+  PlusCircleOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
@@ -46,6 +47,17 @@ interface student {
   pinyinName?: string
   pinyinFirst?: string
   pinyinInitials?: string
+  groupScoreExcluded?: boolean
+}
+
+const isGroupScoreExcluded = (extraJson?: string | null) => {
+  if (!extraJson) return false
+  try {
+    const parsed = JSON.parse(extraJson)
+    return Boolean(parsed && typeof parsed === "object" && parsed.groupScoreExcluded === true)
+  } catch {
+    return false
+  }
 }
 
 interface reason {
@@ -114,8 +126,10 @@ type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 type HomeCardStatKey = "score" | "today" | "week" | "month"
+type HomeGroupStatKey = "total" | "average" | "weekTotal" | "weekAverage" | "groupScore"
 
 const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
+const HOME_GROUP_STATS_STORAGE_KEY = "ss_home_group_show_stats"
 const HOME_SORT_STORAGE_KEY = "ss_home_sort_type"
 const HOME_LAYOUT_STORAGE_KEY = "ss_home_layout_type"
 const HOME_SORT_TYPES = new Set<SortType>(["alphabet", "surname", "group", "score"])
@@ -129,6 +143,17 @@ const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
 const ALLOWED_HOME_CARD_STATS = new Set<HomeCardStatKey>(
   HOME_CARD_STAT_OPTIONS.map((option) => option.value)
 )
+const HOME_GROUP_STAT_OPTIONS: { value: HomeGroupStatKey; label: string }[] = [
+  { value: "total", label: "总总分" },
+  { value: "average", label: "总平均分" },
+  { value: "weekTotal", label: "周总分" },
+  { value: "weekAverage", label: "周平均分" },
+  { value: "groupScore", label: "小组积分" },
+]
+const ALLOWED_HOME_GROUP_STATS = new Set<HomeGroupStatKey>(
+  HOME_GROUP_STAT_OPTIONS.map((option) => option.value)
+)
+const DEFAULT_HOME_GROUP_STATS: HomeGroupStatKey[] = ["total", "average", "groupScore"]
 
 const T9_KEY_MAP: Record<string, string> = {
   a: "2",
@@ -259,6 +284,24 @@ export const Home: React.FC<HomeProps> = ({
     }
     return []
   })
+  const [homeGroupShowStats, setHomeGroupShowStats] = useState<HomeGroupStatKey[]>(() => {
+    try {
+      const raw = localStorage.getItem(HOME_GROUP_STATS_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (key: unknown): key is HomeGroupStatKey =>
+              typeof key === "string" &&
+              ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
+          )
+        }
+      }
+    } catch {
+      // 忽略损坏/不可用的本地值
+    }
+    return DEFAULT_HOME_GROUP_STATS
+  })
 
   useEffect(() => {
     try {
@@ -271,6 +314,12 @@ export const Home: React.FC<HomeProps> = ({
   const [periodStats, setPeriodStats] = useState<
     Record<string, { today: number; week: number; month: number }>
   >({})
+  const [groupScores, setGroupScores] = useState<Record<string, number>>({})
+  const [groupScoreVisible, setGroupScoreVisible] = useState(false)
+  const [groupScoreGroup, setGroupScoreGroup] = useState("")
+  const [groupScoreDelta, setGroupScoreDelta] = useState<number | null>(null)
+  const [groupScoreReason, setGroupScoreReason] = useState("")
+  const [groupScoreSaving, setGroupScoreSaving] = useState(false)
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
   const [rewardMode, setRewardMode] = useState(false)
   const [rewardStudent, setRewardStudent] = useState<student | null>(null)
@@ -406,10 +455,11 @@ export const Home: React.FC<HomeProps> = ({
     const requestId = ++fetchRequestIdRef.current
     logHome("fetchData:start", { requestId, silent })
     if (!silent) setLoading(true)
-    const [stuRes, reaRes, rewRes] = await Promise.all([
+    const [stuRes, reaRes, rewRes, groupScoreRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
       (window as any).api.rewardSettingQuery(),
+      (window as any).api.queryGroupScores?.(),
     ])
     if (requestId !== fetchRequestIdRef.current) return
 
@@ -429,13 +479,63 @@ export const Home: React.FC<HomeProps> = ({
         pinyinName: pinyin(s.name, { toneType: "none" }).toLowerCase(),
         pinyinInitials: pinyin(s.name, { pattern: "first", toneType: "none" }).toLowerCase(),
         pinyinFirst: getFirstLetter(s.name),
+        groupScoreExcluded: isGroupScoreExcluded(s.extra_json),
       }))
       setStudents(enrichedStudents)
     }
     if (reaRes.success) setReasons(reaRes.data)
     if (rewRes.success) setRewards(rewRes.data)
+    if (groupScoreRes?.success) {
+      setGroupScores(Object.fromEntries((groupScoreRes.data || []).map((row: any) => [row.group_name, row.score])))
+    }
     if (!silent) setLoading(false)
   }, [])
+
+  const openGroupScoreEditor = (groupName: string) => {
+    if (!canEdit) {
+      messageApi.error(t("common.readOnly"))
+      return
+    }
+    setGroupScoreGroup(groupName)
+    setGroupScoreDelta(null)
+    setGroupScoreReason("")
+    setGroupScoreVisible(true)
+  }
+
+  const saveGroupScore = async () => {
+    if (!groupScoreDelta || !groupScoreReason.trim()) {
+      messageApi.warning(t("students.groupScoreDeltaRequired"))
+      return
+    }
+    setGroupScoreSaving(true)
+    try {
+      const res = await (window as any).api.createGroupScore({
+        group_name: groupScoreGroup,
+        delta: groupScoreDelta,
+        reason_content: groupScoreReason.trim(),
+      })
+      if (!res?.success) {
+        messageApi.error(res?.message || t("students.groupScoreSaveFailed"))
+        return
+      }
+      setGroupScores((previous) => ({ ...previous, [groupScoreGroup]: res.data }))
+      setGroupScoreVisible(false)
+      messageApi.success(t("students.groupScoreSaveSuccess"))
+      emitDataUpdated("students")
+    } finally {
+      setGroupScoreSaving(false)
+    }
+  }
+
+  const selectGroupReason = (selectedReason: reason) => {
+    setGroupScoreDelta(selectedReason.delta)
+    setGroupScoreReason(selectedReason.content)
+  }
+
+  const selectGroupNoReasonDelta = (delta: number) => {
+    setGroupScoreDelta(delta)
+    setGroupScoreReason("")
+  }
 
   const fetchLatestEvent = useCallback(async () => {
     if (!(window as any).api) return
@@ -789,6 +889,36 @@ export const Home: React.FC<HomeProps> = ({
       }
     }
     return items
+  }
+
+  /** 根据底栏菜单的小组显示设置，生成小组标题下要展示的统计项。 */
+  const buildGroupStatItems = (groupKey: string, students: student[]) => {
+    if (homeGroupShowStats.length === 0) return []
+    const includedStudents = students.filter((item) => !item.groupScoreExcluded)
+    const total = includedStudents.reduce((sum, item) => sum + Number(item.score || 0), 0)
+    const average = includedStudents.length > 0 ? total / includedStudents.length : 0
+    const weekTotal = includedStudents.reduce(
+      (sum, item) => sum + Number(periodStats[item.name]?.week || 0),
+      0
+    )
+    const weekAverage = includedStudents.length > 0 ? weekTotal / includedStudents.length : 0
+    const values: Record<HomeGroupStatKey, number> = {
+      total,
+      average,
+      weekTotal,
+      weekAverage,
+      groupScore: Number(groupScores[groupKey] || 0),
+    }
+    return HOME_GROUP_STAT_OPTIONS.filter((option) =>
+      homeGroupShowStats.includes(option.value)
+    ).map((option) => ({
+      key: option.value,
+      label: option.label,
+      displayValue:
+        option.value === "average" || option.value === "weekAverage"
+          ? values[option.value].toFixed(1)
+          : String(values[option.value]),
+    }))
   }
 
   /** 单个统计项的小标签（与原来总分标签同款）。 */
@@ -2971,7 +3101,48 @@ export const Home: React.FC<HomeProps> = ({
           groupRefs.current[group.key] = el
         }}
       >
-        {group.key !== "all" && (
+        {group.key !== "all" && sortType === "group" && (
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: "bold",
+              color: "var(--ss-text-main)",
+              marginBottom: "16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flexWrap: "wrap",
+              borderLeft: "4px solid var(--ant-color-primary, #1890ff)",
+              paddingLeft: "12px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: "100%" }}>
+              <Button
+                type="link"
+                size="small"
+                icon={<PlusCircleOutlined />}
+                onClick={() => openGroupScoreEditor(group.key)}
+                style={{ padding: 0, height: "auto", fontSize: "12px" }}
+              >
+                {t("students.groupScoreOperate")}
+              </Button>
+              <span style={{ color: "var(--ant-color-primary, #1890ff)", overflowWrap: "anywhere" }}>
+                {group.key}
+              </span>
+              <span style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
+                ({t("home.studentCount", { count: group.students.length })})
+              </span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", width: "100%", fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
+              {buildGroupStatItems(group.key, group.students).map((item) => (
+                <span key={item.key}>
+                  {item.label}: {item.displayValue}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+        {group.key !== "all" && sortType !== "group" && (
           <div
             style={{
               fontSize: "18px",
@@ -2986,9 +3157,7 @@ export const Home: React.FC<HomeProps> = ({
             }}
           >
             <span style={{ color: "var(--ant-color-primary, #1890ff)" }}>{group.key}</span>
-            <span
-              style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}
-            >
+            <span style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
               ({t("home.studentCount", { count: group.students.length })})
             </span>
           </div>
@@ -3963,6 +4132,34 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  const renderGroupStatPicker = () => (
+    <Select
+      mode="multiple"
+      allowClear
+      maxTagCount="responsive"
+      placeholder="小组显示"
+      value={homeGroupShowStats}
+      options={HOME_GROUP_STAT_OPTIONS}
+      getPopupContainer={getDocumentBodyPopupContainer}
+      placement="topLeft"
+      dropdownStyle={{ zIndex: 1300 }}
+      popupClassName="ss-immersive-toolbar-select-popup"
+      style={{ width: "100%" }}
+      onChange={(values) => {
+        const next = ((values ?? []) as HomeGroupStatKey[]).filter(
+          (key) =>
+            typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
+        )
+        setHomeGroupShowStats(next)
+        try {
+          localStorage.setItem(HOME_GROUP_STATS_STORAGE_KEY, JSON.stringify(next))
+        } catch {
+          // 忽略持久化失败
+        }
+      }}
+    />
+  )
+
   // 底栏(横屏)里“排序 / 展示样式 / 显示信息”折叠进一个 ≡ 菜单的内容
   const immersiveViewMenuContent = (
     <div className="ss-immersive-toolbar-menu">
@@ -3999,6 +4196,10 @@ export const Home: React.FC<HomeProps> = ({
         显示信息
       </div>
       {renderHomeStatPicker("menu")}
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
+        小组显示信息
+      </div>
+      {renderGroupStatPicker()}
     </div>
   )
 
@@ -4030,6 +4231,10 @@ export const Home: React.FC<HomeProps> = ({
         ]}
       />
       {renderHomeStatPicker("menu")}
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
+        小组显示信息
+      </div>
+      {renderGroupStatPicker()}
       <Button
         icon={<UndoOutlined />}
         onClick={() => {
@@ -4744,6 +4949,80 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
+      <Modal
+        title={t("students.groupScoreTitle", { name: groupScoreGroup })}
+        open={groupScoreVisible}
+        onCancel={() => setGroupScoreVisible(false)}
+        onOk={saveGroupScore}
+        confirmLoading={groupScoreSaving}
+        destroyOnHidden
+      >
+        <div style={{ marginBottom: 16, color: "var(--ss-text-secondary)" }}>
+          {t("students.groupScoreCurrent")}: <strong>{groupScores[groupScoreGroup] || 0}</strong>
+        </div>
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <div>
+            <div style={{ color: "var(--ss-text-secondary)", fontSize: 13, marginBottom: 8 }}>
+              {t("home.noReasonQuickActions")}
+            </div>
+            <Space wrap>
+              {[-3, -2, -1, 1, 2, 3, 4, 5].map((delta) => (
+                <Button
+                  key={delta}
+                  danger={delta < 0}
+                  type={groupScoreDelta === delta && !groupScoreReason ? "primary" : "default"}
+                  onClick={() => selectGroupNoReasonDelta(delta)}
+                >
+                  {delta > 0 ? `+${delta}` : delta}
+                </Button>
+              ))}
+            </Space>
+          </div>
+          <div>
+            <div style={{ color: "var(--ss-text-secondary)", fontSize: 13, marginBottom: 8 }}>
+              {t("home.reasonPresets")}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto" }}>
+              {groupedReasons.map(([category, items]) => (
+                <div key={category}>
+                  <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
+                    {category}
+                  </div>
+                  <Space wrap>
+                    {items.map((item) => (
+                      <Button
+                        key={item.id}
+                        size="small"
+                        type={groupScoreReason === item.content ? "primary" : "default"}
+                        danger={item.delta < 0 && groupScoreReason !== item.content}
+                        onClick={() => selectGroupReason(item)}
+                      >
+                        {item.content} ({item.delta > 0 ? `+${item.delta}` : item.delta})
+                      </Button>
+                    ))}
+                  </Space>
+                </div>
+              ))}
+            </div>
+          </div>
+          <InputNumber
+            style={{ width: "100%" }}
+            value={groupScoreDelta}
+            onChange={(value) => setGroupScoreDelta(value)}
+            min={-99}
+            max={99}
+            step={1}
+            placeholder={t("home.customPoints")}
+          />
+          <Input.TextArea
+            rows={3}
+            value={groupScoreReason}
+            onChange={(event) => setGroupScoreReason(event.target.value)}
+            placeholder={t("home.reasonPlaceholder")}
+          />
+        </Space>
+      </Modal>
+
       {isPortraitMode ? (
         <Drawer
           title={
@@ -4755,11 +5034,11 @@ export const Home: React.FC<HomeProps> = ({
           }
           className="ss-operation-drawer"
           placement="bottom"
-          height="100%"
+          size="100%"
           open={operationVisible}
           onClose={closeOperationModal}
           afterOpenChange={applyDrawerDragRegion}
-          destroyOnClose
+          destroyOnHidden
           styles={{
             body: { padding: "12px 16px 24px", overflowX: "hidden" },
           }}

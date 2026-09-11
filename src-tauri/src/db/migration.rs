@@ -22,6 +22,8 @@ impl Migration {
         Self::create_student_tags_table(conn, is_sqlite).await?;
         Self::create_reward_settings_table(conn, is_sqlite).await?;
         Self::create_reward_redemptions_table(conn, is_sqlite).await?;
+        Self::create_group_scores_table(conn, is_sqlite).await?;
+        Self::create_group_score_events_table(conn, is_sqlite).await?;
         Self::ensure_students_reward_points_column(conn, is_sqlite).await?;
         Self::ensure_students_group_name_column(conn, is_sqlite).await?;
 
@@ -128,6 +130,16 @@ impl Migration {
         conn.execute(Statement::from_string(Self::get_db_backend(sqlite), sql))
             .await?;
         info!("Created reward_redemptions table");
+        Ok(())
+    }
+
+    async fn create_group_scores_table(conn: &impl ConnectionTrait, sqlite: bool) -> Result<(), DbErr> {
+        conn.execute(Statement::from_string(Self::get_db_backend(sqlite), get_create_group_scores_table_sql(sqlite))).await?;
+        Ok(())
+    }
+
+    async fn create_group_score_events_table(conn: &impl ConnectionTrait, sqlite: bool) -> Result<(), DbErr> {
+        conn.execute(Statement::from_string(Self::get_db_backend(sqlite), get_create_group_score_events_table_sql(sqlite))).await?;
         Ok(())
     }
 
@@ -397,6 +409,8 @@ impl Migration {
             TABLE_REWARD_SETTINGS,
             TABLE_SETTINGS,
             TABLE_BOARD_CONFIGS,
+            TABLE_GROUP_SCORES,
+            TABLE_GROUP_SCORE_EVENTS,
         ];
 
         let db_backend = Self::get_db_backend(sqlite);

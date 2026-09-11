@@ -17,6 +17,8 @@ pub use schema::{
     get_create_score_events_table_sql, get_create_settings_table_sql,
     get_create_settlements_table_sql, get_create_student_tags_table_sql,
     get_create_students_table_sql, get_create_tags_table_sql, reasons, score_events, settings,
+    get_create_group_score_events_table_sql, get_create_group_scores_table_sql,
     settlements, student_tags, students, tags, TABLE_REASONS, TABLE_SCORE_EVENTS, TABLE_SETTINGS,
+    TABLE_GROUP_SCORES, TABLE_GROUP_SCORE_EVENTS,
     TABLE_SETTLEMENTS, TABLE_STUDENTS, TABLE_STUDENT_TAGS, TABLE_TAGS,
 };

@@ -1030,9 +1030,9 @@ function MainContent(): React.JSX.Element {
             setDraggingFromList(null)
             setDragOverSlot(null)
           }}
-          height={editingNav ? "calc(100vh - env(safe-area-inset-top, 0px))" : "46vh"}
+          size={editingNav ? "calc(100vh - env(safe-area-inset-top, 0px))" : "46vh"}
           styles={{
-            content: {
+            section: {
               borderTopLeftRadius: editingNav ? 0 : "14px",
               borderTopRightRadius: editingNav ? 0 : "14px",
               background: "var(--ss-card-bg)",
@@ -1279,7 +1279,7 @@ function MainContent(): React.JSX.Element {
           }}
           footer={null}
           closable={!syncApplyLoading}
-          maskClosable={false}
+          mask={{ closable: false }}
           destroyOnHidden
         >
           <div
@@ -1431,7 +1431,7 @@ function getMobileDeviceInfo(): {
 function App(): React.JSX.Element {
   return (
     <ThemeProvider>
-      <HashRouter>
+      <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/*" element={<MainContent />} />
