@@ -132,6 +132,10 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [banYouImportMode, setBanYouImportMode] = useState<"browser" | "manual">("manual")
   const [tagEditVisible, setTagEditVisible] = useState(false)
   const [editingStudent, setEditingStudent] = useState<student | null>(null)
+  const [renameVisible, setRenameVisible] = useState(false)
+  const [renameSaving, setRenameSaving] = useState(false)
+  const [renameStudent, setRenameStudent] = useState<student | null>(null)
+  const [renameValue, setRenameValue] = useState("")
   const [groupEditVisible, setGroupEditVisible] = useState(false)
   const [groupEditStudent, setGroupEditStudent] = useState<student | null>(null)
   const [groupSaving, setGroupSaving] = useState(false)
@@ -333,6 +337,58 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       } catch {
         return
       }
+    }
+  }
+
+  const handleOpenRename = useCallback(
+    (target: student) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setRenameStudent(target)
+      setRenameValue(target.name)
+      setRenameVisible(true)
+    },
+    [canEdit, messageApi, t]
+  )
+
+  const handleRename = async () => {
+    if (!(window as any).api || !renameStudent) return
+
+    const name = renameValue.trim()
+    if (!name) {
+      messageApi.warning(t("students.nameRequired"))
+      return
+    }
+    if (name === renameStudent.name) {
+      setRenameVisible(false)
+      setRenameStudent(null)
+      setRenameValue("")
+      return
+    }
+    if (data.some((student) => student.id !== renameStudent.id && student.name === name)) {
+      messageApi.warning(t("students.nameExists"))
+      return
+    }
+
+    setRenameSaving(true)
+    try {
+      const res = await (window as any).api.updateStudent(renameStudent.id, { name })
+      if (res?.success) {
+        messageApi.success(t("students.renameSuccess"))
+        setRenameVisible(false)
+        setRenameStudent(null)
+        setRenameValue("")
+        fetchStudents()
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.renameFailed"))
+      }
+    } catch {
+      messageApi.error(t("students.renameFailed"))
+    } finally {
+      setRenameSaving(false)
     }
   }
 
@@ -1503,12 +1559,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             menu={{
               items: [
                 { key: "editTags", label: t("students.editTags") },
+                { key: "rename", label: t("students.rename") },
                 { key: "editGroup", label: t("students.editGroup") },
                 { key: "editAvatar", label: t("students.editAvatar") },
                 { key: "delete", danger: true, label: t("common.delete") },
               ],
               onClick: ({ key }) => {
                 if (key === "editTags") handleOpenTagEditor(row)
+                else if (key === "rename") handleOpenRename(row)
                 else if (key === "editGroup") handleOpenGroupEditor(row)
                 else if (key === "editAvatar") handleOpenAvatarEditor(row)
                 else if (key === "delete") handleDelete(row.id)
@@ -1539,6 +1597,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     handleDelete,
     handleOpenAvatarEditor,
     handleOpenGroupEditor,
+    handleOpenRename,
     handleOpenTagEditor,
   ])
 
@@ -2442,6 +2501,32 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         initialTagIds={editingStudent?.tagIds || []}
         title={t("students.editTagTitle", { name: editingStudent?.name || "" })}
       />
+
+      <Modal
+        title={t("students.renameTitle", { name: renameStudent?.name || "" })}
+        open={renameVisible}
+        onCancel={() => {
+          setRenameVisible(false)
+          setRenameStudent(null)
+          setRenameValue("")
+        }}
+        onOk={handleRename}
+        okButtonProps={{ loading: renameSaving, disabled: !renameValue.trim() }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <Input
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          placeholder={t("students.namePlaceholder")}
+          maxLength={64}
+          autoFocus
+          onPressEnter={() => {
+            if (!renameSaving && renameValue.trim()) handleRename()
+          }}
+        />
+      </Modal>
 
       <Modal
         title={t("students.editAvatarTitle", { name: avatarStudent?.name || "" })}

@@ -10,7 +10,7 @@ use tauri::State;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
-use crate::db::entities::students;
+use crate::db::entities::{reward_redemptions, score_events, students};
 use crate::models::{StudentUpdate, StudentWithTags};
 use crate::services::logger::LogLevel;
 use crate::services::PermissionLevel;
@@ -758,11 +758,40 @@ pub async fn student_update(
                 let now = chrono::Utc::now()
                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
                     .to_string();
+                let old_name = student.name.clone();
+                let next_name = if let Some(name) = data.name.as_deref() {
+                    let normalized = name.trim();
+                    if normalized.is_empty() {
+                        return Ok(IpcResponse::error("Student name cannot be empty"));
+                    }
+                    if normalized.len() > 64 {
+                        return Ok(IpcResponse::error(
+                            "Student name too long (max 64 characters)",
+                        ));
+                    }
+                    let duplicate = students::Entity::find()
+                        .filter(students::Column::Name.eq(normalized))
+                        .filter(students::Column::Id.ne(id))
+                        .one(conn)
+                        .await;
+                    match duplicate {
+                        Ok(Some(_)) => {
+                            return Ok(IpcResponse::error("Student with this name already exists"));
+                        }
+                        Ok(None) => {}
+                        Err(e) => return Ok(IpcResponse::error(&format!("Database error: {}", e))),
+                    }
+                    Some(normalized.to_string())
+                } else {
+                    None
+                };
+                let name_changed = next_name.as_deref().is_some_and(|name| name != old_name);
+                let new_name = next_name.clone();
                 let mut active: students::ActiveModel = student.into();
 
                 active.updated_at = Set(now);
 
-                if let Some(name) = data.name {
+                if let Some(name) = next_name {
                     active.name = Set(name);
                 }
                 if let Some(group_name) = data.group_name {
@@ -787,7 +816,37 @@ pub async fn student_update(
                     active.extra_json = Set(Some(extra_json));
                 }
 
-                match active.update(conn).await {
+                let update_result = conn
+                    .transaction(|txn| {
+                        Box::pin(async move {
+                            active.update(txn).await?;
+                            if name_changed {
+                                let new_name = new_name
+                                    .as_deref()
+                                    .expect("new name must exist when the name changed");
+                                score_events::Entity::update_many()
+                                    .col_expr(
+                                        score_events::Column::StudentName,
+                                        sea_orm::sea_query::Expr::value(new_name),
+                                    )
+                                    .filter(score_events::Column::StudentName.eq(&old_name))
+                                    .exec(txn)
+                                    .await?;
+                                reward_redemptions::Entity::update_many()
+                                    .col_expr(
+                                        reward_redemptions::Column::StudentName,
+                                        sea_orm::sea_query::Expr::value(new_name),
+                                    )
+                                    .filter(reward_redemptions::Column::StudentName.eq(&old_name))
+                                    .exec(txn)
+                                    .await?;
+                            }
+                            Ok::<(), sea_orm::DbErr>(())
+                        })
+                    })
+                    .await;
+
+                match update_result {
                     Ok(_) => {
                         realtime_dual_write_sync_if_legacy(state.inner()).await?;
                         Ok(IpcResponse::success_empty())
