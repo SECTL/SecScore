@@ -176,8 +176,10 @@ pub fn run() {
             mcp_server_start,
             mcp_server_stop,
             mcp_server_status,
-            secagent_registration_status,
-            secagent_register,
+            rest_api_start,
+            rest_api_stop,
+            rest_api_status,
+            rest_api_generate_token,
             register_url_protocol,
             check_url_protocol_status,
             unregister_url_protocol,
@@ -208,18 +210,18 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     setup_lan_http_server(app)?;
 
-    setup_secagent_http_server(app)?;
+    setup_rest_api_server(app)?;
 
     Ok(())
 }
 
-fn setup_secagent_http_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
+fn setup_rest_api_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let state = handle.state::<crate::state::SafeAppState>().inner().clone();
 
     tauri::async_runtime::spawn(async move {
-        if let Err(error) = crate::commands::secagent_http_server_start(state).await {
-            eprintln!("Failed to start SecAgent HTTP server: {}", error);
+        if let Err(error) = crate::commands::rest_api_start_from_settings(state).await {
+            eprintln!("Failed to start REST API server: {}", error);
         }
     });
 

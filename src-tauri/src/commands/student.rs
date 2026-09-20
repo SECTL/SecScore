@@ -653,6 +653,22 @@ pub async fn student_query(
                         extra_json: s.extra_json,
                     })
                     .collect();
+                {
+                    let state_guard = state.read();
+                    let logger = state_guard.logger.read();
+                    logger.info_with_meta(
+                        "student_query:result",
+                        serde_json::json!({
+                            "count": students.len(),
+                            "students": students.iter().map(|student| serde_json::json!({
+                                "id": student.id,
+                                "name": student.name,
+                                "score": student.score,
+                                "reward_points": student.reward_points,
+                            })).collect::<Vec<_>>(),
+                        }),
+                    );
+                }
                 Ok(IpcResponse::success(students))
             }
             Err(e) => Ok(IpcResponse::error(&format!(

@@ -156,6 +156,21 @@ pub async fn event_create(
                 let val_prev = student.score;
                 let val_curr = val_prev + data.delta;
                 let reward_points_next = student.reward_points + data.delta;
+                {
+                    let state_guard = state.read();
+                    let logger = state_guard.logger.read();
+                    logger.info_with_meta(
+                        "event_create:loaded_student",
+                        json!({
+                            "student_name": student_name,
+                            "delta": data.delta,
+                            "score_before": val_prev,
+                            "score_after": val_curr,
+                            "reward_points_before": student.reward_points,
+                            "reward_points_after": reward_points_next,
+                        }),
+                    );
+                }
                 let now = chrono::Utc::now()
                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
                     .to_string();
@@ -192,7 +207,7 @@ pub async fn event_create(
                 {
                     let state_guard = state.read();
                     let logger = state_guard.logger.read();
-                    logger.error_with_meta(
+                    logger.info_with_meta(
                         "event_create:committed",
                         json!({
                             "student_name": student_name,
@@ -206,7 +221,7 @@ pub async fn event_create(
                 {
                     let state_guard = state.read();
                     let logger = state_guard.logger.read();
-                    logger.error_with_meta(
+                    logger.info_with_meta(
                         "event_create:sync_done",
                         json!({
                             "student_name": student_name,

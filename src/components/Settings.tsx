@@ -49,6 +49,8 @@ type appSettings = {
   disable_search_keyboard?: boolean
   font_family?: string
   lan_access_enabled?: boolean
+  rest_api_enabled?: boolean
+  rest_api_auth_enabled?: boolean
 }
 
 interface FontOption {
@@ -138,6 +140,8 @@ export const Settings: React.FC<{
     window_zoom: "1.0",
     search_keyboard_layout: "qwerty26",
     disable_search_keyboard: false,
+    rest_api_enabled: true,
+    rest_api_auth_enabled: true,
   })
   const [fontOptions, setFontOptions] = useState<FontOption[]>(defaultFontOptions)
   const [isLoadingFonts, setIsLoadingFonts] = useState(false)
@@ -197,28 +201,26 @@ export const Settings: React.FC<{
   const [urlOperationLogs, setUrlOperationLogs] = useState<string[]>([])
   const [appQuitLoading, setAppQuitLoading] = useState(false)
   const [appRestartLoading, setAppRestartLoading] = useState(false)
-  const [mcpLoading, setMcpLoading] = useState(false)
+  const [restApiLoading, setRestApiLoading] = useState(false)
+  const [restApiTokenLoading, setRestApiTokenLoading] = useState(false)
   const [lanAccessLoading, setLanAccessLoading] = useState(false)
-  const [mcpConfig, setMcpConfig] = useState<{ host: string; port: number }>({
-    host: "127.0.0.1",
-    port: 3901,
-  })
-  const [mcpStatus, setMcpStatus] = useState<{
+  const [restApiStatus, setRestApiStatus] = useState<{
     is_running: boolean
-    config: { host: string; port: number }
-    url?: string | null
+    host: string
+    port: number
+    url: string
+    auth_enabled: boolean
+    token_configured: boolean
+    token?: string | null
   }>({
     is_running: false,
-    config: { host: "127.0.0.1", port: 3901 },
-    url: null,
+    host: "127.0.0.1",
+    port: 18791,
+    url: "http://127.0.0.1:18791",
+    auth_enabled: true,
+    token_configured: false,
+    token: null,
   })
-  const [secAgentRegistration, setSecAgentRegistration] = useState<{
-    workspace?: string | null
-    skill_registered: boolean
-    mcp_registered: boolean
-    server_running: boolean
-  }>({ skill_registered: false, mcp_registered: false, server_running: false })
-  const [secAgentRegisterLoading, setSecAgentRegisterLoading] = useState(false)
   const canAdmin = permission === "admin"
   const [messageApi, contextHolder] = message.useMessage()
 
@@ -293,27 +295,13 @@ export const Settings: React.FC<{
     event.currentTarget.querySelector<HTMLInputElement>('input[type="radio"]')?.click()
   }
 
-  const loadMcpStatus = useCallback(async () => {
-    if (!(window as any).api?.mcpServerStatus) return
+  const loadRestApiStatus = useCallback(async () => {
+    if (!(window as any).api?.restApiStatus) return
     try {
-      const res = await (window as any).api.mcpServerStatus()
+      const res = await (window as any).api.restApiStatus()
       if (res.success && res.data) {
-        setMcpStatus(res.data)
-        if (res.data.config?.host && res.data.config?.port) {
-          setMcpConfig({ host: res.data.config.host, port: res.data.config.port })
-        }
+        setRestApiStatus(res.data)
       }
-    } catch {
-      // ignore status polling errors in settings page
-    }
-  }, [])
-
-  const loadSecAgentRegistrationStatus = useCallback(async () => {
-    const api = (window as any).api
-    if (!api?.secagentRegistrationStatus) return
-    try {
-      const res = await api.secagentRegistrationStatus()
-      if (res.success && res.data) setSecAgentRegistration(res.data)
     } catch {
       // ignore status polling errors in settings page
     }
@@ -406,8 +394,7 @@ export const Settings: React.FC<{
       setOAuthUserInfo(null)
     }
 
-    await loadMcpStatus()
-    await loadSecAgentRegistrationStatus()
+    await loadRestApiStatus()
     await loadSystemFonts(savedFontFamily)
 
     if (api.checkElevation) {
@@ -431,7 +418,7 @@ export const Settings: React.FC<{
         // ignore
       }
     }
-  }, [loadMcpStatus, loadSecAgentRegistrationStatus, loadSystemFonts])
+  }, [loadRestApiStatus, loadSystemFonts])
 
   const handleOAuthLogout = async () => {
     const api = (window as any).api
@@ -945,6 +932,7 @@ export const Settings: React.FC<{
     }
   }
 
+  /*
   const startMcpServer = async () => {
     if (!(window as any).api?.mcpServerStart) return
     const host = mcpConfig.host.trim()
@@ -1016,6 +1004,74 @@ export const Settings: React.FC<{
     } finally {
       await loadSecAgentRegistrationStatus()
       setSecAgentRegisterLoading(false)
+    }
+  }
+
+  */
+
+  const toggleRestApi = async (checked: boolean) => {
+    const api = (window as any).api
+    if (!api?.setSetting) return
+    setRestApiLoading(true)
+    try {
+      const saveRes = await api.setSetting("rest_api_enabled", checked)
+      if (!saveRes?.success) {
+        messageApi.error(saveRes?.message || t("settings.restApi.saveFailed"))
+        return
+      }
+      const result = checked
+        ? await withTimeout(api.restApiStart(), 10_000, t("settings.restApi.startTimeout"))
+        : await withTimeout(api.restApiStop(), 10_000, t("settings.restApi.stopTimeout"))
+      if (!result?.success) {
+        messageApi.error(result?.message || t("settings.restApi.operationFailed"))
+        return
+      }
+      setSettings((prev) => ({ ...prev, rest_api_enabled: checked }))
+      messageApi.success(t("settings.restApi.saved"))
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.restApi.operationFailed"))
+    } finally {
+      await loadRestApiStatus()
+      setRestApiLoading(false)
+    }
+  }
+
+  const toggleRestApiAuth = async (checked: boolean) => {
+    const api = (window as any).api
+    if (!api?.setSetting) return
+    setRestApiLoading(true)
+    try {
+      const result = await api.setSetting("rest_api_auth_enabled", checked)
+      if (result?.success) {
+        setSettings((prev) => ({ ...prev, rest_api_auth_enabled: checked }))
+        setRestApiStatus((prev) => ({ ...prev, auth_enabled: checked }))
+        messageApi.success(t("settings.restApi.saved"))
+      } else {
+        messageApi.error(result?.message || t("settings.restApi.saveFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.restApi.saveFailed"))
+    } finally {
+      setRestApiLoading(false)
+    }
+  }
+
+  const generateRestApiToken = async () => {
+    const api = (window as any).api
+    if (!api?.restApiGenerateToken) return
+    setRestApiTokenLoading(true)
+    try {
+      const result = await api.restApiGenerateToken()
+      if (result?.success && result.data) {
+        setRestApiStatus(result.data)
+        messageApi.success(t("settings.restApi.tokenGenerated"))
+      } else {
+        messageApi.error(result?.message || t("settings.restApi.tokenGenerateFailed"))
+      }
+    } catch (e: any) {
+      messageApi.error(e?.message || t("settings.restApi.tokenGenerateFailed"))
+    } finally {
+      setRestApiTokenLoading(false)
     }
   }
 
@@ -1974,6 +2030,7 @@ export const Settings: React.FC<{
         </>
       ),
     },
+    /*
     {
       key: "secagent",
       label: "SecAgent 联动",
@@ -2071,6 +2128,64 @@ export const Settings: React.FC<{
           </Form>
           <div style={{ color: "var(--ss-text-secondary)", marginTop: -8, fontSize: 12 }}>
             {t("settings.mcp.hint")}
+          </div>
+        </Card>
+      ),
+    },
+    */
+    {
+      key: "rest-api",
+      label: t("settings.restApi.title"),
+      children: (
+        <Card style={{ backgroundColor: "var(--ss-card-bg)", color: "var(--ss-text-main)" }}>
+          <h3 style={{ marginTop: 0 }}>{t("settings.restApi.title")}</h3>
+          <p style={{ color: "var(--ss-text-secondary)" }}>{t("settings.restApi.description")}</p>
+          <Space wrap style={{ marginBottom: 16 }}>
+            <Tag color={restApiStatus.is_running ? "success" : "default"}>
+              {restApiStatus.is_running
+                ? t("settings.restApi.running")
+                : t("settings.restApi.stopped")}
+            </Tag>
+            <Tag color="blue">{restApiStatus.url}</Tag>
+          </Space>
+          <Form layout="horizontal" labelCol={{ span: 5 }} wrapperCol={{ span: 19 }}>
+            <Form.Item label={t("settings.restApi.enabled")}>
+              <Switch
+                checked={Boolean(settings.rest_api_enabled)}
+                onChange={toggleRestApi}
+                loading={restApiLoading}
+                disabled={!canAdmin}
+              />
+            </Form.Item>
+            <Form.Item label={t("settings.restApi.authentication")}>
+              <Switch
+                checked={Boolean(settings.rest_api_auth_enabled)}
+                onChange={toggleRestApiAuth}
+                loading={restApiLoading}
+                disabled={!canAdmin}
+              />
+            </Form.Item>
+            <Form.Item label={t("settings.restApi.token")}>
+              <Space.Compact style={{ width: "min(620px, 100%)" }}>
+                <Input.Password
+                  value={restApiStatus.token || ""}
+                  readOnly
+                  placeholder={t("settings.restApi.tokenPlaceholder")}
+                />
+                <Button
+                  type="primary"
+                  onClick={generateRestApiToken}
+                  loading={restApiTokenLoading}
+                  disabled={!canAdmin}
+                >
+                  {t("settings.restApi.generateToken")}
+                </Button>
+              </Space.Compact>
+            </Form.Item>
+          </Form>
+          <Divider />
+          <div style={{ color: "var(--ss-text-secondary)", fontSize: 12, whiteSpace: "pre-line" }}>
+            {t("settings.restApi.usage")}
           </div>
         </Card>
       ),

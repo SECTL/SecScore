@@ -103,6 +103,8 @@ export type settingsKey =
   | "pg_connection_status"
   | "mobile_bottom_nav_items"
   | "lan_access_enabled"
+  | "rest_api_enabled"
+  | "rest_api_auth_enabled"
 
 export interface settingsSpec {
   is_wizard_completed: boolean
@@ -126,6 +128,8 @@ export interface settingsSpec {
   sync_method: "postgresql" | "sectl_cloud_v2"
   mobile_bottom_nav_items: string[]
   lan_access_enabled: boolean
+  rest_api_enabled: boolean
+  rest_api_auth_enabled: boolean
 }
 
 export interface pluginRuntimeModule {
@@ -462,8 +466,9 @@ const api = {
     client_created_at?: string
   }): Promise<{ success: boolean; message?: string }> =>
     invoke("sync_apply_remote_operation", { operation }),
-  syncApplySnapshot: (snapshot: Record<string, unknown>): Promise<{ success: boolean; message?: string }> =>
-    invoke("sync_apply_snapshot", { snapshot }),
+  syncApplySnapshot: (
+    snapshot: Record<string, unknown>
+  ): Promise<{ success: boolean; message?: string }> => invoke("sync_apply_snapshot", { snapshot }),
   deleteEvent: (uuid: string): Promise<{ success: boolean }> => invoke("event_delete", { uuid }),
   queryEventsByStudent: (params: {
     student_name?: string
@@ -483,12 +488,20 @@ const api = {
     range: "today" | "week" | "month"
   }): Promise<{ success: boolean; data: { startTime: string; rows: any[] } }> =>
     invoke("leaderboard_query", { params }),
-  queryGroupScores: (): Promise<{ success: boolean; data: Array<{ group_name: string; score: number }> }> =>
-    invoke("group_score_query"),
-  createGroupScore: (data: { group_name: string; delta: number; reason_content: string }): Promise<{ success: boolean; data?: number; message?: string }> =>
+  queryGroupScores: (): Promise<{
+    success: boolean
+    data: Array<{ group_name: string; score: number }>
+  }> => invoke("group_score_query"),
+  createGroupScore: (data: {
+    group_name: string
+    delta: number
+    reason_content: string
+  }): Promise<{ success: boolean; data?: number; message?: string }> =>
     invoke("group_score_create", { data }),
-  renameGroupScore: (data: { old_name: string; new_name: string }): Promise<{ success: boolean; message?: string }> =>
-    invoke("group_score_rename", { data }),
+  renameGroupScore: (data: {
+    old_name: string
+    new_name: string
+  }): Promise<{ success: boolean; message?: string }> => invoke("group_score_rename", { data }),
   boardQuerySql: (params: {
     sql: string
     limit?: number
@@ -735,9 +748,8 @@ const api = {
     }
     message?: string
   }> => invoke("oauth_start_callback_server"),
-  oauthOpenBrowser: (
-    url: string
-  ): Promise<{ success: boolean; message?: string }> => invoke("oauth_open_browser", { url }),
+  oauthOpenBrowser: (url: string): Promise<{ success: boolean; message?: string }> =>
+    invoke("oauth_open_browser", { url }),
   oauthLogError: (message: string): Promise<{ success: boolean; message?: string }> =>
     invoke("oauth_log_error", { message }),
   oauthStopCallbackServer: (): Promise<{
@@ -971,6 +983,60 @@ const api = {
     }
   }> => invoke("http_server_status"),
 
+  // REST API
+  restApiStart: (): Promise<{
+    success: boolean
+    data?: {
+      is_running: boolean
+      host: string
+      port: number
+      url: string
+      auth_enabled: boolean
+      token_configured: boolean
+      token?: string | null
+    }
+    message?: string
+  }> => invoke("rest_api_start"),
+  restApiStop: (): Promise<{
+    success: boolean
+    data?: {
+      is_running: boolean
+      host: string
+      port: number
+      url: string
+      auth_enabled: boolean
+      token_configured: boolean
+      token?: string | null
+    }
+    message?: string
+  }> => invoke("rest_api_stop"),
+  restApiStatus: (): Promise<{
+    success: boolean
+    data?: {
+      is_running: boolean
+      host: string
+      port: number
+      url: string
+      auth_enabled: boolean
+      token_configured: boolean
+      token?: string | null
+    }
+    message?: string
+  }> => invoke("rest_api_status"),
+  restApiGenerateToken: (): Promise<{
+    success: boolean
+    data?: {
+      is_running: boolean
+      host: string
+      port: number
+      url: string
+      auth_enabled: boolean
+      token_configured: boolean
+      token?: string | null
+    }
+    message?: string
+  }> => invoke("rest_api_generate_token"),
+
   // MCP Server
   mcpServerStart: (config?: {
     port?: number
@@ -988,21 +1054,6 @@ const api = {
       url?: string | null
     }
   }> => invoke("mcp_server_status"),
-  secagentRegistrationStatus: (): Promise<{
-    success: boolean
-    data?: {
-      workspace?: string | null
-      skill_registered: boolean
-      mcp_registered: boolean
-      server_running: boolean
-    }
-    message?: string
-  }> => invoke("secagent_registration_status"),
-  secagentRegister: (): Promise<{
-    success: boolean
-    data?: { workspace: string; skill_path: string; mcp_path: string; config_path: string }
-    message?: string
-  }> => invoke("secagent_register"),
 
   // File System
   fsGetConfigStructure: (): Promise<{

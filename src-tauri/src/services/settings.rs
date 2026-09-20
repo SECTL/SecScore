@@ -22,6 +22,8 @@ pub struct SettingsSpec {
     pub sync_method: String,
     pub mobile_bottom_nav_items: JsonValue,
     pub lan_access_enabled: bool,
+    pub rest_api_enabled: bool,
+    pub rest_api_auth_enabled: bool,
 }
 
 impl Default for SettingsSpec {
@@ -55,6 +57,8 @@ impl Default for SettingsSpec {
                 "settings"
             ]),
             lan_access_enabled: false,
+            rest_api_enabled: true,
+            rest_api_auth_enabled: true,
         }
     }
 }
@@ -78,6 +82,8 @@ pub enum SettingsKey {
     SyncMethod,
     MobileBottomNavItems,
     LanAccessEnabled,
+    RestApiEnabled,
+    RestApiAuthEnabled,
 }
 
 impl SettingsKey {
@@ -100,6 +106,8 @@ impl SettingsKey {
             SettingsKey::SyncMethod => "sync_method",
             SettingsKey::MobileBottomNavItems => "mobile_bottom_nav_items",
             SettingsKey::LanAccessEnabled => "lan_access_enabled",
+            SettingsKey::RestApiEnabled => "rest_api_enabled",
+            SettingsKey::RestApiAuthEnabled => "rest_api_auth_enabled",
         }
     }
 
@@ -122,6 +130,8 @@ impl SettingsKey {
             "sync_method" => Some(SettingsKey::SyncMethod),
             "mobile_bottom_nav_items" => Some(SettingsKey::MobileBottomNavItems),
             "lan_access_enabled" => Some(SettingsKey::LanAccessEnabled),
+            "rest_api_enabled" => Some(SettingsKey::RestApiEnabled),
+            "rest_api_auth_enabled" => Some(SettingsKey::RestApiAuthEnabled),
             _ => None,
         }
     }
@@ -517,6 +527,26 @@ impl SettingsService {
             },
         );
 
+        defs.insert(
+            SettingsKey::RestApiEnabled,
+            SettingDefinition {
+                kind: SettingValueKind::Boolean,
+                default_value: SettingsValue::Boolean(true),
+                write_permission: PermissionRequirement::Admin,
+                validate: None,
+            },
+        );
+
+        defs.insert(
+            SettingsKey::RestApiAuthEnabled,
+            SettingDefinition {
+                kind: SettingValueKind::Boolean,
+                default_value: SettingsValue::Boolean(true),
+                write_permission: PermissionRequirement::Admin,
+                validate: None,
+            },
+        );
+
         defs
     }
 
@@ -685,6 +715,14 @@ impl SettingsService {
             lan_access_enabled: match self.get_value(SettingsKey::LanAccessEnabled) {
                 SettingsValue::Boolean(b) => b,
                 _ => false,
+            },
+            rest_api_enabled: match self.get_value(SettingsKey::RestApiEnabled) {
+                SettingsValue::Boolean(b) => b,
+                _ => true,
+            },
+            rest_api_auth_enabled: match self.get_value(SettingsKey::RestApiAuthEnabled) {
+                SettingsValue::Boolean(b) => b,
+                _ => true,
             },
         }
     }

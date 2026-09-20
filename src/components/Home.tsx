@@ -14,6 +14,7 @@ import {
   Dropdown,
   Popover,
   Tooltip,
+  type InputRef,
 } from "antd"
 import {
   SearchOutlined,
@@ -24,6 +25,8 @@ import {
   MenuOutlined,
   LockOutlined,
   UnlockOutlined,
+  MinusOutlined,
+  PlusOutlined,
   PlusCircleOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
@@ -240,6 +243,7 @@ export const Home: React.FC<HomeProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const searchAreaRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<InputRef>(null)
   const immersiveToolbarRef = useRef<HTMLDivElement>(null)
   const immersiveToolbarContentRef = useRef<HTMLDivElement>(null)
   const [immersiveToolbarWidth, setImmersiveToolbarWidth] = useState<number | null>(null)
@@ -248,6 +252,7 @@ export const Home: React.FC<HomeProps> = ({
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
+  const [studentMultipliers, setStudentMultipliers] = useState<Record<number, number>>({})
   const [operationVisible, setOperationVisible] = useState(false)
   const [operationScrollbar, setOperationScrollbar] = useState<operationScrollbarState>({
     visible: false,
@@ -351,6 +356,19 @@ export const Home: React.FC<HomeProps> = ({
   const operationMorphCloseDuration = 240
   const operationMorphEasing = "cubic-bezier(0.2, 0, 0, 1)"
   const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
+
+  const focusAndSelectSearch = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const input = searchInputRef.current
+      if (!input) return
+      input.focus()
+      input.select()
+    })
+  }, [])
+
+  useEffect(() => {
+    if (batchMode) focusAndSelectSearch()
+  }, [batchMode, focusAndSelectSearch])
 
   const syncOperationScrollbar = useCallback(() => {
     if (isPortraitMode || !operationVisible) {
@@ -481,6 +499,16 @@ export const Home: React.FC<HomeProps> = ({
         pinyinFirst: getFirstLetter(s.name),
         groupScoreExcluded: isGroupScoreExcluded(s.extra_json),
       }))
+      logHome("fetchData:students-received", {
+        requestId,
+        silent,
+        students: enrichedStudents.map((student) => ({
+          id: student.id,
+          name: student.name,
+          score: student.score,
+          rewardPoints: student.reward_points,
+        })),
+      })
       setStudents(enrichedStudents)
     }
     if (reaRes.success) setReasons(reaRes.data)
@@ -563,24 +591,31 @@ export const Home: React.FC<HomeProps> = ({
     const todayStart = startOfDayLocal(now)
     const monday = startOfDayLocal(now)
     monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-    const satStart = new Date(monday)
-    satStart.setDate(monday.getDate() + 5)
+    const nextMonday = new Date(monday)
+    nextMonday.setDate(monday.getDate() + 7)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const nowIso = now.toISOString()
     const todayStartIso = todayStart.toISOString()
     const mondayIso = monday.toISOString()
-    const satStartIso = satStart.toISOString()
+    const nextMondayIso = nextMonday.toISOString()
     const monthStartIso = monthStart.toISOString()
 
     const sql = `SELECT s.name AS name,
       COALESCE(SUM(CASE WHEN e.event_time >= '${todayStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS today_net,
-      COALESCE(SUM(CASE WHEN e.event_time >= '${mondayIso}' AND e.event_time < '${satStartIso}' THEN e.delta ELSE 0 END), 0) AS week_net,
+      COALESCE(SUM(CASE WHEN e.event_time >= '${mondayIso}' AND e.event_time < '${nextMondayIso}' THEN e.delta ELSE 0 END), 0) AS week_net,
       COALESCE(SUM(CASE WHEN e.event_time >= '${monthStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS month_net
     FROM students s
     LEFT JOIN score_events e ON e.student_name = s.name
     GROUP BY s.name`
 
     try {
+      logHome("fetchPeriodStats:query", {
+        todayStartIso,
+        mondayIso,
+        nextMondayIso,
+        monthStartIso,
+        nowIso,
+      })
       const res = await api.boardQuerySql({ sql, limit: 500 })
       if (res?.success && Array.isArray(res.data)) {
         const next: Record<string, { today: number; week: number; month: number }> = {}
@@ -592,6 +627,10 @@ export const Home: React.FC<HomeProps> = ({
             week: Number(row.week_net) || 0,
             month: Number(row.month_net) || 0,
           }
+        })
+        logHome("fetchPeriodStats:response", {
+          rowCount: res.data.length,
+          students: Object.entries(next).map(([name, values]) => ({ name, ...values })),
         })
         setPeriodStats(next)
       }
@@ -758,6 +797,12 @@ export const Home: React.FC<HomeProps> = ({
       if (prev.length === 0) return prev
       const validIds = new Set(students.map((s) => s.id))
       return prev.filter((id) => validIds.has(id))
+    })
+    setStudentMultipliers((prev) => {
+      const validIds = new Set(students.map((s) => s.id))
+      return Object.fromEntries(
+        Object.entries(prev).filter(([id]) => validIds.has(Number(id)))
+      )
     })
   }, [students])
 
@@ -1068,6 +1113,74 @@ export const Home: React.FC<HomeProps> = ({
     return students.filter((s) => idSet.has(s.id))
   }, [students, selectedStudentIds])
 
+  const updateStudentMultiplier = (studentId: number, change: number) => {
+    setStudentMultipliers((prev) => ({
+      ...prev,
+      [studentId]: Math.max(1, (prev[studentId] ?? 1) + change),
+    }))
+    focusAndSelectSearch()
+  }
+
+  const renderMultiplierControls = (
+    studentId: number,
+    placement: "inline" | "overlay" = "overlay"
+  ) => {
+    if (!batchMode || !selectedStudentIds.includes(studentId)) return null
+    const multiplier = studentMultipliers[studentId] ?? 1
+
+    return (
+      <div
+        onClick={(event) => event.stopPropagation()}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 2,
+          width: 82,
+          height: 26,
+          boxSizing: "border-box",
+          padding: "1px 2px",
+          borderRadius: "999px",
+          background: "color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, var(--ss-card-bg))",
+          border: "1px solid color-mix(in srgb, var(--ant-color-primary, #1677ff) 30%, var(--ss-border-color))",
+          boxShadow: "0 2px 8px rgba(22, 119, 255, 0.12)",
+          flexShrink: 0,
+          ...(placement === "overlay"
+            ? {
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 4,
+              }
+            : null),
+        }}
+      >
+        <Button
+          type="text"
+          size="small"
+          icon={<MinusOutlined />}
+          disabled={multiplier <= 1}
+          aria-label={t("home.multiplierDecrease")}
+          onClick={() => updateStudentMultiplier(studentId, -1)}
+          style={{ width: 22, height: 22, minWidth: 22, padding: 0, borderRadius: "50%" }}
+        />
+        <span
+          aria-label={t("home.multiplier")}
+          style={{ minWidth: 30, textAlign: "center", fontWeight: 700, fontSize: 12 }}
+        >
+          x{multiplier}
+        </span>
+        <Button
+          type="text"
+          size="small"
+          icon={<PlusOutlined />}
+          aria-label={t("home.multiplierIncrease")}
+          onClick={() => updateStudentMultiplier(studentId, 1)}
+          style={{ width: 22, height: 22, minWidth: 22, padding: 0, borderRadius: "50%" }}
+        />
+      </div>
+    )
+  }
+
   const getAvatarColor = (name: string) => {
     const colors = [
       "#FF6B6B",
@@ -1113,9 +1226,22 @@ export const Home: React.FC<HomeProps> = ({
       return
     }
     if (batchMode) {
-      setSelectedStudentIds((prev) =>
-        prev.includes(student.id) ? prev.filter((id) => id !== student.id) : [...prev, student.id]
+      const isSelected = selectedStudentIds.includes(student.id)
+      setSelectedStudentIds(
+        isSelected
+          ? selectedStudentIds.filter((id) => id !== student.id)
+          : [...selectedStudentIds, student.id]
       )
+      setStudentMultipliers((multipliers) => {
+        const next = { ...multipliers }
+        if (isSelected) {
+          delete next[student.id]
+        } else {
+          next[student.id] = 1
+        }
+        return next
+      })
+      focusAndSelectSearch()
       return
     }
 
@@ -1780,15 +1906,25 @@ export const Home: React.FC<HomeProps> = ({
       let successCount = 0
 
       for (const student of targetStudents) {
+        const multiplier = batchMode ? studentMultipliers[student.id] ?? 1 : 1
+        const effectiveDelta = delta * multiplier
+        logHome("performSubmit:createEvent:request", {
+          student: student.name,
+          displayedScore: student.score,
+          displayedRewardPoints: student.reward_points,
+          delta: effectiveDelta,
+          multiplier,
+        })
         const res = await (window as any).api.createEvent({
           student_name: student.name,
           reason_content: content,
-          delta: delta,
+          delta: effectiveDelta,
         })
 
         logHome("performSubmit:createEvent:response", {
           student: student.name,
-          delta,
+          delta: effectiveDelta,
+          multiplier,
           success: Boolean(res?.success),
           message: (res as any)?.message,
         })
@@ -1812,6 +1948,7 @@ export const Home: React.FC<HomeProps> = ({
         }
 
         setSelectedStudentIds([])
+        setStudentMultipliers({})
         setBatchMode(false)
         setSelectedStudent(null)
         closeOperationModal()
@@ -1968,10 +2105,14 @@ export const Home: React.FC<HomeProps> = ({
 
   const handleSelectAllStudents = () => {
     setSelectedStudentIds(students.map((s) => s.id))
+    setStudentMultipliers((previous) =>
+      Object.fromEntries(students.map((s) => [s.id, previous[s.id] ?? 1]))
+    )
   }
 
   const handleClearSelectedStudents = () => {
     setSelectedStudentIds([])
+    setStudentMultipliers({})
   }
 
   const handleEnterBatchMode = () => {
@@ -1981,6 +2122,7 @@ export const Home: React.FC<HomeProps> = ({
     }
     setBatchMode(true)
     setSelectedStudent(null)
+    setStudentMultipliers({})
     closeOperationModal()
     setQuickActionStudentId(null)
   }
@@ -1988,6 +2130,7 @@ export const Home: React.FC<HomeProps> = ({
   const handleExitBatchMode = () => {
     setBatchMode(false)
     setSelectedStudentIds([])
+    setStudentMultipliers({})
   }
 
   const handleOpenBatchOperation = () => {
@@ -2331,18 +2474,21 @@ export const Home: React.FC<HomeProps> = ({
                   pointerEvents: isQuickActionMode ? "none" : "auto",
                 }}
               >
-                <div
-                  data-operation-morph="name"
-                  style={{
-                    fontWeight: 600,
-                    fontSize: "15px",
-                    color: "var(--ss-text-main)",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {student.name}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  <div
+                    data-operation-morph="name"
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "15px",
+                      color: "var(--ss-text-main)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                  {renderMultiplierControls(student.id, "inline")}
                 </div>
                 {useHomeStats && renderHomeStatRow(student)}
                 {!useHomeStats && (
@@ -2460,18 +2606,21 @@ export const Home: React.FC<HomeProps> = ({
           )}
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontWeight: 600,
-                fontSize: "14px",
-                color: "var(--ss-text-main)",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                lineHeight: 1.25,
-              }}
-            >
-              {student.name}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  color: "var(--ss-text-main)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  lineHeight: 1.25,
+                }}
+              >
+                {student.name}
+              </div>
+              {renderMultiplierControls(student.id, "inline")}
             </div>
             {useHomeStats && !isQuickActionMode && renderHomeStatRow(student)}
           </div>
@@ -2628,6 +2777,7 @@ export const Home: React.FC<HomeProps> = ({
               {rankBadge}
             </div>
           )}
+          {renderMultiplierControls(student.id)}
           <div
             style={{
               height: "100%",
@@ -2908,6 +3058,7 @@ export const Home: React.FC<HomeProps> = ({
                 {t("home.selected")}
               </Tag>
             )}
+            {renderMultiplierControls(student.id)}
 
             {isQuickActionMode ? (
               <div
@@ -4381,6 +4532,7 @@ export const Home: React.FC<HomeProps> = ({
                 }}
               >
                 <Input
+                  ref={searchInputRef}
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
                   onFocus={() => {
@@ -4787,6 +4939,7 @@ export const Home: React.FC<HomeProps> = ({
           }}
         >
           <Input
+            ref={searchInputRef}
             value={searchKeyword}
             onChange={(e) => setSearchKeyword(e.target.value)}
             onFocus={() => {
