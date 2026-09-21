@@ -27,7 +27,7 @@ import {
   UnlockOutlined,
   MinusOutlined,
   PlusOutlined,
-  PlusCircleOutlined,
+  CloseOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { match, pinyin } from "pinyin-pro"
@@ -319,11 +319,10 @@ export const Home: React.FC<HomeProps> = ({
   const [periodStats, setPeriodStats] = useState<
     Record<string, { today: number; week: number; month: number }>
   >({})
+  const [groupWeekStats, setGroupWeekStats] = useState<Record<string, number>>({})
   const [groupScores, setGroupScores] = useState<Record<string, number>>({})
   const [groupScoreVisible, setGroupScoreVisible] = useState(false)
   const [groupScoreGroup, setGroupScoreGroup] = useState("")
-  const [groupScoreDelta, setGroupScoreDelta] = useState<number | null>(null)
-  const [groupScoreReason, setGroupScoreReason] = useState("")
   const [groupScoreSaving, setGroupScoreSaving] = useState(false)
   const [quickActionStudentId, setQuickActionStudentId] = useState<number | null>(null)
   const [rewardMode, setRewardMode] = useState(false)
@@ -525,13 +524,11 @@ export const Home: React.FC<HomeProps> = ({
       return
     }
     setGroupScoreGroup(groupName)
-    setGroupScoreDelta(null)
-    setGroupScoreReason("")
     setGroupScoreVisible(true)
   }
 
-  const saveGroupScore = async () => {
-    if (!groupScoreDelta || !groupScoreReason.trim()) {
+  const saveGroupScore = async (delta: number, reasonContent = "") => {
+    if (!delta || !Number.isFinite(delta)) {
       messageApi.warning(t("students.groupScoreDeltaRequired"))
       return
     }
@@ -539,8 +536,9 @@ export const Home: React.FC<HomeProps> = ({
     try {
       const res = await (window as any).api.createGroupScore({
         group_name: groupScoreGroup,
-        delta: groupScoreDelta,
-        reason_content: groupScoreReason.trim(),
+        delta,
+        reason_content:
+          reasonContent.trim() || (delta > 0 ? t("home.addPoints") : t("home.deductPoints")),
       })
       if (!res?.success) {
         messageApi.error(res?.message || t("students.groupScoreSaveFailed"))
@@ -553,16 +551,6 @@ export const Home: React.FC<HomeProps> = ({
     } finally {
       setGroupScoreSaving(false)
     }
-  }
-
-  const selectGroupReason = (selectedReason: reason) => {
-    setGroupScoreDelta(selectedReason.delta)
-    setGroupScoreReason(selectedReason.content)
-  }
-
-  const selectGroupNoReasonDelta = (delta: number) => {
-    setGroupScoreDelta(delta)
-    setGroupScoreReason("")
   }
 
   const fetchLatestEvent = useCallback(async () => {
@@ -607,6 +595,11 @@ export const Home: React.FC<HomeProps> = ({
     FROM students s
     LEFT JOIN score_events e ON e.student_name = s.name
     GROUP BY s.name`
+    const groupSql = `SELECT group_name,
+      COALESCE(SUM(CASE WHEN event_time >= '${mondayIso}' AND event_time < '${nextMondayIso}' THEN delta ELSE 0 END), 0) AS week_net
+    FROM group_score_events
+    WHERE settlement_id IS NULL
+    GROUP BY group_name`
 
     try {
       logHome("fetchPeriodStats:query", {
@@ -616,7 +609,10 @@ export const Home: React.FC<HomeProps> = ({
         monthStartIso,
         nowIso,
       })
-      const res = await api.boardQuerySql({ sql, limit: 500 })
+      const [res, groupRes] = await Promise.all([
+        api.boardQuerySql({ sql, limit: 500 }),
+        api.boardQuerySql({ sql: groupSql, limit: 500 }),
+      ])
       if (res?.success && Array.isArray(res.data)) {
         const next: Record<string, { today: number; week: number; month: number }> = {}
         res.data.forEach((row: any) => {
@@ -633,6 +629,15 @@ export const Home: React.FC<HomeProps> = ({
           students: Object.entries(next).map(([name, values]) => ({ name, ...values })),
         })
         setPeriodStats(next)
+      }
+      if (groupRes?.success && Array.isArray(groupRes.data)) {
+        const next: Record<string, number> = {}
+        groupRes.data.forEach((row: any) => {
+          const groupName = typeof row?.group_name === "string" ? row.group_name.trim() : ""
+          if (!groupName) return
+          next[groupName] = Number(row.week_net) || 0
+        })
+        setGroupWeekStats(next)
       }
     } catch {
       // 忽略：统计加载失败不应影响主界面使用
@@ -944,7 +949,7 @@ export const Home: React.FC<HomeProps> = ({
     const average = includedStudents.length > 0 ? total / includedStudents.length : 0
     const weekTotal = includedStudents.reduce(
       (sum, item) => sum + Number(periodStats[item.name]?.week || 0),
-      0
+      Number(groupWeekStats[groupKey] || 0)
     )
     const weekAverage = includedStudents.length > 0 ? weekTotal / includedStudents.length : 0
     const values: Record<HomeGroupStatKey, number> = {
@@ -3268,16 +3273,22 @@ export const Home: React.FC<HomeProps> = ({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: "100%" }}>
-              <Button
-                type="link"
-                size="small"
-                icon={<PlusCircleOutlined />}
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={() => openGroupScoreEditor(group.key)}
-                style={{ padding: 0, height: "auto", fontSize: "12px" }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    openGroupScoreEditor(group.key)
+                  }
+                }}
+                style={{
+                  color: "var(--ant-color-primary, #1890ff)",
+                  overflowWrap: "anywhere",
+                  cursor: "pointer",
+                }}
               >
-                {t("students.groupScoreOperate")}
-              </Button>
-              <span style={{ color: "var(--ant-color-primary, #1890ff)", overflowWrap: "anywhere" }}>
                 {group.key}
               </span>
               <span style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
@@ -4116,6 +4127,85 @@ export const Home: React.FC<HomeProps> = ({
                   key={r.id}
                   className={r.delta >= 0 ? "is-positive" : "is-negative"}
                   onClick={() => handleReasonSelect(r)}
+                >
+                  <span>{r.content}</span>
+                  <strong>{r.delta > 0 ? `+${r.delta}` : r.delta}</strong>
+                </Button>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  )
+
+  const groupScorePanelContent = (
+    <div className="ss-operation-panel ss-operation-panel-designed">
+      <div className="ss-operation-designed-header">
+        <div className="ss-operation-designed-student">
+          <div
+            className="ss-operation-designed-avatar ss-operation-designed-avatar-fallback"
+            style={{ backgroundColor: getAvatarColor(groupScoreGroup) }}
+          >
+            {getDisplayText(groupScoreGroup)}
+          </div>
+          <span className="ss-operation-designed-name">{groupScoreGroup}</span>
+        </div>
+        <div className="ss-operation-designed-score">
+          <span className="ss-operation-designed-score-label">
+            {t("students.groupScoreCurrent")}
+          </span>
+          <Tag
+            className="ss-operation-designed-score-value"
+            color={
+              (groupScores[groupScoreGroup] || 0) > 0
+                ? "success"
+                : (groupScores[groupScoreGroup] || 0) < 0
+                  ? "error"
+                  : "default"
+            }
+          >
+            {(groupScores[groupScoreGroup] || 0) > 0
+              ? `+${groupScores[groupScoreGroup]}`
+              : groupScores[groupScoreGroup] || 0}
+          </Tag>
+        </div>
+        <Button
+          type="text"
+          className="ss-operation-designed-close"
+          aria-label={t("common.cancel")}
+          icon={<CloseOutlined />}
+          onClick={() => setGroupScoreVisible(false)}
+        />
+      </div>
+
+      <div className="ss-operation-designed-quick-buttons">
+        {[-5, -3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
+          <Button
+            key={num}
+            loading={groupScoreSaving}
+            disabled={groupScoreSaving}
+            onClick={() => void saveGroupScore(num)}
+          >
+            {num > 0 ? `+${num}` : num}
+          </Button>
+        ))}
+      </div>
+
+      <div className="ss-operation-designed-divider" />
+
+      <div className="ss-operation-designed-reasons">
+        {groupedReasons.map(([category, items]) => (
+          <section className="ss-operation-designed-category" key={category}>
+            <div className="ss-operation-designed-category-title">{category}</div>
+            <div className="ss-operation-designed-reason-buttons">
+              {items.map((r) => (
+                <Button
+                  key={r.id}
+                  className={r.delta >= 0 ? "is-positive" : "is-negative"}
+                  loading={groupScoreSaving}
+                  disabled={groupScoreSaving}
+                  onClick={() => void saveGroupScore(r.delta, r.content)}
                 >
                   <span>{r.content}</span>
                   <strong>{r.delta > 0 ? `+${r.delta}` : r.delta}</strong>
@@ -5103,77 +5193,24 @@ export const Home: React.FC<HomeProps> = ({
       </div>
 
       <Modal
-        title={t("students.groupScoreTitle", { name: groupScoreGroup })}
+        title={null}
         open={groupScoreVisible}
         onCancel={() => setGroupScoreVisible(false)}
-        onOk={saveGroupScore}
-        confirmLoading={groupScoreSaving}
+        closable={false}
+        footer={null}
+        className={operationModalClass}
+        width={820}
+        centered
+        styles={{
+          body: {
+            maxHeight: "calc(100vh - 140px)",
+            padding: "0 20px 34px",
+            overflowY: "auto",
+          },
+        }}
         destroyOnHidden
       >
-        <div style={{ marginBottom: 16, color: "var(--ss-text-secondary)" }}>
-          {t("students.groupScoreCurrent")}: <strong>{groupScores[groupScoreGroup] || 0}</strong>
-        </div>
-        <Space direction="vertical" style={{ width: "100%" }} size="middle">
-          <div>
-            <div style={{ color: "var(--ss-text-secondary)", fontSize: 13, marginBottom: 8 }}>
-              {t("home.noReasonQuickActions")}
-            </div>
-            <Space wrap>
-              {[-3, -2, -1, 1, 2, 3, 4, 5].map((delta) => (
-                <Button
-                  key={delta}
-                  danger={delta < 0}
-                  type={groupScoreDelta === delta && !groupScoreReason ? "primary" : "default"}
-                  onClick={() => selectGroupNoReasonDelta(delta)}
-                >
-                  {delta > 0 ? `+${delta}` : delta}
-                </Button>
-              ))}
-            </Space>
-          </div>
-          <div>
-            <div style={{ color: "var(--ss-text-secondary)", fontSize: 13, marginBottom: 8 }}>
-              {t("home.reasonPresets")}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 180, overflowY: "auto" }}>
-              {groupedReasons.map(([category, items]) => (
-                <div key={category}>
-                  <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
-                    {category}
-                  </div>
-                  <Space wrap>
-                    {items.map((item) => (
-                      <Button
-                        key={item.id}
-                        size="small"
-                        type={groupScoreReason === item.content ? "primary" : "default"}
-                        danger={item.delta < 0 && groupScoreReason !== item.content}
-                        onClick={() => selectGroupReason(item)}
-                      >
-                        {item.content} ({item.delta > 0 ? `+${item.delta}` : item.delta})
-                      </Button>
-                    ))}
-                  </Space>
-                </div>
-              ))}
-            </div>
-          </div>
-          <InputNumber
-            style={{ width: "100%" }}
-            value={groupScoreDelta}
-            onChange={(value) => setGroupScoreDelta(value)}
-            min={-99}
-            max={99}
-            step={1}
-            placeholder={t("home.customPoints")}
-          />
-          <Input.TextArea
-            rows={3}
-            value={groupScoreReason}
-            onChange={(event) => setGroupScoreReason(event.target.value)}
-            placeholder={t("home.reasonPlaceholder")}
-          />
-        </Space>
+        {groupScorePanelContent}
       </Modal>
 
       {isPortraitMode ? (
