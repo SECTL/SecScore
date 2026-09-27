@@ -137,6 +137,8 @@ struct LanApiState {
 pub struct LanStudent {
     pub id: i32,
     pub name: String,
+    pub student_no: Option<String>,
+    pub alias: Option<String>,
     pub group_name: Option<String>,
     pub score: i32,
     pub reward_points: i32,
@@ -567,6 +569,8 @@ async fn lan_students(
                 .map(|row| LanStudent {
                     id: row.id,
                     name: row.name,
+                    student_no: row.student_no,
+                    alias: row.alias,
                     group_name: row.group_name,
                     score: row.score,
                     reward_points: row.reward_points,

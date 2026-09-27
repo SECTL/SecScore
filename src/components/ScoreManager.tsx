@@ -16,48 +16,13 @@ import {
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
 import { UndoOutlined } from "@ant-design/icons"
-import { match } from "pinyin-pro"
-
-const normalizeSearch = (input: unknown) =>
-  String(input ?? "")
-    .trim()
-    .toLowerCase()
-
-const getOptionLabel = (option: unknown) => {
-  if (option && typeof option === "object") {
-    const anyOption = option as any
-    return String(anyOption.label ?? anyOption.text ?? anyOption.value ?? "")
-  }
-  return String(option ?? "")
-}
-
-const matchStudentName = (name: string, keyword: string) => {
-  const q0 = normalizeSearch(keyword)
-  if (!q0) return true
-
-  const nameLower = String(name).toLowerCase()
-  if (nameLower.includes(q0)) return true
-
-  const q1 = q0.replace(/\s+/g, "")
-  if (q1 && nameLower.replace(/\s+/g, "").includes(q1)) return true
-
-  try {
-    const m0 = match(name, q0)
-    if (Array.isArray(m0)) return true
-    if (q1 && q1 !== q0) {
-      const m1 = match(name, q1)
-      if (Array.isArray(m1)) return true
-    }
-  } catch {
-    return false
-  }
-
-  return false
-}
+import { matchStudentSearch } from "../utils/studentSearch"
 
 interface student {
   id: number
   name: string
+  student_no?: string | null
+  alias?: string | null
   score: number
 }
 
@@ -293,10 +258,15 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     mode="multiple"
                     showSearch
                     placeholder={t("score.pleaseSelectStudent")}
-                    filterOption={(input, option) =>
-                      matchStudentName(getOptionLabel(option), input)
-                    }
-                    options={students.map((s) => ({ label: s.name, value: s.name }))}
+                    filterOption={(input, option) => {
+                      const student = (option as any)?.student as student | undefined
+                      return Boolean(student && matchStudentSearch(student, input))
+                    }}
+                    options={students.map((s) => ({
+                      label: [s.name, s.student_no, s.alias].filter(Boolean).join(" / "),
+                      value: s.name,
+                      student: s,
+                    }))}
                   />
                 </Form.Item>
                 <Space size={8} wrap>

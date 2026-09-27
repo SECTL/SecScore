@@ -15,6 +15,8 @@ pub mod students {
     pub const TABLE: &str = "students";
     pub const ID: &str = "id";
     pub const NAME: &str = "name";
+    pub const STUDENT_NO: &str = "student_no";
+    pub const ALIAS: &str = "alias";
     pub const GROUP_NAME: &str = "group_name";
     pub const TAGS: &str = "tags";
     pub const SCORE: &str = "score";
@@ -110,6 +112,8 @@ pub fn get_create_students_table_sql(sqlite: bool) -> String {
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
+            student_no TEXT,
+            alias TEXT,
             group_name TEXT,
             tags TEXT DEFAULT '[]',
             score INTEGER DEFAULT 0,
@@ -125,6 +129,8 @@ pub fn get_create_students_table_sql(sqlite: bool) -> String {
         CREATE TABLE IF NOT EXISTS students (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
+            student_no TEXT,
+            alias TEXT,
             group_name TEXT,
             tags TEXT DEFAULT '[]',
             score INTEGER DEFAULT 0,

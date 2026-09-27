@@ -22,12 +22,21 @@ use super::response::{ImportResult, IpcResponse};
 #[derive(Deserialize)]
 pub struct CreateStudentData {
     pub name: String,
+    pub student_no: Option<String>,
+    pub alias: Option<String>,
     pub group_name: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct ImportStudentsParams {
     pub names: Vec<String>,
+}
+
+fn normalize_optional_student_field(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 #[derive(Deserialize)]
@@ -646,6 +655,8 @@ pub async fn student_query(
                     .map(|s| StudentWithTags {
                         id: s.id,
                         name: s.name,
+                        student_no: s.student_no,
+                        alias: s.alias,
                         group_name: s.group_name,
                         score: s.score,
                         reward_points: s.reward_points,
@@ -722,9 +733,13 @@ pub async fn student_create(
                     .map(str::trim)
                     .filter(|v| !v.is_empty())
                     .map(|v| v.to_string());
+                let student_no = normalize_optional_student_field(data.student_no.as_deref());
+                let alias = normalize_optional_student_field(data.alias.as_deref());
                 let new_student = students::ActiveModel {
                     id: sea_orm::ActiveValue::NotSet,
                     name: Set(name.to_string()),
+                    student_no: Set(student_no),
+                    alias: Set(alias),
                     group_name: Set(group_name),
                     score: Set(0),
                     reward_points: Set(0),
@@ -818,6 +833,12 @@ pub async fn student_update(
                         Set(Some(normalized.to_string()))
                     };
                 }
+                if let Some(student_no) = data.student_no {
+                    active.student_no = Set(normalize_optional_student_field(Some(&student_no)));
+                }
+                if let Some(alias) = data.alias {
+                    active.alias = Set(normalize_optional_student_field(Some(&alias)));
+                }
                 if let Some(score) = data.score {
                     active.score = Set(score);
                 }
@@ -904,6 +925,8 @@ pub async fn student_delete(
                 students::Entity::delete(students::ActiveModel {
                     id: sea_orm::ActiveValue::Set(student.id),
                     name: sea_orm::ActiveValue::Unchanged(student.name),
+                    student_no: sea_orm::ActiveValue::Unchanged(student.student_no),
+                    alias: sea_orm::ActiveValue::Unchanged(student.alias),
                     group_name: sea_orm::ActiveValue::Unchanged(student.group_name),
                     score: sea_orm::ActiveValue::Unchanged(student.score),
                     reward_points: sea_orm::ActiveValue::Unchanged(student.reward_points),
@@ -991,6 +1014,8 @@ pub async fn student_import_from_xlsx(
                         let new_student = students::ActiveModel {
                             id: sea_orm::ActiveValue::NotSet,
                             name: Set(name.to_string()),
+                            student_no: Set(None),
+                            alias: Set(None),
                             group_name: Set(None),
                             score: Set(0),
                             reward_points: Set(0),

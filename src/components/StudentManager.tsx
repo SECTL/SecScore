@@ -25,6 +25,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { TagEditorDialog } from "./TagEditorDialog"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
+import { normalizeStudentAliases } from "../utils/studentSearch"
 import { useIsMobile } from "../hooks/useResponsive"
 
 const createXlsxWorker = () => {
@@ -36,6 +37,8 @@ const createXlsxWorker = () => {
 interface student {
   id: number
   name: string
+  student_no?: string | null
+  alias?: string | null
   group_name?: string | null
   score: number
   tags?: string[]
@@ -136,6 +139,9 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const [renameSaving, setRenameSaving] = useState(false)
   const [renameStudent, setRenameStudent] = useState<student | null>(null)
   const [renameValue, setRenameValue] = useState("")
+  const [infoVisible, setInfoVisible] = useState(false)
+  const [infoSaving, setInfoSaving] = useState(false)
+  const [infoStudent, setInfoStudent] = useState<student | null>(null)
   const [groupEditVisible, setGroupEditVisible] = useState(false)
   const [groupEditStudent, setGroupEditStudent] = useState<student | null>(null)
   const [groupSaving, setGroupSaving] = useState(false)
@@ -202,6 +208,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const xlsxInputRef = useRef<HTMLInputElement | null>(null)
   const xlsxWorkerRef = useRef<Worker | null>(null)
   const [form] = Form.useForm()
+  const [infoForm] = Form.useForm()
   const [groupForm] = Form.useForm()
   const [messageApi, contextHolder] = message.useMessage()
   const addFormGroupName = Form.useWatch("group_name", form)
@@ -252,6 +259,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               return {
                 id: s.id,
                 name: s.name,
+                student_no: s.student_no ?? null,
+                alias: s.alias ?? null,
                 group_name: s.group_name ?? null,
                 score: s.score,
                 extra_json: s.extra_json ?? null,
@@ -304,6 +313,14 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         typeof values.group_name === "string" && values.group_name.trim()
           ? values.group_name.trim()
           : undefined
+      const studentNo =
+        typeof values.student_no === "string" && values.student_no.trim()
+          ? values.student_no.trim()
+          : undefined
+      const alias =
+        typeof values.alias === "string" && values.alias.trim()
+          ? normalizeStudentAliases(values.alias)
+          : undefined
       if (data.some((s) => s.name === name)) {
         messageApi.warning(t("students.nameExists"))
         return
@@ -312,6 +329,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       const res = await (window as any).api.createStudent({
         ...values,
         name,
+        student_no: studentNo,
+        alias,
         group_name: groupName,
       })
       if (res.success) {
@@ -352,6 +371,50 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     },
     [canEdit, messageApi, t]
   )
+
+  const handleOpenInfo = useCallback(
+    (target: student) => {
+      if (!canEdit) {
+        messageApi.error(t("common.readOnly"))
+        return
+      }
+      setInfoStudent(target)
+      infoForm.setFieldsValue({
+        student_no: target.student_no ?? "",
+        alias: target.alias ?? "",
+      })
+      setInfoVisible(true)
+    },
+    [canEdit, infoForm, messageApi, t]
+  )
+
+  const handleSaveInfo = async () => {
+    if (!(window as any).api || !infoStudent) return
+    setInfoSaving(true)
+    try {
+      const values = await infoForm.validateFields()
+      const studentNo = typeof values.student_no === "string" ? values.student_no.trim() : ""
+      const alias = normalizeStudentAliases(values.alias)
+      const res = await (window as any).api.updateStudent(infoStudent.id, {
+        student_no: studentNo,
+        alias,
+      })
+      if (res?.success) {
+        messageApi.success(t("students.infoSaveSuccess"))
+        setInfoVisible(false)
+        setInfoStudent(null)
+        infoForm.resetFields()
+        fetchStudents()
+        emitDataUpdated("students")
+      } else {
+        messageApi.error(res?.message || t("students.infoSaveFailed"))
+      }
+    } catch {
+      messageApi.error(t("students.infoSaveFailed"))
+    } finally {
+      setInfoSaving(false)
+    }
+  }
 
   const handleRename = async () => {
     if (!(window as any).api || !renameStudent) return
@@ -631,8 +694,13 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     const changedStudents = data.filter((student) => {
       const originalGroup = student.group_name?.trim() || ""
       const nextGroup = groupByStudentId.get(student.id) ?? ""
-      const nextStudent = groupBoardOrder.flatMap((key) => groupBoard[key] || []).find((item) => item.id === student.id)
-      return originalGroup !== nextGroup || Boolean(student.groupScoreExcluded) !== Boolean(nextStudent?.groupScoreExcluded)
+      const nextStudent = groupBoardOrder
+        .flatMap((key) => groupBoard[key] || [])
+        .find((item) => item.id === student.id)
+      return (
+        originalGroup !== nextGroup ||
+        Boolean(student.groupScoreExcluded) !== Boolean(nextStudent?.groupScoreExcluded)
+      )
     })
 
     if (changedStudents.length === 0) {
@@ -663,10 +731,15 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       const results = await Promise.allSettled(
         changedStudents.map((student) => {
           const nextGroup = groupByStudentId.get(student.id) ?? ""
-          const nextStudent = groupBoardOrder.flatMap((key) => groupBoard[key] || []).find((item) => item.id === student.id)
+          const nextStudent = groupBoardOrder
+            .flatMap((key) => groupBoard[key] || [])
+            .find((item) => item.id === student.id)
           return (window as any).api.updateStudent(student.id, {
             group_name: nextGroup,
-            extra_json: setGroupScoreExcluded(student.extra_json, Boolean(nextStudent?.groupScoreExcluded)),
+            extra_json: setGroupScoreExcluded(
+              student.extra_json,
+              Boolean(nextStudent?.groupScoreExcluded)
+            ),
           })
         })
       )
@@ -1492,6 +1565,22 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
         ellipsis: true,
       },
       {
+        title: t("students.studentNo"),
+        dataIndex: "student_no",
+        key: "student_no",
+        width: isMobile ? 90 : 110,
+        ellipsis: true,
+        render: (value?: string | null) => value?.trim() || "-",
+      },
+      {
+        title: t("students.alias"),
+        dataIndex: "alias",
+        key: "alias",
+        width: isMobile ? 90 : 110,
+        ellipsis: true,
+        render: (value?: string | null) => value?.trim() || "-",
+      },
+      {
         title: t("students.group"),
         dataIndex: "group_name",
         key: "group_name",
@@ -1560,6 +1649,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               items: [
                 { key: "editTags", label: t("students.editTags") },
                 { key: "rename", label: t("students.rename") },
+                { key: "editInfo", label: t("students.editInfo") },
                 { key: "editGroup", label: t("students.editGroup") },
                 { key: "editAvatar", label: t("students.editAvatar") },
                 { key: "delete", danger: true, label: t("common.delete") },
@@ -1567,6 +1657,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
               onClick: ({ key }) => {
                 if (key === "editTags") handleOpenTagEditor(row)
                 else if (key === "rename") handleOpenRename(row)
+                else if (key === "editInfo") handleOpenInfo(row)
                 else if (key === "editGroup") handleOpenGroupEditor(row)
                 else if (key === "editAvatar") handleOpenAvatarEditor(row)
                 else if (key === "delete") handleDelete(row.id)
@@ -1598,6 +1689,7 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     handleOpenAvatarEditor,
     handleOpenGroupEditor,
     handleOpenRename,
+    handleOpenInfo,
     handleOpenTagEditor,
   ])
 
@@ -1692,6 +1784,16 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             rules={[{ required: true, message: t("students.nameRequired") }]}
           >
             <Input placeholder={t("students.namePlaceholder")} />
+          </Form.Item>
+          <Form.Item label={t("students.studentNo")} name="student_no">
+            <Input placeholder={t("students.studentNoPlaceholder")} maxLength={64} />
+          </Form.Item>
+          <Form.Item label={t("students.alias")} name="alias">
+            <Input.TextArea
+              placeholder={t("students.aliasPlaceholder")}
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              maxLength={256}
+            />
           </Form.Item>
           <Form.Item label={t("students.group")} name="group_name">
             <Input placeholder={t("students.groupPlaceholder")} />
@@ -1905,7 +2007,8 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
                     >
                       {groupLabel}
                     </span>
-                  )} ({studentsInGroup.length})
+                  )}{" "}
+                  ({studentsInGroup.length})
                 </div>
                 <div
                   style={{
@@ -2526,6 +2629,34 @@ export const StudentManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
             if (!renameSaving && renameValue.trim()) handleRename()
           }}
         />
+      </Modal>
+
+      <Modal
+        title={t("students.editInfoTitle", { name: infoStudent?.name || "" })}
+        open={infoVisible}
+        onCancel={() => {
+          setInfoVisible(false)
+          setInfoStudent(null)
+          infoForm.resetFields()
+        }}
+        onOk={handleSaveInfo}
+        okButtonProps={{ loading: infoSaving, disabled: !infoStudent }}
+        okText={t("common.save")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <Form form={infoForm} layout="vertical">
+          <Form.Item label={t("students.studentNo")} name="student_no">
+            <Input placeholder={t("students.studentNoPlaceholder")} maxLength={64} />
+          </Form.Item>
+          <Form.Item label={t("students.alias")} name="alias">
+            <Input.TextArea
+              placeholder={t("students.aliasPlaceholder")}
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              maxLength={256}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
 
       <Modal

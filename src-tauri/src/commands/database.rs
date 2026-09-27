@@ -96,6 +96,8 @@ pub enum ConflictStrategy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StudentNormalized {
     name: String,
+    student_no: Option<String>,
+    alias: Option<String>,
     group_name: Option<String>,
     score: i32,
     reward_points: i32,
@@ -181,6 +183,8 @@ async fn load_students(
             row.name.clone(),
             StudentNormalized {
                 name: row.name,
+                student_no: row.student_no,
+                alias: row.alias,
                 group_name: row.group_name,
                 score: row.score,
                 reward_points: row.reward_points,
@@ -387,6 +391,8 @@ async fn upsert_student(
         Some(row) => {
             let normalized_current = StudentNormalized {
                 name: row.name.clone(),
+                student_no: row.student_no.clone(),
+                alias: row.alias.clone(),
                 group_name: row.group_name.clone(),
                 score: row.score,
                 reward_points: row.reward_points,
@@ -399,6 +405,8 @@ async fn upsert_student(
                 return Ok(false);
             }
             let mut active: students::ActiveModel = row.into();
+            active.student_no = Set(data.student_no.clone());
+            active.alias = Set(data.alias.clone());
             active.score = Set(data.score);
             active.group_name = Set(data.group_name.clone());
             active.reward_points = Set(data.reward_points);
@@ -413,6 +421,8 @@ async fn upsert_student(
             students::ActiveModel {
                 id: sea_orm::ActiveValue::NotSet,
                 name: Set(data.name.clone()),
+                student_no: Set(data.student_no.clone()),
+                alias: Set(data.alias.clone()),
                 group_name: Set(data.group_name.clone()),
                 score: Set(data.score),
                 reward_points: Set(data.reward_points),

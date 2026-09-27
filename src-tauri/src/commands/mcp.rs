@@ -15,7 +15,7 @@ use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
 };
 use sea_orm::prelude::Expr;
@@ -247,6 +247,8 @@ pub(crate) struct AddScoreResult {
 pub(crate) struct StudentListItem {
     id: i32,
     name: String,
+    student_no: Option<String>,
+    alias: Option<String>,
     group_name: Option<String>,
     score: i32,
     reward_points: i32,
@@ -690,6 +692,8 @@ pub(crate) async fn mcp_list_students(
         .map(|row| StudentListItem {
             id: row.id,
             name: row.name,
+            student_no: row.student_no,
+            alias: row.alias,
             group_name: row.group_name,
             score: row.score,
             reward_points: row.reward_points,
@@ -727,8 +731,14 @@ async fn mcp_find_students(
     }
     .ok_or_else(|| "Database not connected".to_string())?;
 
+    let pattern = format!("%{}%", query);
     let mut student_query = students::Entity::find()
-        .filter(Expr::col(students::Column::Name).like(format!("%{}%", query)))
+        .filter(
+            Condition::any()
+                .add(Expr::col(students::Column::Name).like(pattern.clone()))
+                .add(Expr::col(students::Column::StudentNo).like(pattern.clone()))
+                .add(Expr::col(students::Column::Alias).like(pattern)),
+        )
         .order_by_asc(students::Column::Name);
     if let Some(limit) = args.limit {
         student_query = student_query.limit(limit.min(i64::MAX as u64));
@@ -739,6 +749,8 @@ async fn mcp_find_students(
         .map(|row| StudentListItem {
             id: row.id,
             name: row.name,
+            student_no: row.student_no,
+            alias: row.alias,
             group_name: row.group_name,
             score: row.score,
             reward_points: row.reward_points,

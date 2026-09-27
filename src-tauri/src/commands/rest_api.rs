@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State as AxumState},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -70,13 +70,25 @@ struct CreateScoreRequest {
     reason_content: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct QuickStudentRequest {
+    #[serde(default, alias = "studentId")]
+    student_id: Option<i32>,
+    #[serde(default, alias = "studentName")]
+    student_name: Option<String>,
+    #[serde(default)]
+    replace: bool,
+}
+
+const QUICK_SCORE_STUDENT_IDS_KEY: SettingsKey = SettingsKey::QuickScoreStudentIds;
+
 fn response(status: StatusCode, payload: Value) -> Response {
     let mut response = (status, Json(payload)).into_response();
     let headers = response.headers_mut();
     headers.insert("access-control-allow-origin", HeaderValue::from_static("*"));
     headers.insert(
         "access-control-allow-methods",
-        HeaderValue::from_static("GET,POST,OPTIONS"),
+        HeaderValue::from_static("GET,POST,DELETE,OPTIONS"),
     );
     headers.insert(
         "access-control-allow-headers",
@@ -189,11 +201,191 @@ fn student_json(student: &students::Model) -> Value {
     json!({
         "id": student.id,
         "name": student.name,
+        "student_no": student.student_no,
+        "alias": student.alias,
         "group_name": student.group_name,
         "score": student.score,
         "reward_points": student.reward_points,
         "extra_json": student.extra_json,
     })
+}
+
+async fn read_quick_student_ids(app_state: &Arc<RwLock<AppState>>) -> Result<Vec<i32>, String> {
+    let state_guard = app_state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await.map_err(|e| e.to_string())?;
+    let SettingsValue::Json(value) = settings.get_value(QUICK_SCORE_STUDENT_IDS_KEY) else {
+        return Ok(Vec::new());
+    };
+    Ok(value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_i64)
+        .filter_map(|id| i32::try_from(id).ok())
+        .filter(|id| *id > 0)
+        .collect())
+}
+
+async fn write_quick_student_ids(
+    app_state: &Arc<RwLock<AppState>>,
+    ids: &[i32],
+) -> Result<(), String> {
+    let state_guard = app_state.read();
+    let db_conn = state_guard.db.read().clone();
+    let mut settings = state_guard.settings.write();
+    settings.attach_db(db_conn);
+    settings.initialize().await.map_err(|e| e.to_string())?;
+    settings
+        .set_value(QUICK_SCORE_STUDENT_IDS_KEY, SettingsValue::Json(json!(ids)))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn emit_quick_students_updated(app_state: &Arc<RwLock<AppState>>) {
+    let state_guard = app_state.read();
+    let _ = state_guard.app_handle.emit(
+        "ss:data-updated",
+        json!({ "category": "quick-students", "source": "rest_api" }),
+    );
+}
+
+async fn list_quick_students(
+    AxumState(state): AxumState<RestApiState>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = require_auth(&headers, &state.app_state).await {
+        return response;
+    }
+    let ids = match read_quick_student_ids(&state.app_state).await {
+        Ok(ids) => ids,
+        Err(message) => return error(StatusCode::INTERNAL_SERVER_ERROR, message),
+    };
+    let Some(conn) = clone_db_conn(&state.app_state) else {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "Database not connected");
+    };
+    if ids.is_empty() {
+        return success(json!({ "students": [] }));
+    }
+    let rows = match students::Entity::find()
+        .filter(students::Column::Id.is_in(ids.clone()))
+        .all(&conn)
+        .await
+    {
+        Ok(rows) => rows,
+        Err(e) => return error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+    let by_id = rows
+        .into_iter()
+        .map(|student| (student.id, student))
+        .collect::<std::collections::HashMap<_, _>>();
+    let students = ids
+        .iter()
+        .filter_map(|id| by_id.get(id))
+        .map(student_json)
+        .collect::<Vec<_>>();
+    success(json!({ "students": students }))
+}
+
+async fn register_quick_student(
+    AxumState(state): AxumState<RestApiState>,
+    headers: HeaderMap,
+    Json(data): Json<QuickStudentRequest>,
+) -> Response {
+    if let Err(response) = require_auth(&headers, &state.app_state).await {
+        return response;
+    }
+    let local_write_lock = { state.app_state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
+    let Some(conn) = clone_db_conn(&state.app_state) else {
+        return error(StatusCode::SERVICE_UNAVAILABLE, "Database not connected");
+    };
+    let student = if let Some(id) = data.student_id {
+        students::Entity::find_by_id(id).one(&conn).await
+    } else if let Some(name) = data
+        .student_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        students::Entity::find()
+            .filter(students::Column::Name.eq(name))
+            .one(&conn)
+            .await
+    } else {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "student_id or student_name is required",
+        );
+    };
+    let student = match student {
+        Ok(Some(student)) => student,
+        Ok(None) => return error(StatusCode::NOT_FOUND, "Student not found"),
+        Err(e) => return error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    };
+    let previous_ids = match read_quick_student_ids(&state.app_state).await {
+        Ok(ids) => ids,
+        Err(message) => return error(StatusCode::INTERNAL_SERVER_ERROR, message),
+    };
+    let already_registered = previous_ids.len() == 1 && previous_ids[0] == student.id;
+    let mut ids = if data.replace {
+        vec![student.id]
+    } else {
+        previous_ids.clone()
+    };
+    if !data.replace && !ids.contains(&student.id) {
+        ids.push(student.id);
+    }
+    if ids != previous_ids {
+        if let Err(message) = write_quick_student_ids(&state.app_state, &ids).await {
+            return error(StatusCode::INTERNAL_SERVER_ERROR, message);
+        }
+        emit_quick_students_updated(&state.app_state);
+    }
+    response(
+        if already_registered {
+            StatusCode::OK
+        } else {
+            StatusCode::CREATED
+        },
+        json!({
+            "ok": true,
+            "data": {
+                "registered": true,
+                "already_registered": already_registered,
+                "replaced": data.replace,
+                "student_id": student.id,
+                "student": student_json(&student),
+            }
+        }),
+    )
+}
+
+async fn unregister_quick_student(
+    AxumState(state): AxumState<RestApiState>,
+    headers: HeaderMap,
+    Path(id): Path<i32>,
+) -> Response {
+    if let Err(response) = require_auth(&headers, &state.app_state).await {
+        return response;
+    }
+    let local_write_lock = { state.app_state.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
+    let mut ids = match read_quick_student_ids(&state.app_state).await {
+        Ok(ids) => ids,
+        Err(message) => return error(StatusCode::INTERNAL_SERVER_ERROR, message),
+    };
+    if !ids.contains(&id) {
+        return error(StatusCode::NOT_FOUND, "Quick student is not registered");
+    }
+    ids.retain(|registered_id| *registered_id != id);
+    if let Err(message) = write_quick_student_ids(&state.app_state, &ids).await {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, message);
+    }
+    emit_quick_students_updated(&state.app_state);
+    success(json!({ "registered": false, "student_id": id }))
 }
 
 async fn list_students(
@@ -219,7 +411,22 @@ async fn list_students(
     };
     let matched = rows
         .iter()
-        .filter(|student| query.is_empty() || student.name.to_lowercase().contains(&query))
+        .filter(|student| {
+            query.is_empty()
+                || student.name.to_lowercase().contains(&query)
+                || student
+                    .student_no
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .contains(&query)
+                || student
+                    .alias
+                    .as_deref()
+                    .unwrap_or_default()
+                    .to_lowercase()
+                    .contains(&query)
+        })
         .collect::<Vec<_>>();
     let total = matched.len();
     let students = matched
@@ -384,6 +591,16 @@ pub async fn rest_api_server_start(app_state: Arc<RwLock<AppState>>) -> Result<(
         .route("/health", get(health).options(options))
         .route("/api/v1/students", get(list_students).options(options))
         .route("/api/v1/students/:id", get(get_student).options(options))
+        .route(
+            "/api/v1/quick-students",
+            get(list_quick_students)
+                .post(register_quick_student)
+                .options(options),
+        )
+        .route(
+            "/api/v1/quick-students/:id",
+            delete(unregister_quick_student).options(options),
+        )
         .route("/api/v1/scores", post(create_score).options(options))
         .with_state(RestApiState { app_state });
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -488,6 +705,32 @@ pub async fn rest_api_start_from_settings(app_state: Arc<RwLock<AppState>>) -> R
         rest_api_server_start(app_state).await?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn quick_student_remove(
+    state: tauri::State<'_, Arc<RwLock<AppState>>>,
+    student_id: i32,
+) -> Result<crate::commands::response::IpcResponse<()>, String> {
+    let state_arc = state.inner();
+    {
+        let state_guard = state_arc.read();
+        let mut permissions = state_guard.permissions.write();
+        if !permissions.require_permission(0, crate::services::permission::PermissionLevel::Points)
+        {
+            return Ok(crate::commands::response::IpcResponse::error(
+                "Permission denied: points required",
+            ));
+        }
+    }
+
+    let local_write_lock = { state_arc.read().local_write_lock.clone() };
+    let _write_guard = local_write_lock.lock().await;
+    let mut ids = read_quick_student_ids(state_arc).await?;
+    ids.retain(|id| *id != student_id);
+    write_quick_student_ids(state_arc, &ids).await?;
+    emit_quick_students_updated(state_arc);
+    Ok(crate::commands::response::IpcResponse::success(()))
 }
 
 fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {

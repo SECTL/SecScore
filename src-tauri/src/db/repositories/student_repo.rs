@@ -30,7 +30,7 @@ impl StudentRepository {
     pub async fn find_all(&self) -> Result<Vec<StudentWithTags>, sqlx::Error> {
         if let Some(pool) = &self.sqlite_pool {
             let students = sqlx::query_as::<Sqlite, Student>(
-                r#"SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at 
+                r#"SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at
                    FROM students 
                    ORDER BY score DESC, name ASC"#
             )
@@ -40,7 +40,7 @@ impl StudentRepository {
             Ok(students.into_iter().map(StudentWithTags::from).collect())
         } else if let Some(pool) = &self.postgres_pool {
             let students = sqlx::query_as::<Postgres, Student>(
-                r#"SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at 
+                r#"SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at
                    FROM students 
                    ORDER BY score DESC, name ASC"#
             )
@@ -98,6 +98,22 @@ impl StudentRepository {
                 query.push(", name = ");
                 query.push_bind(name);
             }
+            if let Some(student_no) = &data.student_no {
+                query.push(", student_no = ");
+                query.push_bind(if student_no.trim().is_empty() {
+                    None::<String>
+                } else {
+                    Some(student_no.trim().to_string())
+                });
+            }
+            if let Some(alias) = &data.alias {
+                query.push(", alias = ");
+                query.push_bind(if alias.trim().is_empty() {
+                    None::<String>
+                } else {
+                    Some(alias.trim().to_string())
+                });
+            }
             if let Some(group_name) = &data.group_name {
                 let normalized = group_name.trim();
                 query.push(", group_name = ");
@@ -135,6 +151,22 @@ impl StudentRepository {
             if let Some(name) = &data.name {
                 query.push(", name = ");
                 query.push_bind(name);
+            }
+            if let Some(student_no) = &data.student_no {
+                query.push(", student_no = ");
+                query.push_bind(if student_no.trim().is_empty() {
+                    None::<String>
+                } else {
+                    Some(student_no.trim().to_string())
+                });
+            }
+            if let Some(alias) = &data.alias {
+                query.push(", alias = ");
+                query.push_bind(if alias.trim().is_empty() {
+                    None::<String>
+                } else {
+                    Some(alias.trim().to_string())
+                });
             }
             if let Some(group_name) = &data.group_name {
                 let normalized = group_name.trim();
@@ -174,7 +206,7 @@ impl StudentRepository {
     pub async fn delete(&self, id: i32) -> Result<(), sqlx::Error> {
         if let Some(pool) = &self.sqlite_pool {
             let student = sqlx::query_as::<Sqlite, Student>(
-                "SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE id = ?"
+                "SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE id = ?"
             )
             .bind(id)
             .fetch_optional(pool)
@@ -197,7 +229,7 @@ impl StudentRepository {
             }
         } else if let Some(pool) = &self.postgres_pool {
             let student = sqlx::query_as::<Postgres, Student>(
-                "SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE id = $1"
+                "SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE id = $1"
             )
             .bind(id)
             .fetch_optional(pool)
@@ -324,14 +356,14 @@ impl StudentRepository {
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Student>, sqlx::Error> {
         if let Some(pool) = &self.sqlite_pool {
             sqlx::query_as::<Sqlite, Student>(
-                "SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE name = ?"
+                "SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE name = ?"
             )
             .bind(name)
             .fetch_optional(pool)
             .await
         } else if let Some(pool) = &self.postgres_pool {
             sqlx::query_as::<Postgres, Student>(
-                "SELECT id, name, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE name = $1"
+                "SELECT id, name, student_no, alias, group_name, score, reward_points, tags, extra_json, created_at, updated_at FROM students WHERE name = $1"
             )
             .bind(name)
             .fetch_optional(pool)

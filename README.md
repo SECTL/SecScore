@@ -113,6 +113,9 @@ SecScore 可在设置中的“REST API 服务”页面启用本地 REST API，�
 - `GET /health`
 - `GET /api/v1/students?query=张三&limit=50`，查询名单和当前积分
 - `GET /api/v1/students/{id}`，查询单个学生
+- `GET /api/v1/quick-students`，查询主界面快捷操作学生
+- `POST /api/v1/quick-students`，登记快捷操作学生，请求体为 `{ "student_id": 1 }` 或 `{ "student_name": "张三" }`；传入 `replace: true` 时覆盖已有快捷学生
+- `DELETE /api/v1/quick-students/{id}`，取消登记快捷操作学生
 - `POST /api/v1/scores`，请求体为 `{ "student_id": 1, "delta": 2, "reason_content": "表现优秀" }`；`delta` 为负数时扣分
 
 鉴权默认开启，可在设置中生成 Auth Token。请求使用 `Authorization: Bearer <token>` 或 `X-Auth-Token: <token>`；也可以在设置中关闭鉴权。

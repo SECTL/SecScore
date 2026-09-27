@@ -21,6 +21,7 @@ pub struct SettingsSpec {
     pub pg_connection_status: JsonValue,
     pub sync_method: String,
     pub mobile_bottom_nav_items: JsonValue,
+    pub quick_score_student_ids: JsonValue,
     pub lan_access_enabled: bool,
     pub rest_api_enabled: bool,
     pub rest_api_auth_enabled: bool,
@@ -56,6 +57,7 @@ impl Default for SettingsSpec {
                 "reasons",
                 "settings"
             ]),
+            quick_score_student_ids: JsonValue::Array(vec![]),
             lan_access_enabled: false,
             rest_api_enabled: true,
             rest_api_auth_enabled: true,
@@ -81,6 +83,7 @@ pub enum SettingsKey {
     PgConnectionStatus,
     SyncMethod,
     MobileBottomNavItems,
+    QuickScoreStudentIds,
     LanAccessEnabled,
     RestApiEnabled,
     RestApiAuthEnabled,
@@ -105,6 +108,7 @@ impl SettingsKey {
             SettingsKey::PgConnectionStatus => "pg_connection_status",
             SettingsKey::SyncMethod => "sync_method",
             SettingsKey::MobileBottomNavItems => "mobile_bottom_nav_items",
+            SettingsKey::QuickScoreStudentIds => "quick_score_student_ids",
             SettingsKey::LanAccessEnabled => "lan_access_enabled",
             SettingsKey::RestApiEnabled => "rest_api_enabled",
             SettingsKey::RestApiAuthEnabled => "rest_api_auth_enabled",
@@ -129,6 +133,7 @@ impl SettingsKey {
             "pg_connection_status" => Some(SettingsKey::PgConnectionStatus),
             "sync_method" => Some(SettingsKey::SyncMethod),
             "mobile_bottom_nav_items" => Some(SettingsKey::MobileBottomNavItems),
+            "quick_score_student_ids" => Some(SettingsKey::QuickScoreStudentIds),
             "lan_access_enabled" => Some(SettingsKey::LanAccessEnabled),
             "rest_api_enabled" => Some(SettingsKey::RestApiEnabled),
             "rest_api_auth_enabled" => Some(SettingsKey::RestApiAuthEnabled),
@@ -518,6 +523,18 @@ impl SettingsService {
         );
 
         defs.insert(
+            SettingsKey::QuickScoreStudentIds,
+            SettingDefinition {
+                kind: SettingValueKind::Json,
+                default_value: SettingsValue::Json(JsonValue::Array(vec![])),
+                write_permission: PermissionRequirement::Admin,
+                validate: Some(|value| {
+                    matches!(value, SettingsValue::Json(JsonValue::Array(items)) if items.iter().all(|item| item.as_i64().is_some_and(|id| id > 0)))
+                }),
+            },
+        );
+
+        defs.insert(
             SettingsKey::LanAccessEnabled,
             SettingDefinition {
                 kind: SettingValueKind::Boolean,
@@ -711,6 +728,10 @@ impl SettingsService {
                     "reasons",
                     "settings"
                 ]),
+            },
+            quick_score_student_ids: match self.get_value(SettingsKey::QuickScoreStudentIds) {
+                SettingsValue::Json(value) => value,
+                _ => JsonValue::Array(vec![]),
             },
             lan_access_enabled: match self.get_value(SettingsKey::LanAccessEnabled) {
                 SettingsValue::Boolean(b) => b,

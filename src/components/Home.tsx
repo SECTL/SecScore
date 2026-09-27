@@ -28,10 +28,12 @@ import {
   MinusOutlined,
   PlusOutlined,
   CloseOutlined,
+  UserOutlined,
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
-import { match, pinyin } from "pinyin-pro"
+import { pinyin } from "pinyin-pro"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
+import { matchStudentSearch } from "../utils/studentSearch"
 import { useResponsive } from "../hooks/useResponsive"
 
 /** 触屏长按判定时长(ms)。 */
@@ -42,6 +44,8 @@ const LONG_PRESS_MOVE_SLOP_PX = 10
 interface student {
   id: number
   name: string
+  student_no?: string | null
+  alias?: string | null
   group_name?: string | null
   score: number
   reward_points: number
@@ -104,10 +108,7 @@ interface operationScrollbarState {
   thumbHeight: number
 }
 
-const getOperationElementMorph = (
-  targetRect: DOMRect,
-  sourceRect: DOMRect
-) => {
+const getOperationElementMorph = (targetRect: DOMRect, sourceRect: DOMRect) => {
   const translateX = sourceRect.left - targetRect.left
   const translateY = sourceRect.top - targetRect.top
   const scale = sourceRect.height / Math.max(1, targetRect.height)
@@ -211,6 +212,7 @@ export const Home: React.FC<HomeProps> = ({
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const isTablet = breakpoint === "md"
   const [students, setStudents] = useState<student[]>([])
+  const [quickStudentIds, setQuickStudentIds] = useState<number[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [rewards, setRewards] = useState<rewardSetting[]>([])
   const [loading, setLoading] = useState(false)
@@ -250,6 +252,7 @@ export const Home: React.FC<HomeProps> = ({
   const immersiveToolbarHorizontalPadding = 20
 
   const [selectedStudent, setSelectedStudent] = useState<student | null>(null)
+  const [quickOperationStudentId, setQuickOperationStudentId] = useState<number | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [studentMultipliers, setStudentMultipliers] = useState<Record<number, number>>({})
@@ -279,8 +282,7 @@ export const Home: React.FC<HomeProps> = ({
         if (Array.isArray(parsed)) {
           return parsed.filter(
             (key: unknown): key is HomeCardStatKey =>
-              typeof key === "string" &&
-              ALLOWED_HOME_CARD_STATS.has(key as HomeCardStatKey)
+              typeof key === "string" && ALLOWED_HOME_CARD_STATS.has(key as HomeCardStatKey)
           )
         }
       }
@@ -297,8 +299,7 @@ export const Home: React.FC<HomeProps> = ({
         if (Array.isArray(parsed)) {
           return parsed.filter(
             (key: unknown): key is HomeGroupStatKey =>
-              typeof key === "string" &&
-              ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
+              typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
           )
         }
       }
@@ -371,7 +372,9 @@ export const Home: React.FC<HomeProps> = ({
 
   const syncOperationScrollbar = useCallback(() => {
     if (isPortraitMode || !operationVisible) {
-      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      setOperationScrollbar((previous) =>
+        previous.visible ? { ...previous, visible: false } : previous
+      )
       return
     }
     const modalBody = document.querySelector(
@@ -385,7 +388,9 @@ export const Home: React.FC<HomeProps> = ({
       modalBody.scrollHeight - modalBody.clientHeight > 1 &&
       modalBody.clientHeight > 0
     if (!canScroll) {
-      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      setOperationScrollbar((previous) =>
+        previous.visible ? { ...previous, visible: false } : previous
+      )
       return
     }
 
@@ -410,7 +415,9 @@ export const Home: React.FC<HomeProps> = ({
 
   useEffect(() => {
     if (isPortraitMode || !operationVisible) {
-      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+      setOperationScrollbar((previous) =>
+        previous.visible ? { ...previous, visible: false } : previous
+      )
       return
     }
     const modalBody = document.querySelector(
@@ -431,7 +438,13 @@ export const Home: React.FC<HomeProps> = ({
       modalBody.removeEventListener("scroll", syncOperationScrollbar)
       resizeObserver?.disconnect()
     }
-  }, [isPortraitMode, operationMorphOpenDuration, operationVisible, operationModalClass, syncOperationScrollbar])
+  }, [
+    isPortraitMode,
+    operationMorphOpenDuration,
+    operationVisible,
+    operationModalClass,
+    syncOperationScrollbar,
+  ])
 
   const emitDataUpdated = (category: "events" | "students" | "reasons" | "all") => {
     window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category } }))
@@ -472,11 +485,12 @@ export const Home: React.FC<HomeProps> = ({
     const requestId = ++fetchRequestIdRef.current
     logHome("fetchData:start", { requestId, silent })
     if (!silent) setLoading(true)
-    const [stuRes, reaRes, rewRes, groupScoreRes] = await Promise.all([
+    const [stuRes, reaRes, rewRes, groupScoreRes, quickStudentsRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
       (window as any).api.rewardSettingQuery(),
       (window as any).api.queryGroupScores?.(),
+      (window as any).api.getSetting("quick_score_student_ids"),
     ])
     if (requestId !== fetchRequestIdRef.current) return
 
@@ -513,7 +527,18 @@ export const Home: React.FC<HomeProps> = ({
     if (reaRes.success) setReasons(reaRes.data)
     if (rewRes.success) setRewards(rewRes.data)
     if (groupScoreRes?.success) {
-      setGroupScores(Object.fromEntries((groupScoreRes.data || []).map((row: any) => [row.group_name, row.score])))
+      setGroupScores(
+        Object.fromEntries(
+          (groupScoreRes.data || []).map((row: any) => [row.group_name, row.score])
+        )
+      )
+    }
+    if (quickStudentsRes?.success && Array.isArray(quickStudentsRes.data)) {
+      setQuickStudentIds(
+        quickStudentsRes.data.filter(
+          (id: unknown): id is number => typeof id === "number" && Number.isInteger(id) && id > 0
+        )
+      )
     }
     if (!silent) setLoading(false)
   }, [])
@@ -655,6 +680,7 @@ export const Home: React.FC<HomeProps> = ({
         category === "events" ||
         category === "students" ||
         category === "reasons" ||
+        category === "quick-students" ||
         category === "all"
       ) {
         fetchData(true)
@@ -805,9 +831,7 @@ export const Home: React.FC<HomeProps> = ({
     })
     setStudentMultipliers((prev) => {
       const validIds = new Set(students.map((s) => s.id))
-      return Object.fromEntries(
-        Object.entries(prev).filter(([id]) => validIds.has(Number(id)))
-      )
+      return Object.fromEntries(Object.entries(prev).filter(([id]) => validIds.has(Number(id))))
     })
   }, [students])
 
@@ -862,6 +886,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const matchStudentName = useCallback((s: student, keyword: string) => {
+    if (matchStudentSearch(s, keyword)) return true
     const q0 = keyword.trim().toLowerCase()
     if (!q0) return true
 
@@ -889,13 +914,6 @@ export const Home: React.FC<HomeProps> = ({
         pyInitialsLower.replace(/\s+/g, "").includes(q1))
     )
       return true
-
-    try {
-      const m0 = match(s.name, q0)
-      if (Array.isArray(m0)) return true
-    } catch {
-      return false
-    }
 
     return false
   }, [])
@@ -972,12 +990,15 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   /** 单个统计项的小标签（与原来总分标签同款）。 */
-  const renderHomeStatTag = (item: {
-    key: HomeCardStatKey
-    label: string
-    value: number
-    tone: "success" | "error"
-  }, text: string) => (
+  const renderHomeStatTag = (
+    item: {
+      key: HomeCardStatKey
+      label: string
+      value: number
+      tone: "success" | "error"
+    },
+    text: string
+  ) => (
     <Tag
       key={item.key}
       color={item.tone}
@@ -1145,8 +1166,10 @@ export const Home: React.FC<HomeProps> = ({
           boxSizing: "border-box",
           padding: "1px 2px",
           borderRadius: "999px",
-          background: "color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, var(--ss-card-bg))",
-          border: "1px solid color-mix(in srgb, var(--ant-color-primary, #1677ff) 30%, var(--ss-border-color))",
+          background:
+            "color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, var(--ss-card-bg))",
+          border:
+            "1px solid color-mix(in srgb, var(--ant-color-primary, #1677ff) 30%, var(--ss-border-color))",
           boxShadow: "0 2px 8px rgba(22, 119, 255, 0.12)",
           flexShrink: 0,
           ...(placement === "overlay"
@@ -1220,17 +1243,23 @@ export const Home: React.FC<HomeProps> = ({
     return container.closest(".ss-content-scroll-container") as HTMLElement | null
   }, [])
 
-  const openOperation = (student: student, sourceEl?: HTMLElement | null) => {
+  const openOperation = (
+    student: student,
+    sourceEl?: HTMLElement | null,
+    fromQuickStudent = false
+  ) => {
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
     }
     if (rewardMode) {
+      setQuickOperationStudentId(null)
       setRewardStudent(student)
       setRewardModalVisible(true)
       return
     }
     if (batchMode) {
+      setQuickOperationStudentId(null)
       const isSelected = selectedStudentIds.includes(student.id)
       setSelectedStudentIds(
         isSelected
@@ -1257,7 +1286,9 @@ export const Home: React.FC<HomeProps> = ({
       if (!sourceEl) return null
       return (
         Array.from(sourceEl.querySelectorAll<HTMLElement>("div, span"))
-          .filter((element) => element.children.length === 0 && element.textContent?.trim() === text)
+          .filter(
+            (element) => element.children.length === 0 && element.textContent?.trim() === text
+          )
           .sort((a, b) => {
             const aRect = a.getBoundingClientRect()
             const bRect = b.getBoundingClientRect()
@@ -1316,6 +1347,7 @@ export const Home: React.FC<HomeProps> = ({
     operationElementAnimationsRef.current = []
 
     setSelectedStudent(student)
+    setQuickOperationStudentId(fromQuickStudent ? student.id : null)
     setCustomScore(undefined)
     setReasonContent("")
     setOperationVisible(true)
@@ -1483,7 +1515,10 @@ export const Home: React.FC<HomeProps> = ({
       for (const item of elementMorphTargets) {
         const targetEl = modalEl.querySelector(item.selector) as HTMLElement | null
         if (!targetEl || !item.sourceRect) {
-          elementMorphLog[item.key] = { found: Boolean(targetEl), hasSourceRect: Boolean(item.sourceRect) }
+          elementMorphLog[item.key] = {
+            found: Boolean(targetEl),
+            hasSourceRect: Boolean(item.sourceRect),
+          }
           continue
         }
         const targetRect = targetEl.getBoundingClientRect()
@@ -1602,28 +1637,27 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, [isPortraitMode, operationVisible, operationOriginRect, playOperationMorph])
 
-  const finishCloseOperationModal = useCallback(
-    (skipCancelMorph = false) => {
-      if (!skipCancelMorph) {
-        operationMorphAnimationRef.current?.cancel()
-      }
-      operationMorphAnimationRef.current = null
-      operationMaskAnimationRef.current?.cancel()
-      operationMaskAnimationRef.current = null
-      operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
-      operationElementAnimationsRef.current = []
-      if (operationMorphRafRef.current !== null) {
-        window.cancelAnimationFrame(operationMorphRafRef.current)
-        operationMorphRafRef.current = null
-      }
-      operationClosingRef.current = false
-      setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
-      setOperationVisible(false)
-      setOperationOriginRect(null)
-      setOperationOriginElements(null)
-    },
-    []
-  )
+  const finishCloseOperationModal = useCallback((skipCancelMorph = false) => {
+    if (!skipCancelMorph) {
+      operationMorphAnimationRef.current?.cancel()
+    }
+    operationMorphAnimationRef.current = null
+    operationMaskAnimationRef.current?.cancel()
+    operationMaskAnimationRef.current = null
+    operationElementAnimationsRef.current.forEach((animation) => animation.cancel())
+    operationElementAnimationsRef.current = []
+    if (operationMorphRafRef.current !== null) {
+      window.cancelAnimationFrame(operationMorphRafRef.current)
+      operationMorphRafRef.current = null
+    }
+    operationClosingRef.current = false
+    setOperationScrollbar((previous) =>
+      previous.visible ? { ...previous, visible: false } : previous
+    )
+    setOperationVisible(false)
+    setOperationOriginRect(null)
+    setOperationOriginElements(null)
+  }, [])
 
   const closeOperationModal = useCallback(() => {
     logHome("operation:morph:close", {
@@ -1631,7 +1665,9 @@ export const Home: React.FC<HomeProps> = ({
       playState: operationMorphAnimationRef.current?.playState,
       currentTime: operationMorphAnimationRef.current?.currentTime,
     })
-    setOperationScrollbar((previous) => (previous.visible ? { ...previous, visible: false } : previous))
+    setOperationScrollbar((previous) =>
+      previous.visible ? { ...previous, visible: false } : previous
+    )
     if (operationMorphRafRef.current !== null) {
       window.cancelAnimationFrame(operationMorphRafRef.current)
       operationMorphRafRef.current = null
@@ -1644,8 +1680,9 @@ export const Home: React.FC<HomeProps> = ({
     ) {
       const modalEl = document.querySelector(`.${operationModalClass}`) as HTMLElement | null
       const modalSurfaceEl = modalEl
-        ? ((modalEl.querySelector(".ant-modal-container, .ant-modal-content") as HTMLElement | null) ??
-          modalEl)
+        ? ((modalEl.querySelector(
+            ".ant-modal-container, .ant-modal-content"
+          ) as HTMLElement | null) ?? modalEl)
         : null
       if (modalEl && modalSurfaceEl) {
         const modalRect = modalSurfaceEl.getBoundingClientRect()
@@ -1810,7 +1847,8 @@ export const Home: React.FC<HomeProps> = ({
             finishCloseOperationModal()
           }
           window.setTimeout(() => {
-            if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current) return
+            if (operationCloseTokenRef.current !== closeToken || !operationClosingRef.current)
+              return
             logHome("operation:morph:close-animation-timeout", {
               duration: operationMorphCloseDuration,
             })
@@ -1911,7 +1949,7 @@ export const Home: React.FC<HomeProps> = ({
       let successCount = 0
 
       for (const student of targetStudents) {
-        const multiplier = batchMode ? studentMultipliers[student.id] ?? 1 : 1
+        const multiplier = batchMode ? (studentMultipliers[student.id] ?? 1) : 1
         const effectiveDelta = delta * multiplier
         logHome("performSubmit:createEvent:request", {
           student: student.name,
@@ -1937,6 +1975,27 @@ export const Home: React.FC<HomeProps> = ({
       }
 
       if (successCount > 0) {
+        const completedQuickStudentId =
+          quickOperationStudentId !== null &&
+          targetStudents.length === 1 &&
+          targetStudents[0]?.id === quickOperationStudentId
+            ? quickOperationStudentId
+            : null
+        if (completedQuickStudentId !== null) {
+          const quickStudentRemoveRes = await (window as any).api.quickStudentRemove?.(
+            completedQuickStudentId
+          )
+          if (quickStudentRemoveRes?.success) {
+            setQuickStudentIds((previous) =>
+              previous.filter((studentId) => studentId !== completedQuickStudentId)
+            )
+          } else {
+            logHome("performSubmit:quick-student-remove-failed", {
+              studentId: completedQuickStudentId,
+              message: quickStudentRemoveRes?.message,
+            })
+          }
+        }
         if (targetStudents.length === 1) {
           const student = targetStudents[0]
           messageApi.success(
@@ -1956,6 +2015,7 @@ export const Home: React.FC<HomeProps> = ({
         setStudentMultipliers({})
         setBatchMode(false)
         setSelectedStudent(null)
+        setQuickOperationStudentId(null)
         closeOperationModal()
         setCustomScore(undefined)
         setReasonContent("")
@@ -3272,7 +3332,15 @@ export const Home: React.FC<HomeProps> = ({
               paddingLeft: "12px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", width: "100%" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+                width: "100%",
+              }}
+            >
               <span
                 role="button"
                 tabIndex={0}
@@ -3291,11 +3359,27 @@ export const Home: React.FC<HomeProps> = ({
               >
                 {group.key}
               </span>
-              <span style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "var(--ss-text-secondary)",
+                  fontWeight: "normal",
+                }}
+              >
                 ({t("home.studentCount", { count: group.students.length })})
               </span>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", width: "100%", fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "4px 12px",
+                width: "100%",
+                fontSize: "12px",
+                color: "var(--ss-text-secondary)",
+                fontWeight: "normal",
+              }}
+            >
               {buildGroupStatItems(group.key, group.students).map((item) => (
                 <span key={item.key}>
                   {item.label}: {item.displayValue}
@@ -3319,7 +3403,9 @@ export const Home: React.FC<HomeProps> = ({
             }}
           >
             <span style={{ color: "var(--ant-color-primary, #1890ff)" }}>{group.key}</span>
-            <span style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}>
+            <span
+              style={{ fontSize: "12px", color: "var(--ss-text-secondary)", fontWeight: "normal" }}
+            >
               ({t("home.studentCount", { count: group.students.length })})
             </span>
           </div>
@@ -3793,11 +3879,7 @@ export const Home: React.FC<HomeProps> = ({
           <div className="ss-operation-quick-strip-label">{t("home.noReasonQuickActions")}</div>
           <div className="ss-no-reason-quick-buttons ss-operation-quick-buttons">
             {[-3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
-              <Button
-                key={num}
-                danger={num < 0}
-                onClick={() => handleNoReasonQuickSelect(num)}
-              >
+              <Button key={num} danger={num < 0} onClick={() => handleNoReasonQuickSelect(num)}>
                 {num > 0 ? `+${num}` : num}
               </Button>
             ))}
@@ -3815,7 +3897,10 @@ export const Home: React.FC<HomeProps> = ({
         }}
       >
         <div className="ss-operation-panel-section">
-          <div className="ss-operation-section-title" style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            className="ss-operation-section-title"
+            style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
+          >
             <span
               style={{
                 fontWeight: 600,
@@ -3958,7 +4043,10 @@ export const Home: React.FC<HomeProps> = ({
         </div>
 
         <div className="ss-operation-panel-section">
-          <div className="ss-operation-section-title" style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div
+            className="ss-operation-section-title"
+            style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}
+          >
             <span
               style={{
                 fontWeight: 600,
@@ -4296,11 +4384,7 @@ export const Home: React.FC<HomeProps> = ({
 
     if (permission === "view") {
       return (
-        <Button
-          icon={<UnlockOutlined />}
-          onClick={handleUnlock}
-          style={btnStyle}
-        >
+        <Button icon={<UnlockOutlined />} onClick={handleUnlock} style={btnStyle}>
           {t("auth.enterPassword")}
         </Button>
       )
@@ -4373,6 +4457,53 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  const quickStudents = useMemo(() => {
+    const studentsById = new Map(students.map((student) => [student.id, student]))
+    return quickStudentIds
+      .map((id) => studentsById.get(id))
+      .filter((student): student is student => Boolean(student))
+  }, [quickStudentIds, students])
+
+  const renderQuickStudentButtons = (compact = false) => {
+    if (quickStudents.length === 0) return null
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: compact ? "4px" : "6px",
+          maxWidth: compact ? "100%" : undefined,
+          overflowX: compact ? "auto" : "visible",
+          flexShrink: 0,
+        }}
+      >
+        {quickStudents.map((student) => (
+          <Button
+            key={student.id}
+            type={compact ? "text" : "default"}
+            icon={<UserOutlined />}
+            onClick={() => {
+              setImmersiveMenuOpen(false)
+              setImmersiveViewMenuOpen(false)
+              openOperation(student, null, true)
+            }}
+            title={t("home.quickStudentHint", { name: student.name })}
+            style={{
+              borderRadius: "999px",
+              flexShrink: 0,
+              maxWidth: compact ? "150px" : "180px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {student.name}
+          </Button>
+        ))}
+      </div>
+    )
+  }
+
   const renderGroupStatPicker = () => (
     <Select
       mode="multiple"
@@ -4388,8 +4519,7 @@ export const Home: React.FC<HomeProps> = ({
       style={{ width: "100%" }}
       onChange={(values) => {
         const next = ((values ?? []) as HomeGroupStatKey[]).filter(
-          (key) =>
-            typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
+          (key) => typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
         )
         setHomeGroupShowStats(next)
         try {
@@ -4404,6 +4534,7 @@ export const Home: React.FC<HomeProps> = ({
   // 底栏(横屏)里“排序 / 展示样式 / 显示信息”折叠进一个 ≡ 菜单的内容
   const immersiveViewMenuContent = (
     <div className="ss-immersive-toolbar-menu">
+      {renderQuickStudentButtons(true)}
       <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>排序</div>
       <Select
         value={sortType}
@@ -4446,6 +4577,7 @@ export const Home: React.FC<HomeProps> = ({
 
   const immersiveMenuContent = (
     <div className="ss-immersive-toolbar-menu">
+      {renderQuickStudentButtons(true)}
       <Select
         value={sortType}
         onChange={(v) => setSortType(v as SortType)}
@@ -4557,7 +4689,13 @@ export const Home: React.FC<HomeProps> = ({
             </Button>
           </Space>
         ))}
-      <div style={{ borderTop: "1px solid var(--ss-border-color)", margin: "6px 0", paddingTop: "6px" }}>
+      <div
+        style={{
+          borderTop: "1px solid var(--ss-border-color)",
+          margin: "6px 0",
+          paddingTop: "6px",
+        }}
+      >
         {lockControl({ fullWidth: true, closeMenu: () => setImmersiveMenuOpen(false) })}
       </div>
     </div>
@@ -4709,6 +4847,7 @@ export const Home: React.FC<HomeProps> = ({
                   </div>
                 )}
               </div>
+              {!immersiveMode && renderQuickStudentButtons(true)}
 
               <Select
                 value={sortType}
@@ -5051,6 +5190,7 @@ export const Home: React.FC<HomeProps> = ({
               flexShrink: isPortraitMode ? 1 : 0,
             }}
           />
+          {!isPortraitMode && renderQuickStudentButtons()}
           {!isPortraitMode && (
             <>
               <Popover

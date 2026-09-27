@@ -24,7 +24,7 @@ export interface settingChange {
 }
 
 export interface dataUpdatedEvent {
-  category?: "events" | "students" | "reasons" | "all"
+  category?: "events" | "students" | "reasons" | "quick-students" | "all"
   source?: string
 }
 
@@ -102,6 +102,7 @@ export type settingsKey =
   | "pg_connection_string"
   | "pg_connection_status"
   | "mobile_bottom_nav_items"
+  | "quick_score_student_ids"
   | "lan_access_enabled"
   | "rest_api_enabled"
   | "rest_api_auth_enabled"
@@ -127,6 +128,7 @@ export interface settingsSpec {
   }
   sync_method: "postgresql" | "sectl_cloud_v2"
   mobile_bottom_nav_items: string[]
+  quick_score_student_ids: number[]
   lan_access_enabled: boolean
   rest_api_enabled: boolean
   rest_api_auth_enabled: boolean
@@ -270,6 +272,8 @@ const api = {
     invoke("student_query", { params }),
   createStudent: (data: {
     name: string
+    student_no?: string
+    alias?: string
     group_name?: string
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
     invoke("student_create", { data }),
@@ -1036,6 +1040,10 @@ const api = {
     }
     message?: string
   }> => invoke("rest_api_generate_token"),
+  quickStudentRemove: (
+    studentId: number
+  ): Promise<{ success: boolean; message?: string }> =>
+    invoke("quick_student_remove", { studentId }),
 
   // MCP Server
   mcpServerStart: (config?: {

@@ -180,6 +180,7 @@ pub fn run() {
             rest_api_stop,
             rest_api_status,
             rest_api_generate_token,
+            quick_student_remove,
             register_url_protocol,
             check_url_protocol_status,
             unregister_url_protocol,

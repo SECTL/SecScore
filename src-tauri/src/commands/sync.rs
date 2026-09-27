@@ -86,6 +86,14 @@ pub async fn sync_apply_snapshot(
             .get("group_name")
             .and_then(Value::as_str)
             .map(String::from);
+        let student_no = value
+            .get("student_no")
+            .and_then(Value::as_str)
+            .map(String::from);
+        let alias = value
+            .get("alias")
+            .and_then(Value::as_str)
+            .map(String::from);
         let extra_json = value
             .get("extra_json")
             .and_then(Value::as_str)
@@ -96,6 +104,8 @@ pub async fn sync_apply_snapshot(
         match existing {
             Some(student) => {
                 let mut active: students::ActiveModel = student.into();
+                active.student_no = Set(student_no);
+                active.alias = Set(alias);
                 active.group_name = Set(group_name);
                 active.tags = Set(tags_text);
                 active.extra_json = Set(extra_json);
@@ -117,6 +127,8 @@ pub async fn sync_apply_snapshot(
                 students::ActiveModel {
                     id: sea_orm::ActiveValue::NotSet,
                     name: Set(name),
+                    student_no: Set(student_no),
+                    alias: Set(alias),
                     group_name: Set(group_name),
                     score: Set(score),
                     reward_points: Set(reward_points),

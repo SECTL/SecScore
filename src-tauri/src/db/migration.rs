@@ -26,6 +26,8 @@ impl Migration {
         Self::create_group_score_events_table(conn, is_sqlite).await?;
         Self::ensure_students_reward_points_column(conn, is_sqlite).await?;
         Self::ensure_students_group_name_column(conn, is_sqlite).await?;
+        Self::ensure_students_student_no_column(conn, is_sqlite).await?;
+        Self::ensure_students_alias_column(conn, is_sqlite).await?;
 
         Self::create_indexes(conn, is_sqlite).await?;
 
@@ -207,6 +209,46 @@ impl Migration {
         }
 
         Ok(())
+    }
+
+    async fn ensure_students_student_no_column(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        Self::ensure_students_column(conn, sqlite, "student_no TEXT").await
+    }
+
+    async fn ensure_students_alias_column(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+    ) -> Result<(), DbErr> {
+        Self::ensure_students_column(conn, sqlite, "alias TEXT").await
+    }
+
+    async fn ensure_students_column(
+        conn: &impl ConnectionTrait,
+        sqlite: bool,
+        definition: &str,
+    ) -> Result<(), DbErr> {
+        let db_backend = Self::get_db_backend(sqlite);
+        let alter_sql = format!("ALTER TABLE students ADD COLUMN {}", definition);
+        match conn
+            .execute(Statement::from_string(db_backend, alter_sql))
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string().to_lowercase();
+                if msg.contains("duplicate column")
+                    || msg.contains("already exists")
+                    || msg.contains("duplicate")
+                {
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     async fn create_indexes(conn: &impl ConnectionTrait, sqlite: bool) -> Result<(), DbErr> {
