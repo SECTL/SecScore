@@ -10,6 +10,7 @@ import {
   Drawer,
   message,
   InputNumber,
+  DatePicker,
   Divider,
   Dropdown,
   Popover,
@@ -32,6 +33,7 @@ import {
 } from "@ant-design/icons"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
+import dayjs from "dayjs"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 import { matchStudentSearch } from "../utils/studentSearch"
 import { useResponsive } from "../hooks/useResponsive"
@@ -129,13 +131,21 @@ const getCompensatedBorderRadius = (borderRadius: string, scale: number) => {
 type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
-type HomeCardStatKey = "score" | "today" | "week" | "month"
-type HomeGroupStatKey = "total" | "average" | "weekTotal" | "weekAverage" | "groupScore"
+type HomeCardStatKey = "score" | "today" | "week" | "month" | "period"
+type HomeGroupStatKey =
+  | "total"
+  | "average"
+  | "weekTotal"
+  | "weekAverage"
+  | "periodTotal"
+  | "periodAverage"
+  | "groupScore"
 
 const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
 const HOME_GROUP_STATS_STORAGE_KEY = "ss_home_group_show_stats"
 const HOME_SORT_STORAGE_KEY = "ss_home_sort_type"
 const HOME_LAYOUT_STORAGE_KEY = "ss_home_layout_type"
+const HOME_PERIOD_RANGE_STORAGE_KEY = "ss_home_period_range"
 const HOME_SORT_TYPES = new Set<SortType>(["alphabet", "surname", "group", "score"])
 const HOME_LAYOUT_TYPES = new Set<LayoutType>(["grouped", "squareGrid", "largeAvatar"])
 const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
@@ -143,6 +153,7 @@ const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
   { value: "today", label: "今日" },
   { value: "week", label: "本周" },
   { value: "month", label: "本月" },
+  { value: "period", label: "本期" },
 ]
 const ALLOWED_HOME_CARD_STATS = new Set<HomeCardStatKey>(
   HOME_CARD_STAT_OPTIONS.map((option) => option.value)
@@ -152,12 +163,45 @@ const HOME_GROUP_STAT_OPTIONS: { value: HomeGroupStatKey; label: string }[] = [
   { value: "average", label: "总平均分" },
   { value: "weekTotal", label: "周总分" },
   { value: "weekAverage", label: "周平均分" },
+  { value: "periodTotal", label: "本期总分" },
+  { value: "periodAverage", label: "本期平均分" },
   { value: "groupScore", label: "小组积分" },
 ]
 const ALLOWED_HOME_GROUP_STATS = new Set<HomeGroupStatKey>(
   HOME_GROUP_STAT_OPTIONS.map((option) => option.value)
 )
 const DEFAULT_HOME_GROUP_STATS: HomeGroupStatKey[] = ["total", "average", "groupScore"]
+
+const isHomeDate = (value: unknown): value is string => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split("-").map(Number)
+  const parsed = new Date(year, month - 1, day)
+  return (
+    parsed.getFullYear() === year &&
+    parsed.getMonth() === month - 1 &&
+    parsed.getDate() === day
+  )
+}
+
+const loadHomePeriodRange = (): [string, string] => {
+  const today = dayjs().format("YYYY-MM-DD")
+  try {
+    const parsed: unknown = JSON.parse(
+      localStorage.getItem(HOME_PERIOD_RANGE_STORAGE_KEY) || "null"
+    )
+    if (
+      Array.isArray(parsed) &&
+      isHomeDate(parsed[0]) &&
+      isHomeDate(parsed[1]) &&
+      parsed[0] <= parsed[1]
+    ) {
+      return [parsed[0], parsed[1]]
+    }
+  } catch {
+    // 忽略损坏或不可用的本地值
+  }
+  return [today, today]
+}
 
 const T9_KEY_MAP: Record<string, string> = {
   a: "2",
@@ -308,6 +352,7 @@ export const Home: React.FC<HomeProps> = ({
     }
     return DEFAULT_HOME_GROUP_STATS
   })
+  const [homePeriodRange, setHomePeriodRange] = useState<[string, string]>(loadHomePeriodRange)
 
   useEffect(() => {
     try {
@@ -317,10 +362,18 @@ export const Home: React.FC<HomeProps> = ({
       // 忽略不可用的本地存储
     }
   }, [sortType, layoutType])
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOME_PERIOD_RANGE_STORAGE_KEY, JSON.stringify(homePeriodRange))
+    } catch {
+      // 忽略持久化失败
+    }
+  }, [homePeriodRange])
   const [periodStats, setPeriodStats] = useState<
-    Record<string, { today: number; week: number; month: number }>
+    Record<string, { today: number; week: number; month: number; period: number }>
   >({})
   const [groupWeekStats, setGroupWeekStats] = useState<Record<string, number>>({})
+  const [groupPeriodStats, setGroupPeriodStats] = useState<Record<string, number>>({})
   const [groupScores, setGroupScores] = useState<Record<string, number>>({})
   const [groupScoreVisible, setGroupScoreVisible] = useState(false)
   const [groupScoreGroup, setGroupScoreGroup] = useState("")
@@ -594,7 +647,7 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, [])
 
-  // 拉取每名学生的区间积分统计（今日 / 本周[周一~周五] / 本月 的净变化）。
+  // 拉取每名学生的区间积分统计（今日 / 本周 / 本月 / 自定义本期净变化）。
   // 复用只读的 boardQuerySql 跑单条聚合 SELECT，结果按学生姓名映射。
   const fetchPeriodStats = useCallback(async () => {
     const api = (window as any).api
@@ -607,21 +660,30 @@ export const Home: React.FC<HomeProps> = ({
     const nextMonday = new Date(monday)
     nextMonday.setDate(monday.getDate() + 7)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const periodStart = dayjs(homePeriodRange[0]).startOf("day").toDate()
+    const periodEndExclusive = dayjs(homePeriodRange[1])
+      .add(1, "day")
+      .startOf("day")
+      .toDate()
     const nowIso = now.toISOString()
     const todayStartIso = todayStart.toISOString()
     const mondayIso = monday.toISOString()
     const nextMondayIso = nextMonday.toISOString()
     const monthStartIso = monthStart.toISOString()
+    const periodStartIso = periodStart.toISOString()
+    const periodEndExclusiveIso = periodEndExclusive.toISOString()
 
     const sql = `SELECT s.name AS name,
       COALESCE(SUM(CASE WHEN e.event_time >= '${todayStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS today_net,
       COALESCE(SUM(CASE WHEN e.event_time >= '${mondayIso}' AND e.event_time < '${nextMondayIso}' THEN e.delta ELSE 0 END), 0) AS week_net,
-      COALESCE(SUM(CASE WHEN e.event_time >= '${monthStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS month_net
+      COALESCE(SUM(CASE WHEN e.event_time >= '${monthStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS month_net,
+      COALESCE(SUM(CASE WHEN e.event_time >= '${periodStartIso}' AND e.event_time < '${periodEndExclusiveIso}' THEN e.delta ELSE 0 END), 0) AS period_net
     FROM students s
     LEFT JOIN score_events e ON e.student_name = s.name
     GROUP BY s.name`
     const groupSql = `SELECT group_name,
-      COALESCE(SUM(CASE WHEN event_time >= '${mondayIso}' AND event_time < '${nextMondayIso}' THEN delta ELSE 0 END), 0) AS week_net
+      COALESCE(SUM(CASE WHEN event_time >= '${mondayIso}' AND event_time < '${nextMondayIso}' THEN delta ELSE 0 END), 0) AS week_net,
+      COALESCE(SUM(CASE WHEN event_time >= '${periodStartIso}' AND event_time < '${periodEndExclusiveIso}' THEN delta ELSE 0 END), 0) AS period_net
     FROM group_score_events
     WHERE settlement_id IS NULL
     GROUP BY group_name`
@@ -632,6 +694,8 @@ export const Home: React.FC<HomeProps> = ({
         mondayIso,
         nextMondayIso,
         monthStartIso,
+        periodStartIso,
+        periodEndExclusiveIso,
         nowIso,
       })
       const [res, groupRes] = await Promise.all([
@@ -639,7 +703,10 @@ export const Home: React.FC<HomeProps> = ({
         api.boardQuerySql({ sql: groupSql, limit: 500 }),
       ])
       if (res?.success && Array.isArray(res.data)) {
-        const next: Record<string, { today: number; week: number; month: number }> = {}
+        const next: Record<
+          string,
+          { today: number; week: number; month: number; period: number }
+        > = {}
         res.data.forEach((row: any) => {
           const name = typeof row?.name === "string" ? row.name.trim() : ""
           if (!name) return
@@ -647,6 +714,7 @@ export const Home: React.FC<HomeProps> = ({
             today: Number(row.today_net) || 0,
             week: Number(row.week_net) || 0,
             month: Number(row.month_net) || 0,
+            period: Number(row.period_net) || 0,
           }
         })
         logHome("fetchPeriodStats:response", {
@@ -657,17 +725,20 @@ export const Home: React.FC<HomeProps> = ({
       }
       if (groupRes?.success && Array.isArray(groupRes.data)) {
         const next: Record<string, number> = {}
+        const periodNext: Record<string, number> = {}
         groupRes.data.forEach((row: any) => {
           const groupName = typeof row?.group_name === "string" ? row.group_name.trim() : ""
           if (!groupName) return
           next[groupName] = Number(row.week_net) || 0
+          periodNext[groupName] = Number(row.period_net) || 0
         })
         setGroupWeekStats(next)
+        setGroupPeriodStats(periodNext)
       }
     } catch {
       // 忽略：统计加载失败不应影响主界面使用
     }
-  }, [])
+  }, [homePeriodRange])
 
   useEffect(() => {
     fetchData()
@@ -955,6 +1026,14 @@ export const Home: React.FC<HomeProps> = ({
           tone: toneOf(period.month),
         })
       }
+      if (homeShowStats.includes("period")) {
+        items.push({
+          key: "period",
+          label: "本期",
+          value: period.period,
+          tone: toneOf(period.period),
+        })
+      }
     }
     return items
   }
@@ -970,11 +1049,19 @@ export const Home: React.FC<HomeProps> = ({
       Number(groupWeekStats[groupKey] || 0)
     )
     const weekAverage = includedStudents.length > 0 ? weekTotal / includedStudents.length : 0
+    const periodTotal = includedStudents.reduce(
+      (sum, item) => sum + Number(periodStats[item.name]?.period || 0),
+      Number(groupPeriodStats[groupKey] || 0)
+    )
+    const periodAverage =
+      includedStudents.length > 0 ? periodTotal / includedStudents.length : 0
     const values: Record<HomeGroupStatKey, number> = {
       total,
       average,
       weekTotal,
       weekAverage,
+      periodTotal,
+      periodAverage,
       groupScore: Number(groupScores[groupKey] || 0),
     }
     return HOME_GROUP_STAT_OPTIONS.filter((option) =>
@@ -983,7 +1070,9 @@ export const Home: React.FC<HomeProps> = ({
       key: option.value,
       label: option.label,
       displayValue:
-        option.value === "average" || option.value === "weekAverage"
+        option.value === "average" ||
+        option.value === "weekAverage" ||
+        option.value === "periodAverage"
           ? values[option.value].toFixed(1)
           : String(values[option.value]),
     }))
@@ -4531,6 +4620,32 @@ export const Home: React.FC<HomeProps> = ({
     />
   )
 
+  const renderHomePeriodRangePicker = () => (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
+        {t("home.customRange")}
+      </div>
+      <DatePicker.RangePicker
+        value={[dayjs(homePeriodRange[0]), dayjs(homePeriodRange[1])]}
+        format="YYYY-MM-DD"
+        allowClear={false}
+        placeholder={[t("home.startDate"), t("home.endDate")]}
+        getPopupContainer={getDocumentBodyPopupContainer}
+        placement="topLeft"
+        popupClassName="ss-immersive-toolbar-select-popup"
+        style={{ width: "100%" }}
+        onChange={(values) => {
+          if (!values?.[0] || !values[1]) return
+          const next: [string, string] = [
+            values[0].format("YYYY-MM-DD"),
+            values[1].format("YYYY-MM-DD"),
+          ]
+          if (next[0] <= next[1]) setHomePeriodRange(next)
+        }}
+      />
+    </div>
+  )
+
   // 底栏(横屏)里“排序 / 展示样式 / 显示信息”折叠进一个 ≡ 菜单的内容
   const immersiveViewMenuContent = (
     <div className="ss-immersive-toolbar-menu">
@@ -4568,6 +4683,7 @@ export const Home: React.FC<HomeProps> = ({
         显示信息
       </div>
       {renderHomeStatPicker("menu")}
+      {renderHomePeriodRangePicker()}
       <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
         小组显示信息
       </div>
@@ -4604,6 +4720,7 @@ export const Home: React.FC<HomeProps> = ({
         ]}
       />
       {renderHomeStatPicker("menu")}
+      {renderHomePeriodRangePicker()}
       <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
         小组显示信息
       </div>
