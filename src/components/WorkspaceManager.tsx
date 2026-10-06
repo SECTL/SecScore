@@ -225,7 +225,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     const startedAt = performance.now()
     const method = init.method || "GET"
     const token = sectlAuth.getAccessToken()
-    if (!token) {
+    if (!token || !sectlAuth.isAuthenticated()) {
       setOAuthSessionExpired(true)
       workspaceLog("warn", "remote_request_skipped_no_token", { method, path })
       throw new Error("SECTL 会话已失效，请点击‘添加 SECTL 账号’重新登录")

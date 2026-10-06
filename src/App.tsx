@@ -315,16 +315,18 @@ function MainContent(): React.JSX.Element {
 
         // Tauri 的 WebView localStorage 在更新、开发模式切换或网站数据被系统
         // 回收后可能为空；原生 OAuth 状态才是跨启动的可靠来源。
-        const tokenIsActive = sectlAuth.restoreToken(
-          {
-            access_token: oauthRes.data.access_token,
-            refresh_token: oauthRes.data.refresh_token,
-            token_type: oauthRes.data.token_type,
-            expires_in: oauthRes.data.expires_in,
-            user_id: oauthRes.data.user_id,
-          },
-          { allowExpired: true }
-        )
+        const tokenIsActive = sectlAuth.getUserId() === oauthRes.data.user_id && sectlAuth.isAuthenticated()
+          ? true
+          : sectlAuth.restoreToken(
+              {
+                access_token: oauthRes.data.access_token,
+                refresh_token: oauthRes.data.refresh_token,
+                token_type: oauthRes.data.token_type,
+                expires_in: oauthRes.data.expires_in,
+                user_id: oauthRes.data.user_id,
+              },
+              { allowExpired: true }
+            )
         if (!tokenIsActive) {
           void sectlAuth.refreshAccessToken().catch(() => {
             sectlAuth.clearLocalSession()

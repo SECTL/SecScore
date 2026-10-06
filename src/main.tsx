@@ -50,8 +50,10 @@ if (!(window as any).__SECSCORE_LAN__) {
               : undefined,
             5000
           )
-          if (authReady === false && result.data.sync_method === "sectl_cloud_v2") {
-            syncClient.setEnabled(false)
+          if (authReady !== true && result.data.sync_method === "sectl_cloud_v2") {
+            // 保留“已启用云同步”的意图，但先以未认证闸门运行；登录成功后
+            // session listener 会自动启动首轮同步，不能把 enabled 永久写成 false。
+            syncClient.setEnabled(true)
             syncClient.start()
             return
           }

@@ -141,6 +141,7 @@ class SyncClient {
   private lastSnapshotAt = 0
   private lastSnapshotAttemptAt = 0
   private snapshotAbortController: AbortController | null = null
+  private syncAbortController: AbortController | null = null
   private changeStreamAbortController: AbortController | null = null
   private changeStreamRunning = false
   private changeStreamConnected = false
@@ -254,6 +255,7 @@ class SyncClient {
     this.changeStreamGeneration += 1
     this.syncContextGeneration += 1
     this.changeStreamAbortController?.abort()
+    this.syncAbortController?.abort()
     this.snapshotAbortController?.abort()
     this.changeStreamConnected = false
     this.changeStreamAuthError = false
@@ -477,10 +479,11 @@ class SyncClient {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
-    if (!classId) return
+    if (!classId || expectedContextGeneration !== this.syncContextGeneration) return
     const serverUrl = DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const snapshot = await this.buildSnapshot()
+    if (expectedContextGeneration !== this.syncContextGeneration) return
     const requestId = newUuid()
     const counts = Object.fromEntries(
       [
@@ -581,7 +584,7 @@ class SyncClient {
     const api = (window as any).api
     if (!api?.syncApplySnapshot) return
     const classId = await this.getRemoteClassId()
-    if (!classId) return
+    if (!classId || expectedContextGeneration !== this.syncContextGeneration) return
     const serverUrl = DEFAULT_SERVER_URL
     const deviceId = this.getDeviceId()
     const requestId = newUuid()
@@ -788,6 +791,7 @@ class SyncClient {
       appliedSet.add(operation.op_id)
       this.rememberAppliedOperation(operation.op_id)
     }
+    let allRemoteOperationsApplied = true
     for (const operation of result.remote_operations) {
       if (appliedSet.has(operation.op_id)) continue
       if (
@@ -806,17 +810,20 @@ class SyncClient {
       }
       const appliedSuccessfully = await this.applyRemoteOperationOnce(operation)
       if (appliedSuccessfully) appliedSet.add(operation.op_id)
+      else allRemoteOperationsApplied = false
     }
     setJson(APPLIED_KEY, Array.from(appliedSet).slice(-5000))
     const lastRemoteSeq = result.remote_operations.at(-1)?.server_change_seq
-    localStorage.setItem(
-      CURSOR_KEY,
-      String(
-        result.has_more
-          ? lastRemoteSeq || Number(getScopedValue(CURSOR_KEY, "0"))
-          : result.server_change_seq
+    if (allRemoteOperationsApplied) {
+      setScopedValue(
+        CURSOR_KEY,
+        String(
+          result.has_more
+            ? lastRemoteSeq || Number(getScopedValue(CURSOR_KEY, "0"))
+            : result.server_change_seq
+        )
       )
-    )
+    }
     if (result.remote_operations.length > 0) {
       window.dispatchEvent(
         new CustomEvent("ss:data-updated", { detail: { category: "all", source: "sync" } })
@@ -825,9 +832,12 @@ class SyncClient {
   }
 
   private async applyStreamOperation(
-    operation: PendingOperation & { server_change_seq: number; device_id: string }
+    operation: PendingOperation & { server_change_seq: number; device_id: string },
+    generation = this.changeStreamGeneration
   ): Promise<void> {
-    await this.applyRemoteOperationOnce(operation)
+    if (generation !== this.changeStreamGeneration) return
+    const applied = await this.applyRemoteOperationOnce(operation)
+    if (generation !== this.changeStreamGeneration || !applied) return
     if (operation.server_change_seq > Number(getScopedValue(CURSOR_KEY, "0"))) {
       setScopedValue(CURSOR_KEY, String(operation.server_change_seq))
     }
@@ -917,7 +927,7 @@ class SyncClient {
               syncLog("warn", "同步长连接由服务端关闭", { request_id: requestId })
               throw new Error("changes stream closed")
             }
-            buffer += decoder.decode(value, { stream: true })
+            buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n")
             const frames = buffer.split("\n\n")
             buffer = frames.pop() || ""
             for (const frame of frames) {
@@ -936,7 +946,7 @@ class SyncClient {
                 continue
               }
               try {
-                await this.applyStreamOperation(JSON.parse(data))
+                await this.applyStreamOperation(JSON.parse(data), generation)
               } catch (error) {
                 syncLog("warn", "长连接变更应用失败", { error: String(error) })
               }
@@ -1052,6 +1062,9 @@ class SyncClient {
           now - this.lastSnapshotAttemptAt >= SNAPSHOT_RETRY_INTERVAL_MS)
       const outbox = getJson<PendingOperation[]>(OUTBOX_KEY, [])
       // 永远先发增量请求，快照只能在增量完成后执行，避免积分操作排队在大快照之后。
+      const syncController = new AbortController()
+      this.syncAbortController = syncController
+      const syncTimeout = window.setTimeout(() => syncController.abort(), SYNC_REQUEST_TIMEOUT_MS)
       const response = await fetch(`${serverUrl}/v1/sync`, {
         method: "POST",
         headers: await this.headers(requestId),
@@ -1062,9 +1075,11 @@ class SyncClient {
           operations: outbox,
           limit: 500,
         }),
-        signal: AbortSignal.timeout(SYNC_REQUEST_TIMEOUT_MS),
+        signal: syncController.signal,
       })
       const responseText = await response.text()
+      window.clearTimeout(syncTimeout)
+      if (this.syncAbortController === syncController) this.syncAbortController = null
       syncLog("debug", "收到增量同步响应", {
         request_id: requestId,
         status: response.status,
