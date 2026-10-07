@@ -6,6 +6,7 @@ import { OOBEBackground } from "./OOBEBackground"
 import { useTheme } from "../../contexts/ThemeContext"
 import { changeLanguage, AppLanguage, languageOptions } from "../../i18n"
 import type { themeConfig } from "../../preload/types"
+import { LITE_BUILD } from "../../shared/buildFlags"
 import logoSvg from "../../assets/logoHD.svg"
 import { useResponsive } from "../../hooks/useResponsive"
 
@@ -126,7 +127,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
     "entry",
     "language",
     "theme",
-    "password",
+    ...(LITE_BUILD ? ([] as oobeStep[]) : (["password"] as oobeStep[])),
     "students",
     "reasons",
     "start",
@@ -447,10 +448,13 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         }
       }
 
-      const syncRes = await (window as any).api.dbSync()
-      ensureSuccess(syncRes, t("common.error"))
-      if (!syncRes?.data?.success) {
-        throw new Error(syncRes?.data?.message || t("common.error"))
+      // lite 便携版没有独立数据库连接/同步体系，跳过该步骤。
+      if (!LITE_BUILD) {
+        const syncRes = await (window as any).api.dbSync()
+        ensureSuccess(syncRes, t("common.error"))
+        if (!syncRes?.data?.success) {
+          throw new Error(syncRes?.data?.message || t("common.error"))
+        }
       }
 
       if (workingTheme) {
@@ -478,7 +482,7 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
         ensureSuccess(createReasonRes, t("common.error"))
       }
 
-      if (adminPassword || pointsPassword) {
+      if (!LITE_BUILD && (adminPassword || pointsPassword)) {
         const authRes = await (window as any).api.authSetPasswords({
           adminPassword: adminPassword || null,
           pointsPassword: pointsPassword || null,
@@ -491,7 +495,17 @@ export const OOBE: React.FC<oobeProps> = ({ visible, onComplete }) => {
       showOobeMessage("success", t("common.success"))
       onComplete()
     } catch (e: any) {
-      showOobeMessage("error", e?.message || t("common.error"))
+      const detail = e?.message || t("common.error")
+      try {
+        void (window as any).api?.writeLog?.({
+          level: "error",
+          message: "oobe:finish_failed",
+          meta: { detail },
+        })
+      } catch {
+        void 0
+      }
+      showOobeMessage("error", detail)
     } finally {
       setLoading(false)
     }

@@ -37,6 +37,7 @@ import dayjs from "dayjs"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
 import { matchStudentSearch } from "../utils/studentSearch"
 import { useResponsive } from "../hooks/useResponsive"
+import { LITE_BUILD } from "../shared/buildFlags"
 
 /** 触屏长按判定时长(ms)。 */
 const LONG_PRESS_DELAY_MS = 450
@@ -541,7 +542,9 @@ export const Home: React.FC<HomeProps> = ({
     const [stuRes, reaRes, rewRes, groupScoreRes, quickStudentsRes] = await Promise.all([
       (window as any).api.queryStudents({}),
       (window as any).api.queryReasons(),
-      (window as any).api.rewardSettingQuery(),
+      LITE_BUILD
+        ? Promise.resolve({ success: false })
+        : (window as any).api.rewardSettingQuery(),
       (window as any).api.queryGroupScores?.(),
       (window as any).api.getSetting("quick_score_student_ids"),
     ])
@@ -578,7 +581,7 @@ export const Home: React.FC<HomeProps> = ({
       setStudents(enrichedStudents)
     }
     if (reaRes.success) setReasons(reaRes.data)
-    if (rewRes.success) setRewards(rewRes.data)
+    if (rewRes?.success) setRewards(rewRes.data)
     if (groupScoreRes?.success) {
       setGroupScores(
         Object.fromEntries(
@@ -1961,6 +1964,10 @@ export const Home: React.FC<HomeProps> = ({
   ])
 
   const handleToggleRewardMode = () => {
+    if (LITE_BUILD) {
+      messageApi.info("lite 便携版不支持奖励兑换")
+      return
+    }
     if (!canEdit) {
       messageApi.error(t("common.readOnly"))
       return
@@ -4745,17 +4752,19 @@ export const Home: React.FC<HomeProps> = ({
       >
         {t("home.undoLastAction")}
       </Button>
-      <Button
-        type={rewardMode ? "default" : "primary"}
-        onClick={() => {
-          setImmersiveMenuOpen(false)
-          handleToggleRewardMode()
-        }}
-        disabled={!canEdit}
-        style={immersiveActionButtonStyle}
-      >
-        {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-      </Button>
+      {!LITE_BUILD && (
+        <Button
+          type={rewardMode ? "default" : "primary"}
+          onClick={() => {
+            setImmersiveMenuOpen(false)
+            handleToggleRewardMode()
+          }}
+          disabled={!canEdit}
+          style={immersiveActionButtonStyle}
+        >
+          {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+        </Button>
+      )}
       {!rewardMode &&
         (!batchMode ? (
           <Button
@@ -5015,16 +5024,18 @@ export const Home: React.FC<HomeProps> = ({
               >
                 {t("home.undoLastAction")}
               </Button>
-              <Button
-                type={rewardMode ? "default" : "primary"}
-                onClick={handleToggleRewardMode}
-                disabled={!canEdit}
-                style={{
-                  flexShrink: isMobile ? 1 : 0,
-                }}
-              >
-                {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-              </Button>
+              {!LITE_BUILD && (
+                <Button
+                  type={rewardMode ? "default" : "primary"}
+                  onClick={handleToggleRewardMode}
+                  disabled={!canEdit}
+                  style={{
+                    flexShrink: isMobile ? 1 : 0,
+                  }}
+                >
+                  {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+                </Button>
+              )}
               {batchToolbar}
               {lockControl()}
             </Space>
@@ -5069,6 +5080,7 @@ export const Home: React.FC<HomeProps> = ({
         )}
       </div>
 
+      {!LITE_BUILD && (
       <Modal
         title={t("rewardExchange.chooseRewardTitle", { name: rewardStudent?.name || "" })}
         open={rewardModalVisible}
@@ -5122,6 +5134,7 @@ export const Home: React.FC<HomeProps> = ({
           </>
         )}
       </Modal>
+      )}
 
       <Modal
         title={`${t("common.edit")} ${t("common.name")} - ${renameStudent?.name || ""}`}
@@ -5348,14 +5361,16 @@ export const Home: React.FC<HomeProps> = ({
               >
                 {t("home.undoLastAction")}
               </Button>
-              <Button
-                type={rewardMode ? "default" : "primary"}
-                onClick={handleToggleRewardMode}
-                disabled={!canEdit}
-                style={{ borderRadius: "999px", flexShrink: 0 }}
-              >
-                {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
-              </Button>
+              {!LITE_BUILD && (
+                <Button
+                  type={rewardMode ? "default" : "primary"}
+                  onClick={handleToggleRewardMode}
+                  disabled={!canEdit}
+                  style={{ borderRadius: "999px", flexShrink: 0 }}
+                >
+                  {rewardMode ? t("rewardExchange.exitMode") : t("rewardExchange.enterMode")}
+                </Button>
+              )}
               <div style={{ flexShrink: 0 }}>{batchToolbar}</div>
               <div style={{ flexShrink: 0 }}>{lockControl()}</div>
             </>

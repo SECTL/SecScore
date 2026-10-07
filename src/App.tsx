@@ -32,11 +32,11 @@ import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { OAuthLogin } from "./components/OAuth/OAuthLogin"
 import { OAuthCallback } from "./components/OAuth/OAuthCallback"
-import { sectlAuth } from "./services/sectlAuth"
+import { LITE_BUILD } from "./shared/buildFlags"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
-import { getPluginRuntime } from "./plugins/runtime"
+
 import { useIsMobileViewport } from "./hooks/useResponsive"
 
 const DEFAULT_MOBILE_BOTTOM_NAV_ITEMS: MobileNavKey[] = MOBILE_NAV_ITEMS.map((item) => item.key)
@@ -161,7 +161,8 @@ function MainContent(): React.JSX.Element {
   }, [navigate, location.pathname, isManagementWindow])
 
   const [wizardVisible, setWizardVisible] = useState(false)
-  const [permission, setPermission] = useState<"admin" | "points" | "view">("view")
+  // lite 便携版无密码体系，恒为管理员。
+  const [permission, setPermission] = useState<"admin" | "points" | "view">(LITE_BUILD ? "admin" : "view")
   const [hasAnyPassword, setHasAnyPassword] = useState(false)
   const [authVisible, setAuthVisible] = useState(false)
   const [authPassword, setAuthPassword] = useState("")
@@ -193,7 +194,8 @@ function MainContent(): React.JSX.Element {
   const syncCheckingRef = useRef(false)
   const syncApplyLoadingRef = useRef(false)
   const lastLocalMutationAtRef = useRef(0)
-  const pluginRuntimeRef = useRef(getPluginRuntime())
+  // lite 无插件系统；运行时延迟到 effect 内动态获取。
+  const pluginRuntimeRef = useRef<{ start: () => Promise<void>; reload: () => Promise<void>; stop: () => Promise<void> } | null>(null)
   const refreshPermissionFromAuth = useCallback(async () => {
     const api = (window as any).api
     if (!api) return
@@ -262,21 +264,29 @@ function MainContent(): React.JSX.Element {
   }, [location.pathname, isManagementWindow])
 
   useEffect(() => {
-    const runtime = pluginRuntimeRef.current
-    runtime.start().catch((error) => {
-      console.error("Failed to start plugin runtime:", error)
+    if (LITE_BUILD) return
+    let disposed = false
+    void import("./plugins/runtime").then(({ getPluginRuntime }) => {
+      if (disposed) return
+      const runtime = getPluginRuntime()
+      pluginRuntimeRef.current = runtime
+      runtime.start().catch((error) => {
+        console.error("Failed to start plugin runtime:", error)
+      })
+
+      const handlePluginsUpdated = () => {
+        runtime.reload().catch((error) => {
+          console.error("Failed to reload plugin runtime:", error)
+        })
+      }
+      window.addEventListener("ss:plugins-updated", handlePluginsUpdated)
     })
 
-    const handlePluginsUpdated = () => {
-      runtime.reload().catch((error) => {
-        console.error("Failed to reload plugin runtime:", error)
-      })
-    }
-    window.addEventListener("ss:plugins-updated", handlePluginsUpdated)
-
     return () => {
-      window.removeEventListener("ss:plugins-updated", handlePluginsUpdated)
-      runtime.stop().catch((error) => {
+      disposed = true
+      const runtime = pluginRuntimeRef.current
+      window.removeEventListener("ss:plugins-updated", () => void 0)
+      runtime?.stop().catch((error) => {
         console.error("Failed to stop plugin runtime:", error)
       })
     }
@@ -304,13 +314,16 @@ function MainContent(): React.JSX.Element {
       if (!api) return
 
       const [authRes, oauthRes, settingsRes] = await Promise.all([
-        api.authGetStatus(),
-        api.oauthLoadLoginState(),
+        LITE_BUILD ? Promise.resolve(null) : api.authGetStatus(),
+        LITE_BUILD ? Promise.resolve(null) : api.oauthLoadLoginState(),
         api.getAllSettings(),
       ])
 
-      // OAuth 登录仅用于云服务，不影响本地权限
-      if (oauthRes?.success && oauthRes.data?.name) {
+      // OAuth 登录仅用于云服务，不影响本地权限；lite 无云服务。
+      if (LITE_BUILD) {
+        setOAuthUserName(null)
+      } else if (oauthRes?.success && oauthRes.data?.name) {
+        const { sectlAuth } = await import("./services/sectlAuth")
         setOAuthUserName(String(oauthRes.data.name))
 
         // Tauri 的 WebView localStorage 在更新、开发模式切换或网站数据被系统
@@ -380,8 +393,9 @@ function MainContent(): React.JSX.Element {
     }
   }, [refreshPermissionFromAuth, messageApi])
 
-  // 监听 Deep Link 事件（用于 OAuth 回调）
+  // 监听 Deep Link 事件（用于 OAuth 回调）；lite 无 deep-link。
   useEffect(() => {
+    if (LITE_BUILD) return
     const api = (window as any).api
     if (!api || typeof api.onDeepLink !== "function") return
 
@@ -569,6 +583,7 @@ function MainContent(): React.JSX.Element {
     let disposed = false
 
     const checkAndSync = async () => {
+      if (LITE_BUILD) return
       if (disposed || syncCheckingRef.current || syncApplyLoadingRef.current) return
       if (permission !== "admin") return
       try {
@@ -673,15 +688,23 @@ function MainContent(): React.JSX.Element {
     if (!api) return
 
     // 退出时同时清理 OAuth 持久化状态，避免刷新后又自动恢复权限
-    try {
-      await api.oauthClearLoginState()
-      sectlAuth.clearLocalSession()
-      setOAuthUserName(null)
-      window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
-    } catch (error) {
-      console.error("Failed to clear OAuth login state:", error)
+    if (!LITE_BUILD) {
+      try {
+        const { sectlAuth } = await import("./services/sectlAuth")
+        await api.oauthClearLoginState()
+        sectlAuth.clearLocalSession()
+        setOAuthUserName(null)
+        window.dispatchEvent(new CustomEvent("ss:oauth-user-updated", { detail: { user: null } }))
+      } catch (error) {
+        console.error("Failed to clear OAuth login state:", error)
+      }
     }
 
+    if (LITE_BUILD) {
+      // lite 无密码体系,锁定无意义。
+      messageApi.info("lite 便携版未启用密码锁定")
+      return
+    }
     const res = await api.authLogout()
     if (res?.success && res.data) {
       setPermission(res.data.permission)
@@ -694,6 +717,7 @@ function MainContent(): React.JSX.Element {
     if (!api) return
 
     try {
+      const { sectlAuth } = await import("./services/sectlAuth")
       await api.oauthClearLoginState()
       sectlAuth.clearLocalSession()
       setOAuthUserName(null)
@@ -933,8 +957,8 @@ function MainContent(): React.JSX.Element {
         )}
         <ContentArea
           permission={permission}
-          oauthUserName={oauthSessionExpired ? "SECTL 会话已失效" : oauthUserName}
-          onOAuthLogout={logoutOAuthFromHeader}
+          oauthUserName={LITE_BUILD ? null : oauthSessionExpired ? "SECTL 会话已失效" : oauthUserName}
+          onOAuthLogout={LITE_BUILD ? undefined : logoutOAuthFromHeader}
           hasAnyPassword={hasAnyPassword}
           onAuthClick={() => setAuthVisible(true)}
           onLogout={logout}
@@ -1229,6 +1253,7 @@ function MainContent(): React.JSX.Element {
 
         <OOBE visible={wizardVisible} onComplete={() => setWizardVisible(false)} />
 
+        {!LITE_BUILD && (
         <Modal
           title={t("auth.unlock")}
           open={authVisible}
@@ -1251,27 +1276,33 @@ function MainContent(): React.JSX.Element {
               disabled={authLoading}
               onFull={(pwd) => void login(pwd)}
             />
-            <div style={{ textAlign: "center", marginTop: "4px" }}>
-              <Button
-                type="link"
-                onClick={() => {
-                  setAuthVisible(false)
-                  setOAuthSessionExpired(false)
-                  setOAuthVisible(true)
-                }}
-              >
-                {t("auth.useOAuth", "登录云端 SECTL（用于在线班级同步）")}
-              </Button>
-            </div>
+            {!LITE_BUILD && (
+              <div style={{ textAlign: "center", marginTop: "4px" }}>
+                <Button
+                  type="link"
+                  onClick={() => {
+                    setAuthVisible(false)
+                    setOAuthSessionExpired(false)
+                    setOAuthVisible(true)
+                  }}
+                >
+                  {t("auth.useOAuth", "登录云端 SECTL（用于在线班级同步）")}
+                </Button>
+              </div>
+            )}
           </div>
         </Modal>
+        )}
 
-        <OAuthLogin
-          visible={oauthVisible}
-          onClose={() => setOAuthVisible(false)}
-          onSuccess={handleOAuthSuccess}
-        />
+        {!LITE_BUILD && (
+          <OAuthLogin
+            visible={oauthVisible}
+            onClose={() => setOAuthVisible(false)}
+            onSuccess={handleOAuthSuccess}
+          />
+        )}
 
+        {!LITE_BUILD && (
         <Modal
           title="检测到本地与远程数据冲突"
           open={syncConflictVisible}
@@ -1328,6 +1359,7 @@ function MainContent(): React.JSX.Element {
             </button>
           </div>
         </Modal>
+        )}
 
         {import.meta.env.DEV ? (
           <div
@@ -1435,7 +1467,7 @@ function App(): React.JSX.Element {
     <ThemeProvider>
       <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
-          <Route path="/oauth/callback" element={<OAuthCallback />} />
+          {!LITE_BUILD && <Route path="/oauth/callback" element={<OAuthCallback />} />}
           <Route path="/*" element={<MainContent />} />
         </Routes>
       </HashRouter>

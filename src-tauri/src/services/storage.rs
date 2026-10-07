@@ -51,6 +51,21 @@ pub fn resolve_storage_layout(app_handle: &AppHandle) -> Result<StorageLayout, S
         });
     }
 
+    #[cfg(not(feature = "full"))]
+    {
+        // lite 便携版：数据默认存在可执行文件旁的 data/ 目录，拷贝即迁移。
+        if let Ok(exe) = env::current_exe() {
+            if let Some(exe_dir) = exe.parent() {
+                let root = exe_dir.join("data");
+                return Ok(StorageLayout {
+                    data_root: root.clone(),
+                    workspace_root: root.join("workspace"),
+                });
+            }
+        }
+        // current_exe 失败时回退到标准 app_data_dir 逻辑。
+    }
+
     let installed_data_dir = app_handle
         .path()
         .app_data_dir()

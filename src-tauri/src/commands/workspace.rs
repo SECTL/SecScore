@@ -3,7 +3,9 @@ use serde_json::Value;
 use std::sync::Arc;
 use tauri::{Emitter, State};
 
-use crate::services::{OnlineClassInput, WorkspaceState};
+use crate::services::WorkspaceState;
+#[cfg(feature = "full")]
+use crate::services::OnlineClassInput;
 use crate::state::AppState;
 
 use super::response::IpcResponse;
@@ -139,6 +141,7 @@ pub async fn workspace_switch_class(
     ))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_switch_account(
     account_id: String,
@@ -167,6 +170,7 @@ pub async fn workspace_switch_account(
     ))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_upsert_sectl_account(
     user_id: String,
@@ -197,6 +201,7 @@ pub async fn workspace_upsert_sectl_account(
     ))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_remove_account(
     account_id: String,
@@ -221,6 +226,7 @@ pub async fn workspace_remove_account(
     ))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_add_online_class(
     name: String,
@@ -251,6 +257,7 @@ pub async fn workspace_add_online_class(
     ))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_upsert_online_classes(
     classes: Vec<OnlineClassInput>,
@@ -272,6 +279,7 @@ pub async fn workspace_upsert_online_classes(
     Ok(IpcResponse::success(next))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_upsert_online_class(
     name: String,
@@ -321,6 +329,7 @@ pub async fn workspace_upsert_online_class(
     Ok(IpcResponse::success(next))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_mark_class_online(
     class_id: String,
@@ -375,6 +384,7 @@ pub async fn workspace_rename_class(
     Ok(IpcResponse::success(result?))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_update_class_code(
     class_id: String,
@@ -418,6 +428,7 @@ pub async fn workspace_mark_class_deleted(
     Ok(IpcResponse::success(result?))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn workspace_leave_class(
     class_id: String,

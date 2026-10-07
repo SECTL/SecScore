@@ -1,4 +1,5 @@
 use parking_lot::RwLock;
+#[cfg(feature = "full")]
 use reqwest::Client;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -6,11 +7,14 @@ use tauri::AppHandle;
 use tokio::sync::Mutex;
 
 use crate::services::{
-    auth::AuthService, auto_score::AutoScoreService, data::DataService, logger::LoggerService,
-    permission::PermissionService, plugin::PluginService, security::SecurityService,
-    settings::SettingsService, theme::ThemeService, workspace::WorkspaceService, SettingsKey,
-    SettingsValue,
+    auth::AuthService, data::DataService, logger::LoggerService, permission::PermissionService,
+    security::SecurityService, settings::SettingsService, theme::ThemeService,
+    workspace::WorkspaceService, SettingsKey, SettingsValue,
 };
+#[cfg(feature = "full")]
+use crate::services::plugin::PluginService;
+#[cfg(feature = "full")]
+use crate::services::AutoScoreService;
 
 pub struct AppState {
     pub db: Arc<RwLock<Option<DatabaseConnection>>>,
@@ -24,10 +28,13 @@ pub struct AppState {
     pub permissions: Arc<RwLock<PermissionService>>,
     pub auth: Arc<RwLock<AuthService>>,
     pub theme: Arc<RwLock<ThemeService>>,
+    #[cfg(feature = "full")]
     pub auto_score: Arc<RwLock<AutoScoreService>>,
     pub logger: Arc<RwLock<LoggerService>>,
     pub data: Arc<RwLock<DataService>>,
+    #[cfg(feature = "full")]
     pub plugins: Arc<RwLock<PluginService>>,
+    #[cfg(feature = "full")]
     pub http_client: Client,
     pub app_handle: AppHandle,
     pub workspace: Arc<RwLock<Option<WorkspaceService>>>,
@@ -40,15 +47,18 @@ impl AppState {
         let permissions = Arc::new(RwLock::new(PermissionService::new()));
         let auth = Arc::new(RwLock::new(AuthService::new()));
         let theme = Arc::new(RwLock::new(ThemeService::new()));
+        #[cfg(feature = "full")]
         let auto_score = Arc::new(RwLock::new(AutoScoreService::new()));
         let logger = Arc::new(RwLock::new(LoggerService::new()));
         let data = Arc::new(RwLock::new(DataService::new()));
+        #[cfg(feature = "full")]
         let plugins = Arc::new(RwLock::new(PluginService::new()));
         let db = Arc::new(RwLock::new(None));
         let local_sqlite = Arc::new(RwLock::new(None));
         let local_write_lock = Arc::new(Mutex::new(()));
         let workspace = Arc::new(RwLock::new(None));
 
+        #[cfg(feature = "full")]
         let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
@@ -63,10 +73,13 @@ impl AppState {
             permissions,
             auth,
             theme,
+            #[cfg(feature = "full")]
             auto_score,
             logger,
             data,
+            #[cfg(feature = "full")]
             plugins,
+            #[cfg(feature = "full")]
             http_client,
             app_handle,
             workspace,
@@ -131,19 +144,21 @@ impl AppState {
             theme.load_saved_theme(&current_theme_id);
         }
 
-        let auto_score_rules = {
-            let settings = self.settings.read();
-            match settings.get_value(SettingsKey::AutoScoreRules) {
-                SettingsValue::Json(value) => value,
-                _ => serde_json::Value::Array(vec![]),
-            }
-        };
+        #[cfg(feature = "full")]
         {
+            let auto_score_rules = {
+                let settings = self.settings.read();
+                match settings.get_value(SettingsKey::AutoScoreRules) {
+                    SettingsValue::Json(value) => value,
+                    _ => serde_json::Value::Array(vec![]),
+                }
+            };
             let mut auto_score = self.auto_score.write();
             auto_score.load_rules(auto_score_rules);
             auto_score.initialize(&self.app_handle).await?;
         }
 
+        #[cfg(feature = "full")]
         {
             let mut plugins = self.plugins.write();
             plugins.initialize(&self.app_handle)?;

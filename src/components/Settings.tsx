@@ -19,14 +19,15 @@ import {
 } from "antd"
 import { CloudOutlined, DatabaseOutlined } from "@ant-design/icons"
 import { ThemeQuickSettings } from "./ThemeQuickSettings"
+import { ClassManagerCard } from "./ClassManagerCard"
+import { StudentManager } from "./StudentManager"
 import { OAuthLogin } from "./OAuth/OAuthLogin"
-import { syncClient } from "../services/syncClient"
-import { sectlAuth } from "../services/sectlAuth"
 import { SyncServerStatus } from "./SyncServerStatus"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import { changeLanguage, getCurrentLanguage, languageOptions, AppLanguage } from "../i18n"
 import { useResponsive } from "../hooks/useResponsive"
+import { LITE_BUILD } from "../shared/buildFlags"
 import {
   buildSystemFontFamily,
   buildSystemFontValue,
@@ -428,6 +429,7 @@ export const Settings: React.FC<{
     }
 
     try {
+      const { sectlAuth } = await import("../services/sectlAuth")
       await api.oauthClearLoginState()
       sectlAuth.clearLocalSession()
       setOAuthUserInfo(null)
@@ -1338,6 +1340,25 @@ export const Settings: React.FC<{
         </Card>
       ),
     },
+    ...(LITE_BUILD
+      ? [
+          {
+            key: "classes",
+            label: t("sidebar.students"),
+            children: (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <ClassManagerCard />
+                </div>
+                <StudentManager canEdit={canAdmin} />
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(LITE_BUILD
+      ? []
+      : [
     {
       key: "security",
       label: t("settings.tabs.security"),
@@ -1442,6 +1463,10 @@ export const Settings: React.FC<{
         </>
       ),
     },
+    ]),
+    ...(LITE_BUILD
+      ? []
+      : [
     {
       key: "account",
       label: t("settings.tabs.account"),
@@ -1508,6 +1533,10 @@ export const Settings: React.FC<{
         </>
       ),
     },
+    ]),
+    ...(LITE_BUILD
+      ? []
+      : [
     {
       key: "database",
       label: t("settings.cloudSync.title"),
@@ -1641,7 +1670,10 @@ export const Settings: React.FC<{
                     }
                   }
                   setSyncMethod(next)
-                  syncClient.setEnabled(next === "sectl_cloud_v2")
+                  if (!LITE_BUILD) {
+                    const { syncClient } = await import("../services/syncClient")
+                    syncClient.setEnabled(next === "sectl_cloud_v2")
+                  }
                   logSyncMethodEvent("sync_method:selection_success", { next })
                 } catch (error) {
                   logSyncMethodEvent("sync_method:selection_error", {
@@ -1761,8 +1793,8 @@ export const Settings: React.FC<{
                 默认连接线上同步服务；开发时可通过 VITE_SYNC_SERVER_URL 环境变量指定其他地址。
               </div>
               <div style={{ marginTop: "12px" }}>
-                <Tag color={oauthUserInfo || sectlAuth.isAuthenticated() ? "success" : "warning"}>
-                  {oauthUserInfo || sectlAuth.isAuthenticated()
+                <Tag color={oauthUserInfo ? "success" : "warning"}>
+                  {oauthUserInfo
                     ? "使用当前 SECTL 登录账号同步"
                     : "请先登录 SECTL 账号"}
                 </Tag>
@@ -1916,33 +1948,36 @@ export const Settings: React.FC<{
         </>
       ),
     },
+    ]),
     {
       key: "data",
       label: t("settings.data.title"),
       children: (
         <>
-          <Card
-            title={t("settings.data.settlement")}
-            style={{
-              backgroundColor: "var(--ss-card-bg)",
-              color: "var(--ss-text-main)",
-              marginBottom: "16px",
-            }}
-          >
-            <Space align="center">
-              <Button
-                danger
-                disabled={!canAdmin}
-                loading={settleLoading}
-                onClick={confirmSettlement}
-              >
-                {t("settings.data.settlementAndRestart")}
-              </Button>
-              <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
-                {t("settings.data.settlementHint")}
-              </div>
-            </Space>
-          </Card>
+          {!LITE_BUILD && (
+            <Card
+              title={t("settings.data.settlement")}
+              style={{
+                backgroundColor: "var(--ss-card-bg)",
+                color: "var(--ss-text-main)",
+                marginBottom: "16px",
+              }}
+            >
+              <Space align="center">
+                <Button
+                  danger
+                  disabled={!canAdmin}
+                  loading={settleLoading}
+                  onClick={confirmSettlement}
+                >
+                  {t("settings.data.settlementAndRestart")}
+                </Button>
+                <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>
+                  {t("settings.data.settlementHint")}
+                </div>
+              </Space>
+            </Card>
+          )}
 
           <Card
             style={{
@@ -2133,6 +2168,9 @@ export const Settings: React.FC<{
       ),
     },
     */
+    ...(LITE_BUILD
+      ? []
+      : [
     {
       key: "rest-api",
       label: t("settings.restApi.title"),
@@ -2190,6 +2228,10 @@ export const Settings: React.FC<{
         </Card>
       ),
     },
+    ]),
+    ...(LITE_BUILD
+      ? []
+      : [
     {
       key: "url",
       label: t("settings.tabs.urlProtocol"),
@@ -2357,6 +2399,7 @@ export const Settings: React.FC<{
         </>
       ),
     },
+    ]),
     {
       key: "about",
       label: t("settings.about.title"),

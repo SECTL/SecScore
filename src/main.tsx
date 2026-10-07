@@ -9,7 +9,7 @@ import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { api } from "./preload/types"
 import { lanApi } from "./services/lanApi"
-import { syncClient } from "./services/syncClient"
+import { LITE_BUILD } from "./shared/buildFlags"
 
 const hasTauriInvoke =
   typeof (window as any).__TAURI_INTERNALS__?.invoke === "function" ||
@@ -28,8 +28,11 @@ if (!isTauriWebView) {
   ;(window as any).api = api
 }
 
-if (!(window as any).__SECSCORE_LAN__) {
-  const initializeSync = async () => {
+if (!(window as any).__SECSCORE_LAN__ && !LITE_BUILD) {
+  void (async () => {
+    const { syncClient } = await import("./services/syncClient")
+
+    const initializeSync = async () => {
     const withTimeout = async <T,>(promise: Promise<T> | undefined, timeoutMs: number): Promise<T | undefined> => {
       if (!promise) return undefined
       return Promise.race([
@@ -71,7 +74,8 @@ if (!(window as any).__SECSCORE_LAN__) {
     syncClient.setEnabled(false)
     syncClient.start()
   }
-  void initializeSync()
+  await initializeSync()
+  })()
 }
 
 const ctx = new ClientContext()

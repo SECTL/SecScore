@@ -149,6 +149,7 @@ pub async fn settings_set(
             .map_err(|e| e.to_string())?;
     }
 
+    #[cfg(feature = "full")]
     if settings_key == SettingsKey::AutoScoreRules {
         let state_guard = state.read();
         let mut auto_score = state_guard.auto_score.write();

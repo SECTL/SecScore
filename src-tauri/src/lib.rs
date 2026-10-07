@@ -7,11 +7,13 @@ pub mod utils;
 
 use crate::db::connection::DatabaseType;
 use crate::db::migration::run_migration;
+#[cfg(feature = "full")]
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::services::WorkspaceService;
 use crate::{commands::*, state::AppState};
 use parking_lot::RwLock;
 use std::sync::Arc;
+#[cfg(feature = "full")]
 use tauri::Emitter;
 #[cfg(desktop)]
 use tauri::{
@@ -22,173 +24,241 @@ use tauri::{
 };
 use tauri::{App, Manager};
 
+#[cfg(feature = "full")]
+fn invoke_handler() -> impl Fn(tauri::ipc::Invoke) -> bool {
+    tauri::generate_handler![
+        student_query,
+        student_create,
+        student_update,
+        student_delete,
+        student_import_from_xlsx,
+        student_fetch_banyou_cookie_with_browser,
+        student_fetch_banyou_classrooms,
+        student_fetch_banyou_classroom_detail,
+        tags_get_all,
+        tags_get_by_student,
+        tags_create,
+        tags_delete,
+        tags_update_student_tags,
+        reason_query,
+        reason_create,
+        reason_update,
+        reason_delete,
+        reward_setting_query,
+        reward_setting_create,
+        reward_setting_update,
+        reward_setting_delete,
+        reward_redeem,
+        reward_redemption_query,
+        event_query,
+        event_create,
+        event_delete,
+        event_query_by_student,
+        leaderboard_query,
+        group_score_query,
+        group_score_create,
+        group_score_rename,
+        db_settlement_query,
+        db_settlement_create,
+        db_settlement_leaderboard,
+        settings_get_all,
+        settings_get,
+        settings_set,
+        settings_get_system_fonts,
+        auth_get_status,
+        auth_login,
+        auth_logout,
+        auth_set_passwords,
+        auth_generate_recovery,
+        auth_reset_by_recovery,
+        auth_clear_all,
+        oauth_get_authorization_url,
+        oauth_exchange_code,
+        oauth_get_user_info,
+        oauth_refresh_token,
+        oauth_revoke_token,
+        oauth_introspect_token,
+        oauth_start_callback_server,
+        oauth_open_browser,
+        oauth_log_error,
+        oauth_stop_callback_server,
+        oauth_report_online,
+        oauth_get_device_uuid,
+        oauth_get_storage_usage,
+        oauth_save_login_state,
+        oauth_load_login_state,
+        oauth_clear_login_state,
+        theme_list,
+        theme_current,
+        theme_set,
+        theme_save,
+        theme_delete,
+        auto_score_get_rules,
+        auto_score_add_rule,
+        auto_score_update_rule,
+        auto_score_delete_rule,
+        auto_score_toggle_rule,
+        auto_score_get_status,
+        auto_score_sort_rules,
+        auto_score_query_batches,
+        auto_score_rollback_batch,
+        auto_score_apply_backfill,
+        board_get_configs,
+        board_save_configs,
+        board_query_sql,
+        log_query,
+        log_clear,
+        log_set_level,
+        log_write,
+        plugin_get_all,
+        plugin_get,
+        plugin_get_stats,
+        plugin_toggle,
+        plugin_install,
+        plugin_uninstall,
+        plugin_load_manifest,
+        plugin_get_dir,
+        plugin_get_list,
+        plugin_get_runtime_modules,
+        data_export_json,
+        data_import_json,
+        window_minimize,
+        window_maximize,
+        window_close,
+        window_is_maximized,
+        window_open_management,
+        toggle_devtools,
+        window_resize,
+        window_set_resizable,
+        db_test_connection,
+        db_switch_connection,
+        db_use_local_sqlite,
+        db_get_status,
+        workspace_get_state,
+        workspace_create_local_class,
+        workspace_switch_class,
+        workspace_switch_account,
+        workspace_upsert_sectl_account,
+        workspace_remove_account,
+        workspace_add_online_class,
+        workspace_upsert_online_class,
+        workspace_upsert_online_classes,
+        workspace_mark_class_online,
+        workspace_rename_class,
+        workspace_update_class_code,
+        workspace_mark_class_deleted,
+        workspace_leave_class,
+        db_sync,
+        db_sync_preview,
+        db_sync_apply,
+        sync_apply_remote_operation,
+        sync_apply_snapshot,
+        fs_get_config_structure,
+        fs_read_json,
+        fs_write_json,
+        fs_read_text,
+        fs_write_text,
+        fs_delete_file,
+        fs_list_files,
+        fs_file_exists,
+        fs_open_path,
+        http_server_start,
+        http_server_refresh_token,
+        http_server_stop,
+        http_server_status,
+        mcp_server_start,
+        mcp_server_stop,
+        mcp_server_status,
+        rest_api_start,
+        rest_api_stop,
+        rest_api_status,
+        rest_api_generate_token,
+        quick_student_remove,
+        register_url_protocol,
+        check_url_protocol_status,
+        unregister_url_protocol,
+        check_elevation,
+        request_elevation,
+        app_quit,
+        app_restart,
+    ]
+}
+
+#[cfg(not(feature = "full"))]
+fn invoke_handler() -> impl Fn(tauri::ipc::Invoke) -> bool {
+    tauri::generate_handler![
+        student_query,
+        student_create,
+        student_update,
+        student_delete,
+        student_import_from_xlsx,
+        tags_get_all,
+        tags_get_by_student,
+        tags_create,
+        tags_delete,
+        tags_update_student_tags,
+        reason_query,
+        reason_create,
+        reason_update,
+        reason_delete,
+        event_query,
+        event_create,
+        event_delete,
+        event_query_by_student,
+        leaderboard_query,
+        group_score_query,
+        group_score_create,
+        group_score_rename,
+        settings_get_all,
+        settings_get,
+        settings_set,
+        settings_get_system_fonts,
+        auth_get_status,
+        theme_list,
+        theme_current,
+        theme_set,
+        theme_save,
+        theme_delete,
+        log_query,
+        log_clear,
+        log_set_level,
+        log_write,
+        data_export_json,
+        data_import_json,
+        window_minimize,
+        window_maximize,
+        window_close,
+        window_is_maximized,
+        window_open_management,
+        toggle_devtools,
+        window_resize,
+        window_set_resizable,
+        db_get_status,
+        workspace_get_state,
+        workspace_create_local_class,
+        workspace_switch_class,
+        workspace_rename_class,
+        workspace_mark_class_deleted,
+        app_quit,
+        app_restart,
+    ]
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_deep_link::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
+
+    #[cfg(feature = "full")]
+    let builder = builder.plugin(tauri_plugin_deep_link::init());
+
+    builder
         .setup(|app| {
             let state = AppState::new(app.handle().clone());
             app.manage(Arc::new(RwLock::new(state)));
             setup_app(app)?;
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            student_query,
-            student_create,
-            student_update,
-            student_delete,
-            student_import_from_xlsx,
-            student_fetch_banyou_cookie_with_browser,
-            student_fetch_banyou_classrooms,
-            student_fetch_banyou_classroom_detail,
-            tags_get_all,
-            tags_get_by_student,
-            tags_create,
-            tags_delete,
-            tags_update_student_tags,
-            reason_query,
-            reason_create,
-            reason_update,
-            reason_delete,
-            reward_setting_query,
-            reward_setting_create,
-            reward_setting_update,
-            reward_setting_delete,
-            reward_redeem,
-            reward_redemption_query,
-            event_query,
-            event_create,
-            event_delete,
-            event_query_by_student,
-            leaderboard_query,
-            group_score_query,
-            group_score_create,
-            group_score_rename,
-            db_settlement_query,
-            db_settlement_create,
-            db_settlement_leaderboard,
-            settings_get_all,
-            settings_get,
-            settings_set,
-            settings_get_system_fonts,
-            auth_get_status,
-            auth_login,
-            auth_logout,
-            auth_set_passwords,
-            auth_generate_recovery,
-            auth_reset_by_recovery,
-            auth_clear_all,
-            oauth_get_authorization_url,
-            oauth_exchange_code,
-            oauth_get_user_info,
-            oauth_refresh_token,
-            oauth_revoke_token,
-            oauth_introspect_token,
-            oauth_start_callback_server,
-            oauth_open_browser,
-            oauth_log_error,
-            oauth_stop_callback_server,
-            oauth_report_online,
-            oauth_get_device_uuid,
-            oauth_get_storage_usage,
-            oauth_save_login_state,
-            oauth_load_login_state,
-            oauth_clear_login_state,
-            theme_list,
-            theme_current,
-            theme_set,
-            theme_save,
-            theme_delete,
-            auto_score_get_rules,
-            auto_score_add_rule,
-            auto_score_update_rule,
-            auto_score_delete_rule,
-            auto_score_toggle_rule,
-            auto_score_get_status,
-            auto_score_sort_rules,
-            auto_score_query_batches,
-            auto_score_rollback_batch,
-            auto_score_apply_backfill,
-            board_get_configs,
-            board_save_configs,
-            board_query_sql,
-            log_query,
-            log_clear,
-            log_set_level,
-            log_write,
-            plugin_get_all,
-            plugin_get,
-            plugin_get_stats,
-            plugin_toggle,
-            plugin_install,
-            plugin_uninstall,
-            plugin_load_manifest,
-            plugin_get_dir,
-            plugin_get_list,
-            plugin_get_runtime_modules,
-            data_export_json,
-            data_import_json,
-            window_minimize,
-            window_maximize,
-            window_close,
-            window_is_maximized,
-            window_open_management,
-            toggle_devtools,
-            window_resize,
-            window_set_resizable,
-            db_test_connection,
-            db_switch_connection,
-            db_use_local_sqlite,
-            db_get_status,
-            workspace_get_state,
-            workspace_create_local_class,
-            workspace_switch_class,
-            workspace_switch_account,
-            workspace_upsert_sectl_account,
-            workspace_remove_account,
-            workspace_add_online_class,
-            workspace_upsert_online_class,
-            workspace_upsert_online_classes,
-            workspace_mark_class_online,
-            workspace_rename_class,
-            workspace_update_class_code,
-            workspace_mark_class_deleted,
-            workspace_leave_class,
-            db_sync,
-            db_sync_preview,
-            db_sync_apply,
-            sync_apply_remote_operation,
-            sync_apply_snapshot,
-            fs_get_config_structure,
-            fs_read_json,
-            fs_write_json,
-            fs_read_text,
-            fs_write_text,
-            fs_delete_file,
-            fs_list_files,
-            fs_file_exists,
-            fs_open_path,
-            http_server_start,
-            http_server_refresh_token,
-            http_server_stop,
-            http_server_status,
-            mcp_server_start,
-            mcp_server_stop,
-            mcp_server_status,
-            rest_api_start,
-            rest_api_stop,
-            rest_api_status,
-            rest_api_generate_token,
-            quick_student_remove,
-            register_url_protocol,
-            check_url_protocol_status,
-            unregister_url_protocol,
-            check_elevation,
-            request_elevation,
-            app_quit,
-            app_restart,
-        ])
+        .invoke_handler(invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -207,15 +277,19 @@ pub fn setup_app(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
 
     setup_window_events(app)?;
 
+    #[cfg(feature = "full")]
     setup_deep_link(app)?;
 
+    #[cfg(feature = "full")]
     setup_lan_http_server(app)?;
 
+    #[cfg(feature = "full")]
     setup_rest_api_server(app)?;
 
     Ok(())
 }
 
+#[cfg(feature = "full")]
 fn setup_rest_api_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let state = handle.state::<crate::state::SafeAppState>().inner().clone();
@@ -229,6 +303,7 @@ fn setup_rest_api_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+#[cfg(feature = "full")]
 fn setup_lan_http_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
     let state = handle.state::<crate::state::SafeAppState>().inner().clone();
@@ -262,6 +337,7 @@ fn setup_lan_http_server(app: &mut App) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+#[cfg(feature = "full")]
 fn setup_deep_link(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle().clone();
 
@@ -314,23 +390,30 @@ fn setup_database(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
                 .initialize()
                 .await
                 .map_err(|e| format!("Failed to initialize settings from sqlite: {}", e))?;
-            settings
-                .set_value(
-                    SettingsKey::PgConnectionStatus,
-                    SettingsValue::Json(serde_json::json!({
-                        "connected": true,
-                        "type": "sqlite"
-                    })),
-                )
-                .await
-                .map_err(|err| format!("Failed to save sqlite status: {}", err))?;
-            settings
-                .set_value(
-                    SettingsKey::SyncMethod,
-                    SettingsValue::String("sectl_cloud_v2".to_string()),
-                )
-                .await
-                .map_err(|err| format!("Failed to enable SECTL cloud sync: {}", err))?;
+            #[cfg(feature = "full")]
+            {
+                settings
+                    .set_value(
+                        SettingsKey::PgConnectionStatus,
+                        SettingsValue::Json(serde_json::json!({
+                            "connected": true,
+                            "type": "sqlite"
+                        })),
+                    )
+                    .await
+                    .map_err(|err| format!("Failed to save sqlite status: {}", err))?;
+                settings
+                    .set_value(
+                        SettingsKey::SyncMethod,
+                        SettingsValue::String("sectl_cloud_v2".to_string()),
+                    )
+                    .await
+                    .map_err(|err| format!("Failed to enable SECTL cloud sync: {}", err))?;
+            }
+            #[cfg(not(feature = "full"))]
+            {
+                let _ = &mut settings;
+            }
         }
 
         state_guard

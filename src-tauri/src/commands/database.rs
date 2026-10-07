@@ -1,3 +1,4 @@
+#![allow(unused_imports, dead_code)]
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -5,8 +6,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tokio::time::{timeout, Duration};
 
-use crate::db::connection::DatabaseType;
-use crate::db::connection::{create_postgres_connection, create_sqlite_connection};
+use crate::db::connection::{create_postgres_connection, create_sqlite_connection, DatabaseType};
 use crate::db::entities::{
     reasons, reward_redemptions, reward_settings, score_events, student_tags, students, tags,
 };
@@ -16,6 +16,7 @@ use crate::services::permission::PermissionLevel;
 use crate::services::settings::{SettingsKey, SettingsValue};
 use crate::services::storage::local_sqlite_path;
 use crate::state::AppState;
+
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use super::response::IpcResponse;
@@ -23,6 +24,7 @@ use super::response::IpcResponse;
 const DB_CONNECT_TIMEOUT_SECS: u64 = 15;
 const DB_MIGRATION_TIMEOUT_SECS: u64 = 20;
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestConnectionResult {
     pub success: bool,
@@ -30,6 +32,7 @@ pub struct TestConnectionResult {
     pub error: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwitchConnectionResult {
     #[serde(rename = "type")]
@@ -45,6 +48,7 @@ pub struct DatabaseStatus {
     pub error: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncResult {
     pub success: bool,
@@ -52,6 +56,7 @@ pub struct SyncResult {
     pub message: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbSyncConflict {
     pub table: String,
@@ -60,6 +65,7 @@ pub struct DbSyncConflict {
     pub remote_summary: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbSyncPreviewResult {
     pub can_sync: bool,
@@ -71,6 +77,7 @@ pub struct DbSyncPreviewResult {
     pub message: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DbSyncApplyResult {
     pub success: bool,
@@ -158,6 +165,7 @@ struct StudentTagPair {
     tag_name: String,
 }
 
+#[cfg(feature = "full")]
 fn normalize_tags(raw: &str) -> String {
     let parsed: Vec<String> = serde_json::from_str(raw).unwrap_or_default();
     let mut cleaned: Vec<String> = parsed
@@ -170,6 +178,7 @@ fn normalize_tags(raw: &str) -> String {
     serde_json::to_string(&cleaned).unwrap_or_else(|_| "[]".to_string())
 }
 
+#[cfg(feature = "full")]
 async fn load_students(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, StudentNormalized>, String> {
@@ -198,6 +207,7 @@ async fn load_students(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_reasons(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, ReasonNormalized>, String> {
@@ -221,6 +231,7 @@ async fn load_reasons(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_tags(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, TagNormalized>, String> {
@@ -242,6 +253,7 @@ async fn load_tags(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_events(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, EventNormalized>, String> {
@@ -267,6 +279,7 @@ async fn load_events(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_reward_settings(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, RewardSettingNormalized>, String> {
@@ -289,6 +302,7 @@ async fn load_reward_settings(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_reward_redemptions(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashMap<String, RewardRedemptionNormalized>, String> {
@@ -313,6 +327,7 @@ async fn load_reward_redemptions(
     Ok(map)
 }
 
+#[cfg(feature = "full")]
 async fn load_student_tag_pairs(
     conn: &sea_orm::DatabaseConnection,
 ) -> Result<std::collections::HashSet<StudentTagPair>, String> {
@@ -349,6 +364,7 @@ async fn load_student_tag_pairs(
     Ok(pairs)
 }
 
+#[cfg(feature = "full")]
 fn compare_maps<T: PartialEq>(
     table: &str,
     local: &std::collections::HashMap<String, T>,
@@ -377,6 +393,7 @@ fn compare_maps<T: PartialEq>(
     (local_only, remote_only, conflicts)
 }
 
+#[cfg(feature = "full")]
 async fn upsert_student(
     conn: &sea_orm::DatabaseConnection,
     data: &StudentNormalized,
@@ -439,6 +456,7 @@ async fn upsert_student(
     }
 }
 
+#[cfg(feature = "full")]
 async fn upsert_reason(
     conn: &sea_orm::DatabaseConnection,
     data: &ReasonNormalized,
@@ -485,6 +503,7 @@ async fn upsert_reason(
     }
 }
 
+#[cfg(feature = "full")]
 async fn upsert_tag(
     conn: &sea_orm::DatabaseConnection,
     data: &TagNormalized,
@@ -525,6 +544,7 @@ async fn upsert_tag(
     }
 }
 
+#[cfg(feature = "full")]
 async fn upsert_event(
     conn: &sea_orm::DatabaseConnection,
     data: &EventNormalized,
@@ -578,6 +598,7 @@ async fn upsert_event(
     }
 }
 
+#[cfg(feature = "full")]
 async fn upsert_reward_setting(
     conn: &sea_orm::DatabaseConnection,
     data: &RewardSettingNormalized,
@@ -621,6 +642,7 @@ async fn upsert_reward_setting(
     }
 }
 
+#[cfg(feature = "full")]
 async fn upsert_reward_redemption(
     conn: &sea_orm::DatabaseConnection,
     data: &RewardRedemptionNormalized,
@@ -670,6 +692,7 @@ async fn upsert_reward_redemption(
     }
 }
 
+#[cfg(feature = "full")]
 async fn ensure_student_tag_pair(
     conn: &sea_orm::DatabaseConnection,
     pair: &StudentTagPair,
@@ -714,6 +737,7 @@ async fn ensure_student_tag_pair(
     Ok(true)
 }
 
+#[cfg(feature = "full")]
 async fn current_remote_and_local_from_state(
     app_handle: &AppHandle,
     app_state: &Arc<RwLock<AppState>>,
@@ -777,6 +801,7 @@ async fn current_remote_and_local_from_state(
     Ok(Some((local_conn, remote_conn)))
 }
 
+#[cfg(feature = "full")]
 pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Result<(), String> {
     let app_handle = {
         let state_guard = app_state.read();
@@ -830,6 +855,7 @@ pub async fn realtime_dual_write_sync(app_state: &Arc<RwLock<AppState>>) -> Resu
 
 /// 新同步模式由前端 outbox + sync-server 负责上传，不能再调用旧的 PostgreSQL 镜像同步。
 /// 旧同步模式继续保留原有的实时镜像行为。
+#[cfg(feature = "full")]
 pub async fn realtime_dual_write_sync_if_legacy(
     app_state: &Arc<RwLock<AppState>>,
 ) -> Result<(), String> {
@@ -862,6 +888,15 @@ pub async fn realtime_dual_write_sync_if_legacy(
     realtime_dual_write_sync(app_state).await
 }
 
+#[cfg(not(feature = "full"))]
+pub async fn realtime_dual_write_sync_if_legacy(
+    _app_state: &Arc<RwLock<AppState>>,
+) -> Result<(), String> {
+    // lite 版无 PostgreSQL 镜像同步，历史调用点直接短路。
+    Ok(())
+}
+
+#[cfg(feature = "full")]
 async fn db_sync_apply_internal(
     strategy: ConflictStrategy,
     app_handle: AppHandle,
@@ -1111,6 +1146,7 @@ async fn db_sync_apply_internal(
     })
 }
 
+#[cfg(feature = "full")]
 fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
     let state_guard = state.read();
     let mut permissions = state_guard.permissions.write();
@@ -1125,6 +1161,7 @@ fn check_admin_permission(state: &Arc<RwLock<AppState>>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_test_connection(
     connection_string: String,
@@ -1201,6 +1238,7 @@ pub async fn db_test_connection(
     Ok(IpcResponse::success(result))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_switch_connection(
     connection_string: String,
@@ -1397,6 +1435,7 @@ pub async fn db_switch_connection(
 }
 
 /// 将当前业务连接切换到启动时缓存的本地 SQLite，并关闭旧的 PostgreSQL 连接池。
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_use_local_sqlite(
     state: State<'_, Arc<RwLock<AppState>>>,
@@ -1524,6 +1563,7 @@ pub async fn db_get_status(
     let db_guard = state_guard.db.read();
     let connected = db_guard.is_some();
 
+    #[cfg(feature = "full")]
     let db_type = db_guard
         .as_ref()
         .map(|connection| match connection.get_database_backend() {
@@ -1531,6 +1571,11 @@ pub async fn db_get_status(
             _ => "sqlite".to_string(),
         })
         .unwrap_or_else(|| "sqlite".to_string());
+    #[cfg(not(feature = "full"))]
+    let db_type = {
+        let _ = &db_guard;
+        "sqlite".to_string()
+    };
 
     Ok(IpcResponse::success(DatabaseStatus {
         db_type,
@@ -1539,6 +1584,7 @@ pub async fn db_get_status(
     }))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_sync_preview(
     app_handle: AppHandle,
@@ -1723,6 +1769,7 @@ pub async fn db_sync_preview(
     }))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_sync_apply(
     strategy: ConflictStrategy,
@@ -1734,6 +1781,7 @@ pub async fn db_sync_apply(
     Ok(IpcResponse::success(result))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn db_sync(
     state: State<'_, Arc<RwLock<AppState>>>,

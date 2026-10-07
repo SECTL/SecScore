@@ -7,10 +7,12 @@
   "scripts": {
     "dev": "node scripts/tauri-dev.cjs",
     "build": "node scripts/generate-about-content.mjs && vite build",
+    "build:lite": "node scripts/generate-about-content.mjs && vite build --mode lite",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.cjs",
     "sync-server:dev": "node scripts/start-sync-server-dev.mjs",
     "tauri:build": "tauri build",
+    "tauri:build:lite": "node scripts/tauri-build-lite.cjs",
     "build:win": "pnpm tauri build --target x86_64-pc-windows-msvc",
     "ios:sim": "node scripts/ios-sim.js",
     "clean": "node scripts/clean.cjs",

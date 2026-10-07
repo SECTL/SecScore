@@ -1,18 +1,22 @@
-use parking_lot::RwLock;
+#[cfg(feature = "full")]
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tauri::AppHandle;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::state::AppState;
 
+#[cfg(feature = "full")]
 use super::response::IpcResponse;
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterUrlProtocolResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registered: Option<bool>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UrlProtocolStatus {
     pub registered: bool,
@@ -21,6 +25,7 @@ pub struct UrlProtocolStatus {
     pub details: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElevationStatus {
     pub is_elevated: bool,
@@ -28,6 +33,7 @@ pub struct ElevationStatus {
     pub can_request_elevation: bool,
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn check_url_protocol_status(
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
@@ -236,6 +242,7 @@ if ($urlProtocol -and $command) {{
     }
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn unregister_url_protocol(
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
@@ -369,6 +376,7 @@ if (-not (Test-Path 'HKCU:\Software\Classes\{protocol}')) {{
     }
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn check_elevation(
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
@@ -413,6 +421,7 @@ pub async fn check_elevation(
     }
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn request_elevation(
     app: AppHandle,
@@ -513,6 +522,7 @@ pub async fn request_elevation(
     }
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn register_url_protocol(
     app: AppHandle,
@@ -801,7 +811,7 @@ pub async fn app_restart(
     app.restart();
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(all(feature = "full", target_os = "windows"))]
 fn check_windows_elevation() -> bool {
     use std::process::Command;
 
@@ -814,7 +824,7 @@ fn check_windows_elevation() -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(all(feature = "full", target_os = "macos"))]
 fn find_app_bundle(exe_path: &std::path::Path) -> Option<std::path::PathBuf> {
     let mut current = exe_path.parent()?;
     loop {

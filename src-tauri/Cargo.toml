@@ -10,22 +10,42 @@ rust-version = "1.70"
 name = "secscore_lib"
 crate-type = ["staticlib", "cdylib", "lib"]
 
+# `full`：完整版功能（云同步、OAuth、插件、MCP、REST API、局域网服务、自动加分、
+# 看板、结算、奖励、班优抓取等）。默认开启，保持 main 分支构建行为不变。
+# 不带 `full` 构建（`cargo build --no-default-features`）即 lite 便携版：
+# 仅保留主界面、积分操作、排行榜、多班级学生管理与设置页。
+[features]
+default = ["full"]
+full = [
+    "dep:tauri-plugin-deep-link",
+    "dep:axum",
+    "dep:rmcp",
+    "dep:reqwest",
+    "dep:dirs",
+    "dep:local-ip-address",
+    "dep:once_cell",
+    "dep:serde_yaml",
+    "dep:tokio-util",
+    "postgres",
+]
+postgres = ["sqlx/postgres", "sea-orm/sqlx-postgres"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "protocol-asset"] }
 tauri-plugin-shell = "2"
-tauri-plugin-deep-link = "2"
+tauri-plugin-deep-link = { version = "2", optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-serde_yaml = "0.9"
+serde_yaml = { version = "0.9", optional = true }
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.7"
-axum = "0.7"
-rmcp = { version = "1.2", features = ["transport-streamable-http-server"] }
-sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "postgres"] }
-sea-orm = { version = "0.12", features = ["sqlx-sqlite", "sqlx-postgres", "runtime-tokio-rustls"] }
+tokio-util = { version = "0.7", optional = true }
+axum = { version = "0.7", optional = true }
+rmcp = { version = "1.2", features = ["transport-streamable-http-server"], optional = true }
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
+sea-orm = { version = "0.12", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 aes = "0.8"
@@ -37,12 +57,12 @@ rand = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-once_cell = "1"
+once_cell = { version = "1", optional = true }
 parking_lot = { version = "0.12", features = ["send_guard"] }
-dirs = "6.0.0"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+dirs = { version = "6.0.0", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 urlencoding = "2.1"
-local-ip-address = "0.6.13"
+local-ip-address = { version = "0.6.13", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

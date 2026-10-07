@@ -12,7 +12,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
 import { WorkspaceManager } from "./WorkspaceManager"
-import { sectlAuth } from "../services/sectlAuth"
+import { LITE_BUILD } from "../shared/buildFlags"
 import appLogo from "../assets/logoHD.svg"
 
 const loadHome = () => import("./Home")
@@ -20,26 +20,40 @@ const loadStudentManager = () => import("./StudentManager")
 const loadSettings = () => import("./Settings")
 const loadReasonManager = () => import("./ReasonManager")
 const loadScoreManager = () => import("./ScoreManager")
-const loadAutoScoreManager = () => import("./AutoScoreManager")
+// lite 下被砍页面不参与打包（LITE_BUILD 常量使以下分支恒为空,rollup 剔除对应 chunk）。
+const loadAutoScoreManager = (): Promise<any> =>
+  LITE_BUILD ? Promise.resolve({}) : import("./AutoScoreManager")
 const loadLeaderboard = () => import("./Leaderboard")
-const loadSettlementHistory = () => import("./SettlementHistory")
-const loadRewardSettings = () => import("./RewardSettings")
-const loadBoardManager = () => import("./BoardManager")
-const loadPluginManager = () => import("./PluginManager")
+const loadSettlementHistory = (): Promise<any> =>
+  LITE_BUILD ? Promise.resolve({}) : import("./SettlementHistory")
+const loadRewardSettings = (): Promise<any> =>
+  LITE_BUILD ? Promise.resolve({}) : import("./RewardSettings")
+const loadBoardManager = (): Promise<any> =>
+  LITE_BUILD ? Promise.resolve({}) : import("./BoardManager")
+const loadPluginManager = (): Promise<any> =>
+  LITE_BUILD ? Promise.resolve({}) : import("./PluginManager")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
 const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
 const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })))
 const ReasonManager = lazy(() => loadReasonManager().then((m) => ({ default: m.ReasonManager })))
 const ScoreManager = lazy(() => loadScoreManager().then((m) => ({ default: m.ScoreManager })))
-const AutoScoreManager = lazy(loadAutoScoreManager)
-const Leaderboard = lazy(() => loadLeaderboard().then((m) => ({ default: m.Leaderboard })))
-const SettlementHistory = lazy(() =>
-  loadSettlementHistory().then((m) => ({ default: m.SettlementHistory }))
+const AutoScoreManager: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  loadAutoScoreManager().then((m) => ({ default: (m as any).AutoScoreManager ?? (() => null) }))
 )
-const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
-const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
-const PluginManager = lazy(() => loadPluginManager().then((m) => ({ default: m.PluginManager })))
+const Leaderboard = lazy(() => loadLeaderboard().then((m) => ({ default: m.Leaderboard })))
+const SettlementHistory: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  loadSettlementHistory().then((m) => ({ default: (m as any).SettlementHistory ?? (() => null) }))
+)
+const RewardSettings: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  loadRewardSettings().then((m) => ({ default: (m as any).RewardSettings }))
+)
+const BoardManager: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  loadBoardManager().then((m) => ({ default: (m as any).BoardManager }))
+)
+const PluginManager: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  loadPluginManager().then((m) => ({ default: (m as any).PluginManager }))
+)
 
 const warmupRouteChunks = () =>
   Promise.allSettled([
@@ -241,6 +255,11 @@ export function ContentArea({
     setStorageUsageError(null)
 
     try {
+      if (LITE_BUILD) {
+        setStorageUsage(null)
+        setStorageUsageError("lite 版不支持云用量查询")
+        return
+      }
       const api = (window as any).api
       if (!api?.oauthLoadLoginState || !api?.oauthGetStorageUsage) {
         setStorageUsage(null)
@@ -265,6 +284,7 @@ export function ContentArea({
         return
       }
 
+      const { sectlAuth } = await import("../services/sectlAuth")
       const accessToken = sectlAuth.getAccessToken()
       if (!accessToken || !sectlAuth.isAuthenticated()) {
         setStorageUsage(null)
@@ -483,7 +503,18 @@ export function ContentArea({
   const activeLanShareUrl =
     selectedLanShareUrl || lanStatus?.share_url || lanShareUrls[0]?.url || ""
 
-  const profilePopoverContent = (
+  // lite 便携版无云账号：头像气泡只展示本地权限身份。
+  const profilePopoverContent = LITE_BUILD ? (
+    <div style={{ width: "220px", display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ fontSize: "12px", color: "var(--ss-text-secondary)" }}>本地用户</div>
+      <div style={{ fontSize: "14px", color: "var(--ss-text-main)", fontWeight: 600 }}>
+        {userDisplayName}
+      </div>
+      <Button danger block size="small" onClick={onLogout} disabled={!hasAnyPassword}>
+        {t("auth.lock")}
+      </Button>
+    </div>
+  ) : (
     <div style={{ width: "260px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div
         style={{
@@ -561,6 +592,7 @@ export function ContentArea({
       </Button>
     </div>
   )
+
 
   const lanPopoverContent = (
     <div style={{ width: "300px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -688,6 +720,24 @@ export function ContentArea({
         </>
       )}
     </div>
+  )
+
+  // lite 下局域网访问后端不可用,顶栏按钮一并隐藏。
+  const lanButton = LITE_BUILD ? null : (
+    <Popover
+      trigger="click"
+      placement="bottomRight"
+      open={lanPopoverOpen}
+      onOpenChange={handleLanPopoverOpenChange}
+      content={lanPopoverContent}
+    >
+      <Button
+        size="small"
+        icon={<LinkOutlined />}
+        title="局域网访问"
+        disabled={permission !== "admin"}
+      />
+    </Popover>
   )
 
   return (
@@ -838,22 +888,7 @@ export function ContentArea({
         >
           <Space size="small">
             {!isLanBrowser && <WorkspaceManager compact />}
-            {!isLanBrowser && (
-              <Popover
-                trigger="click"
-                placement="bottomRight"
-                open={lanPopoverOpen}
-                onOpenChange={handleLanPopoverOpenChange}
-                content={lanPopoverContent}
-              >
-                <Button
-                  size="small"
-                  icon={<LinkOutlined />}
-                  title="局域网访问"
-                  disabled={permission !== "admin"}
-                />
-              </Popover>
-            )}
+            {!isLanBrowser && lanButton}
             {!isLanBrowser && (immersiveMode || (isHomePage && !isMobileDevice)) && (
               <Button
                 size="small"
@@ -984,19 +1019,46 @@ export function ContentArea({
                   <ScoreManager canEdit={permission === "admin" || permission === "points"} />
                 }
               />
-              <Route
-                path="/auto-score"
-                element={<AutoScoreManager canEdit={permission === "admin"} />}
-              />
-              <Route path="/boards" element={<BoardManager canManage={permission === "admin"} />} />
+              {!LITE_BUILD && (
+                <Route
+                  path="/auto-score"
+                  element={(
+                    <AutoScoreManager canEdit={permission === "admin"} />
+                  ) as any}
+                />
+              )}
+              {!LITE_BUILD && (
+                <Route
+                  path="/boards"
+                  element={(
+                    <BoardManager canManage={permission === "admin"} />
+                  ) as any}
+                />
+              )}
               <Route path="/leaderboard" element={<Leaderboard />} />
-              <Route path="/settlements" element={<SettlementHistory />} />
-              <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
-              <Route
-                path="/reward-settings"
-                element={<RewardSettings canEdit={permission === "admin"} />}
-              />
-              <Route path="/plugins" element={<PluginManager canEdit={permission === "admin"} />} />
+              {!LITE_BUILD && <Route
+                  path="/settlements"
+                  element={(<SettlementHistory />) as any}
+                />}
+              {!LITE_BUILD && (
+                <Route path="/reasons" element={<ReasonManager canEdit={permission === "admin"} />} />
+              )}
+              {!LITE_BUILD && (
+                <Route
+                  path="/reward-settings"
+                  element={(
+                    <RewardSettings canEdit={permission === "admin"} />
+                  ) as any}
+                />
+              )}
+              {!LITE_BUILD && (
+                <Route
+                  path="/plugins"
+                  element={(
+                    <PluginManager canEdit={permission === "admin"} />
+                  ) as any}
+                />
+              )}
               <Route path="/settings" element={<Settings permission={permission} />} />
               <Route path="*" element={<Navigate to={fallbackRoute} replace />} />
             </Routes>

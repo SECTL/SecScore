@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
+#[cfg(feature = "full")]
+use tauri::Manager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LogLevel {
@@ -71,11 +73,21 @@ impl LoggerService {
     }
 
     pub async fn initialize(&mut self, app_handle: &AppHandle) -> Result<(), String> {
+        #[cfg(not(feature = "full"))]
+        let log_dir = {
+            // lite 便携版：日志跟随数据目录（exe 旁 data/logs）。
+            crate::services::storage::resolve_storage_layout(app_handle)
+                .map(|layout| layout.data_root().join("logs"))
+                .unwrap_or_else(|_| PathBuf::from("logs"))
+        };
+        #[cfg(feature = "full")]
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
             .map_err(|e| format!("Failed to get app data directory: {}", e))?;
-        self.log_dir = app_data_dir.join("logs");
+        #[cfg(feature = "full")]
+        let log_dir = app_data_dir.join("logs");
+        self.log_dir = log_dir.clone();
         fs::create_dir_all(&self.log_dir).map_err(|e| e.to_string())?;
         let startup = Local::now().format("%Y%m%d-%H%M%S").to_string();
         self.current_log_file = Some(self.log_dir.join(format!("secscore-{}.log", startup)));
@@ -83,7 +95,7 @@ impl LoggerService {
             "客户端日志已初始化",
             serde_json::json!({
                 "log_file": self.current_log_file.as_ref().map(|path| path.display().to_string()),
-                "app_data_dir": app_data_dir.display().to_string(),
+                "log_dir": log_dir.display().to_string(),
             }),
         );
         Ok(())

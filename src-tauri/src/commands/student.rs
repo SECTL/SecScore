@@ -2,16 +2,23 @@ use parking_lot::RwLock;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
+#[cfg(feature = "full")]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "full")]
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
+#[cfg(feature = "full")]
 use tokio::process::Command;
+#[cfg(feature = "full")]
 use tokio::time::{timeout, Duration};
 
-use crate::db::entities::{reward_redemptions, score_events, students};
+#[cfg(feature = "full")]
+use crate::db::entities::reward_redemptions;
+use crate::db::entities::{score_events, students};
 use crate::models::{StudentUpdate, StudentWithTags};
+#[cfg(feature = "full")]
 use crate::services::logger::LogLevel;
 use crate::services::PermissionLevel;
 use crate::state::AppState;
@@ -39,11 +46,13 @@ fn normalize_optional_student_field(value: Option<&str>) -> Option<String> {
         .map(ToString::to_string)
 }
 
+#[cfg(feature = "full")]
 #[derive(Deserialize)]
 pub struct FetchBanYouClassroomsParams {
     pub cookie: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FetchBanYouClassroomDetailParams {
@@ -52,6 +61,7 @@ pub struct FetchBanYouClassroomDetailParams {
     pub team_plan_id: Option<i64>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouBrowserCookieData {
@@ -59,6 +69,7 @@ pub struct BanYouBrowserCookieData {
     pub count: usize,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouClassroom {
@@ -81,6 +92,7 @@ pub struct BanYouClassroom {
     pub is_own: Option<bool>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouClassroomFetchData {
@@ -90,6 +102,7 @@ pub struct BanYouClassroomFetchData {
     pub administrative_groups: Vec<BanYouClassroom>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouMedal {
@@ -109,6 +122,7 @@ pub struct BanYouMedal {
     pub custom_avatar: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouStudentItem {
@@ -124,6 +138,7 @@ pub struct BanYouStudentItem {
     pub custom_avatar: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouTeamItem {
@@ -135,6 +150,7 @@ pub struct BanYouTeamItem {
     pub students: Vec<BanYouStudentItem>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouStudentFetchData {
@@ -142,6 +158,7 @@ pub struct BanYouStudentFetchData {
     pub students: Vec<BanYouStudentItem>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouGroupFetchData {
@@ -151,6 +168,7 @@ pub struct BanYouGroupFetchData {
     pub students: Vec<BanYouStudentItem>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouClassroomDetailData {
@@ -170,6 +188,7 @@ pub struct BanYouClassroomDetailData {
     pub team_plan_source: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct BanYouTeamPlanOption {
@@ -178,6 +197,7 @@ pub struct BanYouTeamPlanOption {
     pub name: String,
 }
 
+#[cfg_attr(not(feature = "full"), allow(dead_code))]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 struct BanYouGroupCollectionPlan {
@@ -187,6 +207,7 @@ struct BanYouGroupCollectionPlan {
     pub plan_name: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 struct BanYouGroupCollectionData {
@@ -194,6 +215,7 @@ struct BanYouGroupCollectionData {
     pub class_team_plans: Vec<BanYouGroupCollectionPlan>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Deserialize)]
 struct BanYouApiResponse<T> {
     pub code: i32,
@@ -215,6 +237,7 @@ fn check_view_permission(state: &Arc<RwLock<AppState>>, sender_id: Option<u32>) 
     permissions.require_permission(id, PermissionLevel::View)
 }
 
+#[cfg(feature = "full")]
 fn log_banyou(
     state: &Arc<RwLock<AppState>>,
     level: LogLevel,
@@ -226,10 +249,12 @@ fn log_banyou(
     logger.log(level, message, Some("student:banyou"), meta);
 }
 
+#[cfg_attr(not(feature = "full"), allow(dead_code))]
 fn first_n_chars(text: &str, n: usize) -> String {
     text.chars().take(n).collect()
 }
 
+#[cfg_attr(not(feature = "full"), allow(dead_code))]
 fn extract_between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str> {
     let from = text.find(start)?;
     let from_idx = from + start.len();
@@ -238,6 +263,7 @@ fn extract_between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str>
     Some(&tail[..to])
 }
 
+#[cfg(feature = "full")]
 fn extract_csrf_token_from_html(html: &str) -> Option<String> {
     let patterns = [
         ("name=\"csrf-token\" content=\"", "\""),
@@ -258,6 +284,7 @@ fn extract_csrf_token_from_html(html: &str) -> Option<String> {
     None
 }
 
+#[cfg(feature = "full")]
 fn find_node_project_dir() -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if let Ok(current_dir) = std::env::current_dir() {
@@ -284,6 +311,7 @@ fn find_node_project_dir() -> Option<PathBuf> {
     None
 }
 
+#[cfg(feature = "full")]
 fn node_executable() -> &'static str {
     if cfg!(windows) {
         "node.exe"
@@ -292,6 +320,7 @@ fn node_executable() -> &'static str {
     }
 }
 
+#[cfg(feature = "full")]
 async fn run_banyou_playwright_script(
     project_dir: &Path,
 ) -> Result<BanYouBrowserCookieData, String> {
@@ -327,6 +356,7 @@ async fn run_banyou_playwright_script(
         .map_err(|e| format!("Failed to parse Playwright Cookie output: {}", e))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn student_fetch_banyou_cookie_with_browser(
     state: State<'_, Arc<RwLock<AppState>>>,
@@ -387,6 +417,7 @@ pub async fn student_fetch_banyou_cookie_with_browser(
     }
 }
 
+#[cfg(feature = "full")]
 async fn get_banyou_client_and_csrf(
     state: &Arc<RwLock<AppState>>,
     cookie: &str,
@@ -452,6 +483,7 @@ async fn get_banyou_client_and_csrf(
     Ok((client, csrf_token))
 }
 
+#[cfg(feature = "full")]
 async fn post_banyou_action<T: DeserializeOwned>(
     state: &Arc<RwLock<AppState>>,
     client: &reqwest::Client,
@@ -564,6 +596,7 @@ async fn post_banyou_action<T: DeserializeOwned>(
         .ok_or_else(|| format!("班优接口返回空数据（{}）", action))
 }
 
+#[cfg(feature = "full")]
 async fn try_fetch_team_plans(
     state: &Arc<RwLock<AppState>>,
     client: &reqwest::Client,
@@ -598,6 +631,7 @@ async fn try_fetch_team_plans(
     (Vec::new(), None)
 }
 
+#[cfg(feature = "full")]
 async fn fetch_image_as_data_url(
     client: &reqwest::Client,
     image_url: &str,
@@ -869,6 +903,7 @@ pub async fn student_update(
                                     .filter(score_events::Column::StudentName.eq(&old_name))
                                     .exec(txn)
                                     .await?;
+                                #[cfg(feature = "full")]
                                 reward_redemptions::Entity::update_many()
                                     .col_expr(
                                         reward_redemptions::Column::StudentName,
@@ -1044,6 +1079,7 @@ pub async fn student_import_from_xlsx(
     }
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn student_fetch_banyou_classrooms(
     state: State<'_, Arc<RwLock<AppState>>>,
@@ -1157,6 +1193,7 @@ pub async fn student_fetch_banyou_classrooms(
     Ok(IpcResponse::success(data))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn student_fetch_banyou_classroom_detail(
     state: State<'_, Arc<RwLock<AppState>>>,

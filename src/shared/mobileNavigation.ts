@@ -1,3 +1,5 @@
+import { LITE_BUILD } from "./buildFlags"
+
 export const MOBILE_NAV_ALL_KEYS = [
   "home",
   "students",
@@ -21,7 +23,7 @@ export interface MobileNavItemConfig {
   adminOnly?: boolean
 }
 
-export const MOBILE_NAV_ITEMS: MobileNavItemConfig[] = [
+const FULL_NAV_ITEMS: MobileNavItemConfig[] = [
   { key: "home", path: "/home", labelKey: "sidebar.home" },
   { key: "students", path: "/students", labelKey: "sidebar.students", adminOnly: true },
   { key: "score", path: "/score", labelKey: "sidebar.score" },
@@ -40,7 +42,14 @@ export const MOBILE_NAV_ITEMS: MobileNavItemConfig[] = [
   { key: "settings", path: "/settings", labelKey: "sidebar.settings" },
 ]
 
-const MOBILE_NAV_KEY_SET = new Set<string>(MOBILE_NAV_ALL_KEYS)
+// lite 便携版仅保留核心页面；full 保持原导航不变。
+const LITE_NAV_KEYS: MobileNavKey[] = ["home", "students", "score", "leaderboard", "settings"]
+
+export const MOBILE_NAV_ITEMS: MobileNavItemConfig[] = LITE_BUILD
+  ? FULL_NAV_ITEMS.filter((item) => LITE_NAV_KEYS.includes(item.key))
+  : FULL_NAV_ITEMS
+
+const MOBILE_NAV_KEY_SET = new Set<string>(MOBILE_NAV_ITEMS.map((item) => item.key))
 
 export const sanitizeMobileNavKeys = (
   input: unknown,

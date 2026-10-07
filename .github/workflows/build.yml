@@ -24,6 +24,7 @@ jobs:
       run_mac: ${{ steps.parse.outputs.run_mac }}
       run_linux: ${{ steps.parse.outputs.run_linux }}
       run_android: ${{ steps.parse.outputs.run_android }}
+      run_lite_win: ${{ steps.parse.outputs.run_lite_win }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -282,9 +283,44 @@ jobs:
             src-tauri/gen/android/app/build/outputs/**/*.apk
             !src-tauri/gen/android/app/build/outputs/**/*-unsigned.apk
 
+  build_win_lite:
+    needs: parse
+    if: ${{ needs.parse.outputs.run_lite_win == 'true' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: 安装 Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 应用版本号
+        run: node scripts/ci/apply-version.mjs ${{ needs.parse.outputs.version }}
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建（Windows lite 便携版）
+        run: pnpm tauri:build:lite
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-win-lite
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/SecScoreLite.exe
+
   release:
-    needs: [parse, build_win, build_mac, build_linux, build_android]
-    if: ${{ always() && needs.parse.outputs.tag != '' && (needs.build_win.result == 'success' || needs.build_win.result == 'skipped') && (needs.build_mac.result == 'success' || needs.build_mac.result == 'skipped') && (needs.build_linux.result == 'success' || needs.build_linux.result == 'skipped') && (needs.build_android.result == 'success' || needs.build_android.result == 'skipped') }}
+    needs: [parse, build_win, build_mac, build_linux, build_android, build_win_lite]
+    if: ${{ always() && needs.parse.outputs.tag != '' && (needs.build_win.result == 'success' || needs.build_win.result == 'skipped') && (needs.build_mac.result == 'success' || needs.build_mac.result == 'skipped') && (needs.build_linux.result == 'success' || needs.build_linux.result == 'skipped') && (needs.build_android.result == 'success' || needs.build_android.result == 'skipped') && (needs.build_win_lite.result == 'success' || needs.build_win_lite.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -295,7 +331,7 @@ jobs:
       - name: 列出产物文件
         run: |
           echo "Artifacts found:"
-          find artifacts -type f -name "*.msi" -o -name "*.exe" -o -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.apk" 2>/dev/null || true
+          find artifacts -type f -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.apk" 2>/dev/null || true
 
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
@@ -305,8 +341,8 @@ jobs:
           draft: True
           prerelease: ${{ contains(needs.parse.outputs.version, '-') }}
           files: |
-            artifacts/**/*.msi
             artifacts/**/*.exe
+            artifacts/**/*.msi
             artifacts/**/*.dmg
             artifacts/**/*.app.tar.gz
             artifacts/**/*.deb

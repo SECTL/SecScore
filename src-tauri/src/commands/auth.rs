@@ -22,6 +22,7 @@ fn sync_permission_flags(settings: &SettingsService, permissions: &mut Permissio
 }
 
 /// 生成标准 UUID v4
+#[cfg(feature = "full")]
 fn generate_uuid() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -43,6 +44,7 @@ fn generate_uuid() -> String {
 }
 
 /// 获取设备 UUID（从存储或生成新的）
+#[cfg(feature = "full")]
 fn get_or_create_device_uuid() -> String {
     // 尝试从存储中读取
     if let Ok(uuid) = std::fs::read_to_string(get_device_uuid_file_path()) {
@@ -62,6 +64,7 @@ fn get_or_create_device_uuid() -> String {
 }
 
 /// 获取设备 UUID 文件路径
+#[cfg(feature = "full")]
 fn get_device_uuid_file_path() -> std::path::PathBuf {
     let app_dir = dirs::config_dir()
         .map(|p| p.join("secscore"))
@@ -72,6 +75,7 @@ fn get_device_uuid_file_path() -> std::path::PathBuf {
 }
 
 /// 验证 UUID 格式
+#[cfg(feature = "full")]
 fn is_valid_uuid(uuid: &str) -> bool {
     uuid.len() == 36
         && uuid.chars().nth(8) == Some('-')
@@ -81,6 +85,7 @@ fn is_valid_uuid(uuid: &str) -> bool {
 }
 
 /// 获取本机 IP 地址
+#[cfg(feature = "full")]
 async fn get_local_ip() -> Result<String, String> {
     // 尝试通过外部服务获取公网 IP
     match reqwest::get("https://api.ipify.org").await {
@@ -120,12 +125,14 @@ pub struct SetPasswordsResponse {
     pub recovery_string: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthConfig {
     pub platform_id: String,
     pub callback_url: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthTokenResponse {
     pub access_token: String,
@@ -134,6 +141,7 @@ pub struct OAuthTokenResponse {
     pub expires_in: i64,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthUserInfo {
     pub user_id: String,
@@ -143,6 +151,7 @@ pub struct OAuthUserInfo {
     pub permission: u32,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthIntrospectResponse {
     pub active: bool,
@@ -166,6 +175,7 @@ pub struct OAuthIntrospectResponse {
     pub iss: Option<String>,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthAuthorizationUrlResponse {
     pub url: String,
@@ -178,23 +188,38 @@ pub async fn auth_get_status(
     sender_id: Option<u32>,
     state: State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<IpcResponse<AuthStatusResponse>, String> {
-    let state_guard = state.read();
-    let db_conn = state_guard.db.read().clone();
-    let mut settings = state_guard.settings.write();
-    settings.attach_db(db_conn);
-    settings.initialize().await?;
-    let mut permissions = state_guard.permissions.write();
+    #[cfg(not(feature = "full"))]
+    {
+        // lite 便携版：无密码/权限体系，始终以管理员身份使用。
+        let _ = (sender_id, &state);
+        return Ok(IpcResponse::success(AuthStatusResponse {
+            permission: "admin".to_string(),
+            has_admin_password: false,
+            has_points_password: false,
+            has_recovery_string: false,
+        }));
+    }
 
-    let status = AuthService::get_status(&settings, sender_id, &mut permissions);
+    #[cfg(feature = "full")]
+    {
+        let state_guard = state.read();
+        let db_conn = state_guard.db.read().clone();
+        let mut settings = state_guard.settings.write();
+        settings.attach_db(db_conn);
+        settings.initialize().await?;
+        let mut permissions = state_guard.permissions.write();
 
-    let response = AuthStatusResponse {
-        permission: status.permission,
-        has_admin_password: status.has_admin_password,
-        has_points_password: status.has_points_password,
-        has_recovery_string: status.has_recovery_string,
-    };
+        let status = AuthService::get_status(&settings, sender_id, &mut permissions);
 
-    Ok(IpcResponse::success(response))
+        let response = AuthStatusResponse {
+            permission: status.permission,
+            has_admin_password: status.has_admin_password,
+            has_points_password: status.has_points_password,
+            has_recovery_string: status.has_recovery_string,
+        };
+
+        Ok(IpcResponse::success(response))
+    }
 }
 
 #[tauri::command]
@@ -397,6 +422,7 @@ pub async fn auth_clear_all(
 }
 
 /// 生成 PKCE code_verifier
+#[cfg(feature = "full")]
 fn generate_code_verifier() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -408,6 +434,7 @@ fn generate_code_verifier() -> String {
 }
 
 /// 生成 PKCE code_challenge (S256)
+#[cfg(feature = "full")]
 fn generate_code_challenge(verifier: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -416,7 +443,9 @@ fn generate_code_challenge(verifier: &str) -> String {
     base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, &result)
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_get_authorization_url(
     platform_id: String,
     callback_url: String,
@@ -451,7 +480,9 @@ pub async fn oauth_get_authorization_url(
     }))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_exchange_code(
     code: String,
     platform_id: String,
@@ -527,7 +558,9 @@ pub async fn oauth_exchange_code(
     Ok(IpcResponse::success(token_response))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_revoke_token(
     token: String,
     token_type_hint: Option<String>,
@@ -564,7 +597,9 @@ pub async fn oauth_revoke_token(
     Ok(IpcResponse::success(()))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_introspect_token(
     token: String,
     platform_id: String,
@@ -599,7 +634,9 @@ pub async fn oauth_introspect_token(
     Ok(IpcResponse::success(introspect_response))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_get_user_info(
     access_token: String,
     state: State<'_, Arc<RwLock<AppState>>>,
@@ -655,7 +692,9 @@ pub async fn oauth_get_user_info(
     Ok(IpcResponse::success(user_info))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_refresh_token(
     refresh_token: String,
     platform_id: String,
@@ -691,12 +730,14 @@ pub async fn oauth_refresh_token(
     Ok(IpcResponse::success(token_response))
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OnlineStatusResponse {
     pub success: bool,
     pub message: String,
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthStorageUsageResponse {
     pub used_storage: i64,
@@ -709,7 +750,9 @@ pub struct OAuthStorageUsageResponse {
     pub file_count: i64,
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_get_storage_usage(
     access_token: String,
     platform_id: String,
@@ -754,7 +797,9 @@ pub async fn oauth_get_storage_usage(
     Ok(IpcResponse::success(storage_usage))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_report_online(
     platform_id: String,
     device_type: String,
@@ -814,13 +859,16 @@ pub async fn oauth_report_online(
     Ok(IpcResponse::success(result))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_get_device_uuid() -> Result<IpcResponse<String>, String> {
     let device_uuid = get_or_create_device_uuid();
     Ok(IpcResponse::success(device_uuid))
 }
 
 /// OAuth 登录状态文件路径
+#[cfg(feature = "full")]
 fn get_oauth_state_file_path() -> std::path::PathBuf {
     let app_dir = dirs::config_dir()
         .map(|p| p.join("secscore"))
@@ -829,6 +877,7 @@ fn get_oauth_state_file_path() -> std::path::PathBuf {
     app_dir.join("oauth_state.json")
 }
 
+#[cfg(feature = "full")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthState {
     pub access_token: String,
@@ -842,7 +891,9 @@ pub struct OAuthState {
     pub login_time: String,
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_save_login_state(state_data: OAuthState) -> Result<IpcResponse<()>, String> {
     println!("[OAuth] 保存登录状态 - user_id: {}", state_data.user_id);
 
@@ -856,7 +907,9 @@ pub async fn oauth_save_login_state(state_data: OAuthState) -> Result<IpcRespons
     Ok(IpcResponse::success(()))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_load_login_state() -> Result<IpcResponse<Option<OAuthState>>, String> {
     let file_path = get_oauth_state_file_path();
 
@@ -874,7 +927,9 @@ pub async fn oauth_load_login_state() -> Result<IpcResponse<Option<OAuthState>>,
     Ok(IpcResponse::success(Some(state)))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
+#[cfg(feature = "full")]
 pub async fn oauth_clear_login_state() -> Result<IpcResponse<()>, String> {
     let file_path = get_oauth_state_file_path();
 
@@ -886,6 +941,7 @@ pub async fn oauth_clear_login_state() -> Result<IpcResponse<()>, String> {
     Ok(IpcResponse::success(()))
 }
 
+#[cfg(feature = "full")]
 #[tauri::command]
 pub async fn oauth_refresh_access_token(
     refresh_token: String,

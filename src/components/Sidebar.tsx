@@ -15,6 +15,7 @@ import {
 } from "@ant-design/icons"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
+import { LITE_BUILD } from "../shared/buildFlags"
 import appLogo from "../assets/logoHD.svg"
 
 const { Sider } = Layout
@@ -212,6 +213,11 @@ export function Sidebar({
       disabled: permission !== "admin",
     },
   ].filter((item) => showHome || item.key !== "home")
+    .filter((item) => {
+      if (!LITE_BUILD) return true
+      // lite 便携版仅保留核心导航；被砍功能的入口一律隐藏。
+      return ["home", "students", "score", "leaderboard", "settings"].includes(item.key)
+    })
 
   const showFloatingPanel = floatingExpand && collapsed && floatingExpanded
 
@@ -301,7 +307,7 @@ export function Sidebar({
         </div>
       )}
 
-      {!isCollapsedView && !hideMenu && dbStatus.type === "postgresql" && (
+      {!isCollapsedView && !hideMenu && dbStatus.type === "postgresql" && !LITE_BUILD && (
         <Card
           size="small"
           style={{

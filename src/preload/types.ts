@@ -1,11 +1,20 @@
 import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
-import { syncClient } from "../services/syncClient"
+import { LITE_BUILD } from "../shared/buildFlags"
 
+// full 构建下成功后请求云端快照；lite 无同步，动态 import 也被跳过。
 const requestSnapshotOnSuccess = <T>(result: T): T => {
-  if ((result as any)?.success) syncClient.requestSnapshot()
+  if (!LITE_BUILD && (result as any)?.success) {
+    void import("../services/syncClient").then(({ syncClient }) => syncClient.requestSnapshot())
+  }
   return result
 }
+
+const createOperationId = (): string => {
+  if (LITE_BUILD) return crypto.randomUUID()
+  return ""
+}
+
 
 export interface themeConfig {
   name: string
@@ -414,18 +423,20 @@ const api = {
     data?: { redemption_id: number; remaining_reward_points: number }
     message?: string
   }> => {
-    const operationId = syncClient.createOperationId()
+    const operationId = LITE_BUILD ? crypto.randomUUID() : createOperationId()
     const result = await invoke<{
       success: boolean
       data?: { redemption_id: number; remaining_reward_points: number }
       message?: string
     }>("reward_redeem", { data: { ...data, operation_id: operationId } })
-    if (result.success) {
-      void syncClient.enqueueRewardRedemption({
-        student_name: data.student_name,
-        reward_id: data.reward_id,
-        operation_id: operationId,
-      })
+    if (result.success && !LITE_BUILD) {
+      void import("../services/syncClient").then(({ syncClient }) =>
+        syncClient.enqueueRewardRedemption({
+          student_name: data.student_name,
+          reward_id: data.reward_id,
+          operation_id: operationId,
+        })
+      )
     }
     return result
   },
@@ -447,19 +458,21 @@ const api = {
       student_name: String(data.student_name ?? data.studentName ?? "").trim(),
       reason_content: String(data.reason_content ?? data.reasonContent ?? "").trim(),
       delta: Number(data.delta),
-      operation_id: syncClient.createOperationId(),
+      operation_id: LITE_BUILD ? crypto.randomUUID() : createOperationId(),
     }
     const result = await invoke<{ success: boolean; data?: number; message?: string }>(
       "event_create",
       { data: normalized }
     )
-    if (result.success) {
-      void syncClient.enqueueScoreAdjustment({
-        student_name: normalized.student_name,
-        reason_content: normalized.reason_content,
-        delta: normalized.delta,
-        operation_id: normalized.operation_id,
-      })
+    if (result.success && !LITE_BUILD) {
+      void import("../services/syncClient").then(({ syncClient }) =>
+        syncClient.enqueueScoreAdjustment({
+          student_name: normalized.student_name,
+          reason_content: normalized.reason_content,
+          delta: normalized.delta,
+          operation_id: normalized.operation_id,
+        })
+      )
     }
     return result
   },
@@ -613,7 +626,11 @@ const api = {
     value: settingsSpec[K]
   ): Promise<{ success: boolean }> =>
     invoke<{ success: boolean }>("settings_set", { key, value }).then((result) => {
-      if (result.success) syncClient.requestSnapshot()
+      if (result.success && !LITE_BUILD) {
+        void import("../services/syncClient").then(({ syncClient }) =>
+          syncClient.requestSnapshot()
+        )
+      }
       return result
     }),
   getSystemFonts: (): Promise<{ success: boolean; data: string[]; message?: string }> =>

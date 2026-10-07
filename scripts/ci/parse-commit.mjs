@@ -38,6 +38,7 @@ const supportedBuildScripts = new Set([
   "build:linux",
   "build:android",
   "build:unpack",
+  "build:lite-win",
 ])
 const hasBuildScript = buildScript
   ? buildScript === "build:all"
@@ -84,6 +85,7 @@ const runMac = !shouldSkip && (buildScript === "build:all" || buildScript === "b
 const runLinux = !shouldSkip && (buildScript === "build:all" || buildScript === "build:linux")
 const runAndroid = !shouldSkip && (buildScript === "build:all" || buildScript === "build:android")
 const runUnpack = !shouldSkip && buildScript === "build:unpack"
+const runLiteWin = !shouldSkip && (buildScript === "build:all" || buildScript === "build:lite-win")
 
 const outputs = {
   version: shouldSkip ? "" : version,
@@ -94,6 +96,7 @@ const outputs = {
   run_linux: String(runLinux),
   run_android: String(runAndroid),
   run_unpack: String(runUnpack),
+  run_lite_win: String(runLiteWin),
 }
 
 if (process.env.GITHUB_OUTPUT) {

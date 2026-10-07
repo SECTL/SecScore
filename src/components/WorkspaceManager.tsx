@@ -1,11 +1,18 @@
 import { AppstoreOutlined, PlusOutlined, ReloadOutlined, SwapOutlined } from "@ant-design/icons"
 import { Button, Divider, Input, List, Modal, Space, Tag, message } from "antd"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { OAuthLogin } from "./OAuth/OAuthLogin"
+import { LITE_BUILD } from "../shared/buildFlags"
+import { lazy } from "react"
+
+const LazyOAuthLogin: React.LazyExoticComponent<React.ComponentType<any>> = lazy(() =>
+  LITE_BUILD
+    ? Promise.resolve({ default: () => null as any })
+    : import("./OAuth/OAuthLogin").then((m) => ({ default: m.OAuthLogin as any }))
+)
+
+// 以下动态 import 的模块在 full 构建下共享云同步状态,在 lite 下被裁剪,
+// 因此所有引用点都先用 LITE_BUILD 短路。
 import type { WorkspaceState } from "../preload/types"
-import { getBackendBaseUrl } from "../services/backendApi"
-import { sectlAuth } from "../services/sectlAuth"
-import { syncClient } from "../services/syncClient"
 
 interface WorkspaceManagerProps {
   compact?: boolean
@@ -159,7 +166,10 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       const result = await (window as any).api.workspaceSwitchClass(classId)
       if (result?.success) {
         applyState(result.data)
-        syncClient.switchClass()
+        if (!LITE_BUILD) {
+          const { syncClient } = await import("../services/syncClient")
+          syncClient.switchClass()
+        }
       }
       return result
     })
@@ -171,13 +181,19 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       if (result?.success) {
         const target = result.data?.accounts?.find((item: { id: string }) => item.id === accountId)
         applyState(result.data)
-        if (target?.user_id) restoreStoredToken(target.user_id)
-        syncClient.switchClass()
+        if (!LITE_BUILD) {
+          if (target?.user_id) restoreStoredToken(target.user_id)
+          const { syncClient } = await import("../services/syncClient")
+          syncClient.switchClass()
+        }
       }
       return result
     })
 
   const persistCurrentToken = () => {
+    if (LITE_BUILD) return
+    void (async () => {
+    const { sectlAuth } = await import("../services/sectlAuth")
     const userId = sectlAuth.getUserId()
     const token = sectlAuth.getToken()
     if (!userId || !token) {
@@ -197,10 +213,14 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       workspaceLog("warn", "account_token_persist_failed", { user_id: maskIdentifier(userId) })
       // token 持久化失败不阻断当前会话。
     }
+    })()
   }
 
   const restoreStoredToken = useCallback((userId: string) => {
+    if (LITE_BUILD) return
+    void (async () => {
     try {
+      const { sectlAuth } = await import("../services/sectlAuth")
       const raw = localStorage.getItem(`sectl_token:${userId}`)
       if (raw) {
         const token = JSON.parse(raw)
@@ -219,10 +239,14 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       workspaceLog("warn", "account_token_restore_failed", { user_id: maskIdentifier(userId) })
       // 该账号没有可恢复的凭据时，保留未登录状态。
     }
+    })()
   }, [])
 
   const remoteRequest = useCallback(async (path: string, init: RequestInit = {}) => {
+    if (LITE_BUILD) throw new Error("lite 版不支持在线班级")
     const startedAt = performance.now()
+    const { sectlAuth } = await import("../services/sectlAuth")
+    const { getBackendBaseUrl } = await import("../services/backendApi")
     const method = init.method || "GET"
     const token = sectlAuth.getAccessToken()
     if (!token || !sectlAuth.isAuthenticated()) {
@@ -275,6 +299,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
   const activeUserId = currentAccount?.user_id || undefined
 
   const refreshRemoteClasses = useCallback(async () => {
+    if (LITE_BUILD) return { success: true }
     if (activeAccountKind !== "sectl" || !activeUserId) {
       workspaceLog("debug", "remote_classes_refresh_skipped", {
         reason: "current_account_is_not_sectl",
@@ -283,6 +308,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
       return { success: true }
     }
 
+    const { sectlAuth } = await import("../services/sectlAuth")
     if (sectlAuth.getUserId() !== activeUserId) {
       restoreStoredToken(activeUserId)
     }
@@ -366,7 +392,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     })
   }
 
-  const handleOAuthSuccess = (userInfo: {
+  const handleOAuthSuccess = async (userInfo: {
     user_id?: string
     id?: string
     email?: string
@@ -385,6 +411,7 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
     setOAuthSessionExpired(false)
     persistCurrentToken()
     try {
+      const { sectlAuth } = await import("../services/sectlAuth")
       const token = sectlAuth.getToken()
       if (token) localStorage.setItem(`sectl_token:${userId}`, JSON.stringify(token))
     } catch {
@@ -408,7 +435,10 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
           created.id,
           created.join_code
         )
-        if (online?.success) syncClient.requestSnapshot()
+        if (online?.success && !LITE_BUILD) {
+          const { syncClient } = await import("../services/syncClient")
+          syncClient.requestSnapshot()
+        }
         return online
       }
       return result
@@ -427,8 +457,8 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
         joined.id,
         joined.join_code
       )
-      if (result?.success) {
-        setJoinCode("")
+      if (result?.success && !LITE_BUILD) {
+        const { syncClient } = await import("../services/syncClient")
         syncClient.requestSnapshot()
       }
       return result
@@ -446,7 +476,10 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
         created.id,
         created.join_code
       )
-      if (result?.success) syncClient.requestSnapshot()
+      if (result?.success && !LITE_BUILD) {
+        const { syncClient } = await import("../services/syncClient")
+        syncClient.requestSnapshot()
+      }
       return result
     })
   }
@@ -690,11 +723,13 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
           </div>
         </Space>
       </Modal>
-      <OAuthLogin
-        visible={oauthOpen}
-        onClose={() => setOAuthOpen(false)}
-        onSuccess={handleOAuthSuccess}
-      />
+      {!LITE_BUILD && (
+        <LazyOAuthLogin
+          visible={oauthOpen}
+          onClose={() => setOAuthOpen(false)}
+          onSuccess={handleOAuthSuccess}
+        />
+      )}
     </>
   )
 }

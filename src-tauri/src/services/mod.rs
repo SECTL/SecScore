@@ -1,8 +1,10 @@
 pub mod auth;
+#[cfg(feature = "full")]
 pub mod auto_score;
 pub mod data;
 pub mod logger;
 pub mod permission;
+#[cfg(feature = "full")]
 pub mod plugin;
 pub mod security;
 pub mod settings;
@@ -11,6 +13,7 @@ pub mod theme;
 pub mod workspace;
 
 pub use auth::AuthService;
+#[cfg(feature = "full")]
 pub use auto_score::{
     apply_offline_backfill, query_execution_batches, rollback_execution_batch, AutoScoreAction,
     AutoScoreBackfillItem, AutoScoreBackfillResult, AutoScoreExecutionBatch,
@@ -20,8 +23,11 @@ pub use auto_score::{
 pub use data::DataService;
 pub use logger::LoggerService;
 pub use permission::{PermissionLevel, PermissionService};
+#[cfg(feature = "full")]
 pub use plugin::{Plugin, PluginManifest, PluginRuntimeModule, PluginService, PluginStats};
 pub use security::SecurityService;
 pub use settings::{SettingsKey, SettingsService, SettingsSpec, SettingsValue};
 pub use theme::{ThemeConfig, ThemeService};
-pub use workspace::{AccountRecord, ClassRecord, OnlineClassInput, WorkspaceService, WorkspaceState};
+pub use workspace::{AccountRecord, ClassRecord, WorkspaceService, WorkspaceState};
+#[cfg(feature = "full")]
+pub use workspace::OnlineClassInput;

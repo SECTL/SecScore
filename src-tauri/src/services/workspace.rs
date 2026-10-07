@@ -430,6 +430,7 @@ impl WorkspaceService {
         Ok(connection)
     }
 
+    #[cfg(feature = "full")]
     pub async fn upsert_sectl_account(
         &mut self,
         user_id: String,
@@ -479,6 +480,7 @@ impl WorkspaceService {
         Ok(connection)
     }
 
+    #[cfg(feature = "full")]
     pub async fn add_online_class(
         &mut self,
         name: String,
@@ -491,6 +493,7 @@ impl WorkspaceService {
         self.open_class(&class_id).await
     }
 
+    #[cfg(feature = "full")]
     pub async fn upsert_online_class(
         &mut self,
         name: String,
@@ -578,6 +581,7 @@ impl WorkspaceService {
         Ok(id)
     }
 
+    #[cfg(feature = "full")]
     pub async fn upsert_online_classes(
         &mut self,
         classes: Vec<OnlineClassInput>,
@@ -632,6 +636,7 @@ impl WorkspaceService {
         Ok(())
     }
 
+    #[cfg(feature = "full")]
     pub async fn mark_class_online(
         &mut self,
         class_id: String,
@@ -667,6 +672,7 @@ impl WorkspaceService {
         Ok(connection)
     }
 
+    #[cfg(feature = "full")]
     pub async fn switch_account(&mut self, account_id: &str) -> Result<DatabaseConnection, String> {
         info!(
             event = "workspace_switch_account_start",
@@ -717,6 +723,7 @@ impl WorkspaceService {
         Ok(connection)
     }
 
+    #[cfg(feature = "full")]
     pub async fn remove_account(&mut self, account_id: &str) -> Result<(), String> {
         info!(
             event = "workspace_remove_account_start",
