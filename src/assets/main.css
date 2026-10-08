@@ -1437,6 +1437,17 @@ html.platform-macos body {
   transform: scale(0.98);
 }
 
+.ss-search-keyboard .ant-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: none !important;
+  will-change: auto;
+}
+
+.ss-search-keyboard .ant-btn:not(:disabled):active {
+  transform: none !important;
+}
+
 .ss-sectl-ripple {
   position: absolute;
   z-index: 0;

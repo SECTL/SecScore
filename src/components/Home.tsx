@@ -4896,6 +4896,7 @@ export const Home: React.FC<HomeProps> = ({
                 />
                 {canShowSearchKeyboard && showPinyinKeyboard && (
                   <div
+                    className="ss-search-keyboard"
                     style={{
                       position: "absolute",
                       top: "calc(100% + 8px)",
@@ -5362,6 +5363,7 @@ export const Home: React.FC<HomeProps> = ({
           )}
           {canShowSearchKeyboard && showPinyinKeyboard && (
             <div
+              className="ss-search-keyboard"
               style={{
                 position: "absolute",
                 bottom: "calc(100% + 8px)",

@@ -82,7 +82,7 @@ function MainContent(): React.JSX.Element {
 
       if (
         button.closest(
-          ".ss-operation-drawer, .ss-home-operation-morph-modal, .ss-operation-panel, .ss-immersive-toolbar"
+          ".ss-operation-drawer, .ss-home-operation-morph-modal, .ss-operation-panel, .ss-immersive-toolbar, .ss-search-keyboard"
         )
       ) {
         return
