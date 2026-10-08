@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useDeferredValue,
+  useMemo,
+  useRef,
+} from "react"
 import {
   Card,
   Space,
@@ -35,7 +43,7 @@ import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import dayjs from "dayjs"
 import { getAvatarFromExtraJson, setAvatarInExtraJson } from "../utils/studentAvatar"
-import { matchStudentSearch } from "../utils/studentSearch"
+import { matchStudentSearch, splitStudentAliases } from "../utils/studentSearch"
 import { useResponsive } from "../hooks/useResponsive"
 
 /** 触屏长按判定时长(ms)。 */
@@ -279,12 +287,30 @@ export const Home: React.FC<HomeProps> = ({
     }
   })
   const [searchKeyword, setSearchKeyword] = useState("")
+  const deferredSearchKeyword = useDeferredValue(searchKeyword)
   const [showPinyinKeyboard, setShowPinyinKeyboard] = useState(false)
   const [immersiveMenuOpen, setImmersiveMenuOpen] = useState(false)
   const [immersiveViewMenuOpen, setImmersiveViewMenuOpen] = useState(false)
   const [searchKeyboardLayout, setSearchKeyboardLayout] = useState<SearchKeyboardLayout>("qwerty26")
   const [disableSearchKeyboard, setDisableSearchKeyboard] = useState(false)
   const canShowSearchKeyboard = !isMobile && !disableSearchKeyboard
+  const searchAliasIndex = useMemo(
+    () =>
+      new Map(
+        students.map((student) => [
+          student.id,
+          splitStudentAliases(student.alias).map((alias) => ({
+            text: alias.toLowerCase(),
+            compactText: alias.toLowerCase().replace(/\s+/g, ""),
+            pinyin: pinyin(alias, { toneType: "none" }).toLowerCase(),
+            initials: pinyin(alias, { pattern: "first", toneType: "none" })
+              .toLowerCase()
+              .replace(/\s+/g, ""),
+          })),
+        ])
+      ),
+    [students]
+  )
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -945,6 +971,15 @@ export const Home: React.FC<HomeProps> = ({
     setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
 
+  const handleSearchKeyPointerDown = (
+    event: React.PointerEvent<HTMLElement>,
+    keyValue: string
+  ) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    handleSearchKeyPress(keyValue)
+  }
+
   const getImmersivePopupContainer = useCallback((triggerNode: HTMLElement) => {
     return immersiveToolbarRef.current ?? triggerNode.parentElement ?? document.body
   }, [])
@@ -957,19 +992,33 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const matchStudentName = useCallback((s: student, keyword: string) => {
-    if (matchStudentSearch(s, keyword)) return true
     const q0 = keyword.trim().toLowerCase()
     if (!q0) return true
+    const q1 = q0.replace(/\s+/g, "")
 
     const nameLower = String(s.name).toLowerCase()
-    if (nameLower.includes(q0)) return true
-
     const pyLower = s.pinyinName || ""
-    if (pyLower.includes(q0)) return true
     const pyInitialsLower = s.pinyinInitials || ""
-    if (pyInitialsLower.includes(q0)) return true
+    const studentNo = String(s.student_no || "").toLowerCase()
+    const aliases = searchAliasIndex.get(s.id) || []
+    const matchesText = (text: string) =>
+      text.includes(q0) || (q1 !== q0 && text.replace(/\s+/g, "").includes(q1))
 
-    const q1 = q0.replace(/\s+/g, "")
+    if (
+      matchesText(nameLower) ||
+      matchesText(studentNo) ||
+      matchesText(pyLower) ||
+      matchesText(pyInitialsLower) ||
+      aliases.some(
+        (alias) =>
+          matchesText(alias.text) ||
+          alias.pinyin.replace(/\s+/g, "").includes(q1) ||
+          alias.initials.includes(q1)
+      )
+    ) {
+      return true
+    }
+
     const isT9Query = /^[2-9]+$/.test(q1)
     if (isT9Query) {
       const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
@@ -978,16 +1027,8 @@ export const Home: React.FC<HomeProps> = ({
       if (pyInitialsDigits.includes(q1)) return true
     }
 
-    if (
-      q1 &&
-      (nameLower.replace(/\s+/g, "").includes(q1) ||
-        pyLower.replace(/\s+/g, "").includes(q1) ||
-        pyInitialsLower.replace(/\s+/g, "").includes(q1))
-    )
-      return true
-
-    return false
-  }, [])
+    return /[\u3400-\u9fff]/.test(q0) && matchStudentSearch(s, q0)
+  }, [searchAliasIndex])
 
   const getDisplayPoints = useCallback(
     (s: student) => (rewardMode ? Number(s.reward_points || 0) : Number(s.score || 0)),
@@ -1132,7 +1173,7 @@ export const Home: React.FC<HomeProps> = ({
   }
 
   const sortedStudents = useMemo(() => {
-    const filtered = students.filter((s) => matchStudentName(s, searchKeyword))
+    const filtered = students.filter((s) => matchStudentName(s, deferredSearchKeyword))
 
     switch (sortType) {
       case "alphabet":
@@ -1169,10 +1210,10 @@ export const Home: React.FC<HomeProps> = ({
       default:
         return filtered
     }
-  }, [students, searchKeyword, sortType, matchStudentName, getDisplayPoints, getGroupName, t])
+  }, [students, deferredSearchKeyword, sortType, matchStudentName, getDisplayPoints, getGroupName, t])
 
   const groupedStudents = useMemo(() => {
-    if (sortType === "score" || (sortType === "alphabet" && searchKeyword)) {
+    if (sortType === "score" || (sortType === "alphabet" && deferredSearchKeyword)) {
       return [{ key: "all", students: sortedStudents }]
     }
 
@@ -1196,7 +1237,7 @@ export const Home: React.FC<HomeProps> = ({
         return a.localeCompare(b, "zh-CN")
       })
       .map(([key, students]) => ({ key, students }))
-  }, [sortedStudents, sortType, searchKeyword, getGroupName, t])
+  }, [sortedStudents, sortType, deferredSearchKeyword, getGroupName, t])
 
   const firstStudentIdByGroup = useMemo(() => {
     const result = new Map<string, number>()
@@ -2442,7 +2483,7 @@ export const Home: React.FC<HomeProps> = ({
     const avatarColor = getAvatarColor(student.name)
 
     let rankBadge: string | null = null
-    if (sortType === "score" && !searchKeyword) {
+    if (sortType === "score" && !deferredSearchKeyword) {
       if (index === 0) rankBadge = "🥇"
       else if (index === 1) rankBadge = "🥈"
       else if (index === 2) rankBadge = "🥉"
@@ -2852,7 +2893,7 @@ export const Home: React.FC<HomeProps> = ({
     const isSelected = selectedStudentIds.includes(student.id)
 
     let rankBadge: string | null = null
-    if (sortType === "score" && !searchKeyword) {
+    if (sortType === "score" && !deferredSearchKeyword) {
       if (index === 0) rankBadge = "🥇"
       else if (index === 1) rankBadge = "🥈"
       else if (index === 2) rankBadge = "🥉"
@@ -3079,7 +3120,7 @@ export const Home: React.FC<HomeProps> = ({
     const useHomeStats = homeShowStats.length > 0 && !rewardMode
 
     let rankBadge: string | null = null
-    if (sortType === "score" && !searchKeyword) {
+    if (sortType === "score" && !deferredSearchKeyword) {
       if (index === 0) rankBadge = "🥇"
       else if (index === 1) rankBadge = "🥈"
       else if (index === 2) rankBadge = "🥉"
@@ -3737,7 +3778,7 @@ export const Home: React.FC<HomeProps> = ({
   const shouldShowQuickNav =
     groupedStudents.length > 1 &&
     sortType !== "score" &&
-    !(sortType === "alphabet" && searchKeyword)
+    !(sortType === "alphabet" && deferredSearchKeyword)
 
   const portraitListRightPadding =
     isPortraitMode && shouldShowQuickNav
@@ -4930,7 +4971,10 @@ export const Home: React.FC<HomeProps> = ({
                                 <Button
                                   key={keyItem}
                                   size="small"
-                                  onClick={() => handleSearchKeyPress(keyItem)}
+                                  onPointerDown={(event) => handleSearchKeyPointerDown(event, keyItem)}
+                                  onClick={(event) => {
+                                    if (event.detail === 0) handleSearchKeyPress(keyItem)
+                                  }}
                                   style={{ height: "32px", fontSize: "12px", padding: 0 }}
                                 >
                                   {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
@@ -4951,7 +4995,12 @@ export const Home: React.FC<HomeProps> = ({
                                 <Button
                                   key={keyItem.digit}
                                   size="small"
-                                  onClick={() => handleSearchKeyPress(keyItem.digit)}
+                                  onPointerDown={(event) =>
+                                    handleSearchKeyPointerDown(event, keyItem.digit)
+                                  }
+                                  onClick={(event) => {
+                                    if (event.detail === 0) handleSearchKeyPress(keyItem.digit)
+                                  }}
                                   style={{ height: "28px", fontSize: "11px", padding: 0 }}
                                 >
                                   {keyItem.digit === "⌫"
@@ -5057,9 +5106,9 @@ export const Home: React.FC<HomeProps> = ({
             }}
           >
             <div style={{ fontSize: "16px", color: "var(--ss-text-secondary)" }}>
-              {searchKeyword ? t("home.noMatch") : t("home.noStudents")}
+              {deferredSearchKeyword ? t("home.noMatch") : t("home.noStudents")}
             </div>
-            {searchKeyword && (
+            {deferredSearchKeyword && (
               <Button type="link" onClick={() => setSearchKeyword("")} style={{ marginTop: "8px" }}>
                 {t("home.clearSearch")}
               </Button>
@@ -5392,7 +5441,10 @@ export const Home: React.FC<HomeProps> = ({
                           <Button
                             key={keyItem}
                             size="small"
-                            onClick={() => handleSearchKeyPress(keyItem)}
+                            onPointerDown={(event) => handleSearchKeyPointerDown(event, keyItem)}
+                            onClick={(event) => {
+                              if (event.detail === 0) handleSearchKeyPress(keyItem)
+                            }}
                             style={{ height: "32px", fontSize: "12px", padding: 0 }}
                           >
                             {keyItem === "⌫" ? "⌫" : keyItem.toUpperCase()}
@@ -5413,7 +5465,12 @@ export const Home: React.FC<HomeProps> = ({
                           <Button
                             key={keyItem.digit}
                             size="small"
-                            onClick={() => handleSearchKeyPress(keyItem.digit)}
+                            onPointerDown={(event) =>
+                              handleSearchKeyPointerDown(event, keyItem.digit)
+                            }
+                            onClick={(event) => {
+                              if (event.detail === 0) handleSearchKeyPress(keyItem.digit)
+                            }}
                             style={{ height: "28px", fontSize: "11px", padding: 0 }}
                           >
                             {keyItem.digit === "⌫" ? "⌫" : `${keyItem.digit} ${keyItem.letters}`}
