@@ -1002,7 +1002,7 @@ export const Home: React.FC<HomeProps> = ({
     const studentNo = String(s.student_no || "").toLowerCase()
     const aliases = searchAliasIndex.get(s.id) || []
     const matchesText = (text: string) =>
-      text.includes(q0) || (q1 !== q0 && text.replace(/\s+/g, "").includes(q1))
+      text.includes(q0) || text.replace(/\s+/g, "").includes(q1)
 
     if (
       matchesText(nameLower) ||
