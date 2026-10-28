@@ -1,21 +1,21 @@
 use axum::{
+    Json, Router,
     extract::{Path, Query, State as AxumState},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{delete, get, post},
-    Json, Router,
 };
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use parking_lot::RwLock;
 use rand::RngCore;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
-use tauri::Emitter;
-use tokio::sync::{oneshot, Mutex};
+use tauri::{Emitter, Manager};
+use tokio::sync::{Mutex, oneshot};
 use uuid::Uuid;
 
 use crate::db::entities::{score_events, students};
@@ -579,6 +579,30 @@ async fn health(AxumState(state): AxumState<RestApiState>) -> Response {
     }))
 }
 
+async fn show_main_window(
+    AxumState(state): AxumState<RestApiState>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = require_auth(&headers, &state.app_state).await {
+        return response;
+    }
+
+    let app_handle = { state.app_state.read().app_handle.clone() };
+    let Some(window) = app_handle.get_webview_window("main") else {
+        return error(StatusCode::NOT_FOUND, "Main window is not available");
+    };
+    if let Err(message) = window
+        .unminimize()
+        .map_err(|e| e.to_string())
+        .and_then(|_| window.show().map_err(|e| e.to_string()))
+        .and_then(|_| window.set_focus().map_err(|e| e.to_string()))
+    {
+        return error(StatusCode::INTERNAL_SERVER_ERROR, message);
+    }
+
+    success(json!({ "visible": true }))
+}
+
 pub async fn rest_api_server_start(app_state: Arc<RwLock<AppState>>) -> Result<(), String> {
     let mut server_state = REST_API_SERVER_STATE.lock().await;
     if server_state.is_running {
@@ -589,6 +613,10 @@ pub async fn rest_api_server_start(app_state: Arc<RwLock<AppState>>) -> Result<(
         .map_err(|e| format!("Failed to bind REST API server: {}", e))?;
     let router = Router::new()
         .route("/health", get(health).options(options))
+        .route(
+            "/api/v1/window/show",
+            post(show_main_window).options(options),
+        )
         .route("/api/v1/students", get(list_students).options(options))
         .route("/api/v1/students/:id", get(get_student).options(options))
         .route(
