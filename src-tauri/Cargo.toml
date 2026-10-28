@@ -10,11 +10,16 @@ rust-version = "1.70"
 name = "secscore_lib"
 crate-type = ["staticlib", "cdylib", "lib"]
 
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png", "protocol-asset"] }
+tauri-plugin-single-instance = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-deep-link = "2"
 serde = { version = "1", features = ["derive"] }
