@@ -148,7 +148,9 @@ export function WorkspaceManager({ compact = false }: WorkspaceManagerProps): Re
         duration_ms: Math.round(performance.now() - startedAt),
         error: String(error?.message || error),
       })
-      messageApi.error(error?.message || "操作失败")
+      messageApi.error(
+        typeof error === "string" ? error : error?.message || String(error) || "操作失败"
+      )
     } finally {
       setLoadingId(null)
     }

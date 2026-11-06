@@ -700,9 +700,33 @@ impl WorkspaceService {
             ))
             .await
             .map_err(|e| e.to_string())?;
-        let class_id = class_row
-            .and_then(|row| row.try_get_by::<String, _>("class_id").ok())
-            .ok_or_else(|| "该账号尚未关联任何班级".to_string())?;
+        let class_id = match class_row.and_then(|row| row.try_get_by::<String, _>("class_id").ok()) {
+            Some(id) => id,
+            None => {
+                // 目标账号没有可用班级（从未关联或班级均已删除）：自动创建默认本地班级
+                let previous_account_id = std::mem::replace(
+                    &mut self.current_account_id,
+                    account_id.to_string(),
+                );
+                let created = self.create_local_class("我的班级".to_string()).await;
+                return match created {
+                    Ok(connection) => {
+                        Self::set_state(&self.catalog, "current_account_id", account_id).await?;
+                        info!(
+                            event = "workspace_switch_account_complete",
+                            account_id = %masked_identifier(&self.current_account_id),
+                            class_id = %masked_identifier(&self.current_class_id),
+                            "账号无可用班级，已自动创建默认班级并切换"
+                        );
+                        Ok(connection)
+                    }
+                    Err(e) => {
+                        self.current_account_id = previous_account_id;
+                        Err(e)
+                    }
+                };
+            }
+        };
         self.current_account_id = account_id.to_string();
         self.current_class_id = class_id;
         Self::set_state(&self.catalog, "current_account_id", account_id).await?;
