@@ -8,6 +8,7 @@ import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { cloudApi, ensureLogin } from "./web/cloudApi"
 ;(window as any).__SECSCORE_LAN__ = true
+;(window as any).__SECSCORE_WEB__ = true
 ;(window as any).api = cloudApi
 
 void ensureLogin().then((ready) => {

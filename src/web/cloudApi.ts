@@ -1,7 +1,7 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
 import { bootstrap, listClasses, type Bootstrap } from "./api"
 import { enqueueRedeem, enqueueScore, flush, pendingDeltas } from "./sync"
-import { getSession, handleCallback, login } from "./auth"
+import { getSession, getUserId, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
 
 const CLASS_KEY = "ssw_class_id"
@@ -47,6 +47,19 @@ const tagsOf = (b: Bootstrap, name: string) =>
   b.student_tags.filter((t) => t.student_name === name).map((t) => t.tag_name)
 
 const cloudBase: Record<string, any> = {
+  oauthLoadLoginState: () =>
+    wrap(async () => {
+      const session = getSession()
+      const userId = await getUserId()
+      return session && userId ? { access_token: session.access_token, user_id: userId } : null
+    }),
+  webListClasses: () =>
+    wrap(async () => ({ classes: await listClasses(), current: await classId() })),
+  webSwitchClass: (id: string) => {
+    localStorage.setItem(CLASS_KEY, id)
+    location.reload()
+    return Promise.resolve(ok(null))
+  },
   queryStudents: () =>
     wrap(async () => {
       const b = await load()

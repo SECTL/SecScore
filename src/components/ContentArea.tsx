@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
-import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress, Input, QRCode } from "antd"
+import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress, Input, QRCode, Select } from "antd"
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -119,6 +119,17 @@ export function ContentArea({
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
   const isLanBrowser = Boolean((window as any).__SECSCORE_LAN__)
+  const isWebClient = Boolean((window as any).__SECSCORE_WEB__)
+  const [webClasses, setWebClasses] = useState<Array<{ id: string; name: string }>>([])
+  const [webClassId, setWebClassId] = useState<string>()
+  useEffect(() => {
+    if (!isWebClient) return
+    void (window as any).api.webListClasses().then((r: any) => {
+      if (!r?.success) return
+      setWebClasses(r.data.classes)
+      setWebClassId(r.data.current)
+    })
+  }, [isWebClient])
   const isMacOS =
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
@@ -257,6 +268,11 @@ export function ContentArea({
         return
       }
       setOAuthUserId(String(oauthState.user_id))
+      if ((window as any).__SECSCORE_WEB__) {
+        // Web 端没有云空间用量接口，只显示账号。
+        setStorageUsage(null)
+        return
+      }
 
       const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
       if (!platformId) {
@@ -837,6 +853,15 @@ export function ContentArea({
           }
         >
           <Space size="small">
+            {isWebClient && (
+              <Select
+                size="small"
+                style={{ minWidth: 110, maxWidth: 160 }}
+                value={webClassId}
+                options={webClasses.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={(id) => void (window as any).api.webSwitchClass(id)}
+              />
+            )}
             {!isLanBrowser && <WorkspaceManager compact />}
             {!isLanBrowser && (
               <Popover

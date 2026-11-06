@@ -11,6 +11,7 @@ export interface Session {
   access_token: string
   refresh_token?: string
   expires_at?: number
+  user_id?: string
 }
 
 export const callbackUrl = () => `${location.origin}/oauth/callback`
@@ -35,6 +36,7 @@ const normalize = (data: any): Session => {
   return {
     access_token: parts[0],
     refresh_token: data.refresh_token || parts[1] || undefined,
+    user_id: data.user_id || undefined,
     expires_at: data.expires_in ? Date.now() + Number(data.expires_in) * 1000 : undefined,
   }
 }
@@ -121,10 +123,28 @@ export const refresh = (): Promise<Session> => {
     })
     const next = normalize(data)
     next.refresh_token ||= current.refresh_token
+    next.user_id ||= current.user_id
     saveSession(next)
     return next
   })().finally(() => {
     refreshing = null
   })
   return refreshing
+}
+
+/** 取当前账号 ID；旧会话没有保存时从 userinfo 补齐。 */
+export const getUserId = async (): Promise<string | null> => {
+  const s = getSession()
+  if (!s) return null
+  if (s.user_id) return s.user_id
+  try {
+    const res = await fetch(`${BASE_URL}/api/oauth/userinfo`, {
+      headers: { Authorization: `Bearer ${s.access_token}` },
+    })
+    const id = res.ok ? (await res.json()).user_id : null
+    if (id) saveSession({ ...s, user_id: String(id) })
+    return id ? String(id) : null
+  } catch {
+    return null
+  }
 }
