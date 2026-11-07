@@ -58,6 +58,23 @@ html.platform-ios #root {
   min-height: 0;
 }
 
+/* 软键盘弹出：根容器跟随可视视口（高度 + 偏移），顶栏保持可见 */
+html.ss-keyboard-open #root {
+  position: fixed;
+  top: var(--ss-vv-offset-top, 0px);
+  left: 0;
+  right: 0;
+  bottom: auto;
+  height: var(--ss-app-height);
+  min-height: 0;
+}
+
+html.ss-keyboard-open,
+html.ss-keyboard-open body {
+  height: var(--ss-app-height);
+  min-height: 0;
+}
+
 html.platform-android {
   --ss-safe-area-top: max(env(safe-area-inset-top, 0px), 24px);
 }

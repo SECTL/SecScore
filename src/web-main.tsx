@@ -7,6 +7,7 @@ import { ClientContext } from "./ClientContext"
 import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
 import { InstallPrompt } from "./web/InstallPrompt"
+import { installKeyboardViewportFix } from "./web/viewportKeyboard"
 import { cloudApi, ensureLogin, startAutoRefresh } from "./web/cloudApi"
 ;(window as any).__SECSCORE_LAN__ = true
 ;(window as any).__SECSCORE_WEB__ = true
@@ -23,6 +24,8 @@ window.addEventListener("vite:preloadError", () => {
     .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
     .finally(() => location.reload())
 })
+
+installKeyboardViewportFix()
 
 void ensureLogin().then((ready) => {
   if (!ready) return
