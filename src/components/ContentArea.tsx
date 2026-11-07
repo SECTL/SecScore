@@ -508,7 +508,21 @@ export function ContentArea({
   const activeLanShareUrl =
     selectedLanShareUrl || lanStatus?.share_url || lanShareUrls[0]?.url || ""
 
-  const profilePopoverContent = (
+  const profilePopoverContent = isWebClient ? (
+    <div style={{ width: "120px" }}>
+      <Button
+        danger
+        block
+        size="small"
+        onClick={async () => {
+          await onLogout()
+          setProfilePopoverOpen(false)
+        }}
+      >
+        退出登录
+      </Button>
+    </div>
+  ) : (
     <div style={{ width: "260px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div
         style={{
