@@ -9,9 +9,12 @@ const isIosSafari = () => {
   const iPadOs = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1
   const ios = /iPhone|iPad|iPod/.test(ua) || iPadOs
   if (!ios) return false
-  // 排除 iOS 上的第三方浏览器与内嵌 WebView，它们的“添加到主屏幕”入口不同。
-  return !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|QQ\/|Weibo|DingTalk/.test(ua)
+  // 排除 iOS 上除 Chrome 外的第三方浏览器与内嵌 WebView，它们的“添加到主屏幕”入口不同。
+  return !/FxiOS|EdgiOS|OPiOS|MicroMessenger|QQ\/|Weibo|DingTalk/.test(ua)
 }
+
+// Chrome iOS：工具栏始终在顶部，分享图标在地址栏右侧（iPad 宽窗口时在标签数左侧）。
+const isChromeIos = () => /CriOS/.test(navigator.userAgent)
 
 const isStandalone = () =>
   (navigator as any).standalone === true || window.matchMedia("(display-mode: standalone)").matches
@@ -61,9 +64,9 @@ const AddIcon = ({ size = 20 }: { size?: number }) => (
   </svg>
 )
 
-const steps = [
+const getSteps = () => [
   <>
-    点击浏览器工具栏里的分享图标 <ShareIcon />
+    {isChromeIos() ? "点击地址栏右侧的分享图标" : "点击浏览器工具栏里的分享图标"} <ShareIcon />
   </>,
   <>
     在菜单中向下滑动，选择“添加到主屏幕” <AddIcon />
@@ -111,7 +114,8 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   // iPad Safari 的工具栏始终在顶部（含分屏/台前调度的窄窗口），一律按顶部布局；
   // iPhone 才按横竖屏区分。
-  const bottomLayout = portrait
+  const chrome = isChromeIos()
+  const bottomLayout = portrait && !chrome
 
   const container: React.CSSProperties = bottomLayout
     ? {
@@ -121,15 +125,22 @@ export function InstallPrompt(): React.JSX.Element | null {
         maxWidth: 460,
         margin: "0 auto",
       }
-    : {
-        top: "calc(env(safe-area-inset-top) + 10px)",
-        right: 16,
-        width: 340,
-      }
+    : chrome
+      ? {
+          // Chrome 的工具栏在视口之外，气泡贴着视口顶部，箭头向上指向工具栏里的分享图标。
+          top: 8,
+          right: 16,
+          width: Math.min(340, window.innerWidth - 32),
+        }
+      : {
+          top: "calc(env(safe-area-inset-top) + 10px)",
+          right: 16,
+          width: 340,
+        }
 
   const arrow: React.CSSProperties = bottomLayout
     ? { ...arrowBase, bottom: -8, left: "calc(50% - 8px)", boxShadow: "3px 3px 6px rgba(0,0,0,0.08)" }
-    : { ...arrowBase, top: -8, right: 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
+    : { ...arrowBase, top: -8, right: chrome ? (window.innerWidth < 500 ? 0 : 84) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
 
   return (
     <div
@@ -151,7 +162,7 @@ export function InstallPrompt(): React.JSX.Element | null {
       <div style={arrow} />
       <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>添加到主屏幕，像 App 一样使用</div>
       <ol style={{ margin: 0, padding: 0, listStyle: "none" }}>
-        {steps.map((content, i) => (
+        {getSteps().map((content, i) => (
           <li key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 6 }}>
             <span
               style={{
