@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 
 const NEVER_KEY = "ssw_install_prompt_never"
-const SESSION_KEY = "ssw_install_prompt_closed"
 
 const isIosSafari = () => {
   const ua = navigator.userAgent
@@ -13,10 +12,6 @@ const isIosSafari = () => {
   // 排除 iOS 上的第三方浏览器与内嵌 WebView，它们的“添加到主屏幕”入口不同。
   return !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|QQ\/|Weibo|DingTalk/.test(ua)
 }
-
-const isIpad = () =>
-  /iPad/.test(navigator.userAgent) ||
-  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
 
 const isStandalone = () =>
   (navigator as any).standalone === true || window.matchMedia("(display-mode: standalone)").matches
@@ -79,20 +74,20 @@ const steps = [
 export function InstallPrompt(): React.JSX.Element | null {
   const [visible, setVisible] = useState(false)
   const [never, setNever] = useState(false)
-  const [portrait, setPortrait] = useState(() => window.matchMedia("(orientation: portrait)").matches)
+  const [portrait, setPortrait] = useState(() => window.innerWidth < 440)
 
   useEffect(() => {
     if (!isIosSafari() || isStandalone()) return
-    if (safeGet(localStorage, NEVER_KEY) || safeGet(sessionStorage, SESSION_KEY)) return
+    if (safeGet(localStorage, NEVER_KEY)) return
     const timer = window.setTimeout(() => setVisible(true), 1500)
     return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
-    const mq = window.matchMedia("(orientation: portrait)")
-    const onChange = () => setPortrait(mq.matches)
-    mq.addEventListener("change", onChange)
-    return () => mq.removeEventListener("change", onChange)
+    // Safari 窗口窄到一定程度会切换为底部工具栏（iPhone 竖屏、iPad 窄窗口），按宽度判断。
+    const onChange = () => setPortrait(window.innerWidth < 440)
+    window.addEventListener("resize", onChange)
+    return () => window.removeEventListener("resize", onChange)
   }, [])
 
   if (!visible) return null
@@ -100,7 +95,6 @@ export function InstallPrompt(): React.JSX.Element | null {
   const close = () => {
     try {
       if (never) localStorage.setItem(NEVER_KEY, "1")
-      else sessionStorage.setItem(SESSION_KEY, "1")
     } catch {
       /* 存储不可用时仅本次关闭 */
     }
@@ -117,7 +111,7 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   // iPad Safari 的工具栏始终在顶部（含分屏/台前调度的窄窗口），一律按顶部布局；
   // iPhone 才按横竖屏区分。
-  const bottomLayout = portrait && !isIpad()
+  const bottomLayout = portrait
 
   const container: React.CSSProperties = bottomLayout
     ? {
