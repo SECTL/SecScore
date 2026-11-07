@@ -157,6 +157,21 @@ function getAccessTokenFromData(tokenData: TokenData): string {
   return String(tokenData.access_token || "").split("|")[0]
 }
 
+export class TokenRefreshRejectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TokenRefreshRejectedError"
+  }
+}
+
+/** 仅当服务端明确拒绝 refresh_token 时返回 true；网络错误、超时、5xx 返回 false。 */
+export function isRefreshTokenRejected(error: unknown): boolean {
+  return (
+    error instanceof TokenRefreshRejectedError ||
+    (error instanceof Error && error.message === "没有 refresh_token，无法刷新")
+  )
+}
+
 function getTokenExpiry(tokenData: TokenData): number | null {
   if (tokenData.expires_at) {
     const expiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
@@ -597,11 +612,18 @@ class SectlAuthService {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "Token 刷新失败")
+        const error = await response.json().catch(() => ({}) as Record<string, any>)
+        const message = error?.error_description || error?.error || "Token 刷新失败"
+        // 只有服务端明确拒绝（4xx）才代表 refresh_token 永久失效；5xx/限流属于临时错误。
+        if ([400, 401, 403].includes(response.status)) {
+          throw new TokenRefreshRejectedError(String(message))
+        }
+        throw new Error(`Token 刷新失败（HTTP ${response.status}）：${message}`)
       }
 
       const data: TokenData = await response.json()
+      // 服务端未返回新的 refresh_token 时必须沿用旧值，否则下次刷新会失败。
+      if (!data.refresh_token && this.refreshToken) data.refresh_token = this.refreshToken
       this.saveToken(data)
       try {
         const api = (window as any).api

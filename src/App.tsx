@@ -32,7 +32,7 @@ import { ContentArea } from "./components/ContentArea"
 import { OOBE } from "./components/OOBE/OOBE"
 import { OAuthLogin } from "./components/OAuth/OAuthLogin"
 import { OAuthCallback } from "./components/OAuth/OAuthCallback"
-import { sectlAuth } from "./services/sectlAuth"
+import { sectlAuth, isRefreshTokenRejected } from "./services/sectlAuth"
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext"
 import { MOBILE_NAV_ITEMS, MobileNavKey, sanitizeMobileNavKeys } from "./shared/mobileNavigation"
 import { resolveStoredFontFamily } from "./shared/fontFamily"
@@ -328,7 +328,9 @@ function MainContent(): React.JSX.Element {
               { allowExpired: true }
             )
         if (!tokenIsActive) {
-          void sectlAuth.refreshAccessToken().catch(() => {
+          void sectlAuth.refreshAccessToken().catch((error) => {
+            // 网络抖动等临时错误保留会话，等待后续重试。
+            if (!isRefreshTokenRejected(error)) return
             sectlAuth.clearLocalSession()
             setOAuthUserName(null)
             setOAuthSessionExpired(true)

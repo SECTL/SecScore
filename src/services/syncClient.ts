@@ -1,4 +1,4 @@
-import { sectlAuth } from "./sectlAuth"
+import { sectlAuth, isRefreshTokenRejected } from "./sectlAuth"
 import { DEFAULT_SYNC_SERVER_URL } from "./syncServerConfig"
 
 const DEVICE_ID_KEY = "ss_sync_device_id"
@@ -712,6 +712,21 @@ class SyncClient {
       })
       return true
     } catch (error) {
+      if (!isRefreshTokenRejected(error)) {
+        // 解除熔断，允许下一轮轮询在节流窗口后重试刷新。
+        this.authenticationBlocked = false
+        // 临时错误：保留本地会话，稍后由重试机制再次恢复，不弹"会话已失效"。
+        this.updateStatus({
+          state: "error",
+          authenticated: sectlAuth.isAuthenticated(),
+          realtimeConnected: false,
+          lastError: `刷新会话暂时失败：${String(error)}`,
+        })
+        syncLog("warn", "同步 OAuth 会话刷新遇到临时错误，保留会话稍后重试", {
+          error: String(error),
+        })
+        return false
+      }
       this.authenticationBlocked = true
       this.changeStreamAbortController?.abort()
       this.changeStreamConnected = false
