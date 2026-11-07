@@ -267,6 +267,85 @@ pub async fn sync_apply_snapshot(
         }
     }
 
+    // 小组积分事件：按 uuid 补写本地缺失的，并把新事件的 delta 累加到 group_scores。
+    let backend = transaction.get_database_backend();
+    let ph = |n: usize| {
+        if backend == DbBackend::Sqlite {
+            "?".to_string()
+        } else {
+            format!("${}", n)
+        }
+    };
+    for value in snapshot_array(&snapshot, "group_score_events") {
+        let Some(uuid) = snapshot_string(value, "uuid") else {
+            continue;
+        };
+        let Some(group_name) = snapshot_string(value, "group_name") else {
+            continue;
+        };
+        let exists = transaction
+            .query_one(Statement::from_sql_and_values(
+                backend,
+                format!("SELECT 1 AS x FROM group_score_events WHERE uuid = {}", ph(1)),
+                vec![uuid.clone().into()],
+            ))
+            .await
+            .map_err(|e| e.to_string())?;
+        if exists.is_some() {
+            continue;
+        }
+        let delta = snapshot_i32(value, "delta").unwrap_or(0);
+        let event_time = snapshot_string(value, "event_time").unwrap_or_else(now_string);
+        transaction
+            .execute(Statement::from_sql_and_values(
+                backend,
+                format!(
+                    "INSERT INTO group_score_events (uuid, group_name, reason_content, delta, val_prev, val_curr, event_time, settlement_id) VALUES ({}, {}, {}, {}, {}, {}, {}, {})",
+                    ph(1), ph(2), ph(3), ph(4), ph(5), ph(6), ph(7), ph(8)
+                ),
+                vec![
+                    uuid.into(),
+                    group_name.clone().into(),
+                    snapshot_string(value, "reason_content").unwrap_or_default().into(),
+                    delta.into(),
+                    snapshot_i32(value, "val_prev").unwrap_or(0).into(),
+                    snapshot_i32(value, "val_curr").unwrap_or(0).into(),
+                    event_time.clone().into(),
+                    snapshot_i32(value, "settlement_id").into(),
+                ],
+            ))
+            .await
+            .map_err(|e| e.to_string())?;
+        // 已结算事件不计入当前小组分。
+        if snapshot_i32(value, "settlement_id").is_some() {
+            continue;
+        }
+        let updated = transaction
+            .execute(Statement::from_sql_and_values(
+                backend,
+                format!(
+                    "UPDATE group_scores SET score = score + {}, updated_at = {} WHERE group_name = {}",
+                    ph(1), ph(2), ph(3)
+                ),
+                vec![delta.into(), event_time.clone().into(), group_name.clone().into()],
+            ))
+            .await
+            .map_err(|e| e.to_string())?;
+        if updated.rows_affected() == 0 {
+            transaction
+                .execute(Statement::from_sql_and_values(
+                    backend,
+                    format!(
+                        "INSERT INTO group_scores (group_name, score, updated_at) VALUES ({}, {}, {})",
+                        ph(1), ph(2), ph(3)
+                    ),
+                    vec![group_name.into(), delta.into(), event_time.into()],
+                ))
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
     for value in snapshot_array(&snapshot, "reward_redemptions") {
         let Some(uuid) = snapshot_string(value, "uuid") else {
             continue;

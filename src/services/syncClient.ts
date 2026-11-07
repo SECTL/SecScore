@@ -428,6 +428,7 @@ class SyncClient {
       settings,
       rules,
       batches,
+      groupEvents,
     ] = await Promise.all([
       api.queryStudents(),
       api.queryReasons(),
@@ -440,6 +441,11 @@ class SyncClient {
       api.getAllSettings(),
       api.autoScoreGetRules(),
       api.autoScoreQueryBatches(),
+      // 小组积分事件没有专用查询接口，用只读 SQL 取出（含已结算的，结算标记随事件同步）。
+      api.boardQuerySql?.({
+        sql: "SELECT uuid, group_name, reason_content, delta, val_prev, val_curr, event_time, settlement_id FROM group_score_events ORDER BY event_time",
+        limit: 100000,
+      }),
     ])
 
     const studentRows = Array.isArray(students?.data) ? students.data : []
@@ -464,6 +470,7 @@ class SyncClient {
       tags: Array.isArray(tags?.data) ? tags.data : [],
       student_tags: studentTags,
       score_events: Array.isArray(events?.data) ? events.data : [],
+      group_score_events: Array.isArray(groupEvents?.data) ? groupEvents.data : [],
       reward_redemptions: Array.isArray(redemptions?.data) ? redemptions.data : [],
       settlements: Array.isArray(settlements?.data) ? settlements.data : [],
       board_configs: Array.isArray(boards?.data) ? boards.data : [],

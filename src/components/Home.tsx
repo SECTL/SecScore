@@ -3586,10 +3586,11 @@ export const Home: React.FC<HomeProps> = ({
   const [isNavDraggingState, setIsNavDraggingState] = useState(false)
 
   const triggerNavHaptic = useCallback(() => {
-    if (!isMobile) return
+    // 仅 Android 浏览器等支持 Vibration API 的环境会震动；不再按视口宽度限制，平板同样生效。
     if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return
-    navigator.vibrate(8)
-  }, [isMobile])
+    // 过短的脉冲在不少 Android 机型上感知不到，用 15ms。
+    navigator.vibrate(15)
+  }, [])
 
   const quickNavLayout = useMemo(() => {
     const baseItemSize = 24

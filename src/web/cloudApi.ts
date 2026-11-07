@@ -1,6 +1,6 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
 import { bootstrap, listClasses, openChanges, type Bootstrap } from "./api"
-import { deviceId, enqueueRedeem, enqueueScore, flush, pendingDeltas } from "./sync"
+import { deviceId, enqueueRedeem, enqueueScore, flush, getOutbox, pendingDeltas } from "./sync"
 import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
 
@@ -93,7 +93,74 @@ const cloudBase: Record<string, any> = {
     }),
 }
 
-cloudBase.rewardRedeem = (data: { student_name: string; reward_id: number }) =>
+// 桌面主页的区间统计用 boardQuerySql 跑固定模板的聚合 SQL。Web 端没有数据库，
+// 这里识别这两条模板，从 bootstrap 的事件和待发送队列在本地计算同样的结果。
+cloudBase.boardQuerySql = (params: { sql: string }) =>
+  wrap(async () => {
+    const sql = String(params?.sql || "")
+    const t = [...sql.matchAll(/'(\d{4}-\d{2}-\d{2}T[^']+)'/g)].map((m) => Date.parse(m[1]))
+    if (sql.includes("FROM group_score_events")) {
+      // 小组统计模板：本周 [week0, week1)、本期 [per0, per1)，只统计未结算事件。
+      if (t.length < 4 || t.some(Number.isNaN)) throw new Error("时间范围解析失败")
+      const [week0, week1, per0, per1] = t
+      const gb: any = await load()
+      const rows = new Map<string, { group_name: string; week_net: number; period_net: number }>()
+      for (const e of (gb.group_score_events || []) as any[]) {
+        if (e.settlement_id != null) continue
+        const g = String(e.group_name || "")
+        const time = Date.parse(e.event_time)
+        if (!g || Number.isNaN(time)) continue
+        const row = rows.get(g) || { group_name: g, week_net: 0, period_net: 0 }
+        const d = Number(e.delta) || 0
+        if (time >= week0 && time < week1) row.week_net += d
+        if (time >= per0 && time < per1) row.period_net += d
+        rows.set(g, row)
+      }
+      return [...rows.values()]
+    }
+    if (!sql.includes("LEFT JOIN score_events")) throw new Error("Web 端不支持该查询")
+    if (t.length < 8 || t.some(Number.isNaN)) throw new Error("时间范围解析失败")
+    const [today0, now1, week0, week1, month0, now2, per0, per1] = t
+    const b = await load()
+    const events: Array<{ name: string; time: number; delta: number }> = (b.recent_events as any[]).map(
+      (e) => ({ name: String(e.student_name), time: Date.parse(e.event_time), delta: Number(e.delta) || 0 })
+    )
+    for (const op of getOutbox(b.class_id)) {
+      if (op.operation_type !== "score.adjust") continue
+      events.push({
+        name: op.payload.student_name,
+        time: Date.parse(op.client_created_at),
+        delta: Number(op.payload.score_delta) || 0,
+      })
+    }
+    const within = (x: number, a: number, z: number) => x >= a && x < z
+    return b.students.map((s) => {
+      const row = { name: s.name, today_net: 0, week_net: 0, month_net: 0, period_net: 0 }
+      for (const e of events) {
+        if (e.name !== s.name || Number.isNaN(e.time)) continue
+        if (within(e.time, today0, now1)) row.today_net += e.delta
+        if (within(e.time, week0, week1)) row.week_net += e.delta
+        if (within(e.time, month0, now2)) row.month_net += e.delta
+        if (within(e.time, per0, per1)) row.period_net += e.delta
+      }
+      return row
+    })
+  })
+
+// 小组总分 = 未结算小组事件 delta 之和。
+cloudBase.queryGroupScores = () =>
+  wrap(async () => {
+    const b: any = await load()
+    const sums = new Map<string, number>()
+    for (const e of (b.group_score_events || []) as any[]) {
+      if (e.settlement_id != null) continue
+      const g = String(e.group_name || "")
+      if (g) sums.set(g, (sums.get(g) || 0) + (Number(e.delta) || 0))
+    }
+    return [...sums].map(([group_name, score]) => ({ group_name, score }))
+  })
+
+cloudBase.rewardRedeem =(data: { student_name: string; reward_id: number }) =>
   wrap(async () => {
     const b = await load()
     const reward = b.reward_settings.find((r) => Number(r.id) === Number(data.reward_id))

@@ -20,6 +20,7 @@ export interface Bootstrap {
   tags: Array<{ name: string }>
   student_tags: Array<{ student_name: string; tag_name: string }>
   recent_events: any[]
+  group_score_events?: any[]
 }
 export interface ClassInfo {
   id: string

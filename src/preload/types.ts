@@ -501,7 +501,9 @@ const api = {
     delta: number
     reason_content: string
   }): Promise<{ success: boolean; data?: number; message?: string }> =>
-    invoke("group_score_create", { data }),
+    invoke<{ success: boolean; data?: number; message?: string }>("group_score_create", {
+      data,
+    }).then(requestSnapshotOnSuccess),
   renameGroupScore: (data: {
     old_name: string
     new_name: string
