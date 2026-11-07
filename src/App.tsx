@@ -762,8 +762,12 @@ function MainContent(): React.JSX.Element {
   }
 
   useEffect(() => {
+    // Web 端的「管理」独立页挂在主窗口里，不能被重定向回主页。
+    const isWebManageRoute =
+      Boolean((window as any).__SECSCORE_WEB__) && location.pathname.startsWith("/manage")
     if (
       !isManagementWindow &&
+      !isWebManageRoute &&
       location.pathname !== "/" &&
       !location.pathname.startsWith("/home")
     ) {

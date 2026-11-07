@@ -111,6 +111,7 @@ const cloudBase: Record<string, any> = {
     location.reload()
     return Promise.resolve(ok(null))
   },
+  webPendingOps: () => wrap(async () => getOutbox(await classId())),
   queryStudents: () =>
     wrap(async () => {
       const b = await load()
@@ -252,7 +253,7 @@ let pollTimer: number | undefined
 let lastSignature = ""
 const signature = (b: Bootstrap) => `${b.class_id}:${b.server_change_seq}:${b.snapshot_updated_at}`
 
-const pollOnce = async (_fromStream = false) => {
+const pollOnce = async () => {
   if (document.visibilityState !== "visible" || !navigator.onLine) return
   try {
     const b = await load(true)
@@ -272,7 +273,7 @@ let refreshDebounce: number | undefined
 
 const refreshSoon = () => {
   window.clearTimeout(refreshDebounce)
-  refreshDebounce = window.setTimeout(() => void pollOnce(true), 150)
+  refreshDebounce = window.setTimeout(() => void pollOnce(), 150)
 }
 
 /** 长连接：服务端有新操作/快照变化时立即刷新；断线指数退避重连，期间靠轮询兜底。 */

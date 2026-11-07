@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
-import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress, Input, QRCode, Select } from "antd"
+import { Layout, Space, Button, Tag, Spin, Avatar, Popover, Progress, Input, QRCode } from "antd"
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -41,6 +41,7 @@ const SettlementHistory = lazy(() =>
 const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
 const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
 const PluginManager = lazy(() => loadPluginManager().then((m) => ({ default: m.PluginManager })))
+const WebManage = lazy(() => import("../web/manage/WebManage"))
 
 const warmupRouteChunks = () =>
   Promise.allSettled([
@@ -121,16 +122,6 @@ export function ContentArea({
   const { t } = useTranslation()
   const isLanBrowser = Boolean((window as any).__SECSCORE_LAN__)
   const isWebClient = Boolean((window as any).__SECSCORE_WEB__)
-  const [webClasses, setWebClasses] = useState<Array<{ id: string; name: string }>>([])
-  const [webClassId, setWebClassId] = useState<string>()
-  useEffect(() => {
-    if (!isWebClient) return
-    void (window as any).api.webListClasses().then((r: any) => {
-      if (!r?.success) return
-      setWebClasses(r.data.classes)
-      setWebClassId(r.data.current)
-    })
-  }, [isWebClient])
   const [webUserName, setWebUserName] = useState<string | null>(null)
   const isNarrowViewport = useIsMobileViewport()
   useEffect(() => {
@@ -729,6 +720,21 @@ export function ContentArea({
     </div>
   )
 
+  // Web 端「管理」独立页：自带顶栏与底部导航，不显示应用顶栏。
+  if (isWebClient && location.pathname.startsWith("/manage")) {
+    return (
+      <Suspense
+        fallback={
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Spin size="large" />
+          </div>
+        }
+      >
+        <WebManage />
+      </Suspense>
+    )
+  }
+
   return (
     <Layout
       style={{
@@ -876,16 +882,6 @@ export function ContentArea({
           }
         >
           <Space size="small">
-            {isWebClient && (
-              <Select
-                size="small"
-                showSearch={false}
-                style={{ minWidth: 110, maxWidth: 160 }}
-                value={webClassId}
-                options={webClasses.map((c) => ({ value: c.id, label: c.name }))}
-                onChange={(id) => void (window as any).api.webSwitchClass(id)}
-              />
-            )}
             {!isLanBrowser && <WorkspaceManager compact />}
             {!isLanBrowser && (
               <Popover

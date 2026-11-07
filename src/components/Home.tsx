@@ -38,7 +38,9 @@ import {
   PlusOutlined,
   CloseOutlined,
   UserOutlined,
+  AppstoreOutlined,
 } from "@ant-design/icons"
+import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import dayjs from "dayjs"
@@ -260,6 +262,8 @@ export const Home: React.FC<HomeProps> = ({
   onUnlock,
 }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const isWebClient = Boolean((window as any).__SECSCORE_WEB__)
   const breakpoint = useResponsive()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const isTablet = breakpoint === "md"
@@ -4725,6 +4729,21 @@ export const Home: React.FC<HomeProps> = ({
           borderRadius: immersiveMode ? "999px" : undefined,
           flexShrink: isMobile ? 1 : 0,
         }
+
+    if (isWebClient) {
+      return (
+        <Button
+          icon={<AppstoreOutlined />}
+          onClick={() => {
+            closeMenu?.()
+            navigate("/manage/students")
+          }}
+          style={btnStyle}
+        >
+          管理
+        </Button>
+      )
+    }
 
     if (permission === "view") {
       return (
