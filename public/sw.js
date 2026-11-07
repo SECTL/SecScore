@@ -2,9 +2,11 @@
 // - 安装/每次成功加载页面后，从 "/" 出发抓取所有 /assets 下的 js/css（含懒加载分包）并缓存，保证断网可打开；
 // - 页面导航网络优先（3 秒超时），失败回退缓存的外壳；静态资源缓存优先；
 // - /v1/ 与 /oauth/ 不经过缓存，业务数据由页面自己存在 localStorage。
-const CACHE = "secscore-web-v3"
+const CACHE = "secscore-web-v4"
 const SKIP_CHUNK = /\/(xlsx|AutoScoreManager)/ // Web 端用不到的大分包，不预缓存
 const NAV_TIMEOUT_MS = 3000
+// 服务器给静态资源加了 Vary: origin，而分包请求有的带 Origin 有的不带，必须忽略 Vary 才能命中缓存。
+const MATCH = { ignoreVary: true }
 
 const putIfOk = async (cache, url, res) => {
   if (res.ok && !(res.headers.get("content-type") || "").includes("text/html")) {
@@ -29,7 +31,7 @@ const precache = async (html) => {
     const url = queue.shift()
     if (SKIP_CHUNK.test(url)) continue
     try {
-      let res = await cache.match(url)
+      let res = await cache.match(url, MATCH)
       if (!res) {
         res = await fetch(url)
         await putIfOk(cache, url, res)
@@ -111,14 +113,14 @@ self.addEventListener("fetch", (e) => {
           ])
         } catch {
           network.catch(() => void 0)
-          return (await caches.match("/")) || Response.error()
+          return (await caches.match("/", MATCH)) || Response.error()
         }
       })()
     )
     return
   }
   e.respondWith(
-    caches.match(req).then(
+    caches.match(req, MATCH).then(
       (hit) =>
         hit ||
         fetch(req).then((r) => {
