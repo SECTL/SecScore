@@ -172,10 +172,14 @@ export function isRefreshTokenRejected(error: unknown): boolean {
   )
 }
 
+/** 2020-01-01 UTC，早于此的过期时间一定是占位值（如 "-1"）。 */
+const MIN_VALID_EXPIRY_SECONDS = 1577836800
+
 function getTokenExpiry(tokenData: TokenData): number | null {
   if (tokenData.expires_at) {
     const expiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
-    if (Number.isFinite(expiresAt)) return expiresAt
+    // 服务端“永不过期”会返回 "-1"，new Date("-1") 会得到 2001 年；早于 2020 年的值视为无效。
+    if (Number.isFinite(expiresAt) && expiresAt > MIN_VALID_EXPIRY_SECONDS) return expiresAt
   }
   return extractExpiryFromJwt(getAccessTokenFromData(tokenData))
 }
@@ -247,7 +251,7 @@ class SectlAuthService {
     this.refreshTimer = null
     if (!this.refreshToken || !this.tokenExpiresAt) return
     const delay = Math.min(
-      Math.max(this.tokenExpiresAt * 1000 - Date.now() - 5 * 60_000, 5_000),
+      Math.max(this.tokenExpiresAt * 1000 - Date.now() - 5 * 60_000, 60_000),
       2_000_000_000
     )
     this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), delay)
@@ -630,6 +634,9 @@ class SectlAuthService {
       throw new Error("没有 refresh_token，无法刷新")
     }
 
+    // 记录发起时的会话；返回时若账号/令牌已变（如刚登录了新账号），必须丢弃结果。
+    const startGeneration = this.tokenGeneration
+    const startUserId = this.userId
     const deviceUuid = this.generateDeviceUuid()
 
     const publicIp = await getPublicIp()
@@ -667,12 +674,24 @@ class SectlAuthService {
 
       const data: TokenData = await response.json()
       // 服务端未返回新的 refresh_token 时必须沿用旧值，否则下次刷新会失败。
+      if (this.tokenGeneration !== startGeneration || this.userId !== startUserId) {
+        authLog("warn", "刷新期间会话已变更，丢弃旧账号的刷新结果", {
+          platform_id: SECTL_CONFIG.platformId,
+          user_id: startUserId,
+        })
+        throw new Error("OAuth 会话已变更，已丢弃过期的刷新结果")
+      }
       if (!data.refresh_token && this.refreshToken) data.refresh_token = this.refreshToken
       this.saveToken(data)
+      const savedGeneration = this.tokenGeneration
       try {
         const api = (window as any).api
         const userInfo = await this.getUserInfo()
-        if (api?.oauthSaveLoginState && userInfo?.user_id) {
+        if (
+          api?.oauthSaveLoginState &&
+          userInfo?.user_id &&
+          this.tokenGeneration === savedGeneration
+        ) {
           await api.oauthSaveLoginState({
             access_token: this.accessToken || data.access_token,
             refresh_token: this.refreshToken || "",
