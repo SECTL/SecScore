@@ -132,7 +132,7 @@ export function InstallPrompt(): React.JSX.Element | null {
     : chrome
       ? {
           // Chrome 的工具栏在视口之外，气泡贴着视口顶部，箭头向上指向工具栏里的分享图标。
-          top: 8,
+          top: 20,
           right: 16,
           width: Math.min(340, window.innerWidth - 32),
         }
@@ -144,7 +144,7 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   const arrow: React.CSSProperties = bottomLayout
     ? { ...arrowBase, bottom: -8, left: "calc(50% - 8px)", boxShadow: "3px 3px 6px rgba(0,0,0,0.08)" }
-    : { ...arrowBase, top: -8, right: chrome ? (width < 800 ? 5 : 119) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
+    : { ...arrowBase, top: -8, right: chrome ? (width < 800 ? -1 : 119) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
 
   return (
     <div
