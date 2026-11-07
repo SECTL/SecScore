@@ -1,6 +1,6 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
-import { bootstrap, listClasses, type Bootstrap } from "./api"
-import { enqueueRedeem, enqueueScore, flush, pendingDeltas } from "./sync"
+import { bootstrap, listClasses, openChanges, type Bootstrap } from "./api"
+import { deviceId, enqueueRedeem, enqueueScore, flush, pendingDeltas } from "./sync"
 import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
 
@@ -135,7 +135,7 @@ let pollTimer: number | undefined
 let lastSignature = ""
 const signature = (b: Bootstrap) => `${b.class_id}:${b.server_change_seq}:${b.snapshot_updated_at}`
 
-const pollOnce = async () => {
+const pollOnce = async (_fromStream = false) => {
   if (document.visibilityState !== "visible" || !navigator.onLine) return
   try {
     const b = await load(true)
@@ -149,10 +149,71 @@ const pollOnce = async () => {
   }
 }
 
+let streamAbort: AbortController | null = null
+let streamConnected = false
+let refreshDebounce: number | undefined
+
+const refreshSoon = () => {
+  window.clearTimeout(refreshDebounce)
+  refreshDebounce = window.setTimeout(() => void pollOnce(true), 150)
+}
+
+/** 长连接：服务端有新操作/快照变化时立即刷新；断线指数退避重连，期间靠轮询兜底。 */
+const runStream = async () => {
+  let failures = 0
+  for (;;) {
+    if (document.visibilityState !== "visible" || !navigator.onLine) {
+      await new Promise((r) => setTimeout(r, 2000))
+      continue
+    }
+    const controller = new AbortController()
+    streamAbort = controller
+    try {
+      const id = await classId()
+      const seq = cache?.server_change_seq ?? 0
+      const res = await openChanges(id, seq, deviceId(), controller.signal)
+      if (!res.body) throw new Error("no body")
+      streamConnected = true
+      failures = 0
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ""
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n")
+        const frames = buf.split("\n\n")
+        buf = frames.pop() || ""
+        if (frames.some((f) => f.includes("data:") || f.includes("event:"))) refreshSoon()
+      }
+    } catch {
+      /* 断线或鉴权失败：退避后重连 */
+    } finally {
+      streamConnected = false
+      streamAbort = null
+    }
+    failures += 1
+    await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** Math.min(failures - 1, 5), 30_000)))
+  }
+}
+
 export const startAutoRefresh = () => {
   if (pollTimer !== undefined) return
   void pollOnce()
-  pollTimer = window.setInterval(() => void pollOnce(), 10_000)
-  document.addEventListener("visibilitychange", () => void pollOnce())
-  window.addEventListener("online", () => void pollOnce())
+  // 长连接正常时只做低频兜底轮询。
+  pollTimer = window.setInterval(() => {
+    if (!streamConnected) void pollOnce()
+  }, 10_000)
+  window.setInterval(() => void pollOnce(), 60_000)
+  void runStream()
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      streamAbort?.abort()
+      void pollOnce()
+    }
+  })
+  window.addEventListener("online", () => {
+    streamAbort?.abort()
+    void pollOnce()
+  })
 }

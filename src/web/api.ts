@@ -95,3 +95,15 @@ export const syncOps = async (classId: string, deviceId: string, ops: PendingOp[
       }),
     })
   ).json() as Promise<{ accepted_operations: Array<{ op_id: string }> }>
+
+/** 打开 /v1/changes 的 SSE 流（用 fetch 以便携带 Authorization 头）。 */
+export const openChanges = async (
+  classId: string,
+  seq: number,
+  deviceId: string,
+  signal: AbortSignal
+): Promise<Response> =>
+  call(
+    `/v1/changes?class_id=${encodeURIComponent(classId)}&last_server_change_seq=${seq}&device_id=${encodeURIComponent(deviceId)}`,
+    { signal }
+  )

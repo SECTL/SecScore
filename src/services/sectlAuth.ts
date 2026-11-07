@@ -227,8 +227,52 @@ class SectlAuthService {
   private readonly sessionListeners = new Set<() => void>()
   private persistedRestorePromise: Promise<Record<string, any> | null> | null = null
 
+  private refreshTimer: number | null = null
+
   constructor() {
     this.loadToken()
+    this.scheduleRefresh()
+    if (typeof window !== "undefined") {
+      const check = () => void this.ensureFreshToken()
+      window.addEventListener("online", check)
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") check()
+      })
+    }
+  }
+
+  /** access token 的 JWT 只有 1 小时有效期：到期前 5 分钟主动刷新，不等服务端返回 401。 */
+  private scheduleRefresh(): void {
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+    this.refreshTimer = null
+    if (!this.refreshToken || !this.tokenExpiresAt) return
+    const delay = Math.min(
+      Math.max(this.tokenExpiresAt * 1000 - Date.now() - 5 * 60_000, 5_000),
+      2_000_000_000
+    )
+    this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), delay)
+  }
+
+  /** 令牌已过期或 5 分钟内将过期时，用 refresh_token 刷新。网络错误时保留会话，稍后重试。 */
+  async ensureFreshToken(skewSeconds = 300): Promise<boolean> {
+    if (!this.accessToken) return false
+    const near = this.tokenExpiresAt !== null && Date.now() / 1000 >= this.tokenExpiresAt - skewSeconds
+    if (!near) return true
+    if (!this.refreshToken) return this.isAuthenticated()
+    try {
+      await this.refreshAccessToken()
+      return true
+    } catch (error) {
+      authLog("warn", "主动刷新 OAuth token 失败", { error: String(error) })
+      if (isRefreshTokenRejected(error)) {
+        this.clearLocalSession()
+        return false
+      }
+      // 临时错误：1 分钟后再试。
+      if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+      this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), 60_000)
+      return this.isAuthenticated()
+    }
   }
 
   async restorePersistedSession(): Promise<boolean> {
@@ -727,6 +771,7 @@ class SectlAuthService {
       localStorage.setItem(`sectl_token:${this.userId}`, JSON.stringify(storableData))
     }
     this.tokenGeneration += 1
+    this.scheduleRefresh()
     this.notifySessionChanged()
     authLog("info", "OAuth token 已保存", {
       platform_id: SECTL_CONFIG.platformId,
@@ -787,6 +832,8 @@ class SectlAuthService {
     this.codeVerifier = null
     this.authorizationState = null
     this.tokenGeneration += 1
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+    this.refreshTimer = null
     this.notifySessionChanged()
   }
 

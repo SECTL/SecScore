@@ -639,6 +639,8 @@ class SyncClient {
   }
 
   private async headers(requestId?: string): Promise<HeadersInit> {
+    // 令牌将过期或已过期时先刷新，避免在没有 401 的情况下永远停在未认证。
+    await sectlAuth.ensureFreshToken()
     const token = sectlAuth.getAccessToken()
     if (!token || !sectlAuth.isAuthenticated() || this.authenticationBlocked) {
       throw new Error("OAuth 会话未就绪或已失效")
@@ -865,6 +867,7 @@ class SyncClient {
     if (this.changeStreamRunning || this.authenticationBlocked || !sectlAuth.isAuthenticated()) return
     this.changeStreamRunning = true
     const generation = this.changeStreamGeneration
+    let streamFailures = 0
     void (async () => {
       while (
         this.enabled &&
@@ -921,6 +924,7 @@ class SyncClient {
             status: response.status,
             content_type: response.headers.get("content-type"),
           })
+          streamFailures = 0
           this.changeStreamConnected = true
           this.changeStreamAuthError = false
           this.updateStatus({
@@ -984,9 +988,11 @@ class SyncClient {
               auth_error: isAuthError,
             })
             const recovered = isAuthError && (await this.tryRecoverAuthentication())
-            await new Promise((resolve) =>
-              window.setTimeout(resolve, recovered ? 250 : isAuthError ? 5000 : 1000)
-            )
+            streamFailures = recovered ? 0 : streamFailures + 1
+            const backoff = recovered
+              ? 250
+              : Math.min(1000 * 2 ** Math.min(streamFailures - 1, 5), 30_000)
+            await new Promise((resolve) => window.setTimeout(resolve, backoff))
           }
         } finally {
           if (generation === this.changeStreamGeneration) {
