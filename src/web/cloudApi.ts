@@ -127,3 +127,31 @@ export const ensureLogin = async (): Promise<boolean> => {
   }
   return true
 }
+
+// 云端没有推送通道给浏览器，这里轮询 bootstrap：可见时每 10 秒一次，切回前台/恢复联网立即一次。
+// 服务端序号或快照时间变化时才通知 UI 刷新，避免无谓重绘。
+let pollTimer: number | undefined
+let lastSignature = ""
+const signature = (b: Bootstrap) => `${b.class_id}:${b.server_change_seq}:${b.snapshot_updated_at}`
+
+const pollOnce = async () => {
+  if (document.visibilityState !== "visible" || !navigator.onLine) return
+  try {
+    const b = await load(true)
+    const next = signature(b)
+    if (lastSignature && next !== lastSignature) {
+      window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+    }
+    lastSignature = next
+  } catch {
+    /* 网络或登录问题下次再试 */
+  }
+}
+
+export const startAutoRefresh = () => {
+  if (pollTimer !== undefined) return
+  void pollOnce()
+  pollTimer = window.setInterval(() => void pollOnce(), 10_000)
+  document.addEventListener("visibilitychange", () => void pollOnce())
+  window.addEventListener("online", () => void pollOnce())
+}
