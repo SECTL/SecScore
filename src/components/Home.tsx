@@ -2116,15 +2116,31 @@ export const Home: React.FC<HomeProps> = ({
       startY = e.touches[0].clientY
       startX = e.touches[0].clientX
       startTime = performance.now()
+      scrollBase = bodyEl?.scrollTop ?? 0
     }
+
+    // 内容区在顶部时禁用浏览器竖向原生手势（touch-action 须在 touchstart 前生效），
+    // 否则浏览器会抢走手势，touchmove 变为不可取消，抽屉无法跟手；向上滑改为手动滚动。
+    const bodyEl = document.querySelector<HTMLElement>(".ss-operation-drawer .ant-drawer-body")
+    const syncTouchAction = () => {
+      if (!bodyEl) return
+      bodyEl.style.touchAction = bodyEl.scrollTop <= 0 ? "pan-x" : ""
+    }
+    syncTouchAction()
+    bodyEl?.addEventListener("scroll", syncTouchAction, { passive: true })
+    let scrollBase = 0
 
     const onMove = (e: TouchEvent) => {
       if (!tracking || !wrapper) return
       const dy = e.touches[0].clientY - startY
       const dx = e.touches[0].clientX - startX
       if (!dragging) {
-        if (Math.abs(dx) > Math.abs(dy) || dy < -4) {
+        if (Math.abs(dx) > Math.abs(dy)) {
           tracking = false
+          return
+        }
+        if (dy < 0) {
+          if (bodyEl && bodyEl.contains(e.target as Node)) bodyEl.scrollTop = scrollBase - dy
           return
         }
         if (dy < 8) return
@@ -2174,6 +2190,7 @@ export const Home: React.FC<HomeProps> = ({
       document.removeEventListener("touchmove", onMove)
       document.removeEventListener("touchend", onEnd)
       document.removeEventListener("touchcancel", onEnd)
+      bodyEl?.removeEventListener("scroll", syncTouchAction)
       if (closeTimer !== null) window.clearTimeout(closeTimer)
     }
   }, [isPortraitMode, operationVisible])
