@@ -2106,7 +2106,8 @@ export const Home: React.FC<HomeProps> = ({
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null
       if (!target || e.touches.length !== 1) return
-      const el = target.closest(".ss-operation-drawer .ant-drawer-content-wrapper")
+      // antd 6：className 落在内层 .ant-drawer-section 上，content-wrapper 是它的祖先
+      const el = target.closest(".ss-operation-drawer")?.closest(".ant-drawer-content-wrapper")
       if (!el) return
       wrapper = el as HTMLElement
       if (hasScrolledAncestor(target)) return
