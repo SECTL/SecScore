@@ -2060,6 +2060,8 @@ export const Home: React.FC<HomeProps> = ({
   // 竖屏积分操作抽屉：支持系统返回键关闭
   const closeOperationModalRef = useRef(closeOperationModal)
   closeOperationModalRef.current = closeOperationModal
+  // 由下拉手势 effect 提供：从当前动画位置反向滑出（可打断打开动画），并带动底栏
+  const drawerAnimatedCloseRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     if (!isPortraitMode || !operationVisible) return
     const marker = { ssOperationDrawer: true }
@@ -2067,7 +2069,8 @@ export const Home: React.FC<HomeProps> = ({
     let handledByPopstate = false
     const onPopState = () => {
       handledByPopstate = true
-      closeOperationModalRef.current()
+      if (drawerAnimatedCloseRef.current) drawerAnimatedCloseRef.current()
+      else closeOperationModalRef.current()
     }
     window.addEventListener("popstate", onPopState)
     return () => {
@@ -2092,7 +2095,101 @@ export const Home: React.FC<HomeProps> = ({
     let dragging = false
     let tracking = false
     let lastDy = 0
-    let closeTimer: number | null = null
+    let closing = false
+    let rafId: number | null = null
+
+    const getWrapper = () =>
+      document
+        .querySelector<HTMLElement>(".ss-operation-drawer")
+        ?.closest<HTMLElement>(".ant-drawer-content-wrapper") ?? null
+    const getMask = (el: HTMLElement) =>
+      el.parentElement?.querySelector<HTMLElement>(".ant-drawer-mask") ?? null
+
+    // p: 0=抽屉完全展开，1=完全收起。同步驱动抽屉位移、遮罩透明度与底部工具栏。
+    const applyProgress = (el: HTMLElement, p: number, maskK: number) => {
+      const q = Math.min(1, Math.max(0, p))
+      el.style.transition = "none"
+      el.style.transform = `translateY(${q * el.offsetHeight}px)`
+      const mask = getMask(el)
+      if (mask) {
+        mask.style.transition = "none"
+        mask.style.opacity = String(Math.min(1, maskK * (1 - q)))
+      }
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = "none"
+        tb.style.opacity = String(0.22 + 0.78 * q)
+        tb.style.filter = `blur(${8 * (1 - q)}px)`
+        tb.style.transform = `translateX(-50%) translateY(${84 * (1 - q)}px) rotate(${-5 * (1 - q)}deg) scale(${0.94 + 0.06 * q})`
+      }
+    }
+
+    const currentMaskK = (el: HTMLElement, p0: number) => {
+      const mask = getMask(el)
+      if (!mask) return 1
+      const o = parseFloat(getComputedStyle(mask).opacity)
+      return Number.isFinite(o) ? o / Math.max(0.001, 1 - p0) : 1
+    }
+
+    const animateProgress = (
+      el: HTMLElement,
+      from: number,
+      to: number,
+      duration: number,
+      maskK: number,
+      done: () => void
+    ) => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      const t0 = performance.now()
+      const step = (now: number) => {
+        const k = Math.min(1, (now - t0) / duration)
+        const e = 1 - Math.pow(1 - k, 3)
+        applyProgress(el, from + (to - from) * e, maskK)
+        if (k < 1) {
+          rafId = requestAnimationFrame(step)
+        } else {
+          rafId = null
+          done()
+        }
+      }
+      rafId = requestAnimationFrame(step)
+    }
+
+    const resetInline = (el: HTMLElement) => {
+      el.style.transition = ""
+      el.style.transform = ""
+      const mask = getMask(el)
+      if (mask) {
+        mask.style.transition = ""
+        mask.style.opacity = ""
+      }
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = ""
+        tb.style.opacity = ""
+        tb.style.filter = ""
+        tb.style.transform = ""
+      }
+    }
+
+    // 从当前实际位置（含打开动画进行中）直接反向滑出，不跳到动画终点
+    const closeAnimated = () => {
+      const el = getWrapper()
+      if (!el || closing) {
+        if (!el) closeOperationModalRef.current()
+        return
+      }
+      closing = true
+      const cs = getComputedStyle(el)
+      const h = el.offsetHeight || 1
+      const p0 = Math.min(1, Math.max(0, new DOMMatrixReadOnly(cs.transform).m42 / h))
+      const maskK = currentMaskK(el, p0)
+      el.style.opacity = cs.opacity
+      animateProgress(el, p0, 1, Math.max(120, 240 * (1 - p0)), maskK, () =>
+        closeOperationModalRef.current()
+      )
+    }
+    drawerAnimatedCloseRef.current = closeAnimated
 
     const hasScrolledAncestor = (target: HTMLElement) => {
       let el: HTMLElement | null = target
@@ -2105,7 +2202,7 @@ export const Home: React.FC<HomeProps> = ({
 
     const onStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement | null
-      if (!target || e.touches.length !== 1) return
+      if (closing || !target || e.touches.length !== 1) return
       // antd 6：className 落在内层 .ant-drawer-section 上，content-wrapper 是它的祖先
       const el = target.closest(".ss-operation-drawer")?.closest(".ant-drawer-content-wrapper")
       if (!el) return
@@ -2146,11 +2243,10 @@ export const Home: React.FC<HomeProps> = ({
         }
         if (dy < 8) return
         dragging = true
-        wrapper.style.transition = "none"
       }
       if (e.cancelable) e.preventDefault()
       lastDy = Math.max(0, dy)
-      wrapper.style.transform = `translateY(${lastDy}px)`
+      applyProgress(wrapper, lastDy / (wrapper.offsetHeight || 1), 1)
     }
 
     const onEnd = () => {
@@ -2163,22 +2259,14 @@ export const Home: React.FC<HomeProps> = ({
       const velocity = lastDy / elapsed
       const shouldClose =
         lastDy >= CLOSE_DISTANCE || (velocity >= CLOSE_VELOCITY && lastDy >= MIN_FLICK_DISTANCE)
-      el.style.transition = "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)"
+      const p0 = lastDy / (el.offsetHeight || 1)
       if (shouldClose) {
-        el.style.transform = "translateY(100%)"
-        closeTimer = window.setTimeout(() => {
+        closing = true
+        animateProgress(el, p0, 1, Math.max(120, 240 * (1 - p0)), 1, () =>
           closeOperationModalRef.current()
-          window.setTimeout(() => {
-            el.style.transition = ""
-            el.style.transform = ""
-          }, 400)
-        }, 200)
+        )
       } else {
-        el.style.transform = "translateY(0)"
-        window.setTimeout(() => {
-          el.style.transition = ""
-          el.style.transform = ""
-        }, 260)
+        animateProgress(el, p0, 0, Math.max(120, 260 * p0 + 100), 1, () => resetInline(el))
       }
     }
 
@@ -2192,7 +2280,16 @@ export const Home: React.FC<HomeProps> = ({
       document.removeEventListener("touchend", onEnd)
       document.removeEventListener("touchcancel", onEnd)
       bodyEl?.removeEventListener("scroll", syncTouchAction)
-      if (closeTimer !== null) window.clearTimeout(closeTimer)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      drawerAnimatedCloseRef.current = null
+      // 此时抽屉已关闭、底栏 class 已恢复，清掉内联样式不会产生闪动
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = ""
+        tb.style.opacity = ""
+        tb.style.filter = ""
+        tb.style.transform = ""
+      }
     }
   }, [isPortraitMode, operationVisible])
 
