@@ -14,6 +14,10 @@ const isIosSafari = () => {
   return !/CriOS|FxiOS|EdgiOS|OPiOS|MicroMessenger|QQ\/|Weibo|DingTalk/.test(ua)
 }
 
+const isIpad = () =>
+  /iPad/.test(navigator.userAgent) ||
+  (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+
 const isStandalone = () =>
   (navigator as any).standalone === true || window.matchMedia("(display-mode: standalone)").matches
 
@@ -111,23 +115,27 @@ export function InstallPrompt(): React.JSX.Element | null {
     transform: "rotate(45deg)",
   }
 
-  const container: React.CSSProperties = portrait
+  // iPad Safari 的工具栏始终在顶部（含分屏/台前调度的窄窗口），一律按顶部布局；
+  // iPhone 才按横竖屏区分。
+  const bottomLayout = portrait && !isIpad()
+
+  const container: React.CSSProperties = bottomLayout
     ? {
         left: 12,
         right: 12,
-        bottom: "calc(env(safe-area-inset-bottom) + 64px)",
+        bottom: "calc(env(safe-area-inset-bottom) + 10px)",
         maxWidth: 460,
         margin: "0 auto",
       }
     : {
-        top: "calc(env(safe-area-inset-top) + 56px)",
+        top: "calc(env(safe-area-inset-top) + 10px)",
         right: 16,
         width: 340,
       }
 
-  const arrow: React.CSSProperties = portrait
+  const arrow: React.CSSProperties = bottomLayout
     ? { ...arrowBase, bottom: -8, left: "calc(50% - 8px)", boxShadow: "3px 3px 6px rgba(0,0,0,0.08)" }
-    : { ...arrowBase, top: -8, right: 56, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
+    : { ...arrowBase, top: -8, right: 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
 
   return (
     <div
