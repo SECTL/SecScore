@@ -1,5 +1,5 @@
 // 极简离线缓存：静态资源缓存优先，页面导航网络优先并回退到缓存的外壳。API 请求不经过缓存。
-const CACHE = "secscore-web-v1"
+const CACHE = "secscore-web-v2"
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/manifest.webmanifest"])).then(() => self.skipWaiting()))
 })
@@ -18,6 +18,6 @@ self.addEventListener("fetch", (e) => {
     return
   }
   e.respondWith(
-    caches.match(req).then((hit) => hit || fetch(req).then((r) => { if (r.ok) caches.open(CACHE).then((c) => c.put(req, r.clone())); return r }))
+    caches.match(req).then((hit) => hit || fetch(req).then((r) => { if (r.ok && !(r.headers.get("content-type") || "").includes("text/html")) caches.open(CACHE).then((c) => c.put(req, r.clone())); return r }))
   )
 })

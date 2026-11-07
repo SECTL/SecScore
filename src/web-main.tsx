@@ -11,6 +11,16 @@ import { cloudApi, ensureLogin, startAutoRefresh } from "./web/cloudApi"
 ;(window as any).__SECSCORE_WEB__ = true
 ;(window as any).api = cloudApi
 
+// 部署后旧分包文件名失效时，自动清掉旧缓存并重载一次，避免白屏。
+window.addEventListener("vite:preloadError", () => {
+  if (sessionStorage.getItem("ssw_chunk_reload")) return
+  sessionStorage.setItem("ssw_chunk_reload", "1")
+  void caches
+    .keys()
+    .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+    .finally(() => location.reload())
+})
+
 void ensureLogin().then((ready) => {
   if (!ready) return
   startAutoRefresh()
