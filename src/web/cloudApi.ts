@@ -1,7 +1,7 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
 import { bootstrap, listClasses, type Bootstrap } from "./api"
 import { enqueueRedeem, enqueueScore, flush, pendingDeltas } from "./sync"
-import { getSession, getUserId, handleCallback, login } from "./auth"
+import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
 
 const CLASS_KEY = "ssw_class_id"
@@ -53,6 +53,7 @@ const cloudBase: Record<string, any> = {
       const userId = await getUserId()
       return session && userId ? { access_token: session.access_token, user_id: userId } : null
     }),
+  webGetUserName: () => wrap(async () => getUserName()),
   webListClasses: () =>
     wrap(async () => ({ classes: await listClasses(), current: await classId() })),
   webSwitchClass: (id: string) => {

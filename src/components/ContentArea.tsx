@@ -14,6 +14,7 @@ import { WindowControls } from "./WindowControls"
 import { WorkspaceManager } from "./WorkspaceManager"
 import { sectlAuth } from "../services/sectlAuth"
 import appLogo from "../assets/logoHD.svg"
+import { useIsMobileViewport } from "../hooks/useResponsive"
 
 const loadHome = () => import("./Home")
 const loadStudentManager = () => import("./StudentManager")
@@ -130,6 +131,14 @@ export function ContentArea({
       setWebClassId(r.data.current)
     })
   }, [isWebClient])
+  const [webUserName, setWebUserName] = useState<string | null>(null)
+  const isNarrowViewport = useIsMobileViewport()
+  useEffect(() => {
+    if (!isWebClient) return
+    void (window as any).api.webGetUserName().then((r: any) => {
+      if (r?.success && r.data) setWebUserName(String(r.data))
+    })
+  }, [isWebClient])
   const isMacOS =
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
@@ -208,7 +217,7 @@ export function ContentArea({
       : permission === "points"
         ? t("permissions.points")
         : t("permissions.view")
-  const userDisplayName = (oauthUserName || fallbackDisplayName).trim()
+  const userDisplayName = (oauthUserName || webUserName || fallbackDisplayName).trim()
   const avatarText = userDisplayName.slice(0, 1).toUpperCase()
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false)
   const [storageUsageLoading, setStorageUsageLoading] = useState(false)
@@ -937,7 +946,7 @@ export function ContentArea({
                 </span>
               </button>
             </Popover>
-            {permissionTag}
+            {!(isWebClient && isNarrowViewport) && permissionTag}
             {!immersiveMode && hasAnyPassword && (
               <>
                 <Button size="small" onClick={onAuthClick}>

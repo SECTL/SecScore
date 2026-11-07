@@ -12,6 +12,7 @@ export interface Session {
   refresh_token?: string
   expires_at?: number
   user_id?: string
+  name?: string
 }
 
 export const callbackUrl = () => `${location.origin}/oauth/callback`
@@ -144,6 +145,25 @@ export const getUserId = async (): Promise<string | null> => {
     const id = res.ok ? (await res.json()).user_id : null
     if (id) saveSession({ ...s, user_id: String(id) })
     return id ? String(id) : null
+  } catch {
+    return null
+  }
+}
+
+/** 取显示名称（userinfo 的 name，缺省用邮箱）；结果缓存在会话里。 */
+export const getUserName = async (): Promise<string | null> => {
+  const s = getSession()
+  if (!s) return null
+  if (s.name) return s.name
+  try {
+    const res = await fetch(`${BASE_URL}/api/oauth/userinfo`, {
+      headers: { Authorization: `Bearer ${s.access_token}` },
+    })
+    if (!res.ok) return null
+    const info = await res.json()
+    const name = String(info.name || info.email || "").trim()
+    if (name) saveSession({ ...(getSession() || s), name, user_id: s.user_id || (info.user_id ? String(info.user_id) : undefined) })
+    return name || null
   } catch {
     return null
   }
