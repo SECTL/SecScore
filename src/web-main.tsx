@@ -6,6 +6,7 @@ import App from "./App"
 import { ClientContext } from "./ClientContext"
 import { StudentService } from "./services/StudentService"
 import { ServiceProvider } from "./contexts/ServiceContext"
+import { InstallPrompt } from "./web/InstallPrompt"
 import { cloudApi, ensureLogin, startAutoRefresh } from "./web/cloudApi"
 ;(window as any).__SECSCORE_LAN__ = true
 ;(window as any).__SECSCORE_WEB__ = true
@@ -33,6 +34,10 @@ void ensureLogin().then((ready) => {
       </ServiceProvider>
     </StrictMode>
   )
+  // 独立挂载，避免受主应用布局影响。
+  const promptHost = document.createElement("div")
+  document.body.appendChild(promptHost)
+  createRoot(promptHost).render(<InstallPrompt />)
 })
 
 if ("serviceWorker" in navigator) {
