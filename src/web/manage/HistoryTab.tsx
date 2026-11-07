@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { CloseOutlined, UserOutlined } from "@ant-design/icons"
+import { CloseOutlined, UndoOutlined, UserOutlined } from "@ant-design/icons"
 import { BottomSheet } from "./BottomSheet"
 import { SearchBar, Pills } from "./controls"
+import { SheetActions, useSubmit } from "./forms"
 import {
+  callEdit,
   dayLabel,
   formatDelta,
   matchText,
@@ -31,7 +33,13 @@ export function HistoryTab({
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
   const [limit, setLimit] = useState(PAGE)
-  const [detail, setDetail] = useState<ManageEvent | null>(null)
+  const [detail, setDetailState] = useState<ManageEvent | null>(null)
+  const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const setDetail = (e: ManageEvent | null) => {
+    setDetailState(e)
+    setConfirmRevoke(false)
+  }
+  const revoke = useSubmit()
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   const filtered = useMemo(
@@ -199,8 +207,54 @@ export function HistoryTab({
             </div>
             <div className="ssm-kv">
               <span>状态</span>
-              <span>{detail.pending ? "待同步（联网后自动上传）" : "已同步"}</span>
+              <span>
+                {detail.settled
+                  ? "已结算"
+                  : detail.pending
+                    ? "待同步（联网后自动上传）"
+                    : "已同步"}
+              </span>
             </div>
+            {detail.kind === "score" && detail.uuid && !detail.settled && (
+              <div className="ssm-revoke">
+                {confirmRevoke ? (
+                  <>
+                    <div className="ssm-confirm-text">
+                      撤销后 {detail.student_name} 的积分和可兑换积分各{" "}
+                      {detail.delta > 0 ? "减少" : "增加"} {Math.abs(detail.delta)}，这条记录会被删除。
+                    </div>
+                    <SheetActions
+                      primary={() =>
+                        revoke.run(
+                          () => callEdit("webRevokeEvent", detail.uuid),
+                          "已撤销",
+                          () => setDetail(null)
+                        )
+                      }
+                      primaryLabel="确认撤销"
+                      danger
+                      onSecondary={() => {
+                        setConfirmRevoke(false)
+                        revoke.setError(null)
+                      }}
+                      busy={revoke.busy}
+                      error={revoke.error}
+                    />
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="ssm-btn is-danger-text is-block"
+                    onClick={() => setConfirmRevoke(true)}
+                  >
+                    <UndoOutlined /> 撤销这条记录
+                  </button>
+                )}
+              </div>
+            )}
+            {detail.settled && (
+              <div className="ssm-form-note">已结算的记录不能撤销。</div>
+            )}
           </>
         )}
       </BottomSheet>

@@ -82,6 +82,34 @@ export const enqueueRedeem = (
   setOutbox(classId, [...getOutbox(classId), op])
 }
 
+/** 编辑类操作（学生/理由增删改、撤销记录）入队；entityKey 只用于生成稳定的实体 ID。 */
+export const enqueueEdit = (
+  classId: string,
+  operationType: Exclude<PendingOp["operation_type"], "score.adjust" | "reward.redeem">,
+  entityKey: string,
+  payload: Record<string, any>
+) => {
+  const seq = num(key("seq", classId)) + 1
+  const lamport = Math.max(num(key("lamport", classId)), seq) + 1
+  localStorage.setItem(key("seq", classId), String(seq))
+  localStorage.setItem(key("lamport", classId), String(lamport))
+  const op: PendingOp = {
+    op_id: crypto.randomUUID(),
+    client_seq: seq,
+    lamport,
+    entity_type: operationType.startsWith("student")
+      ? "student"
+      : operationType.startsWith("reason")
+        ? "reason"
+        : "score_event",
+    entity_id: entityId(entityKey),
+    operation_type: operationType,
+    payload,
+    client_created_at: new Date().toISOString(),
+  }
+  setOutbox(classId, [...getOutbox(classId), op])
+}
+
 /** 待发送操作对各学生分数的叠加，用于乐观显示。 */
 export const pendingDeltas = (
   classId: string
@@ -89,6 +117,7 @@ export const pendingDeltas = (
   const map = new Map<string, { score: number; reward: number }>()
   for (const op of getOutbox(classId)) {
     const n = op.payload.student_name
+    if (typeof n !== "string") continue
     const cur = map.get(n) || { score: 0, reward: 0 }
     cur.score += Number(op.payload.score_delta || 0)
     cur.reward += Number(op.payload.reward_delta || 0)

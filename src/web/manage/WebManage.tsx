@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from "react"
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import {
   LeftOutlined,
@@ -48,6 +48,21 @@ export default function WebManage(): React.JSX.Element {
     ro.observe(sticky)
     return () => ro.disconnect()
   }, [tab, data.loading])
+
+  const [toastText, setToastText] = useState<string | null>(null)
+  useEffect(() => {
+    let timer: number | undefined
+    const onToast = (e: Event) => {
+      setToastText(String((e as CustomEvent).detail))
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setToastText(null), 2000)
+    }
+    window.addEventListener("ssm:toast", onToast)
+    return () => {
+      window.removeEventListener("ssm:toast", onToast)
+      window.clearTimeout(timer)
+    }
+  }, [])
 
   const goBack = () => {
     // react-router 在 history.state.idx 记录站内位置；直接打开管理页时没有上一页可回。
@@ -123,6 +138,12 @@ export default function WebManage(): React.JSX.Element {
           <ReasonsTab data={data} />
         )}
       </main>
+
+      {toastText && (
+        <div className="ssm-toast" role="status">
+          {toastText}
+        </div>
+      )}
 
       <nav className="ssm-tabbar">
         {TABS.map((t) => (

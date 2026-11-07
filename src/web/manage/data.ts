@@ -7,11 +7,16 @@ export interface ManageStudent {
   score: number
   reward_points: number
   group_name?: string | null
+  student_no?: string | null
+  alias?: string | null
   tags: string[]
 }
 
 export interface ManageEvent {
   key: string
+  /** 撤销用的记录 ID：已同步记录为 uuid，待上传记录为操作 ID。 */
+  uuid?: string
+  settled?: boolean
   student_name: string
   reason_content: string
   delta: number
@@ -48,7 +53,16 @@ export interface ManageData {
 const api = () => (window as any).api
 
 const normalizeEvents = (raw: any[], pendingOps: any[]): ManageEvent[] => {
-  const pending: ManageEvent[] = pendingOps.map((op) =>
+  const revoked = new Set(
+    pendingOps.filter((op) => op.operation_type === "score.revoke").map((op) => op.payload.event_uuid)
+  )
+  const pending: ManageEvent[] = pendingOps
+    .filter(
+      (op) =>
+        (op.operation_type === "score.adjust" && !revoked.has(op.op_id)) ||
+        op.operation_type === "reward.redeem"
+    )
+    .map((op) =>
     op.operation_type === "reward.redeem"
       ? {
           key: `p-${op.op_id}`,
@@ -61,6 +75,7 @@ const normalizeEvents = (raw: any[], pendingOps: any[]): ManageEvent[] => {
         }
       : {
           key: `p-${op.op_id}`,
+          uuid: String(op.op_id),
           student_name: String(op.payload.student_name),
           reason_content: String(op.payload.reason_content || ""),
           delta: Number(op.payload.score_delta || 0),
@@ -71,6 +86,8 @@ const normalizeEvents = (raw: any[], pendingOps: any[]): ManageEvent[] => {
   )
   const synced: ManageEvent[] = raw.map((e, i) => ({
     key: String(e.uuid ?? e.id ?? `e-${i}`),
+    uuid: e.uuid ? String(e.uuid) : undefined,
+    settled: e.settlement_id != null,
     student_name: String(e.student_name ?? ""),
     reason_content: String(e.reason_content ?? ""),
     delta: Number(e.delta) || 0,
@@ -112,6 +129,8 @@ export function useManageData(): ManageData {
             score: Number(s.score) || 0,
             reward_points: Number(s.reward_points) || 0,
             group_name: s.group_name || null,
+            student_no: s.student_no || null,
+            alias: s.alias || null,
             tags: Array.isArray(s.tags) ? s.tags.map(String) : [],
           }))
         : prev.students,
@@ -189,3 +208,13 @@ export const timeLabel = (iso: string): string => {
   if (Number.isNaN(d.getTime())) return ""
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
 }
+
+/** 调用 Web 编辑接口：成功返回 null，失败返回错误信息。 */
+export const callEdit = async (method: string, ...args: unknown[]): Promise<string | null> => {
+  const res = await api()[method](...args)
+  return res?.success ? null : String(res?.message || "操作失败")
+}
+
+/** 管理页底部轻提示。 */
+export const toast = (text: string) =>
+  window.dispatchEvent(new CustomEvent("ssm:toast", { detail: text }))

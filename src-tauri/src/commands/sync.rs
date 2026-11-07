@@ -650,11 +650,235 @@ pub async fn sync_apply_remote_operation(
                 .await
                 .map_err(|e| e.to_string())?;
         }
+        "student.upsert" | "student.delete" | "reason.upsert" | "reason.delete"
+        | "score.revoke" => {
+            apply_edit_operation(
+                &transaction,
+                &operation.operation_type,
+                &operation.payload,
+                &timestamp,
+            )
+            .await?;
+        }
         _ => return Ok(IpcResponse::error("不支持的远程同步操作")),
     }
 
     transaction.commit().await.map_err(|e| e.to_string())?;
     Ok(IpcResponse::success_empty())
+}
+
+fn optional_text(payload: &Value, key: &str) -> Option<Option<String>> {
+    // 字段缺省表示不修改；空字符串表示清空。
+    payload.get(key).map(|value| {
+        value
+            .as_str()
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(ToString::to_string)
+    })
+}
+
+/// Web 端发起的数据编辑。目标不存在、重名等情况按空操作处理并返回成功，
+/// 否则同步游标会卡在这条操作上。
+async fn apply_edit_operation(
+    txn: &sea_orm::DatabaseTransaction,
+    operation_type: &str,
+    payload: &Value,
+    timestamp: &str,
+) -> Result<(), String> {
+    match operation_type {
+        "student.upsert" => {
+            let Ok(name) = text(payload, "name") else {
+                return Ok(());
+            };
+            let old_name = text(payload, "old_name").unwrap_or_else(|_| name.clone());
+            let find = |target: String| {
+                students::Entity::find()
+                    .filter(students::Column::Name.eq(target))
+                    .one(txn)
+            };
+            let existing = find(old_name.clone()).await.map_err(|e| e.to_string())?;
+            let renaming = old_name != name;
+            if renaming && find(name.clone()).await.map_err(|e| e.to_string())?.is_some() {
+                return Ok(());
+            }
+            let group_name = optional_text(payload, "group_name");
+            let student_no = optional_text(payload, "student_no");
+            let alias = optional_text(payload, "alias");
+            match existing {
+                Some(student) => {
+                    let mut active: students::ActiveModel = student.into();
+                    active.name = Set(name.clone());
+                    if let Some(value) = group_name {
+                        active.group_name = Set(value);
+                    }
+                    if let Some(value) = student_no {
+                        active.student_no = Set(value);
+                    }
+                    if let Some(value) = alias {
+                        active.alias = Set(value);
+                    }
+                    active.updated_at = Set(timestamp.to_string());
+                    active.update(txn).await.map_err(|e| e.to_string())?;
+                    if renaming {
+                        score_events::Entity::update_many()
+                            .col_expr(
+                                score_events::Column::StudentName,
+                                sea_orm::sea_query::Expr::value(name.clone()),
+                            )
+                            .filter(score_events::Column::StudentName.eq(&old_name))
+                            .exec(txn)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        reward_redemptions::Entity::update_many()
+                            .col_expr(
+                                reward_redemptions::Column::StudentName,
+                                sea_orm::sea_query::Expr::value(name),
+                            )
+                            .filter(reward_redemptions::Column::StudentName.eq(&old_name))
+                            .exec(txn)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+                None => {
+                    if find(name.clone()).await.map_err(|e| e.to_string())?.is_some() {
+                        return Ok(());
+                    }
+                    students::ActiveModel {
+                        id: sea_orm::ActiveValue::NotSet,
+                        name: Set(name),
+                        student_no: Set(student_no.flatten()),
+                        alias: Set(alias.flatten()),
+                        group_name: Set(group_name.flatten()),
+                        score: Set(0),
+                        reward_points: Set(0),
+                        tags: Set("[]".into()),
+                        extra_json: Set(None),
+                        created_at: Set(timestamp.to_string()),
+                        updated_at: Set(timestamp.to_string()),
+                    }
+                    .insert(txn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                }
+            }
+        }
+        "student.delete" => {
+            let Ok(name) = text(payload, "name") else {
+                return Ok(());
+            };
+            if let Some(student) = students::Entity::find()
+                .filter(students::Column::Name.eq(&name))
+                .one(txn)
+                .await
+                .map_err(|e| e.to_string())?
+            {
+                student_tags::Entity::delete_many()
+                    .filter(student_tags::Column::StudentId.eq(student.id))
+                    .exec(txn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                students::Entity::delete_by_id(student.id)
+                    .exec(txn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        "reason.upsert" => {
+            let Ok(content) = text(payload, "content") else {
+                return Ok(());
+            };
+            let old_content = text(payload, "old_content").unwrap_or_else(|_| content.clone());
+            let find = |target: String| {
+                reasons::Entity::find()
+                    .filter(reasons::Column::Content.eq(target))
+                    .one(txn)
+            };
+            if old_content != content
+                && find(content.clone()).await.map_err(|e| e.to_string())?.is_some()
+            {
+                return Ok(());
+            }
+            let category = text(payload, "category").ok();
+            let delta = number(payload, "delta").ok();
+            match find(old_content).await.map_err(|e| e.to_string())? {
+                Some(reason) => {
+                    let mut active: reasons::ActiveModel = reason.into();
+                    active.content = Set(content);
+                    if let Some(category) = category {
+                        active.category = Set(category);
+                    }
+                    if let Some(delta) = delta {
+                        active.delta = Set(delta);
+                    }
+                    active.updated_at = Set(timestamp.to_string());
+                    active.update(txn).await.map_err(|e| e.to_string())?;
+                }
+                None => {
+                    if find(content.clone()).await.map_err(|e| e.to_string())?.is_some() {
+                        return Ok(());
+                    }
+                    reasons::ActiveModel {
+                        id: sea_orm::ActiveValue::NotSet,
+                        content: Set(content),
+                        category: Set(category.unwrap_or_else(|| "其他".into())),
+                        delta: Set(delta.unwrap_or(0)),
+                        is_system: Set(0),
+                        updated_at: Set(timestamp.to_string()),
+                    }
+                    .insert(txn)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                }
+            }
+        }
+        "reason.delete" => {
+            let Ok(content) = text(payload, "content") else {
+                return Ok(());
+            };
+            reasons::Entity::delete_many()
+                .filter(reasons::Column::Content.eq(content))
+                .exec(txn)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        "score.revoke" => {
+            let Ok(uuid) = text(payload, "event_uuid") else {
+                return Ok(());
+            };
+            let Some(event) = score_events::Entity::find()
+                .filter(score_events::Column::Uuid.eq(uuid))
+                .one(txn)
+                .await
+                .map_err(|e| e.to_string())?
+            else {
+                return Ok(());
+            };
+            if event.settlement_id.is_some() {
+                return Ok(());
+            }
+            // 与本地撤销（event_delete）一致：分数和可兑换积分都扣回。
+            if let Some(student) = students::Entity::find()
+                .filter(students::Column::Name.eq(&event.student_name))
+                .one(txn)
+                .await
+                .map_err(|e| e.to_string())?
+            {
+                let mut active: students::ActiveModel = student.clone().into();
+                active.score = Set(student.score - event.delta);
+                active.reward_points = Set(student.reward_points - event.delta);
+                active.updated_at = Set(timestamp.to_string());
+                active.update(txn).await.map_err(|e| e.to_string())?;
+            }
+            score_events::Entity::delete_by_id(event.id)
+                .exec(txn)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn active_reward_points(active: &students::ActiveModel, delta: i32) -> i32 {

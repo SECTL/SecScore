@@ -1,6 +1,15 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
 import { AuthError, bootstrap, listClasses, openChanges, type Bootstrap, type ClassInfo } from "./api"
-import { deviceId, enqueueRedeem, enqueueScore, flush, getOutbox, pendingDeltas } from "./sync"
+import {
+  deviceId,
+  enqueueEdit,
+  enqueueRedeem,
+  enqueueScore,
+  entityId,
+  flush,
+  getOutbox,
+  pendingDeltas,
+} from "./sync"
 import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
 
@@ -96,6 +105,67 @@ const wrap = async <T,>(fn: () => Promise<T>) => {
 const tagsOf = (b: Bootstrap, name: string) =>
   b.student_tags.filter((t) => t.student_name === name).map((t) => t.tag_name)
 
+/** 把队列里尚未上传的编辑操作叠加到 bootstrap 上，离线编辑也能立即看到。 */
+const withPending = (b: Bootstrap): Bootstrap => {
+  const ops = getOutbox(b.class_id).filter(
+    (o) => o.operation_type !== "score.adjust" && o.operation_type !== "reward.redeem"
+  )
+  if (!ops.length) return b
+  const v: Bootstrap = {
+    ...b,
+    students: [...b.students],
+    reasons: [...b.reasons],
+    student_tags: [...b.student_tags],
+    recent_events: [...b.recent_events],
+  }
+  for (const { operation_type: type, payload: p } of ops) {
+    if (type === "student.upsert") {
+      const old = p.old_name || p.name
+      const patch: Record<string, any> = { name: p.name }
+      for (const f of ["group_name", "student_no", "alias"]) if (f in p) patch[f] = p[f] || null
+      const i = v.students.findIndex((s) => s.name === old)
+      if (i >= 0) v.students[i] = { ...v.students[i], ...patch }
+      else
+        v.students.push({ entity_id: entityId(p.name), score: 0, reward_points: 0, ...patch } as any)
+      if (old !== p.name) {
+        const rename = <T extends { student_name: string }>(x: T): T =>
+          x.student_name === old ? { ...x, student_name: p.name } : x
+        v.student_tags = v.student_tags.map(rename)
+        v.recent_events = v.recent_events.map(rename)
+      }
+    } else if (type === "student.delete") {
+      v.students = v.students.filter((s) => s.name !== p.name)
+      v.student_tags = v.student_tags.filter((t) => t.student_name !== p.name)
+    } else if (type === "reason.upsert") {
+      const old = p.old_content || p.content
+      const patch = { content: p.content, category: p.category, delta: p.delta }
+      const i = v.reasons.findIndex((r) => r.content === old)
+      if (i >= 0) v.reasons[i] = { ...v.reasons[i], ...patch }
+      else v.reasons.push(patch)
+    } else if (type === "reason.delete") {
+      v.reasons = v.reasons.filter((r) => r.content !== p.content)
+    } else if (type === "score.revoke") {
+      v.recent_events = v.recent_events.filter((e) => e.uuid !== p.event_uuid)
+    }
+  }
+  return v
+}
+
+const loadView = async () => withPending(await load())
+
+/** 编辑入队后立即通知界面刷新，再在后台上传并拉取服务端结果。 */
+const afterEdit = (id: string) => {
+  const notify = () =>
+    window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
+  notify()
+  void flush(id)
+    .then(() => load(true))
+    .then(notify)
+    .catch(() => void 0)
+}
+
+const clean = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+
 const cloudBase: Record<string, any> = {
   oauthLoadLoginState: () =>
     wrap(async () => {
@@ -112,29 +182,112 @@ const cloudBase: Record<string, any> = {
     return Promise.resolve(ok(null))
   },
   webPendingOps: () => wrap(async () => getOutbox(await classId())),
+  webSaveStudent: (data: {
+    old_name?: string
+    name: string
+    group_name?: string
+    student_no?: string
+    alias?: string
+  }) =>
+    wrap(async () => {
+      const name = clean(data.name)
+      if (!name) throw new Error("姓名不能为空")
+      if ([...name].length > 64) throw new Error("姓名最多 64 个字")
+      const b = await loadView()
+      const old = clean(data.old_name)
+      if (old && !b.students.some((s) => s.name === old)) throw new Error("学生不存在")
+      if (old !== name && b.students.some((s) => s.name === name)) throw new Error("已有同名学生")
+      const payload: Record<string, string> = { name }
+      if (old && old !== name) payload.old_name = old
+      for (const f of ["group_name", "student_no", "alias"] as const) {
+        if (data[f] !== undefined) payload[f] = clean(data[f])
+      }
+      enqueueEdit(b.class_id, "student.upsert", name, payload)
+      afterEdit(b.class_id)
+      return null
+    }),
+  webDeleteStudent: (name: string) =>
+    wrap(async () => {
+      const b = await loadView()
+      if (!b.students.some((s) => s.name === name)) throw new Error("学生不存在")
+      enqueueEdit(b.class_id, "student.delete", name, { name })
+      afterEdit(b.class_id)
+      return null
+    }),
+  webSaveReason: (data: { old_content?: string; content: string; category: string; delta: number }) =>
+    wrap(async () => {
+      const content = clean(data.content)
+      if (!content) throw new Error("理由内容不能为空")
+      const delta = Math.trunc(Number(data.delta))
+      if (!Number.isFinite(delta) || Math.abs(delta) > 9999) throw new Error("分值无效")
+      const b = await loadView()
+      const old = clean(data.old_content)
+      if (old && !b.reasons.some((r) => r.content === old)) throw new Error("理由不存在")
+      if (old !== content && b.reasons.some((r) => r.content === content))
+        throw new Error("已有相同的理由")
+      const payload: Record<string, unknown> = {
+        content,
+        category: clean(data.category) || "其他",
+        delta,
+      }
+      if (old && old !== content) payload.old_content = old
+      enqueueEdit(b.class_id, "reason.upsert", `reason:${content}`, payload)
+      afterEdit(b.class_id)
+      return null
+    }),
+  webDeleteReason: (content: string) =>
+    wrap(async () => {
+      const b = await loadView()
+      enqueueEdit(b.class_id, "reason.delete", `reason:${content}`, { content })
+      afterEdit(b.class_id)
+      return null
+    }),
+  /** 撤销一条积分记录（含尚未上传的）。统一入队，服务端按顺序先加后撤，避免与上传中的操作竞争。 */
+  webRevokeEvent: (uuid: string) =>
+    wrap(async () => {
+      const b = await loadView()
+      const pendingOp = getOutbox(b.class_id).find(
+        (o) => o.op_id === uuid && o.operation_type === "score.adjust"
+      )
+      const event: any = pendingOp
+        ? { student_name: pendingOp.payload.student_name, delta: pendingOp.payload.score_delta }
+        : b.recent_events.find((e: any) => e.uuid === uuid)
+      if (!event) throw new Error("记录不存在或已撤销")
+      if (event.settlement_id != null) throw new Error("该记录已结算，无法撤销")
+      const delta = Number(event.delta) || 0
+      enqueueEdit(b.class_id, "score.revoke", String(event.student_name), {
+        event_uuid: uuid,
+        student_name: String(event.student_name),
+        // 仅供本地乐观显示；服务端按原记录计算。
+        score_delta: -delta,
+        reward_delta: -delta,
+      })
+      afterEdit(b.class_id)
+      return null
+    }),
   queryStudents: () =>
     wrap(async () => {
-      const b = await load()
+      const b = await loadView()
       const pending = pendingDeltas(b.class_id)
       return b.students.map((s: any, i) => ({
         ...s,
-        id: s.id ?? i + 1,
+        id: s.id ?? 100000 + i,
         score: s.score + (pending.get(s.name)?.score || 0),
         reward_points: s.reward_points + (pending.get(s.name)?.reward || 0),
         tags: tagsOf(b, s.name),
       }))
     }),
-  queryReasons: () => wrap(async () => (await load()).reasons.map((r, i) => ({ id: i + 1, ...r }))),
+  queryReasons: () => wrap(async () => (await loadView()).reasons.map((r, i) => ({ id: i + 1, ...r }))),
   rewardSettingQuery: () => wrap(async () => (await load()).reward_settings),
   tagsGetAll: () => wrap(async () => (await load()).tags.map((t, i) => ({ id: i + 1, ...t }))),
   tagsGetByStudent: (id: number) =>
     wrap(async () => {
-      const b: any = await load()
-      const s = b.students.find((x: any, i: number) => (x.id ?? i + 1) === id)
+      const b: any = await loadView()
+      const s = b.students.find((x: any, i: number) => (x.id ?? 100000 + i) === id)
       return s ? tagsOf(b, s.name).map((name, i) => ({ id: i + 1, name })) : []
     }),
   queryEvents: (params?: { limit?: number }) =>
-    wrap(async () => (await load()).recent_events.slice(0, Number(params?.limit || 100))),
+    wrap(async () => (await loadView()).recent_events.slice(0, Number(params?.limit || 100))),
   createEvent: (data: { student_name: string; reason_content: string; delta: number }) =>
     wrap(async () => {
       const id = await classId()
@@ -172,12 +325,16 @@ cloudBase.boardQuerySql = (params: { sql: string }) =>
     if (!sql.includes("LEFT JOIN score_events")) throw new Error("Web 端不支持该查询")
     if (t.length < 8 || t.some(Number.isNaN)) throw new Error("时间范围解析失败")
     const [today0, now1, week0, week1, month0, now2, per0, per1] = t
-    const b = await load()
+    const b = await loadView()
     const events: Array<{ name: string; time: number; delta: number }> = (b.recent_events as any[]).map(
       (e) => ({ name: String(e.student_name), time: Date.parse(e.event_time), delta: Number(e.delta) || 0 })
     )
-    for (const op of getOutbox(b.class_id)) {
-      if (op.operation_type !== "score.adjust") continue
+    const outbox = getOutbox(b.class_id)
+    const revoked = new Set(
+      outbox.filter((o) => o.operation_type === "score.revoke").map((o) => o.payload.event_uuid)
+    )
+    for (const op of outbox) {
+      if (op.operation_type !== "score.adjust" || revoked.has(op.op_id)) continue
       events.push({
         name: op.payload.student_name,
         time: Date.parse(op.client_created_at),
@@ -225,6 +382,9 @@ cloudBase.rewardRedeem =(data: { student_name: string; reward_id: number }) =>
     void flush(id).then(() => load(true)).catch(() => void 0)
     return { redemption_id: 0, remaining_reward_points: balance - reward.cost_points }
   })
+
+// 主页的「撤销」按钮走同一条撤销通道。
+cloudBase.deleteEvent = (uuid: string) => cloudBase.webRevokeEvent(uuid)
 
 export const cloudApi = new Proxy(cloudBase, {
   get(target, prop, receiver) {

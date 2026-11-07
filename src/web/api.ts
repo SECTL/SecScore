@@ -76,10 +76,17 @@ export interface PendingOp {
   op_id: string
   client_seq: number
   lamport: number
-  entity_type: "student"
+  entity_type: "student" | "reason" | "score_event"
   entity_id: string
-  operation_type: "score.adjust" | "reward.redeem"
-  payload: Record<string, any> & { student_name: string }
+  operation_type:
+    | "score.adjust"
+    | "reward.redeem"
+    | "student.upsert"
+    | "student.delete"
+    | "reason.upsert"
+    | "reason.delete"
+    | "score.revoke"
+  payload: Record<string, any>
   client_created_at: string
 }
 
