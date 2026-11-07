@@ -74,10 +74,170 @@ const getSteps = () => [
   <>点击右上角“添加”，之后从主屏幕打开即可全屏使用</>,
 ]
 
-export function InstallPrompt(): React.JSX.Element | null {
+interface InstallEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>
+}
+
+// Android Chrome：浏览器满足安装条件时触发 beforeinstallprompt，页内弹窗居中，
+// 点击按钮后再调起浏览器自带的“安装应用/添加到桌面”确认框。
+function AndroidInstallPrompt(): React.JSX.Element | null {
+  const [event, setEvent] = useState<InstallEvent | null>(null)
   const [visible, setVisible] = useState(false)
   const [never, setNever] = useState(false)
-  const [portrait, setPortrait] = useState(() => window.innerWidth < 440)
+
+  useEffect(() => {
+    if (isStandalone() || safeGet(localStorage, NEVER_KEY)) return
+    let timer: number | undefined
+    const onPrompt = (e: Event) => {
+      e.preventDefault()
+      setEvent(e as InstallEvent)
+      timer = window.setTimeout(() => setVisible(true), 1500)
+    }
+    const onInstalled = () => setVisible(false)
+    window.addEventListener("beforeinstallprompt", onPrompt)
+    window.addEventListener("appinstalled", onInstalled)
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt)
+      window.removeEventListener("appinstalled", onInstalled)
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [])
+
+  if (!visible || !event) return null
+
+  const remember = () => {
+    try {
+      if (never) localStorage.setItem(NEVER_KEY, "1")
+    } catch {
+      /* 存储不可用时仅本次关闭 */
+    }
+  }
+  const close = () => {
+    remember()
+    setVisible(false)
+  }
+  const install = async () => {
+    remember()
+    setVisible(false)
+    try {
+      await event.prompt()
+      await event.userChoice
+    } catch {
+      /* 浏览器拒绝调起时忽略 */
+    }
+    setEvent(null)
+  }
+
+  const stepStyle: React.CSSProperties = { display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 6 }
+  const num = (n: number) => (
+    <span
+      style={{
+        flex: "none",
+        width: 20,
+        height: 20,
+        marginTop: 2,
+        borderRadius: "50%",
+        background: "#1677ff",
+        color: "#fff",
+        fontSize: 12,
+        textAlign: "center",
+        lineHeight: "20px",
+      }}
+    >
+      {n}
+    </span>
+  )
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2000,
+        background: "rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        role="dialog"
+        aria-label="添加到桌面"
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          background: "#fff",
+          color: "#1f2329",
+          borderRadius: 16,
+          padding: "18px 18px 14px",
+          boxShadow: "0 8px 30px rgba(0,0,0,0.18)",
+          fontSize: 14,
+          lineHeight: 1.6,
+        }}
+      >
+        <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>添加到桌面，像 App 一样使用</div>
+        <div style={stepStyle}>
+          {num(1)}
+          <span>点击下方“添加到桌面”按钮</span>
+        </div>
+        <div style={stepStyle}>
+          {num(2)}
+          <span>在浏览器弹出的请求框中点击“安装”或“添加”</span>
+        </div>
+        <div style={stepStyle}>
+          {num(3)}
+          <span>之后从桌面图标打开即可全屏使用</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void install()}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            border: 0,
+            borderRadius: 999,
+            background: "#1677ff",
+            color: "#fff",
+            padding: "10px 0",
+            fontSize: 15,
+          }}
+        >
+          添加到桌面
+        </button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, color: "#6b7280", fontSize: 13 }}>
+            <input type="checkbox" checked={never} onChange={(e) => setNever(e.target.checked)} />
+            不再提示
+          </label>
+          <button
+            type="button"
+            onClick={close}
+            style={{ border: 0, background: "transparent", color: "#6b7280", padding: "6px 4px", fontSize: 14 }}
+          >
+            暂不
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function InstallPrompt(): React.JSX.Element | null {
+  if (/Android/i.test(navigator.userAgent)) return <AndroidInstallPrompt />
+  return <IosInstallPrompt />
+}
+
+// Safari 窗口窄于此宽度（pt）时使用底部工具栏；按 iPad 分屏截图估算（约 474pt 为底部、约 558pt 为顶部）。
+const SAFARI_BOTTOM_MAX_WIDTH = 520
+// Chrome 窄于此宽度（pt）时分享图标在地址栏最右侧；更宽时在标签数左侧（约 641pt 窄、约 692pt 宽）。
+const CHROME_SHARE_IN_URLBAR_MAX_WIDTH = 670
+
+function IosInstallPrompt(): React.JSX.Element | null {
+  const [visible, setVisible] = useState(false)
+  const [never, setNever] = useState(false)
+  const [portrait, setPortrait] = useState(() => window.innerWidth < SAFARI_BOTTOM_MAX_WIDTH)
   const [width, setWidth] = useState(() => window.innerWidth)
 
   useEffect(() => {
@@ -90,7 +250,7 @@ export function InstallPrompt(): React.JSX.Element | null {
   useEffect(() => {
     // Safari 窗口窄到一定程度会切换为底部工具栏（iPhone 竖屏、iPad 窄窗口），按宽度判断。
     const onChange = () => {
-      setPortrait(window.innerWidth < 440)
+      setPortrait(window.innerWidth < SAFARI_BOTTOM_MAX_WIDTH)
       setWidth(window.innerWidth)
     }
     window.addEventListener("resize", onChange)
@@ -133,8 +293,8 @@ export function InstallPrompt(): React.JSX.Element | null {
       ? {
           // Chrome 的工具栏在视口之外，气泡贴着视口顶部，箭头向上指向工具栏里的分享图标。
           top: 20,
-          right: 16,
-          width: Math.min(340, window.innerWidth - 32),
+          right: width < CHROME_SHARE_IN_URLBAR_MAX_WIDTH ? 2 : 16,
+          width: Math.min(340, window.innerWidth - 20),
         }
       : {
           top: "calc(env(safe-area-inset-top) + 10px)",
@@ -144,7 +304,7 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   const arrow: React.CSSProperties = bottomLayout
     ? { ...arrowBase, bottom: -8, left: "calc(50% - 8px)", boxShadow: "3px 3px 6px rgba(0,0,0,0.08)" }
-    : { ...arrowBase, top: -8, right: chrome ? (width < 800 ? -1 : 119) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
+    : { ...arrowBase, top: -8, right: chrome ? (width < CHROME_SHARE_IN_URLBAR_MAX_WIDTH ? 19 : 119) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
 
   return (
     <div
