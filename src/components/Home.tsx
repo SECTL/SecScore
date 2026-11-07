@@ -39,6 +39,8 @@ import {
   CloseOutlined,
   UserOutlined,
   AppstoreOutlined,
+  CheckSquareOutlined,
+  PlusCircleOutlined,
 } from "@ant-design/icons"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -2085,6 +2087,29 @@ export const Home: React.FC<HomeProps> = ({
       }
     }
   }, [isPortraitMode, operationVisible])
+
+  // 竖屏多选模式：支持系统返回键退出（积分操作抽屉打开时由抽屉自己处理返回）
+  const operationVisibleRef = useRef(operationVisible)
+  operationVisibleRef.current = operationVisible
+  useEffect(() => {
+    if (!isPortraitMode || !batchMode) return
+    window.history.pushState({ ssBatchMode: true }, "")
+    let handledByPopstate = false
+    const onPopState = () => {
+      if (operationVisibleRef.current) return
+      handledByPopstate = true
+      setBatchMode(false)
+      setSelectedStudentIds([])
+      setStudentMultipliers({})
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+      if (!handledByPopstate && window.history.state?.ssBatchMode) {
+        window.history.back()
+      }
+    }
+  }, [isPortraitMode, batchMode])
 
   // 竖屏积分操作抽屉：下拉达到一定距离或速度则关闭，否则回弹
   useEffect(() => {
@@ -5573,6 +5598,40 @@ export const Home: React.FC<HomeProps> = ({
             minWidth: isPortraitMode ? 0 : undefined,
           }}
         >
+          {isPortraitMode && !rewardMode && (
+            <Button
+              type="text"
+              icon={
+                !batchMode ? (
+                  <CheckSquareOutlined />
+                ) : selectedStudentIds.length > 0 ? (
+                  <PlusCircleOutlined />
+                ) : (
+                  <CloseOutlined />
+                )
+              }
+              aria-label={
+                !batchMode
+                  ? t("home.multiSelect")
+                  : selectedStudentIds.length > 0
+                    ? t("home.batchOperate")
+                    : t("common.cancel")
+              }
+              title={
+                !batchMode
+                  ? t("home.multiSelect")
+                  : selectedStudentIds.length > 0
+                    ? t("home.batchOperate")
+                    : t("common.cancel")
+              }
+              onClick={() => {
+                if (!batchMode) handleEnterBatchMode()
+                else if (selectedStudentIds.length > 0) handleOpenBatchOperation()
+                else handleExitBatchMode()
+              }}
+              style={{ width: 32, height: 32, borderRadius: "999px", flexShrink: 0 }}
+            />
+          )}
           <Input
             ref={searchInputRef}
             value={searchKeyword}
