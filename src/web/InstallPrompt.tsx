@@ -78,6 +78,7 @@ export function InstallPrompt(): React.JSX.Element | null {
   const [visible, setVisible] = useState(false)
   const [never, setNever] = useState(false)
   const [portrait, setPortrait] = useState(() => window.innerWidth < 440)
+  const [width, setWidth] = useState(() => window.innerWidth)
 
   useEffect(() => {
     if (!isIosSafari() || isStandalone()) return
@@ -88,7 +89,10 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   useEffect(() => {
     // Safari 窗口窄到一定程度会切换为底部工具栏（iPhone 竖屏、iPad 窄窗口），按宽度判断。
-    const onChange = () => setPortrait(window.innerWidth < 440)
+    const onChange = () => {
+      setPortrait(window.innerWidth < 440)
+      setWidth(window.innerWidth)
+    }
     window.addEventListener("resize", onChange)
     return () => window.removeEventListener("resize", onChange)
   }, [])
@@ -140,7 +144,7 @@ export function InstallPrompt(): React.JSX.Element | null {
 
   const arrow: React.CSSProperties = bottomLayout
     ? { ...arrowBase, bottom: -8, left: "calc(50% - 8px)", boxShadow: "3px 3px 6px rgba(0,0,0,0.08)" }
-    : { ...arrowBase, top: -8, right: chrome ? (window.innerWidth < 500 ? 0 : 84) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
+    : { ...arrowBase, top: -8, right: chrome ? (width < 800 ? 5 : 119) : 96, boxShadow: "-3px -3px 6px rgba(0,0,0,0.06)" }
 
   return (
     <div
