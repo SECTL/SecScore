@@ -340,7 +340,7 @@ export const Home: React.FC<HomeProps> = ({
     useState<operationMorphElementRects | null>(null)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
-  const [submitLoading, setSubmitLoading] = useState(false)
+  const [, setSubmitLoading] = useState(false)
   const [undoLoading, setUndoLoading] = useState(false)
   const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
@@ -2057,6 +2057,127 @@ export const Home: React.FC<HomeProps> = ({
     messageApi.error(res.message || t("rewardExchange.redeemFailed"))
   }
 
+  // 竖屏积分操作抽屉：支持系统返回键关闭
+  const closeOperationModalRef = useRef(closeOperationModal)
+  closeOperationModalRef.current = closeOperationModal
+  useEffect(() => {
+    if (!isPortraitMode || !operationVisible) return
+    const marker = { ssOperationDrawer: true }
+    window.history.pushState(marker, "")
+    let handledByPopstate = false
+    const onPopState = () => {
+      handledByPopstate = true
+      closeOperationModalRef.current()
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+      // 非返回键关闭（点击关闭/提交成功等）时，回退掉我们压入的历史记录
+      if (!handledByPopstate && window.history.state?.ssOperationDrawer) {
+        window.history.back()
+      }
+    }
+  }, [isPortraitMode, operationVisible])
+
+  // 竖屏积分操作抽屉：下拉达到一定距离或速度则关闭，否则回弹
+  useEffect(() => {
+    if (!isPortraitMode || !operationVisible) return
+    const CLOSE_DISTANCE = 120
+    const CLOSE_VELOCITY = 0.6 // px/ms
+    const MIN_FLICK_DISTANCE = 30
+    let wrapper: HTMLElement | null = null
+    let startY = 0
+    let startX = 0
+    let startTime = 0
+    let dragging = false
+    let tracking = false
+    let lastDy = 0
+    let closeTimer: number | null = null
+
+    const hasScrolledAncestor = (target: HTMLElement) => {
+      let el: HTMLElement | null = target
+      while (el && wrapper && wrapper.contains(el)) {
+        if (el.scrollHeight > el.clientHeight && el.scrollTop > 0) return true
+        el = el.parentElement
+      }
+      return false
+    }
+
+    const onStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target || e.touches.length !== 1) return
+      const el = target.closest(".ss-operation-drawer .ant-drawer-content-wrapper")
+      if (!el) return
+      wrapper = el as HTMLElement
+      if (hasScrolledAncestor(target)) return
+      tracking = true
+      dragging = false
+      lastDy = 0
+      startY = e.touches[0].clientY
+      startX = e.touches[0].clientX
+      startTime = performance.now()
+    }
+
+    const onMove = (e: TouchEvent) => {
+      if (!tracking || !wrapper) return
+      const dy = e.touches[0].clientY - startY
+      const dx = e.touches[0].clientX - startX
+      if (!dragging) {
+        if (Math.abs(dx) > Math.abs(dy) || dy < -4) {
+          tracking = false
+          return
+        }
+        if (dy < 8) return
+        dragging = true
+        wrapper.style.transition = "none"
+      }
+      if (e.cancelable) e.preventDefault()
+      lastDy = Math.max(0, dy)
+      wrapper.style.transform = `translateY(${lastDy}px)`
+    }
+
+    const onEnd = () => {
+      if (!tracking || !wrapper) return
+      tracking = false
+      if (!dragging) return
+      dragging = false
+      const el = wrapper
+      const elapsed = Math.max(1, performance.now() - startTime)
+      const velocity = lastDy / elapsed
+      const shouldClose =
+        lastDy >= CLOSE_DISTANCE || (velocity >= CLOSE_VELOCITY && lastDy >= MIN_FLICK_DISTANCE)
+      el.style.transition = "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)"
+      if (shouldClose) {
+        el.style.transform = "translateY(100%)"
+        closeTimer = window.setTimeout(() => {
+          closeOperationModalRef.current()
+          window.setTimeout(() => {
+            el.style.transition = ""
+            el.style.transform = ""
+          }, 400)
+        }, 200)
+      } else {
+        el.style.transform = "translateY(0)"
+        window.setTimeout(() => {
+          el.style.transition = ""
+          el.style.transform = ""
+        }, 260)
+      }
+    }
+
+    document.addEventListener("touchstart", onStart, { passive: true })
+    document.addEventListener("touchmove", onMove, { passive: false })
+    document.addEventListener("touchend", onEnd, { passive: true })
+    document.addEventListener("touchcancel", onEnd, { passive: true })
+    return () => {
+      document.removeEventListener("touchstart", onStart)
+      document.removeEventListener("touchmove", onMove)
+      document.removeEventListener("touchend", onEnd)
+      document.removeEventListener("touchcancel", onEnd)
+      if (closeTimer !== null) window.clearTimeout(closeTimer)
+    }
+  }, [isPortraitMode, operationVisible])
+
   const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
     if (!(window as any).api) return
     if (submitInFlightRef.current) {
@@ -2190,29 +2311,6 @@ export const Home: React.FC<HomeProps> = ({
       messageApi.error((res as any).message || t("score.undoFailed"))
     }
     setUndoLoading(false)
-  }
-
-  const handleSubmit = async () => {
-    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
-    if (targets.length === 0) {
-      messageApi.warning(t("home.selectStudentFirst"))
-      return
-    }
-
-    const delta = customScore
-    if (delta === undefined || !Number.isFinite(delta)) {
-      messageApi.warning(t("home.pleaseSelectPoints"))
-      return
-    }
-
-    const content =
-      reasonContent ||
-      (delta > 0
-        ? t("home.addPoints")
-        : delta < 0
-          ? t("home.deductPoints")
-          : t("home.pointsChange"))
-    await performSubmit(targets, delta, content)
   }
 
   const handleReasonSelect = (reason: reason) => {
@@ -5553,15 +5651,12 @@ export const Home: React.FC<HomeProps> = ({
           afterOpenChange={applyDrawerDragRegion}
           destroyOnHidden
           styles={{
-            body: { padding: "12px 16px 24px", overflowX: "hidden" },
+            body: {
+              padding: "12px 16px calc(24px + env(safe-area-inset-bottom, 0px))",
+              overflowX: "hidden",
+              overscrollBehavior: "contain",
+            },
           }}
-          footer={
-            <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button type="primary" onClick={handleSubmit} loading={submitLoading}>
-                {t("home.submitOperation")}
-              </Button>
-            </Space>
-          }
         >
           {operationPanelContent}
         </Drawer>
