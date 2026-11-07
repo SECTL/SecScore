@@ -14,6 +14,8 @@ import { cloudApi, ensureLogin, startAutoRefresh } from "./web/cloudApi"
 
 // 部署后旧分包文件名失效时，自动清掉旧缓存并重载一次，避免白屏。
 window.addEventListener("vite:preloadError", () => {
+  // 离线时分包加载失败是预期的，清缓存只会让离线更糟。
+  if (!navigator.onLine) return
   if (sessionStorage.getItem("ssw_chunk_reload")) return
   sessionStorage.setItem("ssw_chunk_reload", "1")
   void caches

@@ -1,5 +1,5 @@
 // 验证用：把桌面 UI 的 window.api 适配到云端 Sync Server（/v1/web/bootstrap + /v1/sync）。
-import { bootstrap, listClasses, openChanges, type Bootstrap } from "./api"
+import { AuthError, bootstrap, listClasses, openChanges, type Bootstrap, type ClassInfo } from "./api"
 import { deviceId, enqueueRedeem, enqueueScore, flush, getOutbox, pendingDeltas } from "./sync"
 import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
 import { lanApi } from "../services/lanApi"
@@ -8,10 +8,52 @@ const CLASS_KEY = "ssw_class_id"
 let cache: Bootstrap | null = null
 let loading: Promise<Bootstrap> | null = null
 
+// 离线数据：最近一次成功的 bootstrap 与班级列表存在 localStorage，断网时回退使用。
+const BOOT_KEY = (id: string) => `ssw_bootstrap:${id}`
+const CLASSES_KEY = "ssw_classes"
+
+const readStored = <T,>(key: string): T | null => {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : null
+  } catch {
+    return null
+  }
+}
+const writeStored = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch {
+    /* 配额不足时，bootstrap 退化为不含事件的精简版 */
+    if (key.startsWith("ssw_bootstrap:")) {
+      try {
+        localStorage.setItem(
+          key,
+          JSON.stringify({ ...(value as Bootstrap), recent_events: [], group_score_events: [] })
+        )
+      } catch {
+        /* 放弃持久化 */
+      }
+    }
+  }
+}
+
+const cachedClasses = async (): Promise<ClassInfo[]> => {
+  try {
+    const list = await listClasses()
+    writeStored(CLASSES_KEY, list)
+    return list
+  } catch (e) {
+    const stored = readStored<ClassInfo[]>(CLASSES_KEY)
+    if (stored?.length) return stored
+    throw e
+  }
+}
+
 const classId = async (): Promise<string> => {
   const saved = localStorage.getItem(CLASS_KEY)
   if (saved) return saved
-  const first = (await listClasses())[0]
+  const first = (await cachedClasses())[0]
   if (!first) throw new Error("没有可用班级")
   localStorage.setItem(CLASS_KEY, first.id)
   return first.id
@@ -24,9 +66,17 @@ const load = (force = false): Promise<Bootstrap> => {
     try {
       await flush(id)
     } catch {
-      /* 离线时保留队列 */
+      /* 离线时保留队列，联网后按 op_id 幂等重发 */
     }
-    cache = await bootstrap(id)
+    try {
+      cache = await bootstrap(id)
+      writeStored(BOOT_KEY(id), cache)
+    } catch (e) {
+      if (e instanceof AuthError) throw e
+      const fallback = cache?.class_id === id ? cache : readStored<Bootstrap>(BOOT_KEY(id))
+      if (!fallback) throw e
+      cache = fallback
+    }
     return cache
   })().finally(() => {
     loading = null
@@ -55,7 +105,7 @@ const cloudBase: Record<string, any> = {
     }),
   webGetUserName: () => wrap(async () => getUserName()),
   webListClasses: () =>
-    wrap(async () => ({ classes: await listClasses(), current: await classId() })),
+    wrap(async () => ({ classes: await cachedClasses(), current: await classId() })),
   webSwitchClass: (id: string) => {
     localStorage.setItem(CLASS_KEY, id)
     location.reload()
