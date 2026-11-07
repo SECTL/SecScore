@@ -189,9 +189,7 @@ const isHomeDate = (value: unknown): value is string => {
   const [year, month, day] = value.split("-").map(Number)
   const parsed = new Date(year, month - 1, day)
   return (
-    parsed.getFullYear() === year &&
-    parsed.getMonth() === month - 1 &&
-    parsed.getDate() === day
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day
   )
 }
 
@@ -443,13 +441,15 @@ export const Home: React.FC<HomeProps> = ({
   const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
 
   const focusAndSelectSearch = useCallback(() => {
+    // 移动端/竖屏聚焦会弹出软键盘，不自动聚焦搜索框
+    if (isPortraitMode || isMobile) return
     window.requestAnimationFrame(() => {
       const input = searchInputRef.current
       if (!input) return
       input.focus()
       input.select()
     })
-  }, [])
+  }, [isPortraitMode, isMobile])
 
   useEffect(() => {
     if (batchMode) focusAndSelectSearch()
@@ -693,10 +693,7 @@ export const Home: React.FC<HomeProps> = ({
     nextMonday.setDate(monday.getDate() + 7)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const periodStart = dayjs(homePeriodRange[0]).startOf("day").toDate()
-    const periodEndExclusive = dayjs(homePeriodRange[1])
-      .add(1, "day")
-      .startOf("day")
-      .toDate()
+    const periodEndExclusive = dayjs(homePeriodRange[1]).add(1, "day").startOf("day").toDate()
     const nowIso = now.toISOString()
     const todayStartIso = todayStart.toISOString()
     const mondayIso = monday.toISOString()
@@ -735,10 +732,8 @@ export const Home: React.FC<HomeProps> = ({
         api.boardQuerySql({ sql: groupSql, limit: 500 }),
       ])
       if (res?.success && Array.isArray(res.data)) {
-        const next: Record<
-          string,
-          { today: number; week: number; month: number; period: number }
-        > = {}
+        const next: Record<string, { today: number; week: number; month: number; period: number }> =
+          {}
         res.data.forEach((row: any) => {
           const name = typeof row?.name === "string" ? row.name.trim() : ""
           if (!name) return
@@ -977,10 +972,7 @@ export const Home: React.FC<HomeProps> = ({
     setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
 
-  const handleSearchKeyPointerDown = (
-    event: React.PointerEvent<HTMLElement>,
-    keyValue: string
-  ) => {
+  const handleSearchKeyPointerDown = (event: React.PointerEvent<HTMLElement>, keyValue: string) => {
     if (event.button !== 0) return
     event.preventDefault()
     handleSearchKeyPress(keyValue)
@@ -997,44 +989,47 @@ export const Home: React.FC<HomeProps> = ({
     return name.length > 2 ? name.substring(name.length - 2) : name
   }
 
-  const matchStudentName = useCallback((s: student, keyword: string) => {
-    const q0 = keyword.trim().toLowerCase()
-    if (!q0) return true
-    const q1 = q0.replace(/\s+/g, "")
+  const matchStudentName = useCallback(
+    (s: student, keyword: string) => {
+      const q0 = keyword.trim().toLowerCase()
+      if (!q0) return true
+      const q1 = q0.replace(/\s+/g, "")
 
-    const nameLower = String(s.name).toLowerCase()
-    const pyLower = s.pinyinName || ""
-    const pyInitialsLower = s.pinyinInitials || ""
-    const studentNo = String(s.student_no || "").toLowerCase()
-    const aliases = searchAliasIndex.get(s.id) || []
-    const matchesText = (text: string) =>
-      text.includes(q0) || text.replace(/\s+/g, "").includes(q1)
+      const nameLower = String(s.name).toLowerCase()
+      const pyLower = s.pinyinName || ""
+      const pyInitialsLower = s.pinyinInitials || ""
+      const studentNo = String(s.student_no || "").toLowerCase()
+      const aliases = searchAliasIndex.get(s.id) || []
+      const matchesText = (text: string) =>
+        text.includes(q0) || text.replace(/\s+/g, "").includes(q1)
 
-    if (
-      matchesText(nameLower) ||
-      matchesText(studentNo) ||
-      matchesText(pyLower) ||
-      matchesText(pyInitialsLower) ||
-      aliases.some(
-        (alias) =>
-          matchesText(alias.text) ||
-          alias.pinyin.replace(/\s+/g, "").includes(q1) ||
-          alias.initials.includes(q1)
-      )
-    ) {
-      return true
-    }
+      if (
+        matchesText(nameLower) ||
+        matchesText(studentNo) ||
+        matchesText(pyLower) ||
+        matchesText(pyInitialsLower) ||
+        aliases.some(
+          (alias) =>
+            matchesText(alias.text) ||
+            alias.pinyin.replace(/\s+/g, "").includes(q1) ||
+            alias.initials.includes(q1)
+        )
+      ) {
+        return true
+      }
 
-    const isT9Query = /^[2-9]+$/.test(q1)
-    if (isT9Query) {
-      const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
-      const pyInitialsDigits = toT9Digits(pyInitialsLower.replace(/[^a-z]/g, ""))
-      if (pyDigits.includes(q1)) return true
-      if (pyInitialsDigits.includes(q1)) return true
-    }
+      const isT9Query = /^[2-9]+$/.test(q1)
+      if (isT9Query) {
+        const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
+        const pyInitialsDigits = toT9Digits(pyInitialsLower.replace(/[^a-z]/g, ""))
+        if (pyDigits.includes(q1)) return true
+        if (pyInitialsDigits.includes(q1)) return true
+      }
 
-    return /[\u3400-\u9fff]/.test(q0) && matchStudentSearch(s, q0)
-  }, [searchAliasIndex])
+      return /[\u3400-\u9fff]/.test(q0) && matchStudentSearch(s, q0)
+    },
+    [searchAliasIndex]
+  )
 
   const getDisplayPoints = useCallback(
     (s: student) => (rewardMode ? Number(s.reward_points || 0) : Number(s.score || 0)),
@@ -1100,8 +1095,7 @@ export const Home: React.FC<HomeProps> = ({
       (sum, item) => sum + Number(periodStats[item.name]?.period || 0),
       Number(groupPeriodStats[groupKey] || 0)
     )
-    const periodAverage =
-      includedStudents.length > 0 ? periodTotal / includedStudents.length : 0
+    const periodAverage = includedStudents.length > 0 ? periodTotal / includedStudents.length : 0
     const values: Record<HomeGroupStatKey, number> = {
       total,
       average,
@@ -1216,7 +1210,15 @@ export const Home: React.FC<HomeProps> = ({
       default:
         return filtered
     }
-  }, [students, deferredSearchKeyword, sortType, matchStudentName, getDisplayPoints, getGroupName, t])
+  }, [
+    students,
+    deferredSearchKeyword,
+    sortType,
+    matchStudentName,
+    getDisplayPoints,
+    getGroupName,
+    t,
+  ])
 
   const groupedStudents = useMemo(() => {
     if (sortType === "score" || (sortType === "alphabet" && deferredSearchKeyword)) {
@@ -5235,7 +5237,9 @@ export const Home: React.FC<HomeProps> = ({
                                 <Button
                                   key={keyItem}
                                   size="small"
-                                  onPointerDown={(event) => handleSearchKeyPointerDown(event, keyItem)}
+                                  onPointerDown={(event) =>
+                                    handleSearchKeyPointerDown(event, keyItem)
+                                  }
                                   onClick={(event) => {
                                     if (event.detail === 0) handleSearchKeyPress(keyItem)
                                   }}
@@ -5582,23 +5586,8 @@ export const Home: React.FC<HomeProps> = ({
           overflow: "visible",
         }}
       >
-        <div
-          ref={(node) => {
-            searchAreaRef.current = node
-            immersiveToolbarContentRef.current = isPortraitMode ? null : node
-          }}
-          className={isPortraitMode ? "ss-immersive-toolbar-segment" : undefined}
-          style={{
-            display: isPortraitMode ? "flex" : "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            overflowX: "visible",
-            justifyContent: isPortraitMode ? "center" : "flex-start",
-            flex: isPortraitMode ? "1 1 auto" : undefined,
-            minWidth: isPortraitMode ? 0 : undefined,
-          }}
-        >
-          {isPortraitMode && !rewardMode && (
+        {isPortraitMode && !rewardMode && (
+          <div className="ss-immersive-toolbar-segment ss-immersive-toolbar-menu-segment">
             <Button
               type="text"
               icon={
@@ -5631,7 +5620,24 @@ export const Home: React.FC<HomeProps> = ({
               }}
               style={{ width: 32, height: 32, borderRadius: "999px", flexShrink: 0 }}
             />
-          )}
+          </div>
+        )}
+        <div
+          ref={(node) => {
+            searchAreaRef.current = node
+            immersiveToolbarContentRef.current = isPortraitMode ? null : node
+          }}
+          className={isPortraitMode ? "ss-immersive-toolbar-segment" : undefined}
+          style={{
+            display: isPortraitMode ? "flex" : "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            overflowX: "visible",
+            justifyContent: isPortraitMode ? "center" : "flex-start",
+            flex: isPortraitMode ? "1 1 auto" : undefined,
+            minWidth: isPortraitMode ? 0 : undefined,
+          }}
+        >
           <Input
             ref={searchInputRef}
             value={searchKeyword}
