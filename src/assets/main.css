@@ -1022,6 +1022,25 @@ html.platform-macos body {
   border-radius: 12px;
 }
 
+/* 竖屏右下角「更多」菜单：横向撑满视口，两侧留间距 */
+.ss-immersive-toolbar-popover.is-full-width {
+  --ss-menu-gap-left: max(12px, env(safe-area-inset-left, 0px));
+  --ss-menu-gap-right: max(12px, env(safe-area-inset-right, 0px));
+  left: var(--ss-menu-gap-left) !important;
+  right: var(--ss-menu-gap-right) !important;
+  width: calc(100vw - var(--ss-menu-gap-left) - var(--ss-menu-gap-right));
+  max-width: none;
+  padding: 0;
+}
+.ss-immersive-toolbar-popover.is-full-width .ant-popover-inner {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 16px;
+}
+.ss-immersive-toolbar-popover.is-full-width .ss-immersive-toolbar-menu {
+  width: 100%;
+}
+
 .ss-immersive-toolbar-menu {
   width: min(232px, calc(100vw - 32px));
   display: flex;

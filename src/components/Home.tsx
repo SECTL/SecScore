@@ -5728,7 +5728,8 @@ export const Home: React.FC<HomeProps> = ({
             open={immersiveMenuOpen}
             onOpenChange={setImmersiveMenuOpen}
             content={immersiveMenuContent}
-            overlayClassName="ss-immersive-toolbar-popover"
+            overlayClassName="ss-immersive-toolbar-popover is-full-width"
+            arrow={false}
           >
             <div className="ss-immersive-toolbar-segment ss-immersive-toolbar-menu-segment">
               <Button
