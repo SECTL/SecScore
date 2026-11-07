@@ -856,6 +856,7 @@ export function ContentArea({
             {isWebClient && (
               <Select
                 size="small"
+                showSearch={false}
                 style={{ minWidth: 110, maxWidth: 160 }}
                 value={webClassId}
                 options={webClasses.map((c) => ({ value: c.id, label: c.name }))}
