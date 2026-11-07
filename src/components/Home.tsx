@@ -4544,6 +4544,10 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  // 触屏设备上关闭多选框的搜索输入，避免点开下拉就弹出软键盘
+  const isCoarsePointer =
+    typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
+
   const renderHomeStatPicker = (variant: "header" | "toolbar" | "menu") => {
     const isImmersive = variant !== "header"
     const widthStyle: React.CSSProperties =
@@ -4555,6 +4559,7 @@ export const Home: React.FC<HomeProps> = ({
     return (
       <Select
         mode="multiple"
+        showSearch={!isCoarsePointer}
         allowClear
         maxTagCount="responsive"
         placeholder={isImmersive ? "显示" : "卡片显示"}
@@ -4637,6 +4642,7 @@ export const Home: React.FC<HomeProps> = ({
   const renderGroupStatPicker = () => (
     <Select
       mode="multiple"
+      showSearch={!isCoarsePointer}
       allowClear
       maxTagCount="responsive"
       placeholder="小组显示"
