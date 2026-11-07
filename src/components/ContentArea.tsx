@@ -505,9 +505,15 @@ export function ContentArea({
         danger
         block
         size="small"
+        loading={logoutLoading}
         onClick={async () => {
-          await onLogout()
-          setProfilePopoverOpen(false)
+          // Web 端的登录态是 SECTL 令牌，桌面端的 onLogout 只切换本地权限，清不掉它。
+          setLogoutLoading(true)
+          try {
+            await (window as any).api.webLogout()
+          } finally {
+            setLogoutLoading(false)
+          }
         }}
       >
         退出登录

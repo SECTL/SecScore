@@ -10,7 +10,16 @@ import {
   getOutbox,
   pendingDeltas,
 } from "./sync"
-import { getSession, getUserId, getUserName, handleCallback, login } from "./auth"
+import {
+  clearLoggedOut,
+  getSession,
+  getUserId,
+  getUserName,
+  handleCallback,
+  isLoggedOut,
+  login,
+  signOut,
+} from "./auth"
 import { lanApi } from "../services/lanApi"
 
 const CLASS_KEY = "ssw_class_id"
@@ -174,6 +183,7 @@ const cloudBase: Record<string, any> = {
       return session && userId ? { access_token: session.access_token, user_id: userId } : null
     }),
   webGetUserName: () => wrap(async () => getUserName()),
+  webLogout: () => wrap(async () => signOut()),
   webListClasses: () =>
     wrap(async () => ({ classes: await cachedClasses(), current: await classId() })),
   webSwitchClass: (id: string) => {
@@ -401,10 +411,31 @@ export const ensureLogin = async (): Promise<boolean> => {
     return false
   }
   if (!getSession()) {
+    // 主动退出后不自动跳转，否则 SECTL 已登录时授权页会立刻把人登录回来。
+    if (isLoggedOut()) {
+      showLoggedOutPage()
+      return false
+    }
     await login()
     return false
   }
+  clearLoggedOut()
   return true
+}
+
+const showLoggedOutPage = () => {
+  const root = document.getElementById("root") || document.body
+  root.innerHTML = `
+    <div style="height:var(--ss-app-height,100dvh);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;box-sizing:border-box;font-family:inherit;color:#1f2329;background:#f5f7fb;text-align:center">
+      <img src="/favicon.svg" alt="" style="width:56px;height:56px" />
+      <div style="font-size:18px;font-weight:600">已退出登录</div>
+      <div style="font-size:14px;color:#646a73">如需切换账号，请先在 SECTL 退出当前账号再登录。</div>
+      <button id="ssw-relogin" type="button" style="min-width:180px;height:44px;border:none;border-radius:999px;background:#1677ff;color:#fff;font-size:16px;cursor:pointer">重新登录</button>
+    </div>`
+  document.getElementById("ssw-relogin")?.addEventListener("click", () => {
+    clearLoggedOut()
+    void login()
+  })
 }
 
 // 云端没有推送通道给浏览器，这里轮询 bootstrap：可见时每 10 秒一次，切回前台/恢复联网立即一次。

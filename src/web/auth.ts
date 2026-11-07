@@ -54,6 +54,40 @@ export const getSession = (): Session | null => {
 const saveSession = (s: Session) => localStorage.setItem(TOKEN_KEY, JSON.stringify(s))
 export const logout = () => localStorage.removeItem(TOKEN_KEY)
 
+const LOGGED_OUT_KEY = "ssw_logged_out"
+export const isLoggedOut = () => sessionStorage.getItem(LOGGED_OUT_KEY) === "1"
+
+/** 用户主动退出：吊销令牌（尽力而为）、清除本地会话与账号数据缓存，停在“已退出”页。 */
+export const signOut = async () => {
+  const s = getSession()
+  if (s && PLATFORM_ID) {
+    const revoke = (token: string, hint: string) =>
+      fetch(`${BASE_URL}/api/oauth/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, token_type_hint: hint, client_id: PLATFORM_ID }),
+      }).catch(() => void 0)
+    await Promise.race([
+      Promise.all([
+        s.refresh_token ? revoke(s.refresh_token, "refresh_token") : null,
+        revoke(s.access_token, "access_token"),
+      ]),
+      new Promise((r) => setTimeout(r, 2000)),
+    ])
+  }
+  logout()
+  // 清掉上一个账号的班级与数据缓存；待上传队列（ssw_outbox:*）保留，避免丢失离线操作。
+  for (const key of Object.keys(localStorage)) {
+    if (key === "ssw_class_id" || key === "ssw_classes" || key.startsWith("ssw_bootstrap:")) {
+      localStorage.removeItem(key)
+    }
+  }
+  sessionStorage.setItem(LOGGED_OUT_KEY, "1")
+  location.replace("/")
+}
+
+export const clearLoggedOut = () => sessionStorage.removeItem(LOGGED_OUT_KEY)
+
 export const login = async () => {
   if (!PLATFORM_ID) throw new Error("缺少 VITE_OAUTH_PLATFORM_ID，无法登录")
   const verifier = randomString(48)
