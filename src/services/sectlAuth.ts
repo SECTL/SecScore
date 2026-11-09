@@ -157,10 +157,29 @@ function getAccessTokenFromData(tokenData: TokenData): string {
   return String(tokenData.access_token || "").split("|")[0]
 }
 
+export class TokenRefreshRejectedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "TokenRefreshRejectedError"
+  }
+}
+
+/** 仅当服务端明确拒绝 refresh_token 时返回 true；网络错误、超时、5xx 返回 false。 */
+export function isRefreshTokenRejected(error: unknown): boolean {
+  return (
+    error instanceof TokenRefreshRejectedError ||
+    (error instanceof Error && error.message === "没有 refresh_token，无法刷新")
+  )
+}
+
+/** 2020-01-01 UTC，早于此的过期时间一定是占位值（如 "-1"）。 */
+const MIN_VALID_EXPIRY_SECONDS = 1577836800
+
 function getTokenExpiry(tokenData: TokenData): number | null {
   if (tokenData.expires_at) {
     const expiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
-    if (Number.isFinite(expiresAt)) return expiresAt
+    // 服务端“永不过期”会返回 "-1"，new Date("-1") 会得到 2001 年；早于 2020 年的值视为无效。
+    if (Number.isFinite(expiresAt) && expiresAt > MIN_VALID_EXPIRY_SECONDS) return expiresAt
   }
   return extractExpiryFromJwt(getAccessTokenFromData(tokenData))
 }
@@ -212,8 +231,52 @@ class SectlAuthService {
   private readonly sessionListeners = new Set<() => void>()
   private persistedRestorePromise: Promise<Record<string, any> | null> | null = null
 
+  private refreshTimer: number | null = null
+
   constructor() {
     this.loadToken()
+    this.scheduleRefresh()
+    if (typeof window !== "undefined") {
+      const check = () => void this.ensureFreshToken()
+      window.addEventListener("online", check)
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") check()
+      })
+    }
+  }
+
+  /** access token 的 JWT 只有 1 小时有效期：到期前 5 分钟主动刷新，不等服务端返回 401。 */
+  private scheduleRefresh(): void {
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+    this.refreshTimer = null
+    if (!this.refreshToken || !this.tokenExpiresAt) return
+    const delay = Math.min(
+      Math.max(this.tokenExpiresAt * 1000 - Date.now() - 5 * 60_000, 60_000),
+      2_000_000_000
+    )
+    this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), delay)
+  }
+
+  /** 令牌已过期或 5 分钟内将过期时，用 refresh_token 刷新。网络错误时保留会话，稍后重试。 */
+  async ensureFreshToken(skewSeconds = 300): Promise<boolean> {
+    if (!this.accessToken) return false
+    const near = this.tokenExpiresAt !== null && Date.now() / 1000 >= this.tokenExpiresAt - skewSeconds
+    if (!near) return true
+    if (!this.refreshToken) return this.isAuthenticated()
+    try {
+      await this.refreshAccessToken()
+      return true
+    } catch (error) {
+      authLog("warn", "主动刷新 OAuth token 失败", { error: String(error) })
+      if (isRefreshTokenRejected(error)) {
+        this.clearLocalSession()
+        return false
+      }
+      // 临时错误：1 分钟后再试。
+      if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+      this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), 60_000)
+      return this.isAuthenticated()
+    }
   }
 
   async restorePersistedSession(): Promise<boolean> {
@@ -571,6 +634,9 @@ class SectlAuthService {
       throw new Error("没有 refresh_token，无法刷新")
     }
 
+    // 记录发起时的会话；返回时若账号/令牌已变（如刚登录了新账号），必须丢弃结果。
+    const startGeneration = this.tokenGeneration
+    const startUserId = this.userId
     const deviceUuid = this.generateDeviceUuid()
 
     const publicIp = await getPublicIp()
@@ -597,16 +663,35 @@ class SectlAuthService {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || "Token 刷新失败")
+        const error = await response.json().catch(() => ({}) as Record<string, any>)
+        const message = error?.error_description || error?.error || "Token 刷新失败"
+        // 只有服务端明确拒绝（4xx）才代表 refresh_token 永久失效；5xx/限流属于临时错误。
+        if ([400, 401, 403].includes(response.status)) {
+          throw new TokenRefreshRejectedError(String(message))
+        }
+        throw new Error(`Token 刷新失败（HTTP ${response.status}）：${message}`)
       }
 
       const data: TokenData = await response.json()
+      // 服务端未返回新的 refresh_token 时必须沿用旧值，否则下次刷新会失败。
+      if (this.tokenGeneration !== startGeneration || this.userId !== startUserId) {
+        authLog("warn", "刷新期间会话已变更，丢弃旧账号的刷新结果", {
+          platform_id: SECTL_CONFIG.platformId,
+          user_id: startUserId,
+        })
+        throw new Error("OAuth 会话已变更，已丢弃过期的刷新结果")
+      }
+      if (!data.refresh_token && this.refreshToken) data.refresh_token = this.refreshToken
       this.saveToken(data)
+      const savedGeneration = this.tokenGeneration
       try {
         const api = (window as any).api
         const userInfo = await this.getUserInfo()
-        if (api?.oauthSaveLoginState && userInfo?.user_id) {
+        if (
+          api?.oauthSaveLoginState &&
+          userInfo?.user_id &&
+          this.tokenGeneration === savedGeneration
+        ) {
           await api.oauthSaveLoginState({
             access_token: this.accessToken || data.access_token,
             refresh_token: this.refreshToken || "",
@@ -705,6 +790,7 @@ class SectlAuthService {
       localStorage.setItem(`sectl_token:${this.userId}`, JSON.stringify(storableData))
     }
     this.tokenGeneration += 1
+    this.scheduleRefresh()
     this.notifySessionChanged()
     authLog("info", "OAuth token 已保存", {
       platform_id: SECTL_CONFIG.platformId,
@@ -765,6 +851,8 @@ class SectlAuthService {
     this.codeVerifier = null
     this.authorizationState = null
     this.tokenGeneration += 1
+    if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+    this.refreshTimer = null
     this.notifySessionChanged()
   }
 

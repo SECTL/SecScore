@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { sectlAuth, UserInfo, TokenData } from "../services/sectlAuth"
+import { sectlAuth, isRefreshTokenRejected, UserInfo, TokenData } from "../services/sectlAuth"
 
 interface SectlContextType {
   isAuthenticated: boolean
@@ -63,8 +63,8 @@ export const SectlProvider: React.FC<SectlProviderProps> = ({
               } else {
                 setIsAuthenticated(false)
               }
-            } catch {
-              sectlAuth.clearLocalSession()
+            } catch (error) {
+              if (isRefreshTokenRejected(error)) sectlAuth.clearLocalSession()
               setIsAuthenticated(false)
               setToken(null)
             }

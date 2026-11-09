@@ -14,6 +14,7 @@ import { WindowControls } from "./WindowControls"
 import { WorkspaceManager } from "./WorkspaceManager"
 import { sectlAuth } from "../services/sectlAuth"
 import appLogo from "../assets/logoHD.svg"
+import { useIsMobileViewport } from "../hooks/useResponsive"
 
 const loadHome = () => import("./Home")
 const loadStudentManager = () => import("./StudentManager")
@@ -40,6 +41,7 @@ const SettlementHistory = lazy(() =>
 const RewardSettings = lazy(() => loadRewardSettings().then((m) => ({ default: m.RewardSettings })))
 const BoardManager = lazy(() => loadBoardManager().then((m) => ({ default: m.BoardManager })))
 const PluginManager = lazy(() => loadPluginManager().then((m) => ({ default: m.PluginManager })))
+const WebManage = lazy(() => import("../web/manage/WebManage"))
 
 const warmupRouteChunks = () =>
   Promise.allSettled([
@@ -119,6 +121,15 @@ export function ContentArea({
 }: ContentAreaProps): React.JSX.Element {
   const { t } = useTranslation()
   const isLanBrowser = Boolean((window as any).__SECSCORE_LAN__)
+  const isWebClient = Boolean((window as any).__SECSCORE_WEB__)
+  const [webUserName, setWebUserName] = useState<string | null>(null)
+  const isNarrowViewport = useIsMobileViewport()
+  useEffect(() => {
+    if (!isWebClient) return
+    void (window as any).api.webGetUserName().then((r: any) => {
+      if (r?.success && r.data) setWebUserName(String(r.data))
+    })
+  }, [isWebClient])
   const isMacOS =
     typeof navigator !== "undefined" &&
     /mac/i.test(navigator.userAgent) &&
@@ -197,7 +208,7 @@ export function ContentArea({
       : permission === "points"
         ? t("permissions.points")
         : t("permissions.view")
-  const userDisplayName = (oauthUserName || fallbackDisplayName).trim()
+  const userDisplayName = (oauthUserName || webUserName || fallbackDisplayName).trim()
   const avatarText = userDisplayName.slice(0, 1).toUpperCase()
   const [profilePopoverOpen, setProfilePopoverOpen] = useState(false)
   const [storageUsageLoading, setStorageUsageLoading] = useState(false)
@@ -257,6 +268,11 @@ export function ContentArea({
         return
       }
       setOAuthUserId(String(oauthState.user_id))
+      if ((window as any).__SECSCORE_WEB__) {
+        // Web 端没有云空间用量接口，只显示账号。
+        setStorageUsage(null)
+        return
+      }
 
       const platformId = import.meta.env.VITE_OAUTH_PLATFORM_ID
       if (!platformId) {
@@ -483,7 +499,27 @@ export function ContentArea({
   const activeLanShareUrl =
     selectedLanShareUrl || lanStatus?.share_url || lanShareUrls[0]?.url || ""
 
-  const profilePopoverContent = (
+  const profilePopoverContent = isWebClient ? (
+    <div style={{ width: "120px" }}>
+      <Button
+        danger
+        block
+        size="small"
+        loading={logoutLoading}
+        onClick={async () => {
+          // Web 端的登录态是 SECTL 令牌，桌面端的 onLogout 只切换本地权限，清不掉它。
+          setLogoutLoading(true)
+          try {
+            await (window as any).api.webLogout()
+          } finally {
+            setLogoutLoading(false)
+          }
+        }}
+      >
+        退出登录
+      </Button>
+    </div>
+  ) : (
     <div style={{ width: "260px", display: "flex", flexDirection: "column", gap: "10px" }}>
       <div
         style={{
@@ -689,6 +725,21 @@ export function ContentArea({
       )}
     </div>
   )
+
+  // Web 端「管理」独立页：自带顶栏与底部导航，不显示应用顶栏。
+  if (isWebClient && location.pathname.startsWith("/manage")) {
+    return (
+      <Suspense
+        fallback={
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Spin size="large" />
+          </div>
+        }
+      >
+        <WebManage />
+      </Suspense>
+    )
+  }
 
   return (
     <Layout
@@ -911,7 +962,7 @@ export function ContentArea({
                 </span>
               </button>
             </Popover>
-            {permissionTag}
+            {!(isWebClient && isNarrowViewport) && permissionTag}
             {!immersiveMode && hasAnyPassword && (
               <>
                 <Button size="small" onClick={onAuthClick}>

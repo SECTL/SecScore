@@ -19,7 +19,8 @@
     "lint:fix": "eslint --cache . --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:web": "vite build -c vite.web.config.ts && mv dist-web/web.html dist-web/index.html"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",

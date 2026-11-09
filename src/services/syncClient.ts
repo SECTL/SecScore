@@ -1,4 +1,4 @@
-import { sectlAuth } from "./sectlAuth"
+import { sectlAuth, isRefreshTokenRejected } from "./sectlAuth"
 import { DEFAULT_SYNC_SERVER_URL } from "./syncServerConfig"
 
 const DEVICE_ID_KEY = "ss_sync_device_id"
@@ -428,6 +428,7 @@ class SyncClient {
       settings,
       rules,
       batches,
+      groupEvents,
     ] = await Promise.all([
       api.queryStudents(),
       api.queryReasons(),
@@ -440,6 +441,11 @@ class SyncClient {
       api.getAllSettings(),
       api.autoScoreGetRules(),
       api.autoScoreQueryBatches(),
+      // 小组积分事件没有专用查询接口，用只读 SQL 取出（含已结算的，结算标记随事件同步）。
+      api.boardQuerySql?.({
+        sql: "SELECT uuid, group_name, reason_content, delta, val_prev, val_curr, event_time, settlement_id FROM group_score_events ORDER BY event_time",
+        limit: 100000,
+      }),
     ])
 
     const studentRows = Array.isArray(students?.data) ? students.data : []
@@ -464,6 +470,7 @@ class SyncClient {
       tags: Array.isArray(tags?.data) ? tags.data : [],
       student_tags: studentTags,
       score_events: Array.isArray(events?.data) ? events.data : [],
+      group_score_events: Array.isArray(groupEvents?.data) ? groupEvents.data : [],
       reward_redemptions: Array.isArray(redemptions?.data) ? redemptions.data : [],
       settlements: Array.isArray(settlements?.data) ? settlements.data : [],
       board_configs: Array.isArray(boards?.data) ? boards.data : [],
@@ -639,6 +646,8 @@ class SyncClient {
   }
 
   private async headers(requestId?: string): Promise<HeadersInit> {
+    // 令牌将过期或已过期时先刷新，避免在没有 401 的情况下永远停在未认证。
+    await sectlAuth.ensureFreshToken()
     const token = sectlAuth.getAccessToken()
     if (!token || !sectlAuth.isAuthenticated() || this.authenticationBlocked) {
       throw new Error("OAuth 会话未就绪或已失效")
@@ -712,6 +721,21 @@ class SyncClient {
       })
       return true
     } catch (error) {
+      if (!isRefreshTokenRejected(error)) {
+        // 解除熔断，允许下一轮轮询在节流窗口后重试刷新。
+        this.authenticationBlocked = false
+        // 临时错误：保留本地会话，稍后由重试机制再次恢复，不弹"会话已失效"。
+        this.updateStatus({
+          state: "error",
+          authenticated: sectlAuth.isAuthenticated(),
+          realtimeConnected: false,
+          lastError: `刷新会话暂时失败：${String(error)}`,
+        })
+        syncLog("warn", "同步 OAuth 会话刷新遇到临时错误，保留会话稍后重试", {
+          error: String(error),
+        })
+        return false
+      }
       this.authenticationBlocked = true
       this.changeStreamAbortController?.abort()
       this.changeStreamConnected = false
@@ -850,6 +874,7 @@ class SyncClient {
     if (this.changeStreamRunning || this.authenticationBlocked || !sectlAuth.isAuthenticated()) return
     this.changeStreamRunning = true
     const generation = this.changeStreamGeneration
+    let streamFailures = 0
     void (async () => {
       while (
         this.enabled &&
@@ -906,6 +931,7 @@ class SyncClient {
             status: response.status,
             content_type: response.headers.get("content-type"),
           })
+          streamFailures = 0
           this.changeStreamConnected = true
           this.changeStreamAuthError = false
           this.updateStatus({
@@ -969,9 +995,11 @@ class SyncClient {
               auth_error: isAuthError,
             })
             const recovered = isAuthError && (await this.tryRecoverAuthentication())
-            await new Promise((resolve) =>
-              window.setTimeout(resolve, recovered ? 250 : isAuthError ? 5000 : 1000)
-            )
+            streamFailures = recovered ? 0 : streamFailures + 1
+            const backoff = recovered
+              ? 250
+              : Math.min(1000 * 2 ** Math.min(streamFailures - 1, 5), 30_000)
+            await new Promise((resolve) => window.setTimeout(resolve, backoff))
           }
         } finally {
           if (generation === this.changeStreamGeneration) {

@@ -38,7 +38,11 @@ import {
   PlusOutlined,
   CloseOutlined,
   UserOutlined,
+  AppstoreOutlined,
+  CheckSquareOutlined,
+  PlusCircleOutlined,
 } from "@ant-design/icons"
+import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { pinyin } from "pinyin-pro"
 import dayjs from "dayjs"
@@ -187,9 +191,7 @@ const isHomeDate = (value: unknown): value is string => {
   const [year, month, day] = value.split("-").map(Number)
   const parsed = new Date(year, month - 1, day)
   return (
-    parsed.getFullYear() === year &&
-    parsed.getMonth() === month - 1 &&
-    parsed.getDate() === day
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day
   )
 }
 
@@ -262,6 +264,8 @@ export const Home: React.FC<HomeProps> = ({
   onUnlock,
 }) => {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const isWebClient = Boolean((window as any).__SECSCORE_WEB__)
   const breakpoint = useResponsive()
   const isMobile = breakpoint === "xs" || breakpoint === "sm"
   const isTablet = breakpoint === "md"
@@ -342,7 +346,7 @@ export const Home: React.FC<HomeProps> = ({
     useState<operationMorphElementRects | null>(null)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
-  const [submitLoading, setSubmitLoading] = useState(false)
+  const [, setSubmitLoading] = useState(false)
   const [undoLoading, setUndoLoading] = useState(false)
   const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
@@ -439,13 +443,15 @@ export const Home: React.FC<HomeProps> = ({
   const operationMorphCloseEasing = "cubic-bezier(0.4, 0, 0.2, 1)"
 
   const focusAndSelectSearch = useCallback(() => {
+    // 移动端/竖屏聚焦会弹出软键盘，不自动聚焦搜索框
+    if (isPortraitMode || isMobile) return
     window.requestAnimationFrame(() => {
       const input = searchInputRef.current
       if (!input) return
       input.focus()
       input.select()
     })
-  }, [])
+  }, [isPortraitMode, isMobile])
 
   useEffect(() => {
     if (batchMode) focusAndSelectSearch()
@@ -689,10 +695,7 @@ export const Home: React.FC<HomeProps> = ({
     nextMonday.setDate(monday.getDate() + 7)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const periodStart = dayjs(homePeriodRange[0]).startOf("day").toDate()
-    const periodEndExclusive = dayjs(homePeriodRange[1])
-      .add(1, "day")
-      .startOf("day")
-      .toDate()
+    const periodEndExclusive = dayjs(homePeriodRange[1]).add(1, "day").startOf("day").toDate()
     const nowIso = now.toISOString()
     const todayStartIso = todayStart.toISOString()
     const mondayIso = monday.toISOString()
@@ -731,10 +734,8 @@ export const Home: React.FC<HomeProps> = ({
         api.boardQuerySql({ sql: groupSql, limit: 500 }),
       ])
       if (res?.success && Array.isArray(res.data)) {
-        const next: Record<
-          string,
-          { today: number; week: number; month: number; period: number }
-        > = {}
+        const next: Record<string, { today: number; week: number; month: number; period: number }> =
+          {}
         res.data.forEach((row: any) => {
           const name = typeof row?.name === "string" ? row.name.trim() : ""
           if (!name) return
@@ -973,10 +974,7 @@ export const Home: React.FC<HomeProps> = ({
     setSearchKeyword((prev) => `${prev}${keyValue}`)
   }
 
-  const handleSearchKeyPointerDown = (
-    event: React.PointerEvent<HTMLElement>,
-    keyValue: string
-  ) => {
+  const handleSearchKeyPointerDown = (event: React.PointerEvent<HTMLElement>, keyValue: string) => {
     if (event.button !== 0) return
     event.preventDefault()
     handleSearchKeyPress(keyValue)
@@ -993,44 +991,47 @@ export const Home: React.FC<HomeProps> = ({
     return name.length > 2 ? name.substring(name.length - 2) : name
   }
 
-  const matchStudentName = useCallback((s: student, keyword: string) => {
-    const q0 = keyword.trim().toLowerCase()
-    if (!q0) return true
-    const q1 = q0.replace(/\s+/g, "")
+  const matchStudentName = useCallback(
+    (s: student, keyword: string) => {
+      const q0 = keyword.trim().toLowerCase()
+      if (!q0) return true
+      const q1 = q0.replace(/\s+/g, "")
 
-    const nameLower = String(s.name).toLowerCase()
-    const pyLower = s.pinyinName || ""
-    const pyInitialsLower = s.pinyinInitials || ""
-    const studentNo = String(s.student_no || "").toLowerCase()
-    const aliases = searchAliasIndex.get(s.id) || []
-    const matchesText = (text: string) =>
-      text.includes(q0) || text.replace(/\s+/g, "").includes(q1)
+      const nameLower = String(s.name).toLowerCase()
+      const pyLower = s.pinyinName || ""
+      const pyInitialsLower = s.pinyinInitials || ""
+      const studentNo = String(s.student_no || "").toLowerCase()
+      const aliases = searchAliasIndex.get(s.id) || []
+      const matchesText = (text: string) =>
+        text.includes(q0) || text.replace(/\s+/g, "").includes(q1)
 
-    if (
-      matchesText(nameLower) ||
-      matchesText(studentNo) ||
-      matchesText(pyLower) ||
-      matchesText(pyInitialsLower) ||
-      aliases.some(
-        (alias) =>
-          matchesText(alias.text) ||
-          alias.pinyin.replace(/\s+/g, "").includes(q1) ||
-          alias.initials.includes(q1)
-      )
-    ) {
-      return true
-    }
+      if (
+        matchesText(nameLower) ||
+        matchesText(studentNo) ||
+        matchesText(pyLower) ||
+        matchesText(pyInitialsLower) ||
+        aliases.some(
+          (alias) =>
+            matchesText(alias.text) ||
+            alias.pinyin.replace(/\s+/g, "").includes(q1) ||
+            alias.initials.includes(q1)
+        )
+      ) {
+        return true
+      }
 
-    const isT9Query = /^[2-9]+$/.test(q1)
-    if (isT9Query) {
-      const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
-      const pyInitialsDigits = toT9Digits(pyInitialsLower.replace(/[^a-z]/g, ""))
-      if (pyDigits.includes(q1)) return true
-      if (pyInitialsDigits.includes(q1)) return true
-    }
+      const isT9Query = /^[2-9]+$/.test(q1)
+      if (isT9Query) {
+        const pyDigits = toT9Digits(pyLower.replace(/[^a-z]/g, ""))
+        const pyInitialsDigits = toT9Digits(pyInitialsLower.replace(/[^a-z]/g, ""))
+        if (pyDigits.includes(q1)) return true
+        if (pyInitialsDigits.includes(q1)) return true
+      }
 
-    return /[\u3400-\u9fff]/.test(q0) && matchStudentSearch(s, q0)
-  }, [searchAliasIndex])
+      return /[\u3400-\u9fff]/.test(q0) && matchStudentSearch(s, q0)
+    },
+    [searchAliasIndex]
+  )
 
   const getDisplayPoints = useCallback(
     (s: student) => (rewardMode ? Number(s.reward_points || 0) : Number(s.score || 0)),
@@ -1096,8 +1097,7 @@ export const Home: React.FC<HomeProps> = ({
       (sum, item) => sum + Number(periodStats[item.name]?.period || 0),
       Number(groupPeriodStats[groupKey] || 0)
     )
-    const periodAverage =
-      includedStudents.length > 0 ? periodTotal / includedStudents.length : 0
+    const periodAverage = includedStudents.length > 0 ? periodTotal / includedStudents.length : 0
     const values: Record<HomeGroupStatKey, number> = {
       total,
       average,
@@ -1213,7 +1213,15 @@ export const Home: React.FC<HomeProps> = ({
       default:
         return filtered
     }
-  }, [students, deferredSearchKeyword, sortType, matchStudentName, getDisplayPoints, getGroupName, t])
+  }, [
+    students,
+    deferredSearchKeyword,
+    sortType,
+    matchStudentName,
+    getDisplayPoints,
+    getGroupName,
+    t,
+  ])
 
   const groupedStudents = useMemo(() => {
     if (sortType === "score" || (sortType === "alphabet" && deferredSearchKeyword)) {
@@ -2060,6 +2068,265 @@ export const Home: React.FC<HomeProps> = ({
     messageApi.error(res.message || t("rewardExchange.redeemFailed"))
   }
 
+  // 竖屏积分操作抽屉：支持系统返回键关闭
+  const closeOperationModalRef = useRef(closeOperationModal)
+  closeOperationModalRef.current = closeOperationModal
+  // 由下拉手势 effect 提供：从当前动画位置反向滑出（可打断打开动画），并带动底栏
+  const drawerAnimatedCloseRef = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    if (!isPortraitMode || !operationVisible) return
+    const marker = { ssOperationDrawer: true }
+    window.history.pushState(marker, "")
+    let handledByPopstate = false
+    const onPopState = () => {
+      handledByPopstate = true
+      if (drawerAnimatedCloseRef.current) drawerAnimatedCloseRef.current()
+      else closeOperationModalRef.current()
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+      // 非返回键关闭（点击关闭/提交成功等）时，回退掉我们压入的历史记录
+      if (!handledByPopstate && window.history.state?.ssOperationDrawer) {
+        window.history.back()
+      }
+    }
+  }, [isPortraitMode, operationVisible])
+
+  // 竖屏多选模式：支持系统返回键退出（积分操作抽屉打开时由抽屉自己处理返回）
+  const operationVisibleRef = useRef(operationVisible)
+  operationVisibleRef.current = operationVisible
+  useEffect(() => {
+    if (!isPortraitMode || !batchMode) return
+    window.history.pushState({ ssBatchMode: true }, "")
+    let handledByPopstate = false
+    const onPopState = () => {
+      if (operationVisibleRef.current) return
+      handledByPopstate = true
+      setBatchMode(false)
+      setSelectedStudentIds([])
+      setStudentMultipliers({})
+    }
+    window.addEventListener("popstate", onPopState)
+    return () => {
+      window.removeEventListener("popstate", onPopState)
+      if (!handledByPopstate && window.history.state?.ssBatchMode) {
+        window.history.back()
+      }
+    }
+  }, [isPortraitMode, batchMode])
+
+  // 竖屏积分操作抽屉：下拉达到一定距离或速度则关闭，否则回弹
+  useEffect(() => {
+    if (!isPortraitMode || !operationVisible) return
+    const CLOSE_DISTANCE = 120
+    const CLOSE_VELOCITY = 0.6 // px/ms
+    const MIN_FLICK_DISTANCE = 30
+    let wrapper: HTMLElement | null = null
+    let startY = 0
+    let startX = 0
+    let startTime = 0
+    let dragging = false
+    let tracking = false
+    let lastDy = 0
+    let closing = false
+    let rafId: number | null = null
+
+    const getWrapper = () =>
+      document
+        .querySelector<HTMLElement>(".ss-operation-drawer")
+        ?.closest<HTMLElement>(".ant-drawer-content-wrapper") ?? null
+    const getMask = (el: HTMLElement) =>
+      el.parentElement?.querySelector<HTMLElement>(".ant-drawer-mask") ?? null
+
+    // p: 0=抽屉完全展开，1=完全收起。同步驱动抽屉位移、遮罩透明度与底部工具栏。
+    const applyProgress = (el: HTMLElement, p: number, maskK: number) => {
+      const q = Math.min(1, Math.max(0, p))
+      el.style.transition = "none"
+      el.style.transform = `translateY(${q * el.offsetHeight}px)`
+      const mask = getMask(el)
+      if (mask) {
+        mask.style.transition = "none"
+        mask.style.opacity = String(Math.min(1, maskK * (1 - q)))
+      }
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = "none"
+        tb.style.opacity = String(0.22 + 0.78 * q)
+        tb.style.filter = `blur(${8 * (1 - q)}px)`
+        tb.style.transform = `translateX(-50%) translateY(${84 * (1 - q)}px) rotate(${-5 * (1 - q)}deg) scale(${0.94 + 0.06 * q})`
+      }
+    }
+
+    const currentMaskK = (el: HTMLElement, p0: number) => {
+      const mask = getMask(el)
+      if (!mask) return 1
+      const o = parseFloat(getComputedStyle(mask).opacity)
+      return Number.isFinite(o) ? o / Math.max(0.001, 1 - p0) : 1
+    }
+
+    const animateProgress = (
+      el: HTMLElement,
+      from: number,
+      to: number,
+      duration: number,
+      maskK: number,
+      done: () => void
+    ) => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      const t0 = performance.now()
+      const step = (now: number) => {
+        const k = Math.min(1, (now - t0) / duration)
+        const e = 1 - Math.pow(1 - k, 3)
+        applyProgress(el, from + (to - from) * e, maskK)
+        if (k < 1) {
+          rafId = requestAnimationFrame(step)
+        } else {
+          rafId = null
+          done()
+        }
+      }
+      rafId = requestAnimationFrame(step)
+    }
+
+    const resetInline = (el: HTMLElement) => {
+      el.style.transition = ""
+      el.style.transform = ""
+      const mask = getMask(el)
+      if (mask) {
+        mask.style.transition = ""
+        mask.style.opacity = ""
+      }
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = ""
+        tb.style.opacity = ""
+        tb.style.filter = ""
+        tb.style.transform = ""
+      }
+    }
+
+    // 从当前实际位置（含打开动画进行中）直接反向滑出，不跳到动画终点
+    const closeAnimated = () => {
+      const el = getWrapper()
+      if (!el || closing) {
+        if (!el) closeOperationModalRef.current()
+        return
+      }
+      closing = true
+      const cs = getComputedStyle(el)
+      const h = el.offsetHeight || 1
+      const p0 = Math.min(1, Math.max(0, new DOMMatrixReadOnly(cs.transform).m42 / h))
+      const maskK = currentMaskK(el, p0)
+      el.style.opacity = cs.opacity
+      animateProgress(el, p0, 1, Math.max(120, 240 * (1 - p0)), maskK, () =>
+        closeOperationModalRef.current()
+      )
+    }
+    drawerAnimatedCloseRef.current = closeAnimated
+
+    const hasScrolledAncestor = (target: HTMLElement) => {
+      let el: HTMLElement | null = target
+      while (el && wrapper && wrapper.contains(el)) {
+        if (el.scrollHeight > el.clientHeight && el.scrollTop > 0) return true
+        el = el.parentElement
+      }
+      return false
+    }
+
+    const onStart = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null
+      if (closing || !target || e.touches.length !== 1) return
+      // antd 6：className 落在内层 .ant-drawer-section 上，content-wrapper 是它的祖先
+      const el = target.closest(".ss-operation-drawer")?.closest(".ant-drawer-content-wrapper")
+      if (!el) return
+      wrapper = el as HTMLElement
+      if (hasScrolledAncestor(target)) return
+      tracking = true
+      dragging = false
+      lastDy = 0
+      startY = e.touches[0].clientY
+      startX = e.touches[0].clientX
+      startTime = performance.now()
+      scrollBase = bodyEl?.scrollTop ?? 0
+    }
+
+    // 内容区在顶部时禁用浏览器竖向原生手势（touch-action 须在 touchstart 前生效），
+    // 否则浏览器会抢走手势，touchmove 变为不可取消，抽屉无法跟手；向上滑改为手动滚动。
+    const bodyEl = document.querySelector<HTMLElement>(".ss-operation-drawer .ant-drawer-body")
+    const syncTouchAction = () => {
+      if (!bodyEl) return
+      bodyEl.style.touchAction = bodyEl.scrollTop <= 0 ? "pan-x" : ""
+    }
+    syncTouchAction()
+    bodyEl?.addEventListener("scroll", syncTouchAction, { passive: true })
+    let scrollBase = 0
+
+    const onMove = (e: TouchEvent) => {
+      if (!tracking || !wrapper) return
+      const dy = e.touches[0].clientY - startY
+      const dx = e.touches[0].clientX - startX
+      if (!dragging) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          tracking = false
+          return
+        }
+        if (dy < 0) {
+          if (bodyEl && bodyEl.contains(e.target as Node)) bodyEl.scrollTop = scrollBase - dy
+          return
+        }
+        if (dy < 8) return
+        dragging = true
+      }
+      if (e.cancelable) e.preventDefault()
+      lastDy = Math.max(0, dy)
+      applyProgress(wrapper, lastDy / (wrapper.offsetHeight || 1), 1)
+    }
+
+    const onEnd = () => {
+      if (!tracking || !wrapper) return
+      tracking = false
+      if (!dragging) return
+      dragging = false
+      const el = wrapper
+      const elapsed = Math.max(1, performance.now() - startTime)
+      const velocity = lastDy / elapsed
+      const shouldClose =
+        lastDy >= CLOSE_DISTANCE || (velocity >= CLOSE_VELOCITY && lastDy >= MIN_FLICK_DISTANCE)
+      const p0 = lastDy / (el.offsetHeight || 1)
+      if (shouldClose) {
+        closing = true
+        animateProgress(el, p0, 1, Math.max(120, 240 * (1 - p0)), 1, () =>
+          closeOperationModalRef.current()
+        )
+      } else {
+        animateProgress(el, p0, 0, Math.max(120, 260 * p0 + 100), 1, () => resetInline(el))
+      }
+    }
+
+    document.addEventListener("touchstart", onStart, { passive: true })
+    document.addEventListener("touchmove", onMove, { passive: false })
+    document.addEventListener("touchend", onEnd, { passive: true })
+    document.addEventListener("touchcancel", onEnd, { passive: true })
+    return () => {
+      document.removeEventListener("touchstart", onStart)
+      document.removeEventListener("touchmove", onMove)
+      document.removeEventListener("touchend", onEnd)
+      document.removeEventListener("touchcancel", onEnd)
+      bodyEl?.removeEventListener("scroll", syncTouchAction)
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      drawerAnimatedCloseRef.current = null
+      // 此时抽屉已关闭、底栏 class 已恢复，清掉内联样式不会产生闪动
+      const tb = immersiveToolbarRef.current
+      if (tb) {
+        tb.style.transition = ""
+        tb.style.opacity = ""
+        tb.style.filter = ""
+        tb.style.transform = ""
+      }
+    }
+  }, [isPortraitMode, operationVisible])
+
   const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
     if (!(window as any).api) return
     if (submitInFlightRef.current) {
@@ -2193,29 +2460,6 @@ export const Home: React.FC<HomeProps> = ({
       messageApi.error((res as any).message || t("score.undoFailed"))
     }
     setUndoLoading(false)
-  }
-
-  const handleSubmit = async () => {
-    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
-    if (targets.length === 0) {
-      messageApi.warning(t("home.selectStudentFirst"))
-      return
-    }
-
-    const delta = customScore
-    if (delta === undefined || !Number.isFinite(delta)) {
-      messageApi.warning(t("home.pleaseSelectPoints"))
-      return
-    }
-
-    const content =
-      reasonContent ||
-      (delta > 0
-        ? t("home.addPoints")
-        : delta < 0
-          ? t("home.deductPoints")
-          : t("home.pointsChange"))
-    await performSubmit(targets, delta, content)
   }
 
   const handleReasonSelect = (reason: reason) => {
@@ -3589,10 +3833,11 @@ export const Home: React.FC<HomeProps> = ({
   const [isNavDraggingState, setIsNavDraggingState] = useState(false)
 
   const triggerNavHaptic = useCallback(() => {
-    if (!isMobile) return
+    // 仅 Android 浏览器等支持 Vibration API 的环境会震动；不再按视口宽度限制，平板同样生效。
     if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return
-    navigator.vibrate(8)
-  }, [isMobile])
+    // 过短的脉冲在不少 Android 机型上感知不到，用 15ms。
+    navigator.vibrate(15)
+  }, [])
 
   const quickNavLayout = useMemo(() => {
     const baseItemSize = 24
@@ -4515,6 +4760,21 @@ export const Home: React.FC<HomeProps> = ({
           flexShrink: isMobile ? 1 : 0,
         }
 
+    if (isWebClient) {
+      return (
+        <Button
+          icon={<AppstoreOutlined />}
+          onClick={() => {
+            closeMenu?.()
+            navigate("/manage/students")
+          }}
+          style={btnStyle}
+        >
+          管理
+        </Button>
+      )
+    }
+
     if (permission === "view") {
       return (
         <Button icon={<UnlockOutlined />} onClick={handleUnlock} style={btnStyle}>
@@ -4547,6 +4807,10 @@ export const Home: React.FC<HomeProps> = ({
     )
   }
 
+  // 触屏设备上关闭多选框的搜索输入，避免点开下拉就弹出软键盘
+  const isCoarsePointer =
+    typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
+
   const renderHomeStatPicker = (variant: "header" | "toolbar" | "menu") => {
     const isImmersive = variant !== "header"
     const widthStyle: React.CSSProperties =
@@ -4558,6 +4822,7 @@ export const Home: React.FC<HomeProps> = ({
     return (
       <Select
         mode="multiple"
+        showSearch={!isCoarsePointer}
         allowClear
         maxTagCount="responsive"
         placeholder={isImmersive ? "显示" : "卡片显示"}
@@ -4640,6 +4905,7 @@ export const Home: React.FC<HomeProps> = ({
   const renderGroupStatPicker = () => (
     <Select
       mode="multiple"
+      showSearch={!isCoarsePointer}
       allowClear
       maxTagCount="responsive"
       placeholder="小组显示"
@@ -4974,7 +5240,9 @@ export const Home: React.FC<HomeProps> = ({
                                 <Button
                                   key={keyItem}
                                   size="small"
-                                  onPointerDown={(event) => handleSearchKeyPointerDown(event, keyItem)}
+                                  onPointerDown={(event) =>
+                                    handleSearchKeyPointerDown(event, keyItem)
+                                  }
                                   onClick={(event) => {
                                     if (event.detail === 0) handleSearchKeyPress(keyItem)
                                   }}
@@ -5321,6 +5589,42 @@ export const Home: React.FC<HomeProps> = ({
           overflow: "visible",
         }}
       >
+        {isPortraitMode && !rewardMode && (
+          <div className="ss-immersive-toolbar-segment ss-immersive-toolbar-menu-segment">
+            <Button
+              type="text"
+              icon={
+                !batchMode ? (
+                  <CheckSquareOutlined />
+                ) : selectedStudentIds.length > 0 ? (
+                  <PlusCircleOutlined />
+                ) : (
+                  <CloseOutlined />
+                )
+              }
+              aria-label={
+                !batchMode
+                  ? t("home.multiSelect")
+                  : selectedStudentIds.length > 0
+                    ? t("home.batchOperate")
+                    : t("common.cancel")
+              }
+              title={
+                !batchMode
+                  ? t("home.multiSelect")
+                  : selectedStudentIds.length > 0
+                    ? t("home.batchOperate")
+                    : t("common.cancel")
+              }
+              onClick={() => {
+                if (!batchMode) handleEnterBatchMode()
+                else if (selectedStudentIds.length > 0) handleOpenBatchOperation()
+                else handleExitBatchMode()
+              }}
+              style={{ width: 32, height: 32, borderRadius: "999px", flexShrink: 0 }}
+            />
+          </div>
+        )}
         <div
           ref={(node) => {
             searchAreaRef.current = node
@@ -5492,7 +5796,8 @@ export const Home: React.FC<HomeProps> = ({
             open={immersiveMenuOpen}
             onOpenChange={setImmersiveMenuOpen}
             content={immersiveMenuContent}
-            overlayClassName="ss-immersive-toolbar-popover"
+            overlayClassName="ss-immersive-toolbar-popover is-full-width"
+            arrow={false}
           >
             <div className="ss-immersive-toolbar-segment ss-immersive-toolbar-menu-segment">
               <Button
@@ -5549,15 +5854,12 @@ export const Home: React.FC<HomeProps> = ({
           afterOpenChange={applyDrawerDragRegion}
           destroyOnHidden
           styles={{
-            body: { padding: "12px 16px 24px", overflowX: "hidden" },
+            body: {
+              padding: "12px 16px calc(24px + env(safe-area-inset-bottom, 0px))",
+              overflowX: "hidden",
+              overscrollBehavior: "contain",
+            },
           }}
-          footer={
-            <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-              <Button type="primary" onClick={handleSubmit} loading={submitLoading}>
-                {t("home.submitOperation")}
-              </Button>
-            </Space>
-          }
         >
           {operationPanelContent}
         </Drawer>
