@@ -148,6 +148,7 @@ type HomeGroupStatKey =
   | "periodTotal"
   | "periodAverage"
   | "groupScore"
+  | "groupWeekScore"
 
 const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
 const HOME_GROUP_STATS_STORAGE_KEY = "ss_home_group_show_stats"
@@ -174,6 +175,7 @@ const HOME_GROUP_STAT_OPTIONS: { value: HomeGroupStatKey; label: string }[] = [
   { value: "periodTotal", label: "本期总分" },
   { value: "periodAverage", label: "本期平均分" },
   { value: "groupScore", label: "小组积分" },
+  { value: "groupWeekScore", label: "周小组积分" },
 ]
 const ALLOWED_HOME_GROUP_STATS = new Set<HomeGroupStatKey>(
   HOME_GROUP_STAT_OPTIONS.map((option) => option.value)
@@ -1104,6 +1106,7 @@ export const Home: React.FC<HomeProps> = ({
       periodTotal,
       periodAverage,
       groupScore: Number(groupScores[groupKey] || 0),
+      groupWeekScore: Number(groupWeekStats[groupKey] || 0),
     }
     return HOME_GROUP_STAT_OPTIONS.filter((option) =>
       homeGroupShowStats.includes(option.value)
