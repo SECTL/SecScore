@@ -77,6 +77,20 @@ const classId = async (): Promise<string> => {
   return first.id
 }
 
+// 冷启动时从 localStorage 预填内存缓存，让首次 load(false) 立即返回而不阻塞渲染。
+// 只在模块初始化时执行一次；有 ssw_class_id 且对应 bootstrap 快照存在才预填。
+const preloadCacheFromStorage = () => {
+  try {
+    const id = localStorage.getItem(CLASS_KEY)
+    if (!id) return
+    const stored = readStored<Bootstrap>(BOOT_KEY(id))
+    if (stored) cache = stored
+  } catch {
+    /* localStorage 不可用时跳过 */
+  }
+}
+preloadCacheFromStorage()
+
 const load = (force = false): Promise<Bootstrap> => {
   if (cache && !force) return Promise.resolve(cache)
   loading ??= (async () => {
@@ -444,12 +458,13 @@ let pollTimer: number | undefined
 let lastSignature = ""
 const signature = (b: Bootstrap) => `${b.class_id}:${b.server_change_seq}:${b.snapshot_updated_at}`
 
-const pollOnce = async () => {
+const pollOnce = async (firstRun = false) => {
   if (document.visibilityState !== "visible" || !navigator.onLine) return
   try {
     const b = await load(true)
     const next = signature(b)
-    if (lastSignature && next !== lastSignature) {
+    // 首次拉取时无条件通知：缓存渲染后立即用网络数据更新一次。
+    if (firstRun || (lastSignature && next !== lastSignature)) {
       window.dispatchEvent(new CustomEvent("ss:data-updated", { detail: { category: "all" } }))
     }
     lastSignature = next
@@ -508,7 +523,7 @@ const runStream = async () => {
 
 export const startAutoRefresh = () => {
   if (pollTimer !== undefined) return
-  void pollOnce()
+  void pollOnce(true)
   // 长连接正常时只做低频兜底轮询。
   pollTimer = window.setInterval(() => {
     if (!streamConnected) void pollOnce()
