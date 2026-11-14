@@ -684,8 +684,31 @@ class SectlAuthService {
       if (!data.refresh_token && this.refreshToken) data.refresh_token = this.refreshToken
       this.saveToken(data)
       const savedGeneration = this.tokenGeneration
+
+      // 刷新成功后立即将新 token 持久化到原生层，不依赖 getUserInfo 成功与否。
+      // 若此步骤失败，原生层（oauth_state.json）将保留旧 refresh token，
+      // 重启后会覆盖内存中已轮换的新值，导致 refresh_token_reused 撤销整个 family。
+      const api = (window as any).api
+      if (api?.oauthSaveLoginState && this.userId && this.tokenGeneration === savedGeneration) {
+        void Promise.resolve(
+          api.oauthSaveLoginState({
+            access_token: this.accessToken || data.access_token,
+            refresh_token: this.refreshToken || "",
+            token_type: data.token_type || "Bearer",
+            expires_in: data.expires_in || 0,
+            user_id: this.userId,
+            // name/email 由后续 getUserInfo 覆写；此处先填占位，确保 token 不丢失。
+            email: "",
+            name: this.userId,
+            login_time: new Date().toISOString(),
+          })
+        ).catch((err: unknown) =>
+          authLog("warn", "原生层 token 初步持久化失败", { error: String(err) })
+        )
+      }
+
+      // 异步补充 user info，完成后用完整数据覆写原生层；失败不影响 token 有效性。
       try {
-        const api = (window as any).api
         const userInfo = await this.getUserInfo()
         if (
           api?.oauthSaveLoginState &&
@@ -704,7 +727,7 @@ class SectlAuthService {
           })
         }
       } catch {
-        // renderer token remains authoritative for this process; next login can repair native state.
+        // getUserInfo 失败时原生层已有基本 token 数据，不影响持续认证。
       }
       return data
     } catch (error) {

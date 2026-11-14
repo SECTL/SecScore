@@ -315,18 +315,34 @@ function MainContent(): React.JSX.Element {
 
         // Tauri 的 WebView localStorage 在更新、开发模式切换或网站数据被系统
         // 回收后可能为空；原生 OAuth 状态才是跨启动的可靠来源。
-        const tokenIsActive = sectlAuth.getUserId() === oauthRes.data.user_id && sectlAuth.isAuthenticated()
-          ? true
-          : sectlAuth.restoreToken(
-              {
-                access_token: oauthRes.data.access_token,
-                refresh_token: oauthRes.data.refresh_token,
-                token_type: oauthRes.data.token_type,
-                expires_in: oauthRes.data.expires_in,
-                user_id: oauthRes.data.user_id,
-              },
-              { allowExpired: true }
-            )
+        // 但原生层保存的 refresh_token 可能落后于内存中已轮换的新值：
+        // 若内存里已有同一用户的 token（即使已过期），直接刷新即可，
+        // 绝不能用原生层的旧 refresh_token 覆盖内存中的新值——否则会触发
+        // 服务端 refresh_token_reused 检测，撤销整个 family。
+        const memoryUserId = sectlAuth.getUserId()
+        const memoryHasToken = Boolean(sectlAuth.getToken())
+        const sameUserInMemory = memoryUserId && memoryUserId === oauthRes.data.user_id
+        let tokenIsActive = false
+        if (sameUserInMemory && sectlAuth.isAuthenticated()) {
+          // 内存中已有有效 token，无需恢复。
+          tokenIsActive = true
+        } else if (sameUserInMemory && memoryHasToken) {
+          // 同一用户但 token 已过期：内存里的 refresh_token 比 OAuth 回调时间更新，
+          // 优先用内存中的值刷新，跳过原生层恢复以免旧值覆盖新值。
+          tokenIsActive = false
+        } else {
+          // 内存中无 token 或是不同用户：从原生层恢复。
+          tokenIsActive = sectlAuth.restoreToken(
+            {
+              access_token: oauthRes.data.access_token,
+              refresh_token: oauthRes.data.refresh_token,
+              token_type: oauthRes.data.token_type,
+              expires_in: oauthRes.data.expires_in,
+              user_id: oauthRes.data.user_id,
+            },
+            { allowExpired: true }
+          )
+        }
         if (!tokenIsActive) {
           void sectlAuth.refreshAccessToken().catch((error) => {
             // 网络抖动等临时错误保留会话，等待后续重试。
