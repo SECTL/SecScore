@@ -316,7 +316,7 @@ const cloudBase: Record<string, any> = {
     wrap(async () => {
       const id = await classId()
       enqueueScore(id, data.student_name, data.delta, data.reason_content)
-      void flush(id).then(() => load(true)).catch(() => void 0)
+      afterEdit(id)
       return 0
     }),
 }
