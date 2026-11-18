@@ -7,10 +7,12 @@ import {
   SettingOutlined,
   LinkOutlined,
   CopyOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons"
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
+import { DailyReport } from "./DailyReport"
 import { WorkspaceManager } from "./WorkspaceManager"
 import { sectlAuth } from "../services/sectlAuth"
 import appLogo from "../assets/logoHD.svg"
@@ -77,6 +79,9 @@ interface ContentAreaProps {
   immersiveMode: boolean
   isHomePage: boolean
   onOpenManagementWindow?: () => Promise<void> | void
+  onOpenReportWindow?: () => Promise<void> | void
+  isReportWindow?: boolean
+  isManagementWindow?: boolean
   showSidebarToggle?: boolean
   showHomeRoute?: boolean
   fallbackRoute?: string
@@ -114,6 +119,9 @@ export function ContentArea({
   immersiveMode,
   isHomePage,
   onOpenManagementWindow,
+  onOpenReportWindow,
+  isReportWindow = false,
+  isManagementWindow = false,
   showSidebarToggle = true,
   showHomeRoute = true,
   fallbackRoute = "/",
@@ -913,6 +921,16 @@ export function ContentArea({
                 title="管理"
               />
             )}
+            {!isLanBrowser && !isManagementWindow && !isReportWindow && !isMobileDevice && (
+              <Button
+                size="small"
+                icon={<FileTextOutlined />}
+                onClick={onOpenReportWindow}
+                title="今日报表"
+              >
+                今日报表
+              </Button>
+            )}
             <Popover
               trigger="click"
               placement="bottomRight"
@@ -1009,6 +1027,7 @@ export function ContentArea({
             className={`ss-route-page${isHomeRoute ? " is-home-route" : " ss-sectl-page"}${shouldAnimateSubPage ? " is-subpage-enter" : ""}${isBoardPage ? " is-board-page" : ""}`}
           >
             <Routes>
+              {isReportWindow && <Route path="/report" element={<DailyReport />} />}
               {showHomeRoute && (
                 <Route
                   path="/"

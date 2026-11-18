@@ -218,10 +218,60 @@ pub fn show_management_window(app: &AppHandle) -> Result<(), String> {
     }
 }
 
+pub fn show_report_window(app: &AppHandle) -> Result<(), String> {
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        return Ok(());
+    }
+
+    #[cfg(desktop)]
+    {
+        if let Some(window) = app.get_webview_window("report") {
+            window.show().map_err(|e| e.to_string())?;
+            window.set_focus().map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+
+        let builder = WebviewWindowBuilder::new(
+            app,
+            "report",
+            WebviewUrl::App("index.html?window=report#/report".into()),
+        )
+        .title("今日积分报告")
+        .inner_size(1100.0, 820.0)
+        .min_inner_size(760.0, 600.0)
+        .resizable(true)
+        .transparent(true)
+        .center();
+
+        #[cfg(target_os = "macos")]
+        let builder = builder
+            .decorations(true)
+            .title_bar_style(TitleBarStyle::Overlay)
+            .traffic_light_position(LogicalPosition::new(16.0, 22.0));
+
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.decorations(false);
+
+        let window = builder.build().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
 #[tauri::command]
 pub async fn window_open_management(
     app: AppHandle,
     _state: tauri::State<'_, Arc<RwLock<AppState>>>,
 ) -> Result<(), String> {
     show_management_window(&app)
+}
+
+#[tauri::command]
+pub async fn window_open_report(
+    app: AppHandle,
+    _state: tauri::State<'_, Arc<RwLock<AppState>>>,
+) -> Result<(), String> {
+    show_report_window(&app)
 }

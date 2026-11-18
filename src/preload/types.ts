@@ -859,6 +859,7 @@ const api = {
   windowClose: (): Promise<void> => invoke("window_close"),
   windowIsMaximized: (): Promise<boolean> => invoke("window_is_maximized"),
   openManagementWindow: (): Promise<void> => invoke("window_open_management"),
+  openReportWindow: (): Promise<void> => invoke("window_open_report"),
   startDraggingWindow: (): Promise<void> => invoke("window_start_dragging"),
   toggleDevTools: (): Promise<void> => invoke("toggle_devtools"),
   windowResize: (width: number, height: number): Promise<void> =>

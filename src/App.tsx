@@ -69,7 +69,11 @@ function MainContent(): React.JSX.Element {
     const params = new URLSearchParams(window.location.search)
     return params.get("window") === "management"
   }, [])
-  const [immersiveMode] = useState(!isManagementWindow)
+  const isReportWindow = useMemo(
+    () => new URLSearchParams(window.location.search).get("window") === "report",
+    []
+  )
+  const [immersiveMode] = useState(!isManagementWindow && !isReportWindow)
 
   // 对齐 SECTL Button.vue：水波纹在 click（即松开）后从实际点击坐标扩散。
   // Ant Design 的 Button 没有可插槽的 ripple API，因此在应用根部以事件委托补上，
@@ -131,7 +135,7 @@ function MainContent(): React.JSX.Element {
         const currentPath = location.pathname === "/" ? "/home" : location.pathname
         const targetPath = route === "/" ? "/home" : route
 
-        if (!isManagementWindow && !targetPath.startsWith("/home")) {
+        if (!isManagementWindow && !isReportWindow && !targetPath.startsWith("/home")) {
           navigate("/", { replace: true })
           return
         }
@@ -158,7 +162,7 @@ function MainContent(): React.JSX.Element {
       disposed = true
       if (unlisten) unlisten()
     }
-  }, [navigate, location.pathname, isManagementWindow])
+  }, [navigate, location.pathname, isManagementWindow, isReportWindow])
 
   const [wizardVisible, setWizardVisible] = useState(false)
   const [permission, setPermission] = useState<"admin" | "points" | "view">("view")
@@ -783,6 +787,7 @@ function MainContent(): React.JSX.Element {
       Boolean((window as any).__SECSCORE_WEB__) && location.pathname.startsWith("/manage")
     if (
       !isManagementWindow &&
+      !isReportWindow &&
       !isWebManageRoute &&
       location.pathname !== "/" &&
       !location.pathname.startsWith("/home")
@@ -796,7 +801,7 @@ function MainContent(): React.JSX.Element {
     ) {
       navigate(MANAGEMENT_DEFAULT_ROUTE, { replace: true })
     }
-  }, [isManagementWindow, location.pathname, navigate])
+  }, [isManagementWindow, isReportWindow, location.pathname, navigate])
 
   const openManagementWindow = useCallback(async () => {
     const api = (window as any).api
@@ -970,9 +975,12 @@ function MainContent(): React.JSX.Element {
           immersiveMode={immersiveMode}
           isHomePage={activeMenu === "home"}
           onOpenManagementWindow={openManagementWindow}
+          onOpenReportWindow={async () => (window as any).api?.openReportWindow?.()}
+          isReportWindow={isReportWindow}
+          isManagementWindow={isManagementWindow}
           showSidebarToggle={!isPortraitMode && isManagementWindow}
-          showHomeRoute={!isManagementWindow}
-          fallbackRoute={isManagementWindow ? MANAGEMENT_DEFAULT_ROUTE : "/"}
+          showHomeRoute={!isManagementWindow && !isReportWindow}
+          fallbackRoute={isManagementWindow ? MANAGEMENT_DEFAULT_ROUTE : isReportWindow ? "/report" : "/"}
           bottomInset={showMobileBottomNav ? 84 : 0}
         />
         {showMobileBottomNav && (

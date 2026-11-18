@@ -145,6 +145,7 @@ pub fn run() {
             window_close,
             window_is_maximized,
             window_open_management,
+            window_open_report,
             toggle_devtools,
             window_resize,
             window_set_resizable,
