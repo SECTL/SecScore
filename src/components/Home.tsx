@@ -41,6 +41,7 @@ import {
   AppstoreOutlined,
   CheckSquareOutlined,
   PlusCircleOutlined,
+  SettingOutlined,
 } from "@ant-design/icons"
 import { useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
@@ -144,6 +145,7 @@ type SortType = "alphabet" | "surname" | "group" | "score"
 type LayoutType = "grouped" | "squareGrid" | "largeAvatar"
 type SearchKeyboardLayout = "t9" | "qwerty26"
 type HomeCardStatKey = "score" | "today" | "week" | "month" | "period"
+type HomePeriodMode = "week" | "month" | "custom"
 type HomeGroupStatKey =
   | "total"
   | "average"
@@ -152,13 +154,14 @@ type HomeGroupStatKey =
   | "periodTotal"
   | "periodAverage"
   | "groupScore"
-  | "groupWeekScore"
+  | "groupPeriodScore"
 
 const HOME_CARD_STATS_STORAGE_KEY = "ss_home_card_show_stats"
 const HOME_GROUP_STATS_STORAGE_KEY = "ss_home_group_show_stats"
 const HOME_SORT_STORAGE_KEY = "ss_home_sort_type"
 const HOME_LAYOUT_STORAGE_KEY = "ss_home_layout_type"
 const HOME_PERIOD_RANGE_STORAGE_KEY = "ss_home_period_range"
+const HOME_PERIOD_MODE_STORAGE_KEY = "ss_home_period_mode"
 const HOME_SORT_TYPES = new Set<SortType>(["alphabet", "surname", "group", "score"])
 const HOME_LAYOUT_TYPES = new Set<LayoutType>(["grouped", "squareGrid", "largeAvatar"])
 const HOME_CARD_STAT_OPTIONS: { value: HomeCardStatKey; label: string }[] = [
@@ -179,7 +182,7 @@ const HOME_GROUP_STAT_OPTIONS: { value: HomeGroupStatKey; label: string }[] = [
   { value: "periodTotal", label: "本期总分" },
   { value: "periodAverage", label: "本期平均分" },
   { value: "groupScore", label: "小组积分" },
-  { value: "groupWeekScore", label: "周小组积分" },
+  { value: "groupPeriodScore", label: "期小组积分" },
 ]
 const ALLOWED_HOME_GROUP_STATS = new Set<HomeGroupStatKey>(
   HOME_GROUP_STAT_OPTIONS.map((option) => option.value)
@@ -195,20 +198,19 @@ const isHomeDate = (value: unknown): value is string => {
   )
 }
 
+const isValidHomePeriodRange = (value: unknown): value is [string, string] => {
+  return (
+    Array.isArray(value) && isHomeDate(value[0]) && isHomeDate(value[1]) && value[0] <= value[1]
+  )
+}
+
 const loadHomePeriodRange = (): [string, string] => {
   const today = dayjs().format("YYYY-MM-DD")
   try {
     const parsed: unknown = JSON.parse(
       localStorage.getItem(HOME_PERIOD_RANGE_STORAGE_KEY) || "null"
     )
-    if (
-      Array.isArray(parsed) &&
-      isHomeDate(parsed[0]) &&
-      isHomeDate(parsed[1]) &&
-      parsed[0] <= parsed[1]
-    ) {
-      return [parsed[0], parsed[1]]
-    }
+    if (isValidHomePeriodRange(parsed)) return parsed
   } catch {
     // 忽略损坏或不可用的本地值
   }
@@ -373,10 +375,12 @@ export const Home: React.FC<HomeProps> = ({
       if (raw) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed)) {
-          return parsed.filter(
-            (key: unknown): key is HomeGroupStatKey =>
-              typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
-          )
+          return parsed
+            .map((key: unknown) => (key === "groupWeekScore" ? "groupPeriodScore" : key))
+            .filter(
+              (key: unknown): key is HomeGroupStatKey =>
+                typeof key === "string" && ALLOWED_HOME_GROUP_STATS.has(key as HomeGroupStatKey)
+            )
         }
       }
     } catch {
@@ -385,6 +389,20 @@ export const Home: React.FC<HomeProps> = ({
     return DEFAULT_HOME_GROUP_STATS
   })
   const [homePeriodRange, setHomePeriodRange] = useState<[string, string]>(loadHomePeriodRange)
+  const [homePeriodMode, setHomePeriodMode] = useState<HomePeriodMode>(() => {
+    try {
+      const stored = localStorage.getItem(HOME_PERIOD_MODE_STORAGE_KEY)
+      if (stored === "week" || stored === "month" || stored === "custom") return stored
+      return localStorage.getItem(HOME_PERIOD_RANGE_STORAGE_KEY) ? "custom" : "week"
+    } catch {
+      return "week"
+    }
+  })
+  const [periodSettingsVisible, setPeriodSettingsVisible] = useState(false)
+  const [periodSettingsDraftMode, setPeriodSettingsDraftMode] =
+    useState<HomePeriodMode>(homePeriodMode)
+  const [periodSettingsDraftRange, setPeriodSettingsDraftRange] =
+    useState<[string, string]>(homePeriodRange)
 
   useEffect(() => {
     try {
@@ -401,6 +419,13 @@ export const Home: React.FC<HomeProps> = ({
       // 忽略持久化失败
     }
   }, [homePeriodRange])
+  useEffect(() => {
+    try {
+      localStorage.setItem(HOME_PERIOD_MODE_STORAGE_KEY, homePeriodMode)
+    } catch {
+      // 忽略持久化失败
+    }
+  }, [homePeriodMode])
   const [periodStats, setPeriodStats] = useState<
     Record<string, { today: number; week: number; month: number; period: number }>
   >({})
@@ -694,15 +719,27 @@ export const Home: React.FC<HomeProps> = ({
     const nextMonday = new Date(monday)
     nextMonday.setDate(monday.getDate() + 7)
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-    const periodStart = dayjs(homePeriodRange[0]).startOf("day").toDate()
-    const periodEndExclusive = dayjs(homePeriodRange[1]).add(1, "day").startOf("day").toDate()
+    const periodStart =
+      homePeriodMode === "custom"
+        ? dayjs(homePeriodRange[0]).startOf("day")
+        : homePeriodMode === "month"
+          ? dayjs(now).startOf("month")
+          : dayjs(monday)
+    const periodEndExclusive =
+      homePeriodMode === "custom"
+        ? dayjs(homePeriodRange[1]).add(1, "day").startOf("day")
+        : homePeriodMode === "month"
+          ? periodStart.add(1, "month")
+          : periodStart.add(1, "week")
+    const periodStartDate = periodStart.toDate()
+    const periodEndExclusiveDate = periodEndExclusive.toDate()
     const nowIso = now.toISOString()
     const todayStartIso = todayStart.toISOString()
     const mondayIso = monday.toISOString()
     const nextMondayIso = nextMonday.toISOString()
     const monthStartIso = monthStart.toISOString()
-    const periodStartIso = periodStart.toISOString()
-    const periodEndExclusiveIso = periodEndExclusive.toISOString()
+    const periodStartIso = periodStartDate.toISOString()
+    const periodEndExclusiveIso = periodEndExclusiveDate.toISOString()
 
     const sql = `SELECT s.name AS name,
       COALESCE(SUM(CASE WHEN e.event_time >= '${todayStartIso}' AND e.event_time < '${nowIso}' THEN e.delta ELSE 0 END), 0) AS today_net,
@@ -767,7 +804,7 @@ export const Home: React.FC<HomeProps> = ({
     } catch {
       // 忽略：统计加载失败不应影响主界面使用
     }
-  }, [homePeriodRange])
+  }, [homePeriodMode, homePeriodRange])
 
   useEffect(() => {
     fetchData()
@@ -1106,7 +1143,7 @@ export const Home: React.FC<HomeProps> = ({
       periodTotal,
       periodAverage,
       groupScore: Number(groupScores[groupKey] || 0),
-      groupWeekScore: Number(groupWeekStats[groupKey] || 0),
+      groupPeriodScore: Number(groupPeriodStats[groupKey] || 0),
     }
     return HOME_GROUP_STAT_OPTIONS.filter((option) =>
       homeGroupShowStats.includes(option.value)
@@ -4930,30 +4967,24 @@ export const Home: React.FC<HomeProps> = ({
     />
   )
 
-  const renderHomePeriodRangePicker = () => (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", marginBottom: 4 }}>
-        {t("home.customRange")}
-      </div>
-      <DatePicker.RangePicker
-        value={[dayjs(homePeriodRange[0]), dayjs(homePeriodRange[1])]}
-        format="YYYY-MM-DD"
-        allowClear={false}
-        placeholder={[t("home.startDate"), t("home.endDate")]}
-        getPopupContainer={getDocumentBodyPopupContainer}
-        placement="topLeft"
-        popupClassName="ss-immersive-toolbar-select-popup"
-        style={{ width: "100%" }}
-        onChange={(values) => {
-          if (!values?.[0] || !values[1]) return
-          const next: [string, string] = [
-            values[0].format("YYYY-MM-DD"),
-            values[1].format("YYYY-MM-DD"),
-          ]
-          if (next[0] <= next[1]) setHomePeriodRange(next)
-        }}
-      />
-    </div>
+  const openPeriodSettings = () => {
+    setPeriodSettingsDraftMode(homePeriodMode)
+    setPeriodSettingsDraftRange(homePeriodRange)
+    setPeriodSettingsVisible(true)
+  }
+
+  const periodSettingsButton = (
+    <Button
+      icon={<SettingOutlined />}
+      onClick={() => {
+        setImmersiveMenuOpen(false)
+        setImmersiveViewMenuOpen(false)
+        openPeriodSettings()
+      }}
+      style={{ width: "100%", marginTop: 8 }}
+    >
+      期设置
+    </Button>
   )
 
   // 底栏(横屏)里“排序 / 展示样式 / 显示信息”折叠进一个 ≡ 菜单的内容
@@ -4993,11 +5024,11 @@ export const Home: React.FC<HomeProps> = ({
         显示信息
       </div>
       {renderHomeStatPicker("menu")}
-      {renderHomePeriodRangePicker()}
       <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
         小组显示信息
       </div>
       {renderGroupStatPicker()}
+      {periodSettingsButton}
     </div>
   )
 
@@ -5125,6 +5156,7 @@ export const Home: React.FC<HomeProps> = ({
       >
         {lockControl({ fullWidth: true, closeMenu: () => setImmersiveMenuOpen(false) })}
       </div>
+      {periodSettingsButton}
     </div>
   )
 
@@ -5815,6 +5847,69 @@ export const Home: React.FC<HomeProps> = ({
           </Popover>
         )}
       </div>
+
+      <Modal
+        title="期设置"
+        open={periodSettingsVisible}
+        onCancel={() => setPeriodSettingsVisible(false)}
+        onOk={() => {
+          if (
+            periodSettingsDraftMode === "custom" &&
+            !isValidHomePeriodRange(periodSettingsDraftRange)
+          ) {
+            messageApi.warning("请选择有效的开始和结束日期")
+            return
+          }
+          setHomePeriodMode(periodSettingsDraftMode)
+          if (periodSettingsDraftMode === "custom") setHomePeriodRange(periodSettingsDraftRange)
+          setPeriodSettingsVisible(false)
+        }}
+        okText={t("common.confirm")}
+        cancelText={t("common.cancel")}
+        destroyOnHidden
+      >
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <div>
+            <div style={{ marginBottom: 6 }}>当前期范围</div>
+            <Select
+              value={periodSettingsDraftMode}
+              onChange={(value: HomePeriodMode) => setPeriodSettingsDraftMode(value)}
+              style={{ width: "100%" }}
+              options={[
+                { value: "week", label: "自然周（周一至周日）" },
+                { value: "month", label: "自然月" },
+                { value: "custom", label: "自定义区间" },
+              ]}
+            />
+          </div>
+          {periodSettingsDraftMode === "custom" && (
+            <div>
+              <div style={{ marginBottom: 6 }}>自定义日期</div>
+              <DatePicker.RangePicker
+                value={[
+                  isHomeDate(periodSettingsDraftRange[0])
+                    ? dayjs(periodSettingsDraftRange[0])
+                    : null,
+                  isHomeDate(periodSettingsDraftRange[1])
+                    ? dayjs(periodSettingsDraftRange[1])
+                    : null,
+                ]}
+                format="YYYY-MM-DD"
+                allowClear={false}
+                placeholder={[t("home.startDate"), t("home.endDate")]}
+                style={{ width: "100%" }}
+                onChange={(values) => {
+                  if (!values?.[0] || !values[1]) return
+                  setPeriodSettingsDraftRange([
+                    values[0].format("YYYY-MM-DD"),
+                    values[1].format("YYYY-MM-DD"),
+                  ])
+                }}
+              />
+            </div>
+          )}
+        </Space>
+      </Modal>
 
       <Modal
         title={null}
