@@ -734,7 +734,15 @@
     "pleaseEnterInfo": "请填写完整信息",
     "pleaseEnterPoints": "请填写分值或选择预设理由",
     "batchSuccess": "已为 {{count}} 名学生提交积分",
-    "batchPartial": "成功提交 {{success}}/{{total}} 名学生的积分"
+    "batchPartial": "成功提交 {{success}}/{{total}} 名学生的积分",
+    "groupScores": "小组积分",
+    "groupName": "组名",
+    "groupCurrentScore": "当前积分",
+    "groupRecordsTitle": "{{name}} 积分记录",
+    "groupScoreAfter": "变动后积分",
+    "noGroupScores": "暂无小组积分",
+    "noGroupRecords": "暂无积分操作记录",
+    "groupRecordsLoadFailed": "加载小组积分记录失败"
   },
   "reasons": {
     "title": "理由管理",

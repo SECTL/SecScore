@@ -326,6 +326,24 @@ const cloudBase: Record<string, any> = {
 cloudBase.boardQuerySql = (params: { sql: string }) =>
   wrap(async () => {
     const sql = String(params?.sql || "")
+    if (sql.includes("FROM group_score_events") && sql.includes("WHERE group_name =")) {
+      const match = sql.match(/WHERE\s+group_name\s*=\s*'((?:''|[^'])*)'/i)
+      if (!match) throw new Error("小组名称解析失败")
+      const groupName = match[1].replace(/''/g, "'")
+      const b: any = await load()
+      return ((b.group_score_events || []) as any[])
+        .filter((event) => String(event.group_name || "") === groupName)
+        .sort((a, z) => Date.parse(z.event_time) - Date.parse(a.event_time))
+        .map((event) => ({
+          uuid: event.uuid,
+          group_name: event.group_name,
+          reason_content: event.reason_content,
+          delta: Number(event.delta) || 0,
+          val_prev: Number(event.val_prev) || 0,
+          val_curr: Number(event.val_curr) || 0,
+          event_time: event.event_time,
+        }))
+    }
     const t = [...sql.matchAll(/'(\d{4}-\d{2}-\d{2}T[^']+)'/g)].map((m) => Date.parse(m[1]))
     if (sql.includes("FROM group_score_events")) {
       // 小组统计模板：本周 [week0, week1)、本期 [per0, per1)，只统计未结算事件。

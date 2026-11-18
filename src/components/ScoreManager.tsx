@@ -12,6 +12,7 @@ import {
   Tag,
   Space,
   Popconfirm,
+  Modal,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
 import { useTranslation } from "react-i18next"
@@ -44,11 +45,30 @@ interface scoreEvent {
   event_time: string
 }
 
+interface groupScore {
+  group_name: string
+  score: number
+}
+
+interface groupScoreEvent {
+  uuid: string
+  group_name: string
+  reason_content: string
+  delta: number
+  val_prev: number
+  val_curr: number
+  event_time: string
+}
+
 export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
   const { t } = useTranslation()
   const [students, setStudents] = useState<student[]>([])
   const [reasons, setReasons] = useState<reason[]>([])
   const [events, setEvents] = useState<scoreEvent[]>([])
+  const [groupScores, setGroupScores] = useState<groupScore[]>([])
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [groupEvents, setGroupEvents] = useState<groupScoreEvent[]>([])
+  const [groupEventsLoading, setGroupEventsLoading] = useState(false)
   const [recordCurrentPage, setRecordCurrentPage] = useState(1)
   const [recordPageSize, setRecordPageSize] = useState(10)
   const [loading, setLoading] = useState(false)
@@ -73,15 +93,17 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
     setTimeout(async () => {
       setLoading(true)
       try {
-        const [stuRes, reaRes, eveRes] = await Promise.all([
+        const [stuRes, reaRes, eveRes, groupRes] = await Promise.all([
           (window as any).api.queryStudents({}),
           (window as any).api.queryReasons(),
           (window as any).api.queryEvents({ limit: 100 }),
+          (window as any).api.queryGroupScores?.(),
         ])
 
         if (stuRes.success) setStudents(stuRes.data)
         if (reaRes.success) setReasons(reaRes.data)
         if (eveRes.success) setEvents(eveRes.data)
+        if (groupRes?.success) setGroupScores(groupRes.data || [])
       } catch (e) {
         console.error("Failed to fetch data:", e)
       } finally {
@@ -89,6 +111,34 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
       }
     }, 0)
   }, [])
+
+  const loadGroupEvents = useCallback(
+    async (groupName: string) => {
+      const api = (window as any).api
+      if (!api?.boardQuerySql) return
+      setGroupEventsLoading(true)
+      try {
+        const escapedGroupName = groupName.replace(/'/g, "''")
+        const res = await api.boardQuerySql({
+          sql: `SELECT uuid, group_name, reason_content, delta, val_prev, val_curr, event_time FROM group_score_events WHERE group_name = '${escapedGroupName}' ORDER BY event_time DESC`,
+          limit: 200,
+        })
+        if (res?.success) setGroupEvents(res.data || [])
+        else messageApi.error(res?.message || t("score.groupRecordsLoadFailed"))
+      } catch (error: any) {
+        messageApi.error(error?.message || t("score.groupRecordsLoadFailed"))
+      } finally {
+        setGroupEventsLoading(false)
+      }
+    },
+    [messageApi, t]
+  )
+
+  const openGroupRecords = (groupName: string) => {
+    setSelectedGroup(groupName)
+    setGroupEvents([])
+    void loadGroupEvents(groupName)
+  }
 
   useEffect(() => {
     fetchData()
@@ -386,6 +436,91 @@ export const ScoreManager: React.FC<{ canEdit: boolean }> = ({ canEdit }) => {
           style={{ color: "var(--ss-text-main)" }}
         />
       </Card>
+
+      <Card style={{ marginTop: "24px", backgroundColor: "var(--ss-card-bg)" }}>
+        <div style={{ fontWeight: 600, marginBottom: 16 }}>{t("score.groupScores")}</div>
+        <Table<groupScore>
+          dataSource={groupScores}
+          rowKey="group_name"
+          pagination={false}
+          locale={{ emptyText: t("score.noGroupScores") }}
+          columns={[
+            {
+              title: t("score.groupName"),
+              dataIndex: "group_name",
+              key: "group_name",
+              render: (name: string) => (
+                <Button
+                  type="link"
+                  onClick={() => openGroupRecords(name)}
+                  style={{ paddingInline: 0 }}
+                >
+                  {name}
+                </Button>
+              ),
+            },
+            {
+              title: t("score.groupCurrentScore"),
+              dataIndex: "score",
+              key: "score",
+              width: 160,
+              render: (score: number) => (
+                <Tag color={score > 0 ? "success" : score < 0 ? "error" : "default"}>
+                  {score > 0 ? `+${score}` : score}
+                </Tag>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Modal
+        title={t("score.groupRecordsTitle", { name: selectedGroup || "" })}
+        open={selectedGroup !== null}
+        onCancel={() => setSelectedGroup(null)}
+        footer={null}
+        width={760}
+        destroyOnClose
+      >
+        <Table<groupScoreEvent>
+          dataSource={groupEvents}
+          columns={[
+            {
+              title: t("score.change"),
+              dataIndex: "delta",
+              key: "delta",
+              width: 100,
+              render: (delta: number) => (
+                <Tag color={delta > 0 ? "success" : "error"}>{delta > 0 ? `+${delta}` : delta}</Tag>
+              ),
+            },
+            {
+              title: t("score.reason"),
+              dataIndex: "reason_content",
+              key: "reason_content",
+              ellipsis: true,
+            },
+            {
+              title: t("score.groupScoreAfter"),
+              dataIndex: "val_curr",
+              key: "val_curr",
+              width: 110,
+            },
+            {
+              title: t("score.time"),
+              dataIndex: "event_time",
+              key: "event_time",
+              width: 180,
+              render: (time: string) => new Date(time).toLocaleString(),
+            },
+          ]}
+          rowKey="uuid"
+          loading={groupEventsLoading}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
+          locale={{ emptyText: groupEventsLoading ? " " : t("score.noGroupRecords") }}
+          scroll={{ x: 600 }}
+        />
+      </Modal>
     </div>
   )
 }
