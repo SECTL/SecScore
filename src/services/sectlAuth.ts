@@ -175,7 +175,26 @@ export function isRefreshTokenRejected(error: unknown): boolean {
 /** 2020-01-01 UTC，早于此的过期时间一定是占位值（如 "-1"）。 */
 const MIN_VALID_EXPIRY_SECONDS = 1577836800
 
+/** SECTL 对“永不过期”令牌回填的 expires_in 占位值（10 年）。 */
+const UNLIMITED_EXPIRES_IN_SECONDS = 10 * 365 * 24 * 60 * 60
+
+/**
+ * 服务端是否声明该令牌永不过期。
+ *
+ * SECTL 的 oauth_tokens 用 expires_at = "-1" 表达永不过期，而响应体不能直接回 -1，
+ * 于是把 expires_in 回填成 10 年。这两种写法都表示“只由服务端撤销”。
+ * 不能退回到 JWT 自己的 exp：它被服务端钳制在 1 小时，只是签名载荷的一部分，
+ * introspection 并不校验——照它安排刷新会让客户端每小时轮换一次 refresh_token，
+ * 每次轮换都会放大“旧令牌被重放 → 整条 family 被撤销 → 强制重新登录”的窗口。
+ */
+function isNeverExpiringToken(tokenData: TokenData): boolean {
+  if (String(tokenData.expires_at ?? "").trim() === "-1") return true
+  const expiresIn = Number(tokenData.expires_in)
+  return Number.isFinite(expiresIn) && expiresIn >= UNLIMITED_EXPIRES_IN_SECONDS
+}
+
 function getTokenExpiry(tokenData: TokenData): number | null {
+  if (isNeverExpiringToken(tokenData)) return null
   if (tokenData.expires_at) {
     const expiresAt = Math.floor(new Date(tokenData.expires_at).getTime() / 1000)
     // 服务端“永不过期”会返回 "-1"，new Date("-1") 会得到 2001 年；早于 2020 年的值视为无效。
@@ -223,6 +242,8 @@ class SectlAuthService {
   private accessToken: string | null = null
   private refreshToken: string | null = null
   private tokenExpiresAt: number | null = null
+  /** 服务端声明该令牌永不过期（expires_at = "-1" / expires_in 为 10 年占位）。 */
+  private tokenNeverExpires = false
   private refreshPromise: Promise<TokenData> | null = null
   private userId: string | null = null
   private codeVerifier: string | null = null
@@ -238,17 +259,26 @@ class SectlAuthService {
     this.scheduleRefresh()
     if (typeof window !== "undefined") {
       const check = () => void this.ensureFreshToken()
-      window.addEventListener("online", check)
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") check()
-      })
+      if (typeof window.addEventListener === "function") {
+        window.addEventListener("online", check)
+      }
+      if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") check()
+        })
+      }
     }
   }
 
-  /** access token 的 JWT 只有 1 小时有效期：到期前 5 分钟主动刷新，不等服务端返回 401。 */
+  /**
+   * 服务端给了绝对过期时间时才排程刷新；永不过期的令牌只在收到 401 时刷新。
+   * 主动轮换 refresh_token 的风险见 isNeverExpiringToken 的注释。
+   */
   private scheduleRefresh(): void {
+    if (typeof window === "undefined" || typeof window.setTimeout !== "function") return
     if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
     this.refreshTimer = null
+    if (this.tokenNeverExpires) return
     if (!this.refreshToken || !this.tokenExpiresAt) return
     const delay = Math.min(
       Math.max(this.tokenExpiresAt * 1000 - Date.now() - 5 * 60_000, 60_000),
@@ -260,6 +290,8 @@ class SectlAuthService {
   /** 令牌已过期或 5 分钟内将过期时，用 refresh_token 刷新。网络错误时保留会话，稍后重试。 */
   async ensureFreshToken(skewSeconds = 300): Promise<boolean> {
     if (!this.accessToken) return false
+    // 服务端声明永不过期：没有临近过期这回事，等 401 再处理。
+    if (this.tokenNeverExpires) return true
     const near = this.tokenExpiresAt !== null && Date.now() / 1000 >= this.tokenExpiresAt - skewSeconds
     if (!near) return true
     if (!this.refreshToken) return this.isAuthenticated()
@@ -273,8 +305,10 @@ class SectlAuthService {
         return false
       }
       // 临时错误：1 分钟后再试。
-      if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
-      this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), 60_000)
+      if (typeof window !== "undefined" && typeof window.setTimeout === "function") {
+        if (this.refreshTimer !== null) window.clearTimeout(this.refreshTimer)
+        this.refreshTimer = window.setTimeout(() => void this.ensureFreshToken(), 60_000)
+      }
       return this.isAuthenticated()
     }
   }
@@ -685,46 +719,26 @@ class SectlAuthService {
       this.saveToken(data)
       const savedGeneration = this.tokenGeneration
 
-      // 刷新成功后立即将新 token 持久化到原生层，不依赖 getUserInfo 成功与否。
-      // 若此步骤失败，原生层（oauth_state.json）将保留旧 refresh token，
-      // 重启后会覆盖内存中已轮换的新值，导致 refresh_token_reused 撤销整个 family。
+      // 刷新成功后必须先把新 token 落盘到原生层，再返回成功。
+      // 轮换后的 refresh_token 只留在内存里的话，进程被杀 / WebView 存储被回收后，
+      // 下次启动会拿旧 token 重放，服务端按 refresh_token_reused 撤销整条 family。
       const api = (window as any).api
-      if (api?.oauthSaveLoginState && this.userId && this.tokenGeneration === savedGeneration) {
-        void Promise.resolve(
-          api.oauthSaveLoginState({
-            access_token: this.accessToken || data.access_token,
-            refresh_token: this.refreshToken || "",
-            token_type: data.token_type || "Bearer",
-            expires_in: data.expires_in || 0,
-            user_id: this.userId,
-            // name/email 由后续 getUserInfo 覆写；此处先填占位，确保 token 不丢失。
-            email: "",
-            name: this.userId,
-            login_time: new Date().toISOString(),
-          })
-        ).catch((err: unknown) =>
-          authLog("warn", "原生层 token 初步持久化失败", { error: String(err) })
-        )
+      if (this.userId && this.tokenGeneration === savedGeneration) {
+        // name/email 由后继 getUserInfo 覆写；此处先填占位，确保 token 不丢失。
+        await this.persistTokenToNative(api, this.userId, data.expires_in || 0)
       }
 
       // 异步补充 user info，完成后用完整数据覆写原生层；失败不影响 token 有效性。
       try {
         const userInfo = await this.getUserInfo()
-        if (
-          api?.oauthSaveLoginState &&
-          userInfo?.user_id &&
-          this.tokenGeneration === savedGeneration
-        ) {
-          await api.oauthSaveLoginState({
-            access_token: this.accessToken || data.access_token,
-            refresh_token: this.refreshToken || "",
-            token_type: data.token_type || "Bearer",
-            expires_in: data.expires_in || 0,
-            user_id: userInfo.user_id,
-            email: userInfo.email || "",
-            name: userInfo.name || userInfo.email || userInfo.user_id,
-            login_time: new Date().toISOString(),
-          })
+        if (userInfo?.user_id && this.tokenGeneration === savedGeneration) {
+          await this.persistTokenToNative(
+            api,
+            userInfo.user_id,
+            data.expires_in || 0,
+            userInfo.email || "",
+            userInfo.name || userInfo.email || userInfo.user_id
+          )
         }
       } catch {
         // getUserInfo 失败时原生层已有基本 token 数据，不影响持续认证。
@@ -734,6 +748,33 @@ class SectlAuthService {
       authLog("error", "OAuth token 刷新失败", { error: String(error) })
       console.error("Token 刷新失败:", error)
       throw error
+    }
+  }
+
+  /** 把内存中的令牌写入原生层（oauth_state.json），失败只记日志。 */
+  private async persistTokenToNative(
+    api: any,
+    userId: string,
+    expiresIn: number,
+    email = "",
+    name = ""
+  ): Promise<void> {
+    if (!api?.oauthSaveLoginState || !userId) return
+    try {
+      await Promise.resolve(
+        api.oauthSaveLoginState({
+          access_token: this.accessToken || "",
+          refresh_token: this.refreshToken || "",
+          token_type: "Bearer",
+          expires_in: expiresIn,
+          user_id: userId,
+          email,
+          name: name || userId,
+          login_time: new Date().toISOString(),
+        })
+      )
+    } catch (error) {
+      authLog("warn", "原生层 token 持久化失败", { error: String(error) })
     }
   }
 
@@ -787,14 +828,17 @@ class SectlAuthService {
 
     // JWT 的 exp 是签发时确定的绝对过期时间。不要在客户端重启或恢复账号
     // 缓存时重新按 expires_in 计算，否则过期 token 会被误认为重新获得一小时有效期。
-    this.tokenExpiresAt = getTokenExpiry(tokenData)
-    if (!this.tokenExpiresAt && tokenData.expires_in) {
+    this.tokenNeverExpires = isNeverExpiringToken(tokenData)
+    this.tokenExpiresAt = this.tokenNeverExpires ? null : getTokenExpiry(tokenData)
+    if (!this.tokenNeverExpires && !this.tokenExpiresAt && tokenData.expires_in) {
       this.tokenExpiresAt = Math.floor(Date.now() / 1000) + tokenData.expires_in
     }
 
-    const expiresAt = this.tokenExpiresAt
-      ? new Date(this.tokenExpiresAt * 1000).toISOString()
-      : tokenData.expires_at
+    const expiresAt = this.tokenNeverExpires
+      ? "-1"
+      : this.tokenExpiresAt
+        ? new Date(this.tokenExpiresAt * 1000).toISOString()
+        : tokenData.expires_at
 
     const storableData: TokenData = {
       // 只持久化规范化后的 access token，不能把 JWT|refresh_token
@@ -847,7 +891,8 @@ class SectlAuthService {
         this.userId = tokenData.user_id || extractUserIdFromJwt(this.accessToken)
 
         // 缓存中的 expires_in 是原始响应的相对时长，重启后不能再拿它续期。
-        this.tokenExpiresAt = getTokenExpiry(tokenData)
+        this.tokenNeverExpires = isNeverExpiringToken(tokenData)
+        this.tokenExpiresAt = this.tokenNeverExpires ? null : getTokenExpiry(tokenData)
         authLog("info", "已从本地恢复 OAuth token", {
           user_id: this.userId,
           ...describeToken(this.accessToken),
@@ -870,6 +915,7 @@ class SectlAuthService {
     this.accessToken = null
     this.refreshToken = null
     this.tokenExpiresAt = null
+    this.tokenNeverExpires = false
     this.userId = null
     this.codeVerifier = null
     this.authorizationState = null
@@ -884,9 +930,11 @@ class SectlAuthService {
     return {
       access_token: this.accessToken,
       refresh_token: this.refreshToken || undefined,
-      expires_at: this.tokenExpiresAt
-        ? new Date(this.tokenExpiresAt * 1000).toISOString()
-        : undefined,
+      expires_at: this.tokenNeverExpires
+        ? "-1"
+        : this.tokenExpiresAt
+          ? new Date(this.tokenExpiresAt * 1000).toISOString()
+          : undefined,
       user_id: this.userId || undefined,
     }
   }
@@ -921,6 +969,7 @@ class SectlAuthService {
   }
 
   isTokenExpired(): boolean {
+    if (this.tokenNeverExpires) return false
     if (!this.tokenExpiresAt) return false
     return Date.now() / 1000 >= this.tokenExpiresAt
   }

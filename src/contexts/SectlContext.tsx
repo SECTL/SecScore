@@ -51,7 +51,12 @@ export const SectlProvider: React.FC<SectlProviderProps> = ({
           // 验证 Token 是否有效
           const isValid = await sectlAuth.introspectToken()
           if (isValid.active) {
-            await loadUserInfo()
+            try {
+              await loadUserInfo()
+            } catch (error) {
+              // 网络抖动只影响用户信息展示，不能把登录态判死。
+              console.warn("加载用户信息失败，保留本地登录态:", error)
+            }
           } else {
             // Token 无效，尝试刷新
             try {
@@ -64,9 +69,17 @@ export const SectlProvider: React.FC<SectlProviderProps> = ({
                 setIsAuthenticated(false)
               }
             } catch (error) {
-              if (isRefreshTokenRejected(error)) sectlAuth.clearLocalSession()
-              setIsAuthenticated(false)
-              setToken(null)
+              if (isRefreshTokenRejected(error)) {
+                // 服务端明确拒绝：refresh_token 已失效，只能重新登录。
+                sectlAuth.clearLocalSession()
+                setIsAuthenticated(false)
+                setToken(null)
+              } else {
+                // 网络错误 / 5xx / introspection 暂时不可用：保留本地会话，
+                // 由 ensureFreshToken 与同步客户端的重试机制稍后恢复。
+                setIsAuthenticated(sectlAuth.isAuthenticated())
+                setToken(sectlAuth.getToken())
+              }
             }
           }
         }

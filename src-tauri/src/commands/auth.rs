@@ -850,10 +850,41 @@ pub async fn oauth_save_login_state(state_data: OAuthState) -> Result<IpcRespons
     let json =
         serde_json::to_string_pretty(&state_data).map_err(|e| format!("序列化失败: {}", e))?;
 
-    std::fs::write(&file_path, json).map_err(|e| format!("写入文件失败: {}", e))?;
+    // 原子写入：refresh_token 采用单次使用 + 轮换，若这里留下半截文件，
+    // 下次启动读不到新 token，只能拿旧 token 重放，服务端会撤销整条 family。
+    write_file_atomically(&file_path, json.as_bytes())?;
 
     println!("[OAuth] 登录状态已保存到: {:?}", file_path);
     Ok(IpcResponse::success(()))
+}
+
+/// 先写临时文件并 fsync，再 rename 覆盖目标路径；任何时刻读到都是完整旧版或完整新版。
+fn write_file_atomically(path: &std::path::Path, contents: &[u8]) -> Result<(), String> {
+    let tmp_path = path.with_extension("json.tmp");
+
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).truncate(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = options
+        .open(&tmp_path)
+        .map_err(|e| format!("创建临时文件失败: {}", e))?;
+    std::io::Write::write_all(&mut file, contents)
+        .map_err(|e| format!("写入临时文件失败: {}", e))?;
+    file.sync_all()
+        .map_err(|e| format!("刷新临时文件失败: {}", e))?;
+    drop(file);
+
+    if let Err(error) = std::fs::rename(&tmp_path, path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(format!("替换登录状态文件失败: {}", error));
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
