@@ -12,7 +12,6 @@ import {
 import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { WindowControls } from "./WindowControls"
-import { DailyReport } from "./DailyReport"
 import { WorkspaceManager } from "./WorkspaceManager"
 import { sectlAuth } from "../services/sectlAuth"
 import appLogo from "../assets/logoHD.svg"
@@ -31,6 +30,7 @@ const loadBoardManager = () => import("./BoardManager")
 const loadPluginManager = () => import("./PluginManager")
 
 const Home = lazy(() => loadHome().then((m) => ({ default: m.Home })))
+const DailyReport = lazy(() => import("./DailyReport").then((m) => ({ default: m.DailyReport })))
 const StudentManager = lazy(() => loadStudentManager().then((m) => ({ default: m.StudentManager })))
 const Settings = lazy(() => loadSettings().then((m) => ({ default: m.Settings })))
 const ReasonManager = lazy(() => loadReasonManager().then((m) => ({ default: m.ReasonManager })))
