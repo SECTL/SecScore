@@ -348,7 +348,12 @@ export const Home: React.FC<HomeProps> = ({
     useState<operationMorphElementRects | null>(null)
   const [customScore, setCustomScore] = useState<number | undefined>(undefined)
   const [reasonContent, setReasonContent] = useState("")
-  const [, setSubmitLoading] = useState(false)
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [reasonActionVisible, setReasonActionVisible] = useState(false)
+  const [reasonActionDraft, setReasonActionDraft] = useState<reason | null>(null)
+  const [reasonActionForGroup, setReasonActionForGroup] = useState(false)
+  const [reasonActionMultiplier, setReasonActionMultiplier] = useState(1)
+  const [reasonActionNote, setReasonActionNote] = useState("")
   const [undoLoading, setUndoLoading] = useState(false)
   const [latestEvent, setLatestEvent] = useState<scoreEvent | null>(null)
   const [messageApi, contextHolder] = message.useMessage()
@@ -2364,7 +2369,12 @@ export const Home: React.FC<HomeProps> = ({
     }
   }, [isPortraitMode, operationVisible])
 
-  const performSubmit = async (targetStudents: student[], delta: number, content: string) => {
+  const performSubmit = async (
+    targetStudents: student[],
+    delta: number,
+    content: string,
+    operationMultiplier = 1
+  ) => {
     if (!(window as any).api) return
     if (submitInFlightRef.current) {
       logHome("performSubmit:ignored-duplicate", { studentCount: targetStudents.length, delta })
@@ -2387,13 +2397,14 @@ export const Home: React.FC<HomeProps> = ({
 
       for (const student of targetStudents) {
         const multiplier = batchMode ? (studentMultipliers[student.id] ?? 1) : 1
-        const effectiveDelta = delta * multiplier
+        const effectiveDelta = delta * operationMultiplier * multiplier
         logHome("performSubmit:createEvent:request", {
           student: student.name,
           displayedScore: student.score,
           displayedRewardPoints: student.reward_points,
           delta: effectiveDelta,
           multiplier,
+          operationMultiplier,
         })
         const res = await (window as any).api.createEvent({
           student_name: student.name,
@@ -2506,6 +2517,51 @@ export const Home: React.FC<HomeProps> = ({
       return
     }
     performSubmit(targets, reason.delta, reason.content)
+  }
+
+  const openReasonAction = (selectedReason: reason) => {
+    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+    if (targets.length === 0) {
+      messageApi.warning(t("home.selectStudentFirst"))
+      return
+    }
+    setReasonActionDraft(selectedReason)
+    setReasonActionForGroup(false)
+    setReasonActionMultiplier(1)
+    setReasonActionNote("")
+    setReasonActionVisible(true)
+  }
+
+  const confirmReasonAction = () => {
+    if (!reasonActionDraft) return
+    const note = reasonActionNote.trim()
+    const content = reasonActionDraft.content
+      ? note
+        ? `${reasonActionDraft.content}${note}`
+        : reasonActionDraft.content
+      : note
+    setReasonActionVisible(false)
+    if (reasonActionForGroup) {
+      void saveGroupScore(reasonActionDraft.delta * reasonActionMultiplier, content)
+      return
+    }
+    const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+    performSubmit(targets, reasonActionDraft.delta, content, reasonActionMultiplier)
+  }
+
+  const openCustomScoreAction = (delta: number, forGroup = false, content = "") => {
+    if (!forGroup) {
+      const targets = batchMode ? selectedStudents : selectedStudent ? [selectedStudent] : []
+      if (targets.length === 0) {
+        messageApi.warning(t("home.selectStudentFirst"))
+        return
+      }
+    }
+    setReasonActionDraft({ id: 0, content, delta, category: "" })
+    setReasonActionForGroup(forGroup)
+    setReasonActionMultiplier(1)
+    setReasonActionNote("")
+    setReasonActionVisible(true)
   }
 
   const handleNoReasonQuickSelect = (delta: number) => {
@@ -4612,7 +4668,15 @@ export const Home: React.FC<HomeProps> = ({
 
       <div className="ss-operation-designed-quick-buttons">
         {[-5, -3, -2, -1, 1, 2, 3, 4, 5].map((num) => (
-          <Button key={num} onClick={() => handleNoReasonQuickSelect(num)}>
+          <Button
+            key={num}
+            onClick={() => handleNoReasonQuickSelect(num)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openCustomScoreAction(num)
+            }}
+          >
             {num > 0 ? `+${num}` : num}
           </Button>
         ))}
@@ -4630,6 +4694,11 @@ export const Home: React.FC<HomeProps> = ({
                   key={r.id}
                   className={r.delta >= 0 ? "is-positive" : "is-negative"}
                   onClick={() => handleReasonSelect(r)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    openReasonAction(r)
+                  }}
                 >
                   <span>{r.content}</span>
                   <strong>{r.delta > 0 ? `+${r.delta}` : r.delta}</strong>
@@ -4689,6 +4758,11 @@ export const Home: React.FC<HomeProps> = ({
             loading={groupScoreSaving}
             disabled={groupScoreSaving}
             onClick={() => void saveGroupScore(num)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              openCustomScoreAction(num, true)
+            }}
           >
             {num > 0 ? `+${num}` : num}
           </Button>
@@ -4709,6 +4783,11 @@ export const Home: React.FC<HomeProps> = ({
                   loading={groupScoreSaving}
                   disabled={groupScoreSaving}
                   onClick={() => void saveGroupScore(r.delta, r.content)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    openCustomScoreAction(r.delta, true, r.content)
+                  }}
                 >
                   <span>{r.content}</span>
                   <strong>{r.delta > 0 ? `+${r.delta}` : r.delta}</strong>
@@ -5061,7 +5140,6 @@ export const Home: React.FC<HomeProps> = ({
         ]}
       />
       {renderHomeStatPicker("menu")}
-      {renderHomePeriodRangePicker()}
       <div style={{ fontSize: 12, color: "var(--ss-text-secondary)", margin: "8px 0 4px" }}>
         小组显示信息
       </div>
@@ -5983,6 +6061,52 @@ export const Home: React.FC<HomeProps> = ({
             destroyOnHidden
           >
             {operationPanelContent}
+          </Modal>
+          <Modal
+            title={
+              reasonActionForGroup
+                ? reasonActionDraft?.content || `${groupScoreGroup} 小组积分`
+                : reasonActionDraft?.content || "自定义积分操作"
+            }
+            open={reasonActionVisible}
+            onCancel={() => setReasonActionVisible(false)}
+            onOk={confirmReasonAction}
+            confirmLoading={submitLoading}
+            okText={t("common.confirm")}
+            cancelText={t("common.cancel")}
+            destroyOnHidden
+          >
+            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <div>
+                <div style={{ marginBottom: 6 }}>本次操作倍率</div>
+                <InputNumber
+                  min={1}
+                  step={1}
+                  precision={0}
+                  value={reasonActionMultiplier}
+                  onChange={(value) => setReasonActionMultiplier(value ?? 1)}
+                  style={{ width: "100%" }}
+                  addonAfter="×"
+                />
+              </div>
+              <div>
+                <div style={{ marginBottom: 6 }}>
+                  {reasonActionForGroup && reasonActionDraft?.content ? "备注" : "自定义理由 / 备注"}
+                </div>
+                <Input.TextArea
+                  value={reasonActionNote}
+                  onChange={(event) => setReasonActionNote(event.target.value)}
+                  autoSize={{ minRows: 2, maxRows: 5 }}
+                  placeholder={
+                    reasonActionForGroup && reasonActionDraft?.content
+                      ? "填写本次操作备注"
+                      : "填写本次积分操作理由"
+                  }
+                  maxLength={200}
+                  showCount
+                />
+              </div>
+            </Space>
           </Modal>
           {operationScrollbar.visible && (
             <div
