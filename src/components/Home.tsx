@@ -4162,10 +4162,14 @@ export const Home: React.FC<HomeProps> = ({
               position: "absolute",
               left: "-10px",
               top: `${navIndicatorY}px`,
-              width: `${quickNavLayout.bubbleSize}px`,
-              height: `${quickNavLayout.bubbleSize}px`,
+              minWidth: `${quickNavLayout.bubbleSize}px`,
+              minHeight: `${quickNavLayout.bubbleSize}px`,
+              maxWidth: "min(160px, 60vw)",
+              maxHeight: "60vh",
+              boxSizing: "border-box",
+              padding: "8px 12px",
               transform: "translate(-100%, -50%)",
-              borderRadius: "50%",
+              borderRadius: "16px",
               backgroundColor: isNavDraggingState
                 ? "var(--ant-color-primary, #1890ff)"
                 : "rgba(24, 144, 255, 0.16)",
@@ -4176,6 +4180,9 @@ export const Home: React.FC<HomeProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              textAlign: "center",
+              overflowWrap: "anywhere",
+              overflow: "hidden",
               pointerEvents: "none",
               zIndex: 2,
             }}
@@ -4202,7 +4209,8 @@ export const Home: React.FC<HomeProps> = ({
                 color: isNavDraggingState ? "#fff" : "var(--ant-color-primary, #1890ff)",
                 fontSize: `${quickNavLayout.bubbleFontSize}px`,
                 fontWeight: 700,
-                lineHeight: 1,
+                lineHeight: 1.15,
+                overflowWrap: "anywhere",
               }}
             >
               {navActiveKey}
@@ -4215,11 +4223,16 @@ export const Home: React.FC<HomeProps> = ({
             style={{
               width: `${quickNavLayout.itemSize}px`,
               height: `${quickNavLayout.itemSize}px`,
+              boxSizing: "border-box",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: `${quickNavLayout.fontSize}px`,
               fontWeight: "bold",
+              lineHeight: 1,
+              textAlign: "center",
+              overflowWrap: "anywhere",
+              wordBreak: "break-all",
               color:
                 navActiveKey === group.key
                   ? isNavDraggingState
