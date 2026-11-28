@@ -65,7 +65,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.93.1
         with:
           targets: x86_64-pc-windows-msvc
 
@@ -107,7 +107,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.93.1
         with:
           targets: x86_64-apple-darwin
 
@@ -151,7 +151,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.93.1
 
       - name: 安装系统依赖
         run: |
@@ -196,7 +196,7 @@ jobs:
           version: 10
 
       - name: 安装 Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.93.1
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android, i686-linux-android
 

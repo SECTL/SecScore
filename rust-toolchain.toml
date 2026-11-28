@@ -1,0 +1,4 @@
+# 固定 Rust 版本：sqlx-postgres 0.7.4 在 rustc 1.100 起因 never type fallback 改动
+# 无法编译（E0277: `!` 未实现 Decode），升级 sqlx/sea-orm 前请勿提高此版本。
+[toolchain]
+channel = "1.93.1"
