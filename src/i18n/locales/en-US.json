@@ -563,6 +563,7 @@
     "multiplier": "Student multiplier",
     "multiplierDecrease": "Decrease multiplier",
     "multiplierIncrease": "Increase multiplier",
+    "multiplierEditHint": "Double-click to enter a multiplier",
     "selectedCount": "{{count}} selected",
     "batchSuccess": "Submitted points for {{count}} students",
     "batchPartial": "Successfully submitted for {{success}}/{{total}} students",

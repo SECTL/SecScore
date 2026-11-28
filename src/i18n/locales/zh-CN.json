@@ -563,6 +563,7 @@
     "multiplier": "学生积分倍率",
     "multiplierDecrease": "减少积分倍率",
     "multiplierIncrease": "增加积分倍率",
+    "multiplierEditHint": "双击输入倍率",
     "selectedCount": "已选 {{count}} 人",
     "batchSuccess": "已为 {{count}} 名学生提交积分",
     "batchPartial": "成功提交 {{success}}/{{total}} 名学生积分",

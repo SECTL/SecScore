@@ -55,6 +55,7 @@ import { useResponsive } from "../hooks/useResponsive"
 const LONG_PRESS_DELAY_MS = 450
 /** 手指移动超过该距离(px)即视为滚动/拖动而非长按。 */
 const LONG_PRESS_MOVE_SLOP_PX = 10
+const MAX_STUDENT_MULTIPLIER = 999
 
 interface student {
   id: number
@@ -334,6 +335,11 @@ export const Home: React.FC<HomeProps> = ({
   const [batchMode, setBatchMode] = useState(false)
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [studentMultipliers, setStudentMultipliers] = useState<Record<number, number>>({})
+  const [editingMultiplier, setEditingMultiplier] = useState<{
+    studentId: number
+    draft: string
+  } | null>(null)
+  const multiplierEditCancelledRef = useRef(false)
   const [operationVisible, setOperationVisible] = useState(false)
   const [operationScrollbar, setOperationScrollbar] = useState<operationScrollbarState>({
     visible: false,
@@ -1322,72 +1328,151 @@ export const Home: React.FC<HomeProps> = ({
     return students.filter((s) => idSet.has(s.id))
   }, [students, selectedStudentIds])
 
-  const updateStudentMultiplier = (studentId: number, change: number) => {
+  const clampStudentMultiplier = (value: number) =>
+    Math.min(MAX_STUDENT_MULTIPLIER, Math.max(1, Math.round(value)))
+
+  const updateStudentMultiplier = (studentId: number, change: number, refocusSearch = true) => {
     setStudentMultipliers((prev) => ({
       ...prev,
-      [studentId]: Math.max(1, (prev[studentId] ?? 1) + change),
+      [studentId]: clampStudentMultiplier((prev[studentId] ?? 1) + change),
     }))
+    // 触屏上聚焦搜索框会弹出软键盘并打断连续点击，只在鼠标/键盘操作后回到搜索框
+    if (refocusSearch) focusAndSelectSearch()
+  }
+
+  const startMultiplierEdit = (studentId: number) => {
+    multiplierEditCancelledRef.current = false
+    setEditingMultiplier({
+      studentId,
+      draft: String(studentMultipliers[studentId] ?? 1),
+    })
+  }
+
+  const finishMultiplierEdit = () => {
+    const editing = editingMultiplier
+    setEditingMultiplier(null)
+    if (!editing) return
+    if (multiplierEditCancelledRef.current) {
+      multiplierEditCancelledRef.current = false
+      return
+    }
+    const parsed = Number.parseInt(editing.draft, 10)
+    if (Number.isFinite(parsed)) {
+      setStudentMultipliers((prev) => ({
+        ...prev,
+        [editing.studentId]: clampStudentMultiplier(parsed),
+      }))
+    }
     focusAndSelectSearch()
   }
 
+  /** 倍率步进按钮：按下即生效（不等 click），避免触屏连续点击时的延迟与丢失。 */
+  const getMultiplierStepHandlers = (studentId: number, change: number, disabled: boolean) => ({
+    onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return
+      // 阻止兼容鼠标事件与焦点转移；click 仍会触发，但下方只处理键盘触发的 click
+      event.preventDefault()
+      event.stopPropagation()
+      if (disabled) return
+      updateStudentMultiplier(studentId, change, event.pointerType !== "touch")
+    },
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation()
+      // detail === 0 表示由键盘（Enter/空格）触发，指针操作已在 pointerdown 处理过
+      if (event.detail === 0 && !disabled) updateStudentMultiplier(studentId, change)
+    },
+  })
+
+  useEffect(() => {
+    // 退出批量模式或取消选中后，丢弃未完成的倍率编辑
+    if (!editingMultiplier) return
+    if (!batchMode || !selectedStudentIds.includes(editingMultiplier.studentId)) {
+      setEditingMultiplier(null)
+    }
+  }, [batchMode, selectedStudentIds, editingMultiplier])
+
   const renderMultiplierControls = (
     studentId: number,
-    placement: "inline" | "overlay" = "overlay"
+    placement: "inline" | "overlay" | "corner" = "overlay"
   ) => {
     if (!batchMode || !selectedStudentIds.includes(studentId)) return null
     const multiplier = studentMultipliers[studentId] ?? 1
+    const isEditing = editingMultiplier?.studentId === studentId
+    const stopPropagation = (event: React.SyntheticEvent) => event.stopPropagation()
 
     return (
       <div
-        onClick={(event) => event.stopPropagation()}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 2,
-          width: 82,
-          height: 26,
-          boxSizing: "border-box",
-          padding: "1px 2px",
-          borderRadius: "999px",
-          background:
-            "color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, var(--ss-card-bg))",
-          border:
-            "1px solid color-mix(in srgb, var(--ant-color-primary, #1677ff) 30%, var(--ss-border-color))",
-          boxShadow: "0 2px 8px rgba(22, 119, 255, 0.12)",
-          flexShrink: 0,
-          ...(placement === "overlay"
-            ? {
-                position: "absolute",
-                top: 8,
-                right: 8,
-                zIndex: 4,
-              }
-            : null),
-        }}
+        className="ss-multiplier-stepper"
+        onClick={stopPropagation}
+        onDoubleClick={stopPropagation}
+        onMouseDown={stopPropagation}
+        onTouchStart={stopPropagation}
+        onContextMenu={stopPropagation}
+        style={
+          placement === "overlay"
+            ? { position: "absolute", top: 8, right: 8, zIndex: 4 }
+            : placement === "corner"
+              ? // 悬浮在卡片右上角边框上，不参与卡片内部排版，选中后卡片宽度保持不变
+                { position: "absolute", top: -13, right: 10, zIndex: 4 }
+              : undefined
+        }
       >
-        <Button
-          type="text"
-          size="small"
-          icon={<MinusOutlined />}
+        <button
+          type="button"
+          className="ss-multiplier-stepper-btn"
           disabled={multiplier <= 1}
           aria-label={t("home.multiplierDecrease")}
-          onClick={() => updateStudentMultiplier(studentId, -1)}
-          style={{ width: 22, height: 22, minWidth: 22, padding: 0, borderRadius: "50%" }}
-        />
-        <span
-          aria-label={t("home.multiplier")}
-          style={{ minWidth: 30, textAlign: "center", fontWeight: 700, fontSize: 12 }}
+          {...getMultiplierStepHandlers(studentId, -1, multiplier <= 1)}
         >
-          x{multiplier}
-        </span>
-        <Button
-          type="text"
-          size="small"
-          icon={<PlusOutlined />}
+          <MinusOutlined />
+        </button>
+        {isEditing ? (
+          <input
+            className="ss-multiplier-stepper-input"
+            aria-label={t("home.multiplier")}
+            autoFocus
+            inputMode="numeric"
+            value={editingMultiplier.draft}
+            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => {
+              const draft = event.target.value.replace(/\D/g, "").slice(0, 3)
+              setEditingMultiplier({ studentId, draft })
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === "Enter") {
+                event.preventDefault()
+                event.currentTarget.blur()
+              } else if (event.key === "Escape") {
+                event.preventDefault()
+                multiplierEditCancelledRef.current = true
+                event.currentTarget.blur()
+              }
+            }}
+            onBlur={finishMultiplierEdit}
+          />
+        ) : (
+          <span
+            className="ss-multiplier-stepper-value"
+            aria-label={t("home.multiplier")}
+            title={t("home.multiplierEditHint")}
+            onDoubleClick={(event) => {
+              event.stopPropagation()
+              startMultiplierEdit(studentId)
+            }}
+          >
+            x{multiplier}
+          </span>
+        )}
+        <button
+          type="button"
+          className="ss-multiplier-stepper-btn"
+          disabled={multiplier >= MAX_STUDENT_MULTIPLIER}
           aria-label={t("home.multiplierIncrease")}
-          onClick={() => updateStudentMultiplier(studentId, 1)}
-          style={{ width: 22, height: 22, minWidth: 22, padding: 0, borderRadius: "50%" }}
-        />
+          {...getMultiplierStepHandlers(studentId, 1, multiplier >= MAX_STUDENT_MULTIPLIER)}
+        >
+          <PlusOutlined />
+        </button>
       </div>
     )
   }
@@ -2883,6 +2968,7 @@ export const Home: React.FC<HomeProps> = ({
           }}
           styles={{ body: { padding: isPortraitMode ? "10px 12px" : "12px" } }}
         >
+          {renderMultiplierControls(student.id, "corner")}
           {rankBadge && (
             <div
               style={{
@@ -3023,7 +3109,6 @@ export const Home: React.FC<HomeProps> = ({
                   >
                     {student.name}
                   </div>
-                  {renderMultiplierControls(student.id, "inline")}
                 </div>
                 {useHomeStats && renderHomeStatRow(student)}
                 {!useHomeStats && (

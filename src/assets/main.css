@@ -1723,3 +1723,97 @@ html.platform-macos body {
     animation: none !important;
   }
 }
+
+/* 主界面批量模式的学生倍率步进器 */
+.ss-multiplier-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: 82px;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 1px 2px;
+  flex-shrink: 0;
+  border: 1px solid
+    color-mix(in srgb, var(--ant-color-primary, #1677ff) 30%, var(--ss-border-color));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 10%, var(--ss-card-bg));
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.12);
+  cursor: default;
+}
+
+.ss-multiplier-stepper-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ss-text-main);
+  font-size: 11px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 纵向扩大触控热区，不改变视觉尺寸 */
+.ss-multiplier-stepper-btn::after {
+  content: "";
+  position: absolute;
+  inset: -8px -2px;
+}
+
+.ss-multiplier-stepper-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 14%, transparent);
+}
+
+.ss-multiplier-stepper-btn:not(:disabled):active {
+  background: color-mix(in srgb, var(--ant-color-primary, #1677ff) 26%, transparent);
+}
+
+.ss-multiplier-stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ss-multiplier-stepper-btn:focus-visible {
+  outline: 2px solid var(--ant-color-primary, #1677ff);
+  outline-offset: 1px;
+}
+
+.ss-multiplier-stepper-value,
+.ss-multiplier-stepper-input {
+  flex: 1;
+  min-width: 0;
+  color: var(--ss-text-main);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-multiplier-stepper-value {
+  cursor: text;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ss-multiplier-stepper-input {
+  width: 100%;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--ant-color-primary, #1677ff);
+  border-radius: 6px;
+  outline: none;
+  background: var(--ss-card-bg);
+  font-family: inherit;
+  user-select: text;
+}
